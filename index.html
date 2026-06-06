@@ -155,6 +155,23 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,sans-serif;
       <input type="range" min="50" max="100" step="10" value="100" oninput="setCfg('full_burst_threshold',+this.value,'v-fbt')">
     </div>
     <div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border);">
+      <div class="cfg-title">🎯 温存ポリシー</div>
+      <div class="cfg-row" style="display:flex;align-items:center;gap:6px;">
+        <input type="checkbox" id="c-tenya" checked style="accent-color:var(--accent)"
+               onchange="CFG.tenya_only_when_depleted=this.checked;runSim()">
+        <label for="c-tenya" style="margin:0;">天矢乱舞は枯渇時のみ</label>
+      </div>
+      <div class="cfg-row" style="display:flex;align-items:center;gap:6px;">
+        <input type="checkbox" id="c-inori" checked style="accent-color:var(--accent)"
+               onchange="CFG.inori_reserve=this.checked;runSim()">
+        <label for="c-inori" style="margin:0;">現神の祈りを温存</label>
+      </div>
+      <div class="cfg-row">
+        <label>祈り発動の枯渇閾値: <span class="cfg-val" id="v-iw">70</span></label>
+        <input type="range" min="30" max="100" step="5" value="70" oninput="setCfg('inori_warn',+this.value,'v-iw')">
+      </div>
+    </div>
+    <div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border);">
       <div class="cfg-title">📖 凡例</div>
       <div style="font-size:10px;color:var(--muted);line-height:2.1;">
         <div><span style="color:var(--green)">●</span> 5人フルバースト</div>
@@ -254,7 +271,11 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,sans-serif;
 // ===== DATA =====
 const CFG = {
   renri_cap_per_turn:5, count_normal_channel:false, judg_max_per_turn:6,
-  tenya_from_turn:2, full_burst_threshold:100, machine_bg_per_robot:5, keigyo_max:15
+  tenya_from_turn:2, full_burst_threshold:100, machine_bg_per_robot:5, keigyo_max:15,
+  // 温存ポリシー: 枯渇していないターンでは天矢乱舞・現神の祈りを切らない
+  tenya_only_when_depleted:true,   // 天矢乱舞: フルバースト不足時のみ発動
+  inori_reserve:true,              // 現神の祈り: 枯渇接近時のみ発動(温存)
+  inori_warn:70                    // 味方最小ゲージがこの値未満で「枯渇接近」と判定
 };
 const BG = {inori:100,funki:10,absolute:20,sleur:15,legend:10,
             pactcore:100,arrive:100,cascade:10,yamato_max:200,other_max:100};
@@ -407,10 +428,12 @@ class Sim {
     };
 
     // ── 押し順メインシーケンス ──
-    // 1) ロボ土台
-    if(rdy('banoshik')){ this.robot=3; act('banoshik'); }
-    if(rdy('droid'))   { this.robot=3; act('droid'); }
-    drainFunki();
+    // 1) ロボ土台: バノーシク+ドロイドを必ず赤アビより先に展開しきる。
+    //    ドロイドは味方の赤アビ火力を底上げするため、この間はdrainJudg(赤)を走らせない。
+    if(rdy('banoshik')){ this.robot=3; this.use('banoshik',T,ord); }
+    if(rdy('droid'))   { this.robot=3; this.use('droid',T,ord); }
+    // ロボ展開後に初めてドレイン開始(以降ジャッジはドロイド展開済み状態で発動)
+    drainJudg(); drainFunki();
 
     // 2) 黄バフ(各使用後にドレイン済み)
     if(rdy('puvoir'))   act('puvoir');
@@ -424,7 +447,11 @@ class Sim {
     for(let i=0;i<lu;i++) act('legend',()=>this.addG(e100?CHARS:['edison','elaine'],BG.legend));
     if(rdy('amplifa')) act('amplifa');
     drainFunki();
-    if(rdy('inori'))    act('inori',()=>{ this.addG(['yamato'],BG.inori); this.inori_p=0; });
+    // 現神の祈り: 温存。枯渇が接近した(味方最小ゲージ<inori_warn)ターンでのみ発動して
+    // ヤマト+100＆2T後の天矢乱舞リセットを仕込み、連続フルバーストの立て直し札にする。
+    const minAlly=Math.min(...CHARS.filter(c=>c!=='yamato').map(c=>this.g[c]));
+    const inoriOK = !CFG.inori_reserve || minAlly < CFG.inori_warn;
+    if(rdy('inori') && inoriOK) act('inori',()=>{ this.addG(['yamato'],BG.inori); this.inori_p=0; });
     if(rdy('ifishant')) act('ifishant',()=>{
       for(const k of Object.keys(this.cd)) if(k!=='ifishant'&&this.cd[k]>0) this.cd[k]--;
     });
@@ -440,7 +467,12 @@ class Sim {
       this.burst('hecate',bset,T);
       drainJudg(); drainFunki();
     }
-    if(t>=CFG.tenya_from_turn&&rdy('tenya')){
+    // 天矢乱舞: ゲージが十分ならフルバーストは天矢なしで成立するので温存。
+    // 1度使うと再使用は同一ターン中のみ→枯渇ターンの立て直しに取っておく。
+    // 赤フェイズ時点でフルバースト閾値未満の味方がいる(=枯渇)場合のみ発動。
+    const shortCount = CHARS.filter(c=>this.g[c]<CFG.full_burst_threshold).length;
+    const tenyaOK = !CFG.tenya_only_when_depleted || shortCount>0;
+    if(t>=CFG.tenya_from_turn&&rdy('tenya')&&tenyaOK){
       const tidx=ord.length; // 天矢乱舞エントリのインデックスを記録(後でジャッジが割り込んでも更新可)
       this.use('tenya',T,ord,'①');
       this.burst('yamato',bset,T); drainJudg(); drainFunki();
