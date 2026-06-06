@@ -302,6 +302,22 @@ const LABEL = {
   divinus:"ディウィヌス",alone:"アロンブレイク",legend:"レジェンド(+10)",
   knights:"ナイツサプレス(契-3)",pactcore:"PactCore",
 };
+// ===== バフ/デバフ効果テーブル（暫定値・編集可能） =====
+// s:適用先 party=味方全体 self=自身 enemy=敵  k:効果カテゴリ  v:倍率  d:持続ターン
+// ※実数値は要調整。火力指数は「効果が攻撃/バースト時に乗っているか」の相対比較が目的。
+const STAT = {
+  atk:'攻撃UP', elem:'光攻撃UP', given:'与ダメUP', cap:'ダメ上限UP',
+  edef:'敵防御DOWN', bresist:'バースト耐性DOWN'
+};
+const BUFFS = {
+  puvoir:  [{s:'party',k:'elem',v:0.50,d:3},{s:'party',k:'cap',v:0.30,d:3}],
+  absolute:[{s:'party',k:'atk', v:0.40,d:3}],
+  amplifa: [{s:'party',k:'given',v:0.50,d:3}],   // アビ/与ダメ底上げ
+  droid:   [{s:'party',k:'atk', v:0.20,d:3}],     // 赤ロボ＝味方火力底上げ
+  legend:  [{s:'party',k:'given',v:0.10,d:2}],
+  divinus: [{s:'enemy',k:'edef',v:0.25,d:3}],
+  knights: [{s:'enemy',k:'bresist',v:0.20,d:3}],
+};
 // CDs that need CT display (non-zero CD abilities)
 const CD_SHOW = {
   banoshik:"バノーシク",droid:"ドロイド",ifishant:"イフィシャント",
@@ -319,12 +335,14 @@ class Sim {
       this.mooncode=init.mooncode; this.robot=init.robot;
       this.ycount=init.ycount; this.inori_p=init.inori_p; this.helix_done=init.helix_done;
       this.mburst=init.mburst||0;
+      this.buffs=(init.buffs||[]).map(b=>({...b}));
     } else {
       this.g=Object.fromEntries(CHARS.map(c=>[c,BG.other_max]));
       this.cd=Object.fromEntries(Object.keys(ABIL).map(k=>[k,0]));
       this.keigyo=4; this.cum=4; this.renri=0;
       this.mooncode=2; this.robot=0; this.ycount=0; this.inori_p=null; this.helix_done=false;
       this.mburst=0;
+      this.buffs=[];
     }
     this.gmax=Object.fromEntries(CHARS.map(c=>[c,c==='yamato'?BG.yamato_max:BG.other_max]));
     this.planning=false;
@@ -334,6 +352,37 @@ class Sim {
     for(const k of Object.keys(this.cd)) if(this.cd[k]>0) this.cd[k]--;
     if(this.robot>0) this.robot--;
     if(this.mooncode>0) this.mooncode--;
+    // バフ/デバフ残ターン減算（0以下は失効）
+    this.buffs=this.buffs.filter(b=>{ b.left--; return b.left>0; });
+  }
+
+  // バフ付与: 同一アビ由来の同効果は重複させず残Tをリフレッシュ（別アビの同効果は加算）
+  applyBuffs(name){
+    const list=BUFFS[name]; if(!list) return;
+    for(const b of list){
+      const ex=this.buffs.find(x=>x.src===name&&x.k===b.k);
+      if(ex){ ex.left=b.d; ex.v=b.v; }
+      else this.buffs.push({src:name,s:b.s,k:b.k,v:b.v,left:b.d});
+    }
+  }
+
+  sumStat(k){ return this.buffs.filter(b=>b.k===k).reduce((s,b)=>s+b.v,0); }
+
+  // 火力指数（無バフ=1.00基準の相対値）。isBurst時のみバースト耐性DOWNが乗る
+  dmgIndex(isBurst){
+    const off=(1+this.sumStat('atk')+this.sumStat('elem'))*(1+this.sumStat('given'))*(1+this.sumStat('cap'));
+    const mit=(1+this.sumStat('edef'))*(isBurst?(1+this.sumStat('bresist')):1);
+    return off*mit;
+  }
+
+  // 表示用: カテゴリ毎に合算したアクティブバフ一覧（残Tは最大値）
+  buffSummary(){
+    const m={};
+    for(const b of this.buffs){
+      if(!m[b.k]) m[b.k]={k:b.k,v:0,left:0,scope:b.s};
+      m[b.k].v+=b.v; m[b.k].left=Math.max(m[b.k].left,b.left);
+    }
+    return Object.values(m);
   }
 
   addG(targets, amt, excl=null) {
@@ -388,6 +437,7 @@ class Sim {
       if(T.yellow%4===0&&T.fr<3){ this.cd.funki=0; T.fr++; }
     }
     this.procR(T,'a');
+    this.applyBuffs(name);
     ord.push(LABEL[name]+(note||''));
   }
 
@@ -538,13 +588,17 @@ class Sim {
       }
     }
 
-    // 攻撃フェイズ
+    // 攻撃フェイズ（全バフ・デバフ適用後＝この時点のバフ状態で攻撃/バーストが入る）
+    const buffsAtAtk=this.buffSummary();
+    const dmgBurst=this.dmgIndex(true), dmgNormal=this.dmgIndex(false);
     const atk=[];
     for(const c of CHARS){
       if(this.g[c]>=CFG.full_burst_threshold){
         this.g[c]-=100; this.burst(c,bset,T,true); atk.push(c);
       }
     }
+    // ターン火力指数: バースト火力(指数)×バースト数 + 通常火力(指数)
+    const power=Math.round((dmgBurst*T.burst + dmgNormal)*100)/100;
 
     // ターン終了
     const tbr=Math.min(Math.floor(T.burst/2),CFG.renri_cap_per_turn);
@@ -566,6 +620,7 @@ class Sim {
       judg_reset:T.judg_reset,judg_waste:T.judg_waste,mobius_this:T.mobius,
       rt,renri:this.renri,keigyo:this.keigyo,cum:this.cum,
       mooncode:this.mooncode,ycount:this.ycount,helix,robot:this.robot,
+      buffs:buffsAtAtk,dmgBurst,dmgNormal,power,
       gauge:{...this.g}, state:this.snap()
     };
   }
@@ -573,7 +628,8 @@ class Sim {
   snap(){
     return{g:{...this.g},cd:{...this.cd},keigyo:this.keigyo,cum:this.cum,
       renri:this.renri,mooncode:this.mooncode,robot:this.robot,
-      ycount:this.ycount,inori_p:this.inori_p,helix_done:this.helix_done,mburst:this.mburst};
+      ycount:this.ycount,inori_p:this.inori_p,helix_done:this.helix_done,mburst:this.mburst,
+      buffs:this.buffs.map(b=>({...b}))};
   }
 }
 
@@ -620,6 +676,23 @@ function loopsHTML(r){
   </div>`;
 }
 
+function buffsHTML(buffs,dmgBurst){
+  const scopeCls={party:'bg',self:'bp',enemy:'br'};
+  const items=buffs.length
+    ? buffs.map(b=>{
+        const cls=scopeCls[b.scope]||'bm';
+        const pct=Math.round(b.v*100);
+        return `<span class="badge ${cls}" title="${b.scope}">${STAT[b.k]} +${pct}% <span style="opacity:.7">${b.left}T</span></span>`;
+      }).join(' ')
+    : '<span style="color:var(--muted);font-size:10px;">バフなし</span>';
+  return `<div style="margin-bottom:8px;">
+    <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">
+      攻撃/バースト時の効果 <span style="color:var(--yellow);font-weight:700;">火力指数 ×${(dmgBurst||1).toFixed(2)}</span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:3px;">${items}</div>
+  </div>`;
+}
+
 function cdBadgesHTML(cd){
   return Object.entries(CD_SHOW).map(([k,v])=>{
     const n=cd[k]||0, cls=n===0?'bg':(n<=2?'bo':'bm');
@@ -658,6 +731,7 @@ function cardHTML(r,first=false){
         <span class="badge bp">バ×${r.burst}</span>
         <span class="badge bp">アビ×${r.ability}</span>
         <span class="badge ${r.ju>0?'br':'bm'}">J×${r.ju}</span>
+        <span class="badge bo" title="火力指数(無バフ=1.00基準)">🔥${r.power}</span>
         <span class="badge bp">連理${r.renri}/30</span>
       </div>
       <div style="display:flex;align-items:center;gap:7px;">
@@ -667,6 +741,7 @@ function cardHTML(r,first=false){
     </div>
     <div class="card-body${first?'':' collapsed'}" id="cb-${r.t}">
       <div class="action-order">${ordHtml}</div>
+      ${buffsHTML(r.buffs,r.dmgBurst)}
       ${loopsHTML(r)}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
         <div>
@@ -707,12 +782,13 @@ function renderSim(){
       <div class="summary-stat"><span class="val">${fin.cum}</span><span class="lbl">累計契晶</span></div>
       <div class="summary-stat"><span class="val">${rows.reduce((s,r)=>s+r.burst,0)}</span><span class="lbl">総バースト</span></div>
       <div class="summary-stat"><span class="val">${rows.reduce((s,r)=>s+r.ability,0)}</span><span class="lbl">総アビ</span></div>
+      <div class="summary-stat"><span class="val" style="color:var(--orange)">🔥${Math.round(rows.reduce((s,r)=>s+r.power,0)*10)/10}</span><span class="lbl">総火力指数</span></div>
     </div>
     <table class="summary-table">
-      <tr><th>T</th><th>FB</th><th>バースト</th><th>アビ</th><th>ロボ作動</th><th>ジャッジ</th><th>連理累計</th><th>契晶(現/累)</th><th>🌙ムーン</th></tr>
+      <tr><th>T</th><th>FB</th><th>バースト</th><th>アビ</th><th>ロボ作動</th><th>ジャッジ</th><th>🔥火力</th><th>連理累計</th><th>契晶(現/累)</th><th>🌙ムーン</th></tr>
       ${rows.map(r=>{
         const fb2=r.full?`<span class="tg">✅5人</span>`:`<span class="to">${r.atk.length}人</span>`;
-        return `<tr><td><b>T${r.t}</b></td><td>${fb2}</td><td>${r.burst}</td><td>${r.ability}</td><td>${r.ra}</td><td>${r.ju}</td><td>${r.renri}/30</td><td>${r.keigyo}/${r.cum}</td><td>${r.mooncode}T</td></tr>`;
+        return `<tr><td><b>T${r.t}</b></td><td>${fb2}</td><td>${r.burst}</td><td>${r.ability}</td><td>${r.ra}</td><td>${r.ju}</td><td><span class="to">${r.power}</span></td><td>${r.renri}/30</td><td>${r.keigyo}/${r.cum}</td><td>${r.mooncode}T</td></tr>`;
       }).join('')}
     </table>`;
   document.getElementById('sim-results').innerHTML=rows.map((r,i)=>cardHTML(r,i===0)).join('');
@@ -804,6 +880,11 @@ function calcInteractive(){
   if(r.robot===0&&r.ra===0) warns.push('⚠ ロボ未展開: マシーンタクトゥBGなし');
   if(r.rt===0&&r.renri<30) warns.push('⚠ 連理魔力: このターン加算なし');
   if(r.judg_waste>0) warns.push(`⚠ ジャッジ即使用フラグ ${r.judg_waste}回 無駄（CD0時のリセット/重複不可）`);
+  // 攻撃時に主要バフ/デバフが乗っていなければ警告（火力ロス）
+  const haveK=k=>r.buffs.some(b=>b.k===k);
+  if(!haveK('atk')&&!haveK('elem')) warns.push('⚠ 攻撃/属性UPが攻撃時に未付与（火力ロス）');
+  if(!haveK('edef')) warns.push('⚠ 敵防御DOWN(ディウィヌス)が未付与');
+  if(!haveK('bresist')) warns.push('⚠ バースト耐性DOWN(ナイツ)が未付与＝バースト火力ロス');
   if(r.helix) warns.push('★ HELIX解禁！テトラのゴッド・オムニポンテス＆フェイト・イモータル有効');
 
   const steps=r.ord.map((o,i)=>{
@@ -818,6 +899,10 @@ function calcInteractive(){
     ${warns.length?`<div class="result-warn">${warns.join('<br>')}</div>`:''}
     <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;margin-bottom:7px;">押し順 (${r.ord.length}アクション)</div>
     <div style="background:#12122a;border-radius:6px;padding:10px 11px;margin-bottom:11px;border:1px solid var(--border);">${steps}</div>
+    <div style="background:#12122a;border-radius:6px;padding:10px 11px;margin-bottom:11px;border:1px solid var(--border);">
+      ${buffsHTML(r.buffs,r.dmgBurst)}
+      <div style="font-size:11px;color:var(--muted);">ターン火力指数: <b style="color:var(--orange)">🔥${r.power}</b>（バースト×${r.dmgBurst.toFixed(2)} / 通常×${r.dmgNormal.toFixed(2)}）</div>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:11px;">
       <div>
         <div style="font-size:10px;color:var(--muted);margin-bottom:5px;">ターン後ゲージ</div>
