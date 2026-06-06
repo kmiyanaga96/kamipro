@@ -309,14 +309,25 @@ const STAT = {
   atk:'攻撃UP', elem:'光攻撃UP', given:'与ダメUP', cap:'ダメ上限UP',
   edef:'敵防御DOWN', bresist:'バースト耐性DOWN'
 };
+const BIG = 999; // 累積バフ＝戦闘中持続（実質失効しない）
+// 発動時に付与されるバフ（acc:true=累積／毎回スタック加算, max=合算上限）
 const BUFFS = {
-  puvoir:  [{s:'party',k:'elem',v:0.50,d:3},{s:'party',k:'cap',v:0.30,d:3}],
+  // プヴワール: 光属性攻撃・ダメージ上限UP（累積／CD2で多用＝大きく伸びる）
+  puvoir:  [{s:'party',k:'elem',v:0.15,d:BIG,acc:true,max:0.90},
+            {s:'party',k:'cap', v:0.08,d:BIG,acc:true,max:0.50}],
+  // アブソリュート: 攻撃・全攻撃性能UP（タイマー式）
   absolute:[{s:'party',k:'atk', v:0.40,d:3}],
-  amplifa: [{s:'party',k:'given',v:0.50,d:3}],   // アビ/与ダメ底上げ
-  droid:   [{s:'party',k:'atk', v:0.20,d:3}],     // 赤ロボ＝味方火力底上げ
-  legend:  [{s:'party',k:'given',v:0.10,d:2}],
-  divinus: [{s:'enemy',k:'edef',v:0.25,d:3}],
-  knights: [{s:'enemy',k:'bresist',v:0.20,d:3}],
+  // アンプリファ: 自身のみアビダメプラス
+  amplifa: [{s:'self', k:'given',v:0.30,d:BIG}],
+  // ディウィヌス: 敵 攻防・与ダメDOWN（必中・タイマー）
+  divinus: [{s:'enemy',k:'edef',v:0.25,d:6}],
+  // ナイツ: 敵 バースト攻撃耐性DOWN（必中）
+  knights: [{s:'enemy',k:'bresist',v:0.20,d:6}],
+};
+// ロボ作動連動の累積バフ（use内で付与）: バノーシク=黄アビ毎に攻防UP / ドロイド=赤アビ毎にアビ性能UP
+const ROBO_ACC = {
+  y:{src:'banoshik',s:'party',k:'atk',  inc:0.05,max:0.80},
+  r:{src:'droid',   s:'party',k:'given',inc:0.05,max:0.60},
 };
 // CDs that need CT display (non-zero CD abilities)
 const CD_SHOW = {
@@ -356,14 +367,25 @@ class Sim {
     this.buffs=this.buffs.filter(b=>{ b.left--; return b.left>0; });
   }
 
-  // バフ付与: 同一アビ由来の同効果は重複させず残Tをリフレッシュ（別アビの同効果は加算）
+  // バフ付与: タイマー式は残Tリフレッシュ／累積式(acc)は上限まで加算（別アビの同効果は別枠で加算）
   applyBuffs(name){
     const list=BUFFS[name]; if(!list) return;
     for(const b of list){
       const ex=this.buffs.find(x=>x.src===name&&x.k===b.k);
-      if(ex){ ex.left=b.d; ex.v=b.v; }
-      else this.buffs.push({src:name,s:b.s,k:b.k,v:b.v,left:b.d});
+      if(ex){
+        if(b.acc) ex.v=Math.min((b.max??Infinity), ex.v+b.v);
+        ex.left=b.d;
+      } else {
+        this.buffs.push({src:name,s:b.s,k:b.k,v:b.v,left:b.d});
+      }
     }
+  }
+
+  // ロボ作動連動の累積バフ（黄/赤アビをロボ展開中に使う度に加算）
+  accBuff(spec){
+    const ex=this.buffs.find(x=>x.src===spec.src&&x.k===spec.k);
+    if(ex) ex.v=Math.min(spec.max, ex.v+spec.inc);
+    else this.buffs.push({src:spec.src,s:spec.s,k:spec.k,v:spec.inc,left:BIG});
   }
 
   sumStat(k){ return this.buffs.filter(b=>b.k===k).reduce((s,b)=>s+b.v,0); }
@@ -431,7 +453,7 @@ class Sim {
   use(name, T, ord, note='') {
     const [,color,cd,cost]=ABIL[name];
     this.cd[name]=cd; if(cost) this.keigyo-=cost; T.ability++;
-    if((color==='y'||color==='r')&&this.robot>0) T.ra++;
+    if((color==='y'||color==='r')&&this.robot>0){ T.ra++; if(ROBO_ACC[color]) this.accBuff(ROBO_ACC[color]); }
     if(color==='y'){
       T.yellow++;
       if(T.yellow%4===0&&T.fr<3){ this.cd.funki=0; T.fr++; }
