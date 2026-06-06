@@ -170,9 +170,14 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
         <label for="c-tenya" style="margin:0;">天矢乱舞は枯渇時のみ</label>
       </div>
       <div class="cfg-row" style="display:flex;align-items:center;gap:6px;">
+        <input type="checkbox" id="c-inori-fp" checked style="accent-color:var(--accent)"
+               onchange="CFG.inori_firepower=this.checked;runSim()">
+        <label for="c-inori-fp" style="margin:0;">現神の祈り火力発動(CD明け次第)</label>
+      </div>
+      <div class="cfg-row" style="display:flex;align-items:center;gap:6px;">
         <input type="checkbox" id="c-inori" checked style="accent-color:var(--accent)"
                onchange="CFG.inori_reserve=this.checked;runSim()">
-        <label for="c-inori" style="margin:0;">現神の祈り先読み温存</label>
+        <label for="c-inori" style="margin:0;">現神の祈り先読み温存(火力OFF時)</label>
       </div>
       <div class="cfg-row">
         <label>先読みプランナー horizon: <span class="cfg-val" id="v-la">3</span>T</label>
@@ -288,6 +293,7 @@ const CFG = {
   tenya_from_turn:2, full_burst_threshold:100, machine_bg_per_robot:5, keigyo_max:15,
   tenya_only_when_depleted:true,
   inori_reserve:true,
+  inori_firepower:true,            // 現神の祈りを火力貢献目的でCD明け次第発動
   lookahead_turns:3                // 先読みプランナーの予測ターン数
 };
 const BG = {inori:100,funki:10,absolute:20,sleur:15,legend:10,
@@ -321,7 +327,7 @@ const LABEL = {
 // ※実数値は要調整。火力指数は「効果が攻撃/バースト時に乗っているか」の相対比較が目的。
 const STAT = {
   atk:'攻撃UP', elem:'光攻撃UP', given:'与ダメUP', cap:'ダメ上限UP',
-  edef:'敵防御DOWN', bresist:'バースト耐性DOWN'
+  bperf:'バースト性能UP', edef:'敵防御DOWN', bresist:'バースト耐性DOWN'
 };
 const BIG = 999; // 累積バフ＝戦闘中持続（実質失効しない）
 // 発動時に付与されるバフ（acc:true=累積／毎回スタック加算, max=合算上限）
@@ -337,6 +343,8 @@ const BUFFS = {
   divinus: [{s:'enemy',k:'edef',v:0.25,d:6}],
   // ナイツ: 敵 バースト攻撃耐性DOWN（必中）
   knights: [{s:'enemy',k:'bresist',v:0.20,d:6}],
+  // 現神の祈り: ヤマトのバースト性能大幅UP（火力貢献。本来は発動ターン終了時付与）
+  inori:   [{s:'self',k:'bperf',v:0.60,d:3}],
 };
 // ロボ作動連動の累積バフ（use内で付与）: バノーシク=黄アビ毎に攻防UP / ドロイド=赤アビ毎にアビ性能UP
 const ROBO_ACC = {
@@ -407,7 +415,7 @@ class Sim {
   // 火力指数（無バフ=1.00基準の相対値）。isBurst時のみバースト耐性DOWNが乗る
   dmgIndex(isBurst){
     const off=(1+this.sumStat('atk')+this.sumStat('elem'))*(1+this.sumStat('given'))*(1+this.sumStat('cap'));
-    const mit=(1+this.sumStat('edef'))*(isBurst?(1+this.sumStat('bresist')):1);
+    const mit=(1+this.sumStat('edef'))*(isBurst?(1+this.sumStat('bresist')+this.sumStat('bperf')):1);
     return off*mit;
   }
 
@@ -569,14 +577,20 @@ class Sim {
     for(let i=0;i<lu;i++) actY('legend',()=>this.addG(e100?CHARS:['edison','elaine'],BG.legend));
     drainFunki(false);
 
-    // 現神の祈り: 先読みプランナーで2T以内のFB失敗を検知したら今仕込む
-    // (使用ターンを1T目とし、2T目終了で天矢乱舞CDリセット→枯渇ターンの立て直し)
+    // 現神の祈り: 火力モードならCD明け次第発動（バースト性能大幅UP＋天矢乱舞解放。CD14で頻度は自然に制限）。
+    // 火力モードOFF時は従来通り＝先読みで2T以内のFB失敗を検知した時だけ温存発動。
     if(rdy('inori')){
-      const doInori = !CFG.inori_reserve || (() => {
-        if(this.planning) return false;
+      let doInori;
+      if(CFG.inori_firepower){
+        doInori = true;                 // 火力貢献目的: 撃てる時に撃つ
+      } else if(!CFG.inori_reserve){
+        doInori = true;
+      } else if(this.planning){
+        doInori = false;
+      } else {
         const fail=this.predictFirstFail(t, CFG.lookahead_turns||3);
-        return fail!==null && fail<=2;
-      })();
+        doInori = fail!==null && fail<=2;
+      }
       if(doInori) actY('inori',()=>{ this.addG(['yamato'],BG.inori); this.inori_p=0; });
     }
 
