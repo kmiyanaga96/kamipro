@@ -445,6 +445,14 @@ class Sim {
       bset.add(owner);
       if(owner==='edison'){ this.cd.droid=Math.max(0,this.cd.droid-1); this.cd.banoshik=Math.max(0,this.cd.banoshik-1); }
     } else { this.procR(T,'b'); }
+    // テトラバースト効果: 自身のアビCD全て-1（誘発バーストでもジャッジ自体は非対象）
+    if(owner==='tetra'){
+      const skip=atk?[]:['judg']; // 攻撃フェーズのバーストは全対象、誘発はjudg除外
+      for(const k of Object.keys(this.cd)){
+        if(skip.includes(k)) continue;
+        if(this.cd[k]>0) this.cd[k]--;
+      }
+    }
     // モビウスムーンズ: party burst 5回毎にヘカテーのアビCD全リセット
     this.mburst++;
     if(this.mburst%5===0){ this.cd.puvoir=0; this.cd.effond=0; this.cd.sleur=0; T.mobius=(T.mobius||0)+1; }
