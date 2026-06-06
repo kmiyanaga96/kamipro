@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>神姫 光バーストトラッカー</title>
+<style>
+:root{--bg:#0d0d1a;--card:#16162a;--card2:#1e1e35;--border:#2a2a4a;
+  --accent:#7c6df0;--accent2:#a89af0;--green:#00c49a;--orange:#ffc266;
+  --red:#ff6b6b;--text:#d0d0f0;--muted:#7070a0;--yellow:#ffe066;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,sans-serif;
+  background:var(--bg);color:var(--text);min-height:100vh;font-size:13px;line-height:1.5;}
+.header{background:linear-gradient(135deg,#1a1040,#0d1a30);border-bottom:2px solid var(--accent);
+  padding:10px 20px;display:flex;align-items:center;gap:12px;}
+.header h1{font-size:15px;color:var(--accent2);font-weight:700;}
+.header .sub{font-size:11px;color:var(--muted);}
+.tabs{display:flex;gap:2px;background:var(--card);border-bottom:1px solid var(--border);padding:0 16px;}
+.tab{padding:9px 16px;cursor:pointer;border-bottom:3px solid transparent;color:var(--muted);
+  font-size:13px;font-weight:600;transition:all .15s;user-select:none;}
+.tab.active{border-bottom-color:var(--accent);color:var(--accent2);}
+.tab:hover:not(.active){color:var(--text);}
+.layout{display:flex;height:calc(100vh - 82px);}
+.sidebar{width:230px;min-width:230px;background:var(--card);border-right:1px solid var(--border);
+  overflow-y:auto;padding:12px;}
+.main{flex:1;overflow-y:auto;padding:14px;}
+.cfg-title{font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;
+  letter-spacing:1px;margin-bottom:10px;padding-bottom:5px;border-bottom:1px solid var(--border);}
+.cfg-row{margin-bottom:11px;}
+.cfg-row label{display:block;font-size:11px;color:var(--muted);margin-bottom:3px;}
+.cfg-val{color:var(--yellow);font-weight:700;}
+.cfg-row input[type=range]{width:100%;accent-color:var(--accent);}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border:none;
+  border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;transition:all .15s;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-primary:hover{background:#8d7ef5;}
+.btn-secondary{background:var(--card2);color:var(--text);border:1px solid var(--border);}
+.btn-secondary:hover{border-color:var(--accent);color:var(--accent2);}
+.btn-sm{padding:3px 9px;font-size:11px;}
+.controls{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+.controls label{font-size:12px;color:var(--muted);}
+.controls input[type=number]{width:56px;background:var(--card2);border:1px solid var(--border);
+  color:var(--text);padding:5px 7px;border-radius:6px;font-size:14px;text-align:center;}
+.summary-bar{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;padding:11px 14px;
+  background:var(--card);border-radius:8px;border:1px solid var(--border);}
+.summary-stat{display:flex;flex-direction:column;align-items:center;}
+.summary-stat .val{font-size:19px;font-weight:700;color:var(--accent2);}
+.summary-stat .lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+.turn-card{background:var(--card);border:1px solid var(--border);border-radius:10px;
+  margin-bottom:10px;overflow:hidden;}
+.turn-card.full-burst{border-left:4px solid var(--green);}
+.turn-card.partial{border-left:4px solid var(--orange);}
+.turn-card.helix-turn{border-left:4px solid var(--red);}
+.card-header{display:flex;align-items:center;justify-content:space-between;padding:9px 13px;
+  background:var(--card2);cursor:pointer;user-select:none;}
+.card-header:hover{background:#222240;}
+.turn-label{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.turn-num{font-size:15px;font-weight:700;color:var(--accent2);min-width:28px;}
+.badge{display:inline-flex;align-items:center;padding:2px 7px;border-radius:10px;
+  font-size:10px;font-weight:700;}
+.bg{background:rgba(0,196,154,.18);color:var(--green);}
+.bo{background:rgba(255,194,102,.18);color:var(--orange);}
+.br{background:rgba(255,107,107,.22);color:var(--red);}
+.bp{background:rgba(124,109,240,.18);color:var(--accent2);}
+.bm{background:rgba(112,112,160,.15);color:var(--muted);}
+.card-body{padding:11px 13px;}
+.card-body.collapsed{display:none;}
+.action-order{background:#12122a;border-radius:6px;padding:9px 11px;margin-bottom:9px;
+  font-size:12px;line-height:1.9;border:1px solid var(--border);}
+.gauges{display:flex;flex-direction:column;gap:4px;}
+.gauge-row{display:flex;align-items:center;gap:7px;}
+.gauge-name{width:52px;font-size:11px;color:var(--muted);text-align:right;flex-shrink:0;}
+.gauge-wrap{flex:1;height:7px;background:#1a1a30;border-radius:4px;overflow:hidden;}
+.gauge-fill{height:100%;border-radius:4px;}
+.gauge-val{width:30px;font-size:11px;color:var(--text);text-align:right;flex-shrink:0;}
+.ge{background:linear-gradient(90deg,#7c6df0,#a89af0);}
+.gy{background:linear-gradient(90deg,#e84393,#ff6eb4);}
+.gh{background:linear-gradient(90deg,#00c49a,#4dffcc);}
+.gt{background:linear-gradient(90deg,#ffc266,#ffe066);}
+.gl{background:linear-gradient(90deg,#66b3ff,#99ccff);}
+.renri-wrap{position:relative;height:11px;background:#1a1a30;border-radius:5px;overflow:hidden;margin-bottom:3px;}
+.renri-fill{height:100%;background:linear-gradient(90deg,#4d79ff,#9966ff);border-radius:5px;}
+.renri-mark{position:absolute;top:0;bottom:0;width:2px;background:rgba(255,255,255,.35);}
+.loops{display:flex;gap:7px;margin-bottom:9px;flex-wrap:wrap;}
+.loop-badge{display:flex;flex-direction:column;align-items:center;padding:3px 9px;border-radius:6px;font-size:10px;gap:1px;}
+.loop-badge .ln{color:var(--muted);}
+.loop-badge .lv{font-weight:700;font-size:12px;}
+.la{background:rgba(0,196,154,.13);}.la .lv{color:var(--green);}
+.li{background:rgba(255,107,107,.1);}.li .lv{color:#ff8888;}
+.lw{background:rgba(255,194,102,.13);}.lw .lv{color:var(--orange);}
+.lp{background:rgba(124,109,240,.13);}.lp .lv{color:var(--accent2);}
+.summary-table{width:100%;border-collapse:collapse;font-size:11px;margin-top:18px;}
+.summary-table th,.summary-table td{border:1px solid var(--border);padding:4px 8px;text-align:center;}
+.summary-table th{background:var(--card2);color:var(--accent2);font-size:10px;}
+.summary-table tr:nth-child(even) td{background:rgba(255,255,255,.02);}
+.tg{color:var(--green);font-weight:700;}.to{color:var(--orange);}
+/* Interactive */
+.ilayout{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.panel{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;}
+.panel-title{font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;
+  letter-spacing:1px;margin-bottom:10px;padding-bottom:7px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;}
+.fsec{margin-bottom:12px;}
+.fsec-title{font-size:11px;color:var(--accent2);font-weight:700;margin-bottom:7px;
+  padding:3px 0;border-bottom:1px solid var(--border);}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+.frow{display:flex;flex-direction:column;gap:3px;}
+.frow label{font-size:10px;color:var(--muted);}
+.frow input[type=number],.frow select{background:var(--card2);border:1px solid var(--border);
+  color:var(--text);padding:4px 7px;border-radius:5px;font-size:12px;width:100%;}
+.frow input[type=range]{width:100%;accent-color:var(--accent);}
+.range-disp{font-size:10px;color:var(--yellow);}
+.result-step{display:flex;align-items:flex-start;gap:7px;margin-bottom:5px;font-size:12px;}
+.step-num{width:19px;height:19px;border-radius:50%;background:var(--accent);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;}
+.result-warn{background:rgba(255,194,102,.1);border:1px solid rgba(255,194,102,.3);
+  border-radius:6px;padding:8px 11px;font-size:11px;color:var(--orange);margin-bottom:10px;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>⚡ 神姫PROJECT R — 光属性バーストトラッカー</h1>
+    <div class="sub">英霊エジソン + ヤマト / ヘカテー / テトラ / エレイン</div>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="sim" onclick="switchTab('sim')">🔄 自動シミュレーション</div>
+  <div class="tab" data-tab="interactive" onclick="switchTab('interactive')">🎮 インタラクティブ入力</div>
+</div>
+
+<div class="layout">
+  <div class="sidebar">
+    <div class="cfg-title">⚙ CONFIG（仮定パラメータ）</div>
+    <div class="cfg-row">
+      <label>天矢乱舞 開始T: <span class="cfg-val" id="v-tenya">2</span></label>
+      <input type="range" min="1" max="5" value="2" oninput="setCfg('tenya_from_turn',+this.value,'v-tenya')">
+    </div>
+    <div class="cfg-row">
+      <label>ジャッジ 同T最大: <span class="cfg-val" id="v-judg">6</span>回</label>
+      <input type="range" min="1" max="10" value="6" oninput="setCfg('judg_max_per_turn',+this.value,'v-judg')">
+    </div>
+    <div class="cfg-row">
+      <label>連理魔力 1T上限: <span class="cfg-val" id="v-renri">5</span></label>
+      <input type="range" min="1" max="8" value="5" oninput="setCfg('renri_cap_per_turn',+this.value,'v-renri')">
+    </div>
+    <div class="cfg-row">
+      <label>マシーンタクトゥ BG/作動: <span class="cfg-val" id="v-mach">5</span></label>
+      <input type="range" min="0" max="15" value="5" oninput="setCfg('machine_bg_per_robot',+this.value,'v-mach')">
+    </div>
+    <div class="cfg-row">
+      <label>フルバースト閾値: <span class="cfg-val" id="v-fbt">100</span></label>
+      <input type="range" min="50" max="100" step="10" value="100" oninput="setCfg('full_burst_threshold',+this.value,'v-fbt')">
+    </div>
+    <div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border);">
+      <div class="cfg-title">📖 凡例</div>
+      <div style="font-size:10px;color:var(--muted);line-height:2.1;">
+        <div><span style="color:var(--green)">●</span> 5人フルバースト</div>
+        <div><span style="color:var(--orange)">●</span> 部分バースト</div>
+        <div><span style="color:var(--red)">★</span> HELIX解禁ターン</div>
+        <div style="margin-top:6px;"><b style="color:var(--accent2)">ロボ</b> 展開残T</div>
+        <div><b style="color:var(--accent2)">🌙</b> ムーンコード残T</div>
+        <div><b style="color:var(--accent2)">⚡</b> 連理魔力/30</div>
+        <div><b style="color:var(--accent2)">💎</b> 契晶現在/累計</div>
+      </div>
+    </div>
+    <div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border);">
+      <div class="cfg-title">⚠ 仮定一覧</div>
+      <div style="font-size:10px;color:var(--muted);line-height:1.9;">
+        · CD規約: 使用後Nターン後再使用可<br>
+        · 天矢乱舞: 設定T以降のみ<br>
+        · ジャッジ: コヴァレントで同T最大N回<br>
+        · FB: 攻撃開始時ゲージ≥閾値<br>
+        · バフ効果Tは未追跡<br>
+        · 通常チャネル連理魔力=0
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <!-- Auto Sim -->
+    <div id="tab-sim">
+      <div class="controls">
+        <label>ターン数:</label>
+        <input type="number" id="turns-n" value="10" min="1" max="30">
+        <button class="btn btn-primary" onclick="runSim()">▶ シミュレーション実行</button>
+        <button class="btn btn-secondary" onclick="clearSim()">✕ クリア</button>
+      </div>
+      <div id="summary-bar" style="display:none;"></div>
+      <div id="sim-results"></div>
+    </div>
+
+    <!-- Interactive -->
+    <div id="tab-interactive" style="display:none;">
+      <div class="ilayout">
+        <div class="panel">
+          <div class="panel-title">
+            現在の状態入力
+            <span id="load-ok" style="font-size:10px;color:var(--green);display:none;">✓ 読み込み済</span>
+          </div>
+          <div class="fsec">
+            <div class="fsec-title">基本情報</div>
+            <div class="fgrid">
+              <div class="frow"><label>現在ターン数</label><input type="number" id="i-turn" value="1" min="1" max="50"></div>
+              <div class="frow"><label>ムーンコード残T</label><input type="number" id="i-moon" value="2" min="0" max="2"></div>
+              <div class="frow"><label>連理魔力 累計</label><input type="number" id="i-renri" value="0" min="0" max="30"></div>
+              <div class="frow"><label>ロボ残T</label><input type="number" id="i-robot" value="0" min="0" max="3"></div>
+              <div class="frow"><label>HELIX解禁</label>
+                <select id="i-helix"><option value="0">未解禁</option><option value="1">解禁済</option></select>
+              </div>
+              <div class="frow"><label>大和奮起累計</label><input type="number" id="i-ycount" value="0" min="0"></div>
+              <div class="frow"><label>祈り進行</label>
+                <select id="i-inori-p">
+                  <option value="-1">未使用/完了</option>
+                  <option value="0">使用直後(0T)</option>
+                  <option value="1">1T経過</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="fsec">
+            <div class="fsec-title">契晶</div>
+            <div class="fgrid">
+              <div class="frow"><label>現在値 (0-15)</label><input type="number" id="i-keigyo" value="4" min="0" max="15"></div>
+              <div class="frow"><label>累計獲得数</label><input type="number" id="i-cum" value="4" min="0"></div>
+            </div>
+          </div>
+          <div class="fsec">
+            <div class="fsec-title">ゲージ (BG)</div>
+            <div id="gauge-inputs"></div>
+          </div>
+          <div class="fsec">
+            <div class="fsec-title">アビリティ CT残り</div>
+            <div id="cd-inputs" class="fgrid"></div>
+          </div>
+          <button class="btn btn-primary" style="width:100%;margin-top:6px;" onclick="calcInteractive()">
+            ▶ このターンの最適押し順を計算
+          </button>
+        </div>
+        <div class="panel">
+          <div class="panel-title">推奨押し順 &amp; 結果</div>
+          <div id="i-result" style="color:var(--muted);font-size:13px;text-align:center;padding:40px 0;">
+            左のフォームを入力して「計算」を押してください
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== DATA =====
+const CFG = {
+  renri_cap_per_turn:5, count_normal_channel:false, judg_max_per_turn:6,
+  tenya_from_turn:2, full_burst_threshold:100, machine_bg_per_robot:5, keigyo_max:15
+};
+const BG = {inori:100,funki:10,absolute:20,sleur:15,legend:10,
+            pactcore:100,arrive:100,cascade:10,yamato_max:200,other_max:100};
+const CHARS = ["edison","yamato","hecate","tetra","elaine"];
+const JP = {edison:"エジソン",yamato:"ヤマト",hecate:"ヘカテー",tetra:"テトラ",elaine:"エレイン"};
+const GCLS = {edison:"ge",yamato:"gy",hecate:"gh",tetra:"gt",elaine:"gl"};
+// [owner, color, cd, keigyo_cost]
+const ABIL = {
+  banoshik:["edison","y",8,0],  droid:   ["edison","y",8,0],
+  ifishant:["edison","y",5,0],  amplifa: ["edison","y",7,0],
+  inori:   ["yamato","y",14,0], tenya:   ["yamato","r",12,0],
+  funki:   ["yamato","y",5,0],
+  puvoir:  ["hecate","y",2,0],  effond:  ["hecate","r",3,0],
+  sleur:   ["hecate","y",3,0],
+  judg:    ["tetra","r",10,0],  absolute:["tetra","y",10,0],
+  divinus: ["tetra","b",10,0],
+  alone:   ["elaine","r",0,4],  legend:  ["elaine","y",0,0],
+  knights: ["elaine","b",0,3],  pactcore:["elaine","g",0,12],
+};
+const LABEL = {
+  banoshik:"バノーシク",droid:"ドロイド",ifishant:"イフィシャント(全CD-1)",
+  amplifa:"アンプリファ",inori:"現神の祈り(ヤ+100)",tenya:"天矢乱舞",
+  funki:"大和の奮起(+10)",puvoir:"プヴワール",effond:"エフォンド",
+  sleur:"スリール(+15)",judg:"ジャッジメント",absolute:"アブソ(+20)",
+  divinus:"ディウィヌス",alone:"アロンブレイク",legend:"レジェンド(+10)",
+  knights:"ナイツサプレス(契-3)",pactcore:"PactCore",
+};
+// CDs that need CT display (non-zero CD abilities)
+const CD_SHOW = {
+  banoshik:"バノーシク",droid:"ドロイド",ifishant:"イフィシャント",
+  amplifa:"アンプリファ",inori:"現神の祈り",tenya:"天矢乱舞",
+  funki:"大和の奮起",puvoir:"プヴワール",effond:"エフォンド",
+  sleur:"スリール",judg:"ジャッジメント",absolute:"アブソ",divinus:"ディウィヌス"
+};
+
+// ===== SIM ENGINE =====
+class Sim {
+  constructor(init) {
+    if (init) {
+      this.g={...init.g}; this.cd={...init.cd};
+      this.keigyo=init.keigyo; this.cum=init.cum; this.renri=init.renri;
+      this.mooncode=init.mooncode; this.robot=init.robot;
+      this.ycount=init.ycount; this.inori_p=init.inori_p; this.helix_done=init.helix_done;
+    } else {
+      this.g=Object.fromEntries(CHARS.map(c=>[c,BG.other_max]));
+      this.cd=Object.fromEntries(Object.keys(ABIL).map(k=>[k,0]));
+      this.keigyo=4; this.cum=4; this.renri=0;
+      this.mooncode=2; this.robot=0; this.ycount=0; this.inori_p=null; this.helix_done=false;
+    }
+    this.gmax=Object.fromEntries(CHARS.map(c=>[c,c==='yamato'?BG.yamato_max:BG.other_max]));
+  }
+
+  tick() {
+    for(const k of Object.keys(this.cd)) if(this.cd[k]>0) this.cd[k]--;
+    if(this.robot>0) this.robot--;
+    if(this.mooncode>0) this.mooncode--;
+  }
+
+  addG(targets, amt, excl=null) {
+    for(const c of targets){
+      if(excl&&excl.has(c)) continue;
+      this.g[c]=Math.min(this.g[c]+amt, this.gmax[c]);
+    }
+  }
+
+  grif(owner) {
+    const gain = owner==='edison'?3:1;
+    this.keigyo=Math.min(this.keigyo+gain, CFG.keigyo_max);
+    this.cum+=gain;
+  }
+
+  procR(T, channel, usejudg=true) {
+    const crossed=(
+      (channel==='b'&&T.burst>0&&T.burst%2===0)||
+      (channel==='a'&&T.ability>0&&T.ability%12===0)
+    );
+    if(crossed&&T.proc<CFG.renri_cap_per_turn){ T.proc++; this.renri++; if(usejudg) T.jt++; }
+    if(channel==='a'&&T.ability>0&&T.ability%12===0) this.mooncode=2;
+  }
+
+  burst(owner, bset, T, atk=false) {
+    this.addG(CHARS.filter(c=>c!==owner), BG.cascade, atk?bset:null);
+    this.grif(owner); T.burst++;
+    if(atk){
+      bset.add(owner);
+      if(owner==='edison'){ this.cd.droid=Math.max(0,this.cd.droid-1); this.cd.banoshik=Math.max(0,this.cd.banoshik-1); }
+    } else { this.procR(T,'b'); }
+  }
+
+  use(name, T, ord, note='') {
+    const [,color,cd,cost]=ABIL[name];
+    this.cd[name]=cd; if(cost) this.keigyo-=cost; T.ability++;
+    if((color==='y'||color==='r')&&this.robot>0) T.ra++;
+    if(color==='y'){
+      T.yellow++;
+      if(T.yellow%4===0&&T.fr<3){ this.cd.funki=0; T.fr++; }
+    }
+    this.procR(T,'a');
+    ord.push(LABEL[name]+(note||''));
+  }
+
+  takeTurn(t) {
+    this.tick();
+    const T={ability:0,yellow:0,burst:0,proc:0,fr:0,ra:0,jt:0,tenya:0,ju:0};
+    const ord=[], bset=new Set();
+    const rdy=n=>this.cd[n]===0;
+
+    const funki=()=>{
+      this.ycount++;
+      this.addG(CHARS,BG.funki);
+      if(this.ycount%3===0) this.cd.inori=Math.max(0,this.cd.inori-1);
+      this.use('funki',T,ord);
+    };
+
+    // 1) ロボ土台
+    if(rdy('banoshik')){ this.robot=3; this.use('banoshik',T,ord); }
+    if(rdy('droid'))   { this.robot=3; this.use('droid',T,ord); }
+    // 2) 黄バフ
+    if(rdy('funki')) funki();
+    if(rdy('puvoir')) this.use('puvoir',T,ord);
+    if(rdy('sleur'))  { this.addG(CHARS,BG.sleur); this.use('sleur',T,ord); }
+    if(rdy('funki')) funki();
+    if(rdy('absolute')){ this.addG(CHARS,BG.absolute); this.use('absolute',T,ord); }
+    // レジェンド
+    let lu=this.cum>=1?2:1;
+    for(const thr of [26,51,71,80]) if(this.cum>=thr) lu++;
+    const e100=this.g.edison>=100;
+    for(let i=0;i<lu;i++){
+      this.addG(e100?CHARS:['edison','elaine'],BG.legend);
+      this.use('legend',T,ord);
+    }
+    ord.splice(ord.length-lu); ord.push(`レジェンド×${lu}(+10)`);
+    if(rdy('amplifa')) this.use('amplifa',T,ord);
+    if(rdy('funki')) funki();
+    if(rdy('inori')){ this.addG(['yamato'],BG.inori); this.inori_p=0; this.use('inori',T,ord); }
+    if(rdy('ifishant')){
+      for(const k of Object.keys(this.cd)) if(k!=='ifishant'&&this.cd[k]>0) this.cd[k]--;
+      this.use('ifishant',T,ord);
+    }
+    if(rdy('funki')) funki();
+    // 3) 青
+    if(rdy('divinus')) this.use('divinus',T,ord);
+    if(this.keigyo>=ABIL.knights[3]) this.use('knights',T,ord);
+    // 4) 赤
+    if(rdy('effond')&&this.mooncode>0){ this.use('effond',T,ord,'→即バースト'); this.burst('hecate',bset,T); }
+    if(t>=CFG.tenya_from_turn&&rdy('tenya')){
+      this.use('tenya',T,ord,'①'); this.burst('yamato',bset,T); T.tenya=1;
+      while(T.tenya<3&&this.g.yamato>=40){
+        this.g.yamato-=40; this.burst('yamato',bset,T); T.tenya++;
+        ord[ord.length-1]=`天矢乱舞①〜${T.tenya}(-40×${T.tenya-1})`;
+      }
+    }
+    // 契晶判断
+    const rdown=this.cd.droid>0||this.cd.banoshik>0;
+    if(this.keigyo>=12&&rdown&&this.g.edison>=100){
+      this.cd.droid=Math.max(0,this.cd.droid-1);
+      this.cd.banoshik=Math.max(0,this.cd.banoshik-1);
+      this.addG(CHARS,BG.pactcore);
+      this.use('pactcore',T,ord,'(ロボ-1/全+100)');
+    } else {
+      let al=0; const _s=ord.length;
+      while(al<2&&this.keigyo>=4){ this.use('alone',T,ord); this.burst('elaine',bset,T); al++; }
+      if(al){ ord.splice(_s); ord.push(`アロンブレイク×${al}`); }
+    }
+    // ジャッジ
+    let jc=0, base=rdy('judg'); const _sj=ord.length;
+    while(T.ju<CFG.judg_max_per_turn&&(base||T.jt>0)){
+      if(base) base=false; else T.jt--;
+      this.use('judg',T,ord); T.ju++;
+      if(jc%3===1) this.burst('tetra',bset,T);
+      jc++;
+    }
+    if(T.ju){ ord.splice(_sj); ord.push(`ジャッジメント×${T.ju}(AoE/バ/通サイクル)`); }
+
+    // 攻撃フェイズ
+    const atk=[];
+    for(const c of CHARS){
+      if(this.g[c]>=CFG.full_burst_threshold){
+        this.g[c]-=100; this.burst(c,bset,T,true); atk.push(c);
+      }
+    }
+
+    // ターン終了
+    const tbr=Math.min(Math.floor(T.burst/2),CFG.renri_cap_per_turn);
+    const abr=Math.min(Math.floor(T.ability/12),CFG.renri_cap_per_turn);
+    const tgt=Math.min(tbr+abr,CFG.renri_cap_per_turn);
+    const d=tgt-T.proc;
+    if(d>0){ this.renri+=d; T.proc=tgt; }
+    const rt=T.proc;
+    this.addG(CHARS,CFG.machine_bg_per_robot*T.ra);
+    if(this.cum>=80) this.addG(['edison'],20);
+    if(t%4===0){ this.keigyo=Math.min(this.keigyo+5,CFG.keigyo_max); this.cum+=5; }
+    if(this.inori_p!==null){ this.inori_p++; if(this.inori_p===2){ this.cd.tenya=0; this.inori_p=null; } }
+    const helix=this.renri>=30&&!this.helix_done;
+    if(helix) this.helix_done=true;
+
+    return {
+      t,ord,atk,full:atk.length===5,
+      burst:T.burst,ability:T.ability,ra:T.ra,ju:T.ju,
+      rt,renri:this.renri,keigyo:this.keigyo,cum:this.cum,
+      mooncode:this.mooncode,ycount:this.ycount,helix,robot:this.robot,
+      gauge:{...this.g}, state:this.snap()
+    };
+  }
+
+  snap(){
+    return{g:{...this.g},cd:{...this.cd},keigyo:this.keigyo,cum:this.cum,
+      renri:this.renri,mooncode:this.mooncode,robot:this.robot,
+      ycount:this.ycount,inori_p:this.inori_p,helix_done:this.helix_done};
+  }
+}
+
+// ===== UI HELPERS =====
+function setCfg(k,v,id){ CFG[k]=v; document.getElementById(id).textContent=v; }
+function switchTab(tab){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
+  document.getElementById('tab-sim').style.display=tab==='sim'?'':'none';
+  document.getElementById('tab-interactive').style.display=tab==='interactive'?'':'none';
+}
+
+function gaugesHTML(g){
+  return `<div class="gauges">${CHARS.map(c=>{
+    const max=c==='yamato'?200:100, pct=Math.min(100,(g[c]/max)*100);
+    return `<div class="gauge-row">
+      <div class="gauge-name">${JP[c]}</div>
+      <div class="gauge-wrap"><div class="gauge-fill ${GCLS[c]}" style="width:${pct}%"></div></div>
+      <div class="gauge-val">${g[c]}</div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function renriHTML(r){
+  const pct=Math.min(100,(r/30)*100);
+  return `<div class="renri-wrap">
+    <div class="renri-fill" style="width:${pct}%"></div>
+    <div class="renri-mark" style="left:${(10/30)*100}%"></div>
+    <div class="renri-mark" style="left:${(20/30)*100}%"></div>
+  </div>
+  <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--muted);">
+    <span>0</span><span>10</span><span>20</span>
+    <span style="color:${r>=30?'var(--red)':'var(--muted)'}">30★</span>
+  </div>`;
+}
+
+function loopsHTML(r){
+  const rc=r.robot>0?'la':'li', mc=r.mooncode>0?'la':'lw';
+  const ec=r.renri>=30?'la':(r.renri>=20?'lw':'li');
+  return `<div class="loops">
+    <div class="loop-badge ${rc}"><span class="ln">ロボ</span><span class="lv">${r.robot}T</span></div>
+    <div class="loop-badge ${mc}"><span class="ln">🌙ムーン</span><span class="lv">${r.mooncode}T</span></div>
+    <div class="loop-badge ${ec}"><span class="ln">⚡連理</span><span class="lv">${r.renri}/30</span></div>
+    <div class="loop-badge lp"><span class="ln">💎契晶</span><span class="lv">${r.keigyo}/15</span></div>
+  </div>`;
+}
+
+function cdBadgesHTML(cd){
+  return Object.entries(CD_SHOW).map(([k,v])=>{
+    const n=cd[k]||0, cls=n===0?'bg':(n<=2?'bo':'bm');
+    return `<span class="badge ${cls}" title="${v}">${v.slice(0,4)}:${n}</span>`;
+  }).join('');
+}
+
+// ===== AUTO SIM =====
+let SIM_ROWS=[];
+const EXPANDED={};
+
+function toggleCard(t){
+  EXPANDED[t]=!EXPANDED[t];
+  document.getElementById(`cb-${t}`).classList.toggle('collapsed',!EXPANDED[t]);
+  document.getElementById(`ci-${t}`).textContent=EXPANDED[t]?'▲':'▼';
+}
+
+function cardHTML(r,first=false){
+  EXPANDED[r.t]=first;
+  const cls=r.helix?'helix-turn':(r.full?'full-burst':'partial');
+  const fb=r.full
+    ?`<span class="badge bg">✅ 5人FB</span>`
+    :`<span class="badge bo">⚠ ${r.atk.length}人 (${r.atk.map(c=>JP[c]).join(',')})</span>`;
+  const hx=r.helix?`<span class="badge br">★ HELIX!</span>`:'';
+  const ordHtml=r.ord.map((o,i)=>`<span style="color:var(--muted);font-size:10px;">${i+1}.</span> ${o}`).join(' <span style="color:var(--muted)">→</span> ');
+  return `<div class="turn-card ${cls}">
+    <div class="card-header" onclick="toggleCard(${r.t})">
+      <div class="turn-label">
+        <span class="turn-num">T${r.t}</span>${fb}${hx}
+        <span class="badge bp">バ×${r.burst}</span>
+        <span class="badge bp">アビ×${r.ability}</span>
+        <span class="badge bp">連理${r.renri}/30</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:7px;">
+        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();loadState(${r.t})">📋 →インタラクティブ</button>
+        <span style="color:var(--muted);font-size:11px;" id="ci-${r.t}">${first?'▲':'▼'}</span>
+      </div>
+    </div>
+    <div class="card-body${first?'':' collapsed'}" id="cb-${r.t}">
+      <div class="action-order">${ordHtml}</div>
+      ${loopsHTML(r)}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <div style="font-size:10px;color:var(--muted);margin-bottom:5px;">終了ゲージ</div>
+          ${gaugesHTML(r.gauge)}
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--muted);margin-bottom:5px;">連理魔力 累計${r.renri}/30</div>
+          ${renriHTML(r.renri)}
+          <div style="margin-top:9px;font-size:10px;color:var(--muted);margin-bottom:5px;">CT残り</div>
+          <div style="display:flex;flex-wrap:wrap;gap:3px;">${cdBadgesHTML(r.state.cd)}</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function runSim(){
+  const n=Math.max(1,Math.min(30,parseInt(document.getElementById('turns-n').value)||10));
+  const sim=new Sim();
+  SIM_ROWS=[];
+  for(let t=1;t<=n;t++) SIM_ROWS.push(sim.takeTurn(t));
+  renderSim();
+}
+
+function renderSim(){
+  const rows=SIM_ROWS; if(!rows.length) return;
+  const fb=rows.filter(r=>r.full).length;
+  const ht=rows.find(r=>r.helix);
+  const fin=rows[rows.length-1];
+  document.getElementById('summary-bar').style.display='';
+  document.getElementById('summary-bar').innerHTML=`
+    <div class="summary-bar">
+      <div class="summary-stat"><span class="val" style="color:var(--green)">${fb}/${rows.length}</span><span class="lbl">フルバースト</span></div>
+      <div class="summary-stat"><span class="val">${ht?`T${ht.t}`:'未達'}</span><span class="lbl">HELIX解禁</span></div>
+      <div class="summary-stat"><span class="val">${fin.renri}/30</span><span class="lbl">最終連理魔力</span></div>
+      <div class="summary-stat"><span class="val">${fin.keigyo}/15</span><span class="lbl">最終契晶</span></div>
+      <div class="summary-stat"><span class="val">${fin.cum}</span><span class="lbl">累計契晶</span></div>
+      <div class="summary-stat"><span class="val">${rows.reduce((s,r)=>s+r.burst,0)}</span><span class="lbl">総バースト</span></div>
+      <div class="summary-stat"><span class="val">${rows.reduce((s,r)=>s+r.ability,0)}</span><span class="lbl">総アビ</span></div>
+    </div>
+    <table class="summary-table">
+      <tr><th>T</th><th>FB</th><th>バースト</th><th>アビ</th><th>ロボ作動</th><th>ジャッジ</th><th>連理累計</th><th>契晶(現/累)</th><th>🌙ムーン</th></tr>
+      ${rows.map(r=>{
+        const fb2=r.full?`<span class="tg">✅5人</span>`:`<span class="to">${r.atk.length}人</span>`;
+        return `<tr><td><b>T${r.t}</b></td><td>${fb2}</td><td>${r.burst}</td><td>${r.ability}</td><td>${r.ra}</td><td>${r.ju}</td><td>${r.renri}/30</td><td>${r.keigyo}/${r.cum}</td><td>${r.mooncode}T</td></tr>`;
+      }).join('')}
+    </table>`;
+  document.getElementById('sim-results').innerHTML=rows.map((r,i)=>cardHTML(r,i===0)).join('');
+}
+
+function clearSim(){
+  SIM_ROWS=[];
+  document.getElementById('sim-results').innerHTML='';
+  document.getElementById('summary-bar').style.display='none';
+}
+
+// ===== INTERACTIVE =====
+function buildForms(){
+  // Gauges
+  let h='<div class="fgrid">';
+  for(const c of CHARS){
+    const mx=c==='yamato'?200:100;
+    h+=`<div class="frow" style="grid-column:span 2;">
+      <label>${JP[c]} BG (0-${mx}) <span class="range-disp" id="gv-${c}">100</span></label>
+      <input type="range" min="0" max="${mx}" value="100" step="1"
+             id="g-${c}" oninput="document.getElementById('gv-${c}').textContent=this.value">
+    </div>`;
+  }
+  h+='</div>';
+  document.getElementById('gauge-inputs').innerHTML=h;
+
+  // CDs
+  let ch='';
+  for(const [k,v] of Object.entries(CD_SHOW)){
+    const mx=ABIL[k][2];
+    ch+=`<div class="frow"><label>${v} CT残(0-${mx})</label><input type="number" id="cd-${k}" value="0" min="0" max="${mx}"></div>`;
+  }
+  document.getElementById('cd-inputs').innerHTML=ch;
+}
+
+function getState(){
+  const g=Object.fromEntries(CHARS.map(c=>[c,+(document.getElementById(`g-${c}`).value)]));
+  const cd=Object.fromEntries(Object.keys(ABIL).map(k=>{
+    const el=document.getElementById(`cd-${k}`); return [k,el?+el.value:0];
+  }));
+  const ip=+document.getElementById('i-inori-p').value;
+  return{g,cd,
+    keigyo:+document.getElementById('i-keigyo').value,
+    cum:+document.getElementById('i-cum').value,
+    renri:+document.getElementById('i-renri').value,
+    mooncode:+document.getElementById('i-moon').value,
+    robot:+document.getElementById('i-robot').value,
+    ycount:+document.getElementById('i-ycount').value,
+    inori_p:ip===-1?null:ip,
+    helix_done:document.getElementById('i-helix').value==='1',
+  };
+}
+
+function loadState(t){
+  const r=SIM_ROWS.find(x=>x.t===t); if(!r) return;
+  const s=r.state;
+  for(const c of CHARS){
+    const el=document.getElementById(`g-${c}`);
+    if(el){ el.value=s.g[c]; document.getElementById(`gv-${c}`).textContent=s.g[c]; }
+  }
+  for(const k of Object.keys(CD_SHOW)){
+    const el=document.getElementById(`cd-${k}`); if(el) el.value=s.cd[k]||0;
+  }
+  document.getElementById('i-keigyo').value=s.keigyo;
+  document.getElementById('i-cum').value=s.cum;
+  document.getElementById('i-renri').value=s.renri;
+  document.getElementById('i-moon').value=s.mooncode;
+  document.getElementById('i-robot').value=s.robot;
+  document.getElementById('i-ycount').value=s.ycount;
+  document.getElementById('i-helix').value=s.helix_done?'1':'0';
+  document.getElementById('i-inori-p').value=s.inori_p===null?-1:s.inori_p;
+  document.getElementById('i-turn').value=t+1;
+  document.getElementById('load-ok').style.display='';
+  switchTab('interactive');
+}
+
+function calcInteractive(){
+  const state=getState();
+  const t=+document.getElementById('i-turn').value||1;
+  const sim=new Sim(state);
+  const r=sim.takeTurn(t);
+
+  const fb=r.full
+    ?`<div class="badge bg" style="font-size:13px;padding:5px 13px;">✅ 5人フルバースト達成</div>`
+    :`<div class="badge bo" style="font-size:13px;padding:5px 13px;">⚠ ${r.atk.length}人 (${r.atk.map(c=>JP[c]).join(', ')})</div>`;
+
+  const warns=[];
+  if(r.mooncode===0) warns.push('⚠ ムーンコード切れ: エフォンド即バースト不可');
+  if(r.robot===0&&r.ra===0) warns.push('⚠ ロボ未展開: マシーンタクトゥBGなし');
+  if(r.rt===0&&r.renri<30) warns.push('⚠ 連理魔力: このターン加算なし');
+  if(r.helix) warns.push('★ HELIX解禁！テトラのゴッド・オムニポンテス＆フェイト・イモータル有効');
+
+  const steps=r.ord.map((o,i)=>`<div class="result-step"><span class="step-num">${i+1}</span><span>${o}</span></div>`).join('');
+
+  document.getElementById('i-result').innerHTML=`
+    <div style="margin-bottom:10px;">${fb}</div>
+    ${warns.length?`<div class="result-warn">${warns.join('<br>')}</div>`:''}
+    <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;margin-bottom:7px;">押し順 (${r.ord.length}アクション)</div>
+    <div style="background:#12122a;border-radius:6px;padding:10px 11px;margin-bottom:11px;border:1px solid var(--border);">${steps}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:11px;">
+      <div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:5px;">ターン後ゲージ</div>
+        ${gaugesHTML(r.gauge)}
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--muted);margin-bottom:5px;">ターン後状態</div>
+        ${loopsHTML(r)}
+        <div style="font-size:12px;line-height:2;">
+          連理魔力: <b style="color:var(--accent2)">${r.renri}/30</b> (+${r.rt})<br>
+          契晶: <b style="color:var(--accent2)">${r.keigyo}/15</b> (累計${r.cum})<br>
+          バースト: <b>${r.burst}</b> / アビ: <b>${r.ability}</b> / ジャッジ: <b>${r.ju}</b>回
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:11px;">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:5px;">次ターンへのCT引き継ぎ</div>
+      <div style="display:flex;flex-wrap:wrap;gap:3px;">${cdBadgesHTML(r.state.cd)}</div>
+    </div>`;
+}
+
+// Init
+buildForms();
+runSim();
+</script>
+</body>
+</html>
