@@ -28,10 +28,6 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
 .main{flex:1;overflow-y:auto;padding:18px;}
 .cfg-title{font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;
   letter-spacing:1px;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--border);}
-.cfg-row{margin-bottom:13px;}
-.cfg-row label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;}
-.cfg-val{color:var(--accent2);font-weight:700;}
-.cfg-row input[type=range]{width:100%;accent-color:var(--accent);}
 .btn{display:inline-flex;align-items:center;gap:5px;padding:8px 16px;border:none;
   border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;transition:all .15s;}
 .btn-primary{background:var(--accent);color:#fff;box-shadow:var(--shadow);}
@@ -141,74 +137,30 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
 
 <div class="layout">
   <div class="sidebar">
-    <div class="cfg-title">⚙ CONFIG（仮定パラメータ）</div>
-    <div class="cfg-row">
-      <label>天矢乱舞 開始T: <span class="cfg-val" id="v-tenya">2</span></label>
-      <input type="range" min="1" max="5" value="2" oninput="setCfg('tenya_from_turn',+this.value,'v-tenya')">
-    </div>
-    <div class="cfg-row">
-      <label>ジャッジ 同T最大: <span class="cfg-val" id="v-judg">6</span>回</label>
-      <input type="range" min="1" max="10" value="6" oninput="setCfg('judg_max_per_turn',+this.value,'v-judg')">
-    </div>
-    <div class="cfg-row">
-      <label>連理魔力 1T上限: <span class="cfg-val" id="v-renri">5</span></label>
-      <input type="range" min="1" max="8" value="5" oninput="setCfg('renri_cap_per_turn',+this.value,'v-renri')">
-    </div>
-    <div class="cfg-row">
-      <label>マシーンタクトゥ BG/作動: <span class="cfg-val" id="v-mach">5</span></label>
-      <input type="range" min="0" max="15" value="5" oninput="setCfg('machine_bg_per_robot',+this.value,'v-mach')">
-    </div>
-    <div class="cfg-row">
-      <label>フルバースト閾値: <span class="cfg-val" id="v-fbt">100</span></label>
-      <input type="range" min="50" max="100" step="10" value="100" oninput="setCfg('full_burst_threshold',+this.value,'v-fbt')">
-    </div>
-    <div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border);">
-      <div class="cfg-title">🎯 温存ポリシー</div>
-      <div class="cfg-row" style="display:flex;align-items:center;gap:6px;">
-        <input type="checkbox" id="c-tenya" checked style="accent-color:var(--accent)"
-               onchange="CFG.tenya_only_when_depleted=this.checked;runSim()">
-        <label for="c-tenya" style="margin:0;">天矢乱舞は枯渇時のみ</label>
-      </div>
-      <div class="cfg-row" style="display:flex;align-items:center;gap:6px;">
-        <input type="checkbox" id="c-inori-fp" checked style="accent-color:var(--accent)"
-               onchange="CFG.inori_firepower=this.checked;runSim()">
-        <label for="c-inori-fp" style="margin:0;">現神の祈り火力発動(CD明け次第)</label>
-      </div>
-      <div class="cfg-row" style="display:flex;align-items:center;gap:6px;">
-        <input type="checkbox" id="c-inori" checked style="accent-color:var(--accent)"
-               onchange="CFG.inori_reserve=this.checked;runSim()">
-        <label for="c-inori" style="margin:0;">現神の祈り先読み温存(火力OFF時)</label>
-      </div>
-      <div class="cfg-row">
-        <label>先読みプランナー horizon: <span class="cfg-val" id="v-la">3</span>T</label>
-        <input type="range" min="1" max="6" value="3" oninput="setCfg('lookahead_turns',+this.value,'v-la')">
+    <div class="cfg-title">📖 凡例</div>
+    <div style="font-size:10px;color:var(--muted);line-height:2.1;">
+      <div><span style="color:var(--green)">●</span> 5人フルバースト</div>
+      <div><span style="color:var(--orange)">●</span> 部分バースト</div>
+      <div><span style="color:var(--red)">★</span> HELIX解禁ターン</div>
+      <div style="margin-top:6px;"><b style="color:var(--accent2)">ロボ</b> 展開残T</div>
+      <div><b style="color:var(--accent2)">🌙</b> ムーンコード残T</div>
+      <div><b style="color:var(--accent2)">⚡</b> 連理魔力/30</div>
+      <div><b style="color:var(--accent2)">💎</b> 契晶現在/累計</div>
+      <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;">
+        <span class="abi-chip" style="background:#fff8e1;color:#b7791f;border-color:#f6c344;">黄</span>
+        <span class="abi-chip" style="background:#ffebee;color:#c62828;border-color:#ef5350;">赤</span>
+        <span class="abi-chip" style="background:#e3f2fd;color:#1565c0;border-color:#42a5f5;">青</span>
+        <span class="abi-chip" style="background:#e8f5e9;color:#2e7d32;border-color:#66bb6a;">緑(契晶)</span>
       </div>
     </div>
     <div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border);">
-      <div class="cfg-title">📖 凡例</div>
-      <div style="font-size:10px;color:var(--muted);line-height:2.1;">
-        <div><span style="color:var(--green)">●</span> 5人フルバースト</div>
-        <div><span style="color:var(--orange)">●</span> 部分バースト</div>
-        <div><span style="color:var(--red)">★</span> HELIX解禁ターン</div>
-        <div style="margin-top:6px;"><b style="color:var(--accent2)">ロボ</b> 展開残T</div>
-        <div><b style="color:var(--accent2)">🌙</b> ムーンコード残T</div>
-        <div><b style="color:var(--accent2)">⚡</b> 連理魔力/30</div>
-        <div><b style="color:var(--accent2)">💎</b> 契晶現在/累計</div>
-        <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;">
-          <span class="abi-chip" style="background:#fff8e1;color:#b7791f;border-color:#f6c344;">黄</span>
-          <span class="abi-chip" style="background:#ffebee;color:#c62828;border-color:#ef5350;">赤</span>
-          <span class="abi-chip" style="background:#e3f2fd;color:#1565c0;border-color:#42a5f5;">青</span>
-          <span class="abi-chip" style="background:#e8f5e9;color:#2e7d32;border-color:#66bb6a;">緑(契晶)</span>
-        </div>
-      </div>
-    </div>
-    <div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border);">
-      <div class="cfg-title">⚠ 仮定一覧</div>
+      <div class="cfg-title">📌 固定仕様</div>
       <div style="font-size:10px;color:var(--muted);line-height:1.9;">
-        · CD規約: 使用後Nターン後再使用可<br>
-        · 天矢乱舞: 設定T以降のみ<br>
-        · ジャッジ: コヴァレントで同T最大N回<br>
-        · FB: 攻撃開始時ゲージ≥閾値<br>
+        · 連理魔力 同T上限: 5<br>
+        · ジャッジ 同T上限: 6回<br>
+        · 天矢乱舞: T2以降のみ<br>
+        · マシーンタクトゥ: +5/作動<br>
+        · FB閾値: 100（カスケードあり）<br>
         · バフ/デバフ効果値は暫定値<br>
         · 通常チャネル連理魔力=0
       </div>
@@ -287,17 +239,16 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
 </div>
 
 <script>
-// ===== DATA =====
-const CFG = {
-  renri_cap_per_turn:5, count_normal_channel:false, judg_max_per_turn:6,
-  tenya_from_turn:2, full_burst_threshold:100, machine_bg_per_robot:5, keigyo_max:15,
-  tenya_only_when_depleted:true,
-  inori_reserve:true,
-  inori_firepower:true,            // 現神の祈りを火力貢献目的でCD明け次第発動
-  lookahead_turns:3                // 先読みプランナーの予測ターン数
-};
+// ===== ゲーム定数（確定仕様） =====
+const RENRI_CAP = 5;   // コヴァレント: 同ターン連理魔力上限
+const JUDG_MAX  = 6;   // コヴァレント: 同ターンジャッジ上限
+const TENYA_FROM= 2;   // 天矢乱舞: 使用可能開始ターン
+const FB_THR    = 100; // フルバースト閾値（カスケードあり）
+const MACH_BG   = 5;   // マシーンタクトゥ: ロボ作動1回あたりBG増加
+const KEIGYO_MAX= 15;  // 契晶最大値
+const LA_TURNS  = 3;   // 先読みプランナー: 予測ターン数
 const BG = {inori:100,funki:10,absolute:20,sleur:15,legend:10,
-            pactcore:100,arrive:100,cascade:10,yamato_max:200,other_max:100};
+            pactcore:100,cascade:10,yamato_max:200,other_max:100};
 const CHARS = ["edison","yamato","hecate","tetra","elaine"];
 const JP = {edison:"エジソン",yamato:"ヤマト",hecate:"ヘカテー",tetra:"テトラ",elaine:"エレイン"};
 const GCLS = {edison:"ge",yamato:"gy",hecate:"gh",tetra:"gt",elaine:"gl"};
@@ -378,7 +329,7 @@ class Sim {
       this.buffs=[];
     }
     this.gmax=Object.fromEntries(CHARS.map(c=>[c,c==='yamato'?BG.yamato_max:BG.other_max]));
-    this.planning=false;
+
   }
 
   tick() {
@@ -438,7 +389,7 @@ class Sim {
 
   grif(owner) {
     const gain = owner==='edison'?3:1;
-    this.keigyo=Math.min(this.keigyo+gain, CFG.keigyo_max);
+    this.keigyo=Math.min(this.keigyo+gain, KEIGYO_MAX);
     this.cum+=gain;
   }
 
@@ -447,7 +398,7 @@ class Sim {
       (channel==='b'&&T.burst>0&&T.burst%2===0)||
       (channel==='a'&&T.ability>0&&T.ability%12===0)
     );
-    if(crossed&&T.proc<CFG.renri_cap_per_turn){
+    if(crossed&&T.proc<RENRI_CAP){
       T.proc++; this.renri++;
       // ジャッジメント「即使用可能」フラグは重複しない＝CDを0にリセットするだけ。
       // CDは0/非0の二値なので、複数procが溜まっても再使用は1回分しか確保されない
@@ -495,16 +446,7 @@ class Sim {
     ord.push({text:LABEL[name]+(note||''), color});
   }
 
-  // 先読みプランナー: horizon先までのFB失敗ターン距離を返す(planningクローンでは再帰しない)
-  predictFirstFail(t, horizon) {
-    if(this.planning) return null;
-    const clone=new Sim(this.snap()); clone.planning=true;
-    for(let i=1; i<=horizon; i++){
-      const r=clone.takeTurn(t+i);
-      if(!r.full) return i;
-    }
-    return null;
-  }
+
 
   takeTurn(t) {
     this.tick();
@@ -518,7 +460,7 @@ class Sim {
 
     // ジャッジメント: CD=0なら即使用(フラグ非蓄積・二値制御)
     const drainJudg=()=>{
-      while(this.cd.judg===0&&T.ju<CFG.judg_max_per_turn){
+      while(this.cd.judg===0&&T.ju<JUDG_MAX){
         const ph=T.ju%3;
         this.use('judg',T,ord,JPHASE[ph]);
         T.ju++;
@@ -577,22 +519,9 @@ class Sim {
     for(let i=0;i<lu;i++) actY('legend',()=>this.addG(e100?CHARS:['edison','elaine'],BG.legend));
     drainFunki(false);
 
-    // 現神の祈り: 火力モードならCD明け次第発動（バースト性能大幅UP＋天矢乱舞解放。CD14で頻度は自然に制限）。
-    // 火力モードOFF時は従来通り＝先読みで2T以内のFB失敗を検知した時だけ温存発動。
-    if(rdy('inori')){
-      let doInori;
-      if(CFG.inori_firepower){
-        doInori = true;                 // 火力貢献目的: 撃てる時に撃つ
-      } else if(!CFG.inori_reserve){
-        doInori = true;
-      } else if(this.planning){
-        doInori = false;
-      } else {
-        const fail=this.predictFirstFail(t, CFG.lookahead_turns||3);
-        doInori = fail!==null && fail<=2;
-      }
-      if(doInori) actY('inori',()=>{ this.addG(['yamato'],BG.inori); this.inori_p=0; });
-    }
+    // 現神の祈り: CD明け次第発動（バースト性能大幅UP＋天矢乱舞解放。CD14で頻度は自然に制限）
+    if(rdy('inori'))
+      actY('inori',()=>{ this.addG(['yamato'],BG.inori); this.inori_p=0; });
 
     // イフィシャント: 全CD-1(自身除く) → 黄フェイズ最後に置いて最大効果
     if(rdy('ifishant')) actY('ifishant',()=>{
@@ -612,9 +541,10 @@ class Sim {
     // 4) ヘカテー赤(effond)+天矢乱舞+契晶 → 各バースト後にdrainJudg/drainFunki/モビウス確認
     drainHecate(true); // effond(ムーンコード時即バースト)含む
 
-    const shortCount=CHARS.filter(c=>this.g[c]<CFG.full_burst_threshold).length;
-    const tenyaOK=!CFG.tenya_only_when_depleted||shortCount>0;
-    if(t>=CFG.tenya_from_turn&&rdy('tenya')&&tenyaOK){
+    // 天矢乱舞: ゲージ枯渇時のみ（ゲージ十分なのに使う意味なし）
+    const shortCount=CHARS.filter(c=>this.g[c]<FB_THR).length;
+    const tenyaOK=shortCount>0;
+    if(t>=TENYA_FROM&&rdy('tenya')&&tenyaOK){
       const tidx=ord.length;
       this.use('tenya',T,ord,'①');
       this.burst('yamato',bset,T); drainJudg(); drainFunki(true);
@@ -653,7 +583,7 @@ class Sim {
     const dmgBurst=this.dmgIndex(true), dmgNormal=this.dmgIndex(false);
     const atk=[];
     for(const c of CHARS){
-      if(this.g[c]>=CFG.full_burst_threshold){
+      if(this.g[c]>=FB_THR){
         this.g[c]-=100; this.burst(c,bset,T,true); atk.push(c);
         // 攻撃バーストで連理が溜まりジャッジが誘発される→赤フェーズ同様にドレイン
         drainJudg(); drainFunki(true);
@@ -665,9 +595,9 @@ class Sim {
 
     // ターン終了（連理魔力はprocRでリアルタイム加算済み）
     const rt=T.proc;
-    this.addG(CHARS,CFG.machine_bg_per_robot*T.ra);
+    this.addG(CHARS,MACH_BG*T.ra);
     if(this.cum>=80) this.addG(['edison'],20);
-    if(t%4===0){ this.keigyo=Math.min(this.keigyo+5,CFG.keigyo_max); this.cum+=5; }
+    if(t%4===0){ this.keigyo=Math.min(this.keigyo+5,KEIGYO_MAX); this.cum+=5; }
     if(this.inori_p!==null){ this.inori_p++; if(this.inori_p===2){ this.cd.tenya=0; this.inori_p=null; } }
     const helix=this.renri>=30&&!this.helix_done;
     if(helix) this.helix_done=true;
@@ -692,7 +622,7 @@ class Sim {
 }
 
 // ===== UI HELPERS =====
-function setCfg(k,v,id){ CFG[k]=v; document.getElementById(id).textContent=v; }
+
 function switchTab(tab){
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
   document.getElementById('tab-sim').style.display=tab==='sim'?'':'none';
