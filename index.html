@@ -331,7 +331,16 @@ class Sim {
       (channel==='b'&&T.burst>0&&T.burst%2===0)||
       (channel==='a'&&T.ability>0&&T.ability%12===0)
     );
-    if(crossed&&T.proc<CFG.renri_cap_per_turn){ T.proc++; this.renri++; if(usejudg) T.jt++; }
+    if(crossed&&T.proc<CFG.renri_cap_per_turn){
+      T.proc++; this.renri++;
+      // ジャッジメント「即使用可能」フラグは重複しない＝CDを0にリセットするだけ。
+      // CDは0/非0の二値なので、複数procが溜まっても再使用は1回分しか確保されない
+      // (既にCD0なら無駄proc)。トークン蓄積による連続使用は不可。
+      if(usejudg){
+        if(this.cd.judg>0) T.judg_reset++; else T.judg_waste++;
+        this.cd.judg=0;
+      }
+    }
     if(channel==='a'&&T.ability>0&&T.ability%12===0) this.mooncode=2;
   }
 
@@ -358,7 +367,7 @@ class Sim {
 
   takeTurn(t) {
     this.tick();
-    const T={ability:0,yellow:0,burst:0,proc:0,fr:0,ra:0,jt:0,tenya:0,ju:0};
+    const T={ability:0,yellow:0,burst:0,proc:0,fr:0,ra:0,tenya:0,ju:0,judg_reset:0,judg_waste:0};
     const ord=[], bset=new Set();
     const rdy=n=>this.cd[n]===0;
 
@@ -419,12 +428,13 @@ class Sim {
       while(al<2&&this.keigyo>=4){ this.use('alone',T,ord); this.burst('elaine',bset,T); al++; }
       if(al){ ord.splice(_s); ord.push(`アロンブレイク×${al}`); }
     }
-    // ジャッジ
-    let jc=0, base=rdy('judg'); const _sj=ord.length;
-    while(T.ju<CFG.judg_max_per_turn&&(base||T.jt>0)){
-      if(base) base=false; else T.jt--;
-      this.use('judg',T,ord); T.ju++;
-      if(jc%3===1) this.burst('tetra',bset,T);
+    // ジャッジ: CD即リセットでのみ再使用可。フラグは重複しない＝this.cd.judgの二値で判定。
+    // use()がcd.judg=10に戻し、サイクル中のバースト(phase1)が連理procでcd.judg=0に再リセット
+    // するときだけ次の使用が成立する。トークン蓄積による連続発動は構造的に不可。
+    let jc=0; const _sj=ord.length;
+    while(T.ju<CFG.judg_max_per_turn && this.cd.judg===0){
+      this.use('judg',T,ord); T.ju++;       // cd.judg=10 に戻る
+      if(jc%3===1) this.burst('tetra',bset,T); // バースト→procR('b')でcd.judg=0に再リセットしうる
       jc++;
     }
     if(T.ju){ ord.splice(_sj); ord.push(`ジャッジメント×${T.ju}(AoE/バ/通サイクル)`); }
@@ -454,6 +464,7 @@ class Sim {
     return {
       t,ord,atk,full:atk.length===5,
       burst:T.burst,ability:T.ability,ra:T.ra,ju:T.ju,
+      judg_reset:T.judg_reset,judg_waste:T.judg_waste,
       rt,renri:this.renri,keigyo:this.keigyo,cum:this.cum,
       mooncode:this.mooncode,ycount:this.ycount,helix,robot:this.robot,
       gauge:{...this.g}, state:this.snap()
@@ -686,6 +697,7 @@ function calcInteractive(){
   if(r.mooncode===0) warns.push('⚠ ムーンコード切れ: エフォンド即バースト不可');
   if(r.robot===0&&r.ra===0) warns.push('⚠ ロボ未展開: マシーンタクトゥBGなし');
   if(r.rt===0&&r.renri<30) warns.push('⚠ 連理魔力: このターン加算なし');
+  if(r.judg_waste>0) warns.push(`⚠ ジャッジ即使用フラグ ${r.judg_waste}回 無駄（CD0時のリセット/重複不可）`);
   if(r.helix) warns.push('★ HELIX解禁！テトラのゴッド・オムニポンテス＆フェイト・イモータル有効');
 
   const steps=r.ord.map((o,i)=>`<div class="result-step"><span class="step-num">${i+1}</span><span>${o}</span></div>`).join('');
