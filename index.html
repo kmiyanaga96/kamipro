@@ -275,6 +275,36 @@ const ABIL = {
   alone:   ["elaine","r",0,4],  legend:  ["elaine","y",0,0],
   knights: ["elaine","b",0,3],  pactcore:["elaine","w",0,12],
 };
+// ===== キャラクタ記述子（段階移行中） =====
+// 各キャラのゲージ上限・契晶獲得量・バースト時の固有処理を宣言的に集約。
+// エンジン側はこの記述子を読むだけにし、`owner==='edison'` 等の名前直書きを排除する。
+// 将来キャラを差し替える際は CHARS / ABIL / CHAR_DEF を編集すれば済むのが目標。
+const CHAR_DEF = {
+  edison: {
+    gmax: BG.other_max,
+    keigyoGain: 3,
+    // 自身の攻撃バースト時、ロボ(ドロイド/バノーシク)のCTを1短縮
+    onBurst: (sim, atk) => {
+      if(atk){ sim.cd.droid=Math.max(0,sim.cd.droid-1); sim.cd.banoshik=Math.max(0,sim.cd.banoshik-1); }
+    },
+  },
+  yamato: { gmax: BG.yamato_max, keigyoGain: 1 },
+  hecate: { gmax: BG.other_max, keigyoGain: 1 },
+  tetra:  {
+    gmax: BG.other_max,
+    keigyoGain: 1,
+    // テトラバースト効果: 自身のアビCD全て-1（誘発バースト時はジャッジ自体を除外）
+    onBurst: (sim, atk) => {
+      const skip = atk ? [] : ['judg'];
+      for(const k of Object.keys(sim.cd)){
+        if(skip.includes(k)) continue;
+        if(sim.cd[k]>0) sim.cd[k]--;
+      }
+    },
+  },
+  elaine: { gmax: BG.other_max, keigyoGain: 1 },
+};
+
 const LABEL = {
   banoshik:"バノーシク",droid:"ドロイド",ifishant:"イフィシャント(全CD-1)",
   amplifa:"アンプリファ",inori:"現神の祈り(ヤ+100)",tenya:"天矢乱舞",
@@ -338,7 +368,7 @@ class Sim {
       this.mburst=0;
       this.buffs=[];
     }
-    this.gmax=Object.fromEntries(CHARS.map(c=>[c,c==='yamato'?BG.yamato_max:BG.other_max]));
+    this.gmax=Object.fromEntries(CHARS.map(c=>[c,CHAR_DEF[c].gmax]));
 
   }
 
@@ -398,7 +428,7 @@ class Sim {
   }
 
   grif(owner) {
-    const gain = owner==='edison'?3:1;
+    const gain = CHAR_DEF[owner].keigyoGain;
     this.keigyo=Math.min(this.keigyo+gain, KEIGYO_MAX);
     this.cum+=gain;
   }
@@ -424,20 +454,11 @@ class Sim {
   burst(owner, bset, T, atk=false) {
     this.addG(CHARS.filter(c=>c!==owner), BG.cascade, atk?bset:null);
     this.grif(owner); T.burst++;
-    if(atk){
-      bset.add(owner);
-      if(owner==='edison'){ this.cd.droid=Math.max(0,this.cd.droid-1); this.cd.banoshik=Math.max(0,this.cd.banoshik-1); }
-    }
+    if(atk) bset.add(owner);
     // 連理魔力(コヴァレント): バースト2回毎に+1＆ジャッジ即使用可。攻撃フェーズのバーストも対象
     this.procR(T,'b');
-    // テトラバースト効果: 自身のアビCD全て-1（誘発バーストでもジャッジ自体は非対象）
-    if(owner==='tetra'){
-      const skip=atk?[]:['judg']; // 攻撃フェーズのバーストは全対象、誘発はjudg除外
-      for(const k of Object.keys(this.cd)){
-        if(skip.includes(k)) continue;
-        if(this.cd[k]>0) this.cd[k]--;
-      }
-    }
+    // キャラ固有のバースト時処理（CHAR_DEF記述子に集約）
+    CHAR_DEF[owner].onBurst?.(this, atk);
     // モビウスムーンズ: party burst 5回毎にヘカテーのアビCD全リセット
     this.mburst++;
     if(this.mburst%5===0){ this.cd.puvoir=0; this.cd.effond=0; this.cd.sleur=0; T.mobius=(T.mobius||0)+1; }
