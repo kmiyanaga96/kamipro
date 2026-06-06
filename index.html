@@ -35,6 +35,12 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
 .btn-secondary{background:var(--card);color:var(--text);border:1px solid var(--border);}
 .btn-secondary:hover{border-color:var(--accent);color:var(--accent);background:var(--card2);}
 .btn-sm{padding:4px 10px;font-size:11px;}
+.party-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;
+  padding:10px 14px;background:var(--card);border-radius:12px;box-shadow:var(--shadow);}
+.party-bar .pb-label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+.party-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 11px;border-radius:14px;
+  font-size:12px;font-weight:600;background:var(--card2);color:var(--text);border:1px solid var(--border);}
+.party-chip .pc-role{font-size:9px;color:var(--accent2);font-weight:700;}
 .controls{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
 .controls label{font-size:12px;color:var(--muted);}
 .controls input[type=number]{width:58px;background:var(--card);border:1px solid var(--border);
@@ -126,7 +132,7 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
 <div class="header">
   <div>
     <h1>⚡ 神姫PROJECT R — 光属性バーストトラッカー</h1>
-    <div class="sub">英霊エジソン + ヤマト / ヘカテー / テトラ / エレイン</div>
+    <div class="sub">バースト編成シミュレーター &amp; 最適押し順トラッカー</div>
   </div>
 </div>
 
@@ -150,7 +156,8 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
         <span class="abi-chip" style="background:#fff8e1;color:#b7791f;border-color:#f6c344;">黄</span>
         <span class="abi-chip" style="background:#ffebee;color:#c62828;border-color:#ef5350;">赤</span>
         <span class="abi-chip" style="background:#e3f2fd;color:#1565c0;border-color:#42a5f5;">青</span>
-        <span class="abi-chip" style="background:#e8f5e9;color:#2e7d32;border-color:#66bb6a;">緑(契晶)</span>
+        <span class="abi-chip" style="background:#fafafa;color:#616161;border-color:#bdbdbd;">白</span>
+        <span class="abi-chip" style="background:#e8f5e9;color:#2e7d32;border-color:#66bb6a;">緑(回復)</span>
       </div>
     </div>
     <div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border);">
@@ -168,6 +175,8 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
   </div>
 
   <div class="main">
+    <!-- シミュレーション対象パーティ（動的描画） -->
+    <div id="party-bar" class="party-bar"></div>
     <!-- Auto Sim -->
     <div id="tab-sim">
       <div class="controls">
@@ -250,6 +259,7 @@ const LA_TURNS  = 3;   // 先読みプランナー: 予測ターン数
 const BG = {inori:100,funki:10,absolute:20,sleur:15,legend:10,
             pactcore:100,cascade:10,yamato_max:200,other_max:100};
 const CHARS = ["edison","yamato","hecate","tetra","elaine"];
+const LEADER = "edison"; // 英霊（パーティ比較時はこのデータを差し替える）
 const JP = {edison:"エジソン",yamato:"ヤマト",hecate:"ヘカテー",tetra:"テトラ",elaine:"エレイン"};
 const GCLS = {edison:"ge",yamato:"gy",hecate:"gh",tetra:"gt",elaine:"gl"};
 // [owner, color, cd, keigyo_cost]
@@ -263,7 +273,7 @@ const ABIL = {
   judg:    ["tetra","r",10,0],  absolute:["tetra","y",10,0],
   divinus: ["tetra","b",10,0],
   alone:   ["elaine","r",0,4],  legend:  ["elaine","y",0,0],
-  knights: ["elaine","b",0,3],  pactcore:["elaine","g",0,12],
+  knights: ["elaine","b",0,3],  pactcore:["elaine","w",0,12],
 };
 const LABEL = {
   banoshik:"バノーシク",droid:"ドロイド",ifishant:"イフィシャント(全CD-1)",
@@ -659,6 +669,7 @@ const ACOL={
   r:{bg:'#ffebee',fg:'#c62828',bd:'#ef5350',name:'赤'},
   b:{bg:'#e3f2fd',fg:'#1565c0',bd:'#42a5f5',name:'青'},
   g:{bg:'#e8f5e9',fg:'#2e7d32',bd:'#66bb6a',name:'緑'},
+  w:{bg:'#fafafa',fg:'#616161',bd:'#bdbdbd',name:'白'},
 };
 function ordChipsHTML(ord){
   return ord.map(o=>{
@@ -920,6 +931,16 @@ function calcInteractive(){
 }
 
 // Init
+function renderParty(){
+  const chips=CHARS.map(c=>{
+    const role=c===LEADER?'<span class="pc-role">英霊</span>':'';
+    return `<span class="party-chip">${role}${JP[c]}</span>`;
+  }).join('');
+  document.getElementById('party-bar').innerHTML=
+    `<span class="pb-label">編成</span>${chips}`;
+}
+
+renderParty();
 buildForms();
 runSim();
 </script>
