@@ -367,77 +367,109 @@ class Sim {
 
   takeTurn(t) {
     this.tick();
-    const T={ability:0,yellow:0,burst:0,proc:0,fr:0,ra:0,tenya:0,ju:0,judg_reset:0,judg_waste:0};
+    const T={ability:0,yellow:0,burst:0,proc:0,fr:0,ra:0,tenya:0,
+             ju:0,judg_reset:0,judg_waste:0};
     const ord=[], bset=new Set();
     const rdy=n=>this.cd[n]===0;
+    const JPHASE=['(AoE)','(バースト)','(通常)'];
 
-    const funki=()=>{
-      this.ycount++;
-      this.addG(CHARS,BG.funki);
-      if(this.ycount%3===0) this.cd.inori=Math.max(0,this.cd.inori-1);
-      this.use('funki',T,ord);
+    // ── インターリーブドレイン ──
+    // ジャッジ: procRがcd.judg=0に書き込んだ瞬間に即使用。
+    // フラグは非蓄積(二値)なのでwhileがそのまま排他制御になる。
+    const drainJudg=()=>{
+      while(this.cd.judg===0&&T.ju<CFG.judg_max_per_turn){
+        const ph=T.ju%3; // 0=AoE, 1=バースト, 2=通常
+        this.use('judg',T,ord,JPHASE[ph]);
+        T.ju++;
+        // バーストphase: テトラバースト→procR('b')→cd.judg再リセットの可能性
+        if(ph===1) this.burst('tetra',bset,T);
+        // cd.judgの状態はuse()/burst()内で既に更新→ループ条件が次の使用可否を判定
+      }
     };
 
+    // 大和の奮起: CDが0なら即全消費(集いし願いによる同T最大3回リセットも拾う)
+    const drainFunki=()=>{
+      while(rdy('funki')){
+        this.ycount++;
+        this.addG(CHARS,BG.funki);
+        if(this.ycount%3===0) this.cd.inori=Math.max(0,this.cd.inori-1);
+        this.use('funki',T,ord);
+        drainJudg(); // funki(黄)でアビカウント更新→アビ12到達でジャッジprocの可能性
+      }
+    };
+
+    // アビ使用+即ドレインのラッパー
+    const act=(name,prep=null,note='')=>{
+      if(prep) prep();
+      this.use(name,T,ord,note);
+      drainJudg();
+      drainFunki();
+    };
+
+    // ── 押し順メインシーケンス ──
     // 1) ロボ土台
-    if(rdy('banoshik')){ this.robot=3; this.use('banoshik',T,ord); }
-    if(rdy('droid'))   { this.robot=3; this.use('droid',T,ord); }
-    // 2) 黄バフ
-    if(rdy('funki')) funki();
-    if(rdy('puvoir')) this.use('puvoir',T,ord);
-    if(rdy('sleur'))  { this.addG(CHARS,BG.sleur); this.use('sleur',T,ord); }
-    if(rdy('funki')) funki();
-    if(rdy('absolute')){ this.addG(CHARS,BG.absolute); this.use('absolute',T,ord); }
-    // レジェンド
+    if(rdy('banoshik')){ this.robot=3; act('banoshik'); }
+    if(rdy('droid'))   { this.robot=3; act('droid'); }
+    drainFunki();
+
+    // 2) 黄バフ(各使用後にドレイン済み)
+    if(rdy('puvoir'))   act('puvoir');
+    if(rdy('sleur'))    act('sleur',()=>this.addG(CHARS,BG.sleur));
+    drainFunki();
+    if(rdy('absolute')) act('absolute',()=>this.addG(CHARS,BG.absolute));
+    // レジェンド: 各発動後にドレイン→ジャッジがレジェンド間に割り込む可能性あり
     let lu=this.cum>=1?2:1;
     for(const thr of [26,51,71,80]) if(this.cum>=thr) lu++;
     const e100=this.g.edison>=100;
-    for(let i=0;i<lu;i++){
-      this.addG(e100?CHARS:['edison','elaine'],BG.legend);
-      this.use('legend',T,ord);
-    }
-    ord.splice(ord.length-lu); ord.push(`レジェンド×${lu}(+10)`);
-    if(rdy('amplifa')) this.use('amplifa',T,ord);
-    if(rdy('funki')) funki();
-    if(rdy('inori')){ this.addG(['yamato'],BG.inori); this.inori_p=0; this.use('inori',T,ord); }
-    if(rdy('ifishant')){
+    for(let i=0;i<lu;i++) act('legend',()=>this.addG(e100?CHARS:['edison','elaine'],BG.legend));
+    if(rdy('amplifa')) act('amplifa');
+    drainFunki();
+    if(rdy('inori'))    act('inori',()=>{ this.addG(['yamato'],BG.inori); this.inori_p=0; });
+    if(rdy('ifishant')) act('ifishant',()=>{
       for(const k of Object.keys(this.cd)) if(k!=='ifishant'&&this.cd[k]>0) this.cd[k]--;
-      this.use('ifishant',T,ord);
+    });
+    drainFunki();
+
+    // 3) 青デバフ
+    if(rdy('divinus')) act('divinus');
+    if(this.keigyo>=ABIL.knights[3]) act('knights');
+
+    // 4) 赤(バースト誘発→procR→drainJudg)
+    if(rdy('effond')&&this.mooncode>0){
+      this.use('effond',T,ord,'→即バースト');
+      this.burst('hecate',bset,T);
+      drainJudg(); drainFunki();
     }
-    if(rdy('funki')) funki();
-    // 3) 青
-    if(rdy('divinus')) this.use('divinus',T,ord);
-    if(this.keigyo>=ABIL.knights[3]) this.use('knights',T,ord);
-    // 4) 赤
-    if(rdy('effond')&&this.mooncode>0){ this.use('effond',T,ord,'→即バースト'); this.burst('hecate',bset,T); }
     if(t>=CFG.tenya_from_turn&&rdy('tenya')){
-      this.use('tenya',T,ord,'①'); this.burst('yamato',bset,T); T.tenya=1;
+      const tidx=ord.length; // 天矢乱舞エントリのインデックスを記録(後でジャッジが割り込んでも更新可)
+      this.use('tenya',T,ord,'①');
+      this.burst('yamato',bset,T); drainJudg(); drainFunki();
+      T.tenya=1;
       while(T.tenya<3&&this.g.yamato>=40){
-        this.g.yamato-=40; this.burst('yamato',bset,T); T.tenya++;
-        ord[ord.length-1]=`天矢乱舞①〜${T.tenya}(-40×${T.tenya-1})`;
+        this.g.yamato-=40;
+        this.burst('yamato',bset,T); drainJudg(); drainFunki();
+        T.tenya++;
+        ord[tidx]=`天矢乱舞①〜${T.tenya}(-40×${T.tenya-1})`;
       }
     }
+
     // 契晶判断
     const rdown=this.cd.droid>0||this.cd.banoshik>0;
     if(this.keigyo>=12&&rdown&&this.g.edison>=100){
       this.cd.droid=Math.max(0,this.cd.droid-1);
       this.cd.banoshik=Math.max(0,this.cd.banoshik-1);
       this.addG(CHARS,BG.pactcore);
-      this.use('pactcore',T,ord,'(ロボ-1/全+100)');
+      act('pactcore',null,'(ロボ-1/全+100)');
     } else {
-      let al=0; const _s=ord.length;
-      while(al<2&&this.keigyo>=4){ this.use('alone',T,ord); this.burst('elaine',bset,T); al++; }
-      if(al){ ord.splice(_s); ord.push(`アロンブレイク×${al}`); }
+      let al=0;
+      while(al<2&&this.keigyo>=4){
+        this.use('alone',T,ord);
+        this.burst('elaine',bset,T);
+        drainJudg(); drainFunki();
+        al++;
+      }
     }
-    // ジャッジ: CD即リセットでのみ再使用可。フラグは重複しない＝this.cd.judgの二値で判定。
-    // use()がcd.judg=10に戻し、サイクル中のバースト(phase1)が連理procでcd.judg=0に再リセット
-    // するときだけ次の使用が成立する。トークン蓄積による連続発動は構造的に不可。
-    let jc=0; const _sj=ord.length;
-    while(T.ju<CFG.judg_max_per_turn && this.cd.judg===0){
-      this.use('judg',T,ord); T.ju++;       // cd.judg=10 に戻る
-      if(jc%3===1) this.burst('tetra',bset,T); // バースト→procR('b')でcd.judg=0に再リセットしうる
-      jc++;
-    }
-    if(T.ju){ ord.splice(_sj); ord.push(`ジャッジメント×${T.ju}(AoE/バ/通サイクル)`); }
+    // ジャッジは drainJudg() によりシーケンス全体に分散済み。末尾での追加ループは不要。
 
     // 攻撃フェイズ
     const atk=[];
@@ -545,13 +577,20 @@ function cardHTML(r,first=false){
     ?`<span class="badge bg">✅ 5人FB</span>`
     :`<span class="badge bo">⚠ ${r.atk.length}人 (${r.atk.map(c=>JP[c]).join(',')})</span>`;
   const hx=r.helix?`<span class="badge br">★ HELIX!</span>`:'';
-  const ordHtml=r.ord.map((o,i)=>`<span style="color:var(--muted);font-size:10px;">${i+1}.</span> ${o}`).join(' <span style="color:var(--muted)">→</span> ');
+  const ordHtml=r.ord.map((o,i)=>{
+    const isJ=o.startsWith('ジャッジメント');
+    const isFB=o.startsWith('アロンブレイク')||o.startsWith('天矢乱舞')||o.startsWith('エフォンド');
+    const nc=isJ?'var(--red)':(isFB?'var(--orange)':'var(--muted)');
+    const tc=isJ?`style="color:var(--red)"`:( isFB?`style="color:var(--orange)"`:'' );
+    return `<span style="color:${nc};font-size:10px;">${i+1}.</span> <span ${tc}>${o}</span>`;
+  }).join(' <span style="color:var(--border)">→</span> ');
   return `<div class="turn-card ${cls}">
     <div class="card-header" onclick="toggleCard(${r.t})">
       <div class="turn-label">
         <span class="turn-num">T${r.t}</span>${fb}${hx}
         <span class="badge bp">バ×${r.burst}</span>
         <span class="badge bp">アビ×${r.ability}</span>
+        <span class="badge ${r.ju>0?'br':'bm'}">J×${r.ju}</span>
         <span class="badge bp">連理${r.renri}/30</span>
       </div>
       <div style="display:flex;align-items:center;gap:7px;">
@@ -700,7 +739,12 @@ function calcInteractive(){
   if(r.judg_waste>0) warns.push(`⚠ ジャッジ即使用フラグ ${r.judg_waste}回 無駄（CD0時のリセット/重複不可）`);
   if(r.helix) warns.push('★ HELIX解禁！テトラのゴッド・オムニポンテス＆フェイト・イモータル有効');
 
-  const steps=r.ord.map((o,i)=>`<div class="result-step"><span class="step-num">${i+1}</span><span>${o}</span></div>`).join('');
+  const steps=r.ord.map((o,i)=>{
+    const isJ=o.startsWith('ジャッジメント');
+    const snStyle=isJ?'background:var(--red);':'';
+    const tStyle=isJ?'style="color:var(--red);font-weight:700;"':'';
+    return `<div class="result-step"><span class="step-num" style="${snStyle}">${i+1}</span><span ${tStyle}>${o}</span></div>`;
+  }).join('');
 
   document.getElementById('i-result').innerHTML=`
     <div style="margin-bottom:10px;">${fb}</div>
