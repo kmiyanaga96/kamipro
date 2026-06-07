@@ -231,7 +231,7 @@ const CHAR_DEF = {
       const shortCount=CHARS.filter(c=>sim.g[c]<FB_THR).length;
       if(!(t>=TENYA_FROM&&ctx.rdy('tenya')&&shortCount>0)) return;
       const tidx=ord.length;
-      sim.use('tenya',T,ord,'①');
+      sim.use('tenya',T,ord);
       sim.burst(me,ctx.bset,T); ctx.drainJudg(); ctx.drainFunki(true);
       if(T.mobius){ T.mobius=0; ctx.drainHecate(true); }
       T.tenya=1;
@@ -240,7 +240,7 @@ const CHAR_DEF = {
         sim.burst(me,ctx.bset,T); ctx.drainJudg(); ctx.drainFunki(true);
         if(T.mobius){ T.mobius=0; ctx.drainHecate(true); }
         T.tenya++;
-        ord[tidx]={text:`天矢乱舞①〜${T.tenya}(-40×${T.tenya-1})`, color:'r'};
+        ord[tidx]={text:`${LABEL.tenya}×${T.tenya}(-40×${T.tenya-1})`, color:'r'};
       }
     },
   },
@@ -302,7 +302,7 @@ const CHAR_DEF = {
         sim.cd.droid=Math.max(0,sim.cd.droid-1);
         sim.cd.banoshik=Math.max(0,sim.cd.banoshik-1);
         sim.addG(CHARS,BG.pactcore);
-        sim.use('pactcore',T,ord,'(ロボ-1/全+100)');
+        sim.use('pactcore',T,ord,'(全+100)');
         ctx.drainJudg(); ctx.drainFunki(true);
         if(T.mobius){ T.mobius=0; ctx.drainHecate(true); }
       } else {
@@ -321,17 +321,16 @@ const CHAR_DEF = {
 
 // アビリティ→所有キャラの解決（編成差し替え時はABIL/CHAR_DEFを編集すれば追従）
 const ownerOf = k => ABIL[k][0];
-// アビリティ表示ラベルをABIL定義順から自動生成: "キャラ名Nアビ(ゲージ効果)"
-// 編成差し替え時はABIL/JP/LABEL_SUFFIXだけ編集すれば自動追従
+// アビリティ表示ラベルをABIL定義順から自動生成: "キャラ名N(ゲージ効果)"
+// 括弧内はバーストゲージ上昇に関する記述のみ。編成差し替え時はABIL/JP/LABEL_SUFFIXを編集すれば自動追従
 const LABEL_SUFFIX = {
-  ifishant:'(全CD-1)', inori:'(ヤ+100)', funki:'(+10)',
-  sleur:'(+15)', absolute:'(+20)', legend:'(+10)', knights:'(契-3)',
+  inori:'(ヤ+100)', funki:'(+10)', sleur:'(+15)', absolute:'(+20)', legend:'(+10)',
 };
 const LABEL = (() => {
   const cnt = {};
   return Object.fromEntries(Object.entries(ABIL).map(([k,[owner]])=>{
     cnt[owner]=(cnt[owner]||0)+1;
-    return [k, `${JP[owner]}${cnt[owner]}アビ${LABEL_SUFFIX[k]||''}`];
+    return [k, `${JP[owner]}${cnt[owner]}${LABEL_SUFFIX[k]||''}`];
   }));
 })();
 // CDs that need CT display (non-zero CD abilities)
