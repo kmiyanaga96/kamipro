@@ -194,7 +194,7 @@ const ABIL = {
 //   drain       : 毎ターン「条件成立で自律発動する」リアクティブ処理
 //                 {phase:'yellow'|'red', run(sim,T,ord,ctx,inRed)}
 //   inori/tenya/legend/finisher/turnEnd : 押し順シーケンス上の戦略アクション
-//   ctxは {bset,rdy,JPHASE,drainJudg,drainFunki,drainHecate} を提供
+//   ctxは {bset,rdy,drainJudg,drainFunki,drainHecate,actY} を提供
 const CHAR_DEF = {
   edison: {
     gmax: BG.other_max,
@@ -254,7 +254,7 @@ const CHAR_DEF = {
       if(ctx.rdy('puvoir')) { sim.use('puvoir',T,ord);                            ctx.drainFunki(inRed); if(inRed) ctx.drainJudg(); }
       if(ctx.rdy('sleur'))  { sim.addG(CHARS,BG.sleur); sim.use('sleur',T,ord);   ctx.drainFunki(inRed); if(inRed) ctx.drainJudg(); }
       if(inRed&&ctx.rdy('effond')&&sim.mooncode>0){
-        sim.use('effond',T,ord,'→即バースト');
+        sim.use('effond',T,ord);
         sim.burst(ownerOf('effond'),ctx.bset,T);
         ctx.drainJudg(); ctx.drainFunki(true);
         if(T.mobius>0){ T.mobius=0; ctx.drainHecate(true); }
@@ -278,7 +278,7 @@ const CHAR_DEF = {
       const me=ownerOf('judg');
       while(sim.cd.judg===0&&T.ju<JUDG_MAX){
         const ph=T.ju%3;
-        sim.use('judg',T,ord,ctx.JPHASE[ph]);
+        sim.use('judg',T,ord);
         T.ju++;
         if(ph===1) sim.burst(me,ctx.bset,T);
       }
@@ -321,14 +321,19 @@ const CHAR_DEF = {
 
 // アビリティ→所有キャラの解決（編成差し替え時はABIL/CHAR_DEFを編集すれば追従）
 const ownerOf = k => ABIL[k][0];
-const LABEL = {
-  banoshik:"バノーシク",droid:"ドロイド",ifishant:"イフィシャント(全CD-1)",
-  amplifa:"アンプリファ",inori:"現神の祈り(ヤ+100)",tenya:"天矢乱舞",
-  funki:"大和の奮起(+10)",puvoir:"プヴワール",effond:"エフォンド",
-  sleur:"スリール(+15)",judg:"ジャッジメント",absolute:"アブソ(+20)",
-  divinus:"ディウィヌス",alone:"アロンブレイク",legend:"レジェンド(+10)",
-  knights:"ナイツサプレス(契-3)",pactcore:"PactCore",
+// アビリティ表示ラベルをABIL定義順から自動生成: "キャラ名Nアビ(ゲージ効果)"
+// 編成差し替え時はABIL/JP/LABEL_SUFFIXだけ編集すれば自動追従
+const LABEL_SUFFIX = {
+  ifishant:'(全CD-1)', inori:'(ヤ+100)', funki:'(+10)',
+  sleur:'(+15)', absolute:'(+20)', legend:'(+10)', knights:'(契-3)',
 };
+const LABEL = (() => {
+  const cnt = {};
+  return Object.fromEntries(Object.entries(ABIL).map(([k,[owner]])=>{
+    cnt[owner]=(cnt[owner]||0)+1;
+    return [k, `${JP[owner]}${cnt[owner]}アビ${LABEL_SUFFIX[k]||''}`];
+  }));
+})();
 // CDs that need CT display (non-zero CD abilities)
 const CD_SHOW = {
   banoshik:"バノーシク",droid:"ドロイド",ifishant:"イフィシャント",
@@ -423,13 +428,11 @@ class Sim {
              ju:0,judg_reset:0,judg_waste:0,mobius:0};
     const ord=[], bset=new Set();
     const rdy=n=>this.cd[n]===0;
-    const JPHASE=['(AoE)','(バースト)','(通常)'];
-
     // ── ドレイン関数（実体はCHAR_DEFの各キャラ記述子に集約。ここでは所有者から解決して束ねる） ──
     // drainJudg=judg所有者の赤ドレイン / drainFunki=funki所有者の黄ドレイン / drainHecate=puvoir所有者の黄ドレイン
     const drainRunOf=key=>{ const d=CHAR_DEF[ownerOf(key)]; return d&&d.drain?d.drain.run:null; };
     const judgRun=drainRunOf('judg'), funkiRun=drainRunOf('funki'), hecateRun=drainRunOf('puvoir');
-    const ctx={ bset, rdy, JPHASE };
+    const ctx={ bset, rdy };
     const drainJudg  =()=>{ if(judgRun)   judgRun(this,T,ord,ctx); };
     const drainFunki =(inRed=false)=>{ if(funkiRun)  funkiRun(this,T,ord,ctx,inRed); };
     const drainHecate=(inRed=false)=>{ if(hecateRun) hecateRun(this,T,ord,ctx,inRed); };
