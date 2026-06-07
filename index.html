@@ -159,7 +159,7 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
 <script>
 // ===== ゲーム定数（確定仕様） =====
 const RENRI_CAP = 5;   // コヴァレント: 同ターン連理魔力上限
-const JUDG_MAX  = 6;   // コヴァレント: 同ターンジャッジ上限
+const JUDG_REACT= 4;   // ジャッジメント: 連理procによる同ターン再発動上限(再発動可になる回数)
 const TENYA_FROM= 2;   // 天矢乱舞: 使用可能開始ターン
 const FB_THR    = 100; // フルバースト閾値（カスケードあり）
 const MACH_BG   = 5;   // マシーンタクトゥ: ロボ作動1回あたりBG増加
@@ -219,7 +219,7 @@ const CHAR_DEF = {
         sim.addG(CHARS,BG.funki);
         if(sim.ycount%3===0) sim.cd.inori=Math.max(0,sim.cd.inori-1);
         sim.use('funki',T,ord);
-        if(inRed) ctx.drainJudg();
+        ctx.drainJudg(); // judgは使用可になり次第即発動(温存しない)
       }
     }},
     // 現神の祈り: 先読み発動。ゲージが十分なら撃たず、今後の枯渇(フルバースト崩れ)を
@@ -261,8 +261,8 @@ const CHAR_DEF = {
     // ヘカテーアビ: 黄(puvoir,sleur)優先→赤フェイズ&ムーンコード時にeffond即バースト。
     // モビウスムーンズで多重リセットされた場合は再帰的に再消化。
     drain: { phase:'yellow', run:(sim,T,ord,ctx,inRed)=>{
-      if(ctx.rdy('puvoir')) { sim.use('puvoir',T,ord);                            ctx.drainFunki(inRed); if(inRed) ctx.drainJudg(); }
-      if(ctx.rdy('sleur'))  { sim.addG(CHARS,BG.sleur); sim.use('sleur',T,ord);   ctx.drainFunki(inRed); if(inRed) ctx.drainJudg(); }
+      if(ctx.rdy('puvoir')) { sim.use('puvoir',T,ord);                            ctx.drainFunki(inRed); ctx.drainJudg(); }
+      if(ctx.rdy('sleur'))  { sim.addG(CHARS,BG.sleur); sim.use('sleur',T,ord);   ctx.drainFunki(inRed); ctx.drainJudg(); }
       if(inRed&&ctx.rdy('effond')&&sim.mooncode>0){
         sim.use('effond',T,ord);
         sim.burst(ownerOf('effond'),ctx.bset,T);
@@ -284,10 +284,11 @@ const CHAR_DEF = {
         if(sim.cd[k]>0) sim.cd[k]--;
       }
     },
-    // ジャッジメント: CD=0なら即使用(フラグ非蓄積・二値制御)。3周期目(ph1)で自身バースト。
+    // ジャッジメント: CD=0(使用可)になった時点で即発動。3周期目(ph1)で自身バースト。
+    // 再発動上限(JUDG_REACT)はprocR側で担保。ここは「使用可なら撃つ」のみ。
     drain: { phase:'red', run:(sim,T,ord,ctx)=>{
       const me=ownerOf('judg');
-      while(sim.cd.judg===0&&T.ju<JUDG_MAX){
+      while(sim.cd.judg===0){
         const ph=T.ju%3;
         sim.use('judg',T,ord);
         T.ju++;
@@ -389,12 +390,11 @@ class Sim {
     );
     if(crossed&&T.proc<RENRI_CAP){
       T.proc++; this.renri++;
-      // ジャッジメント「即使用可能」フラグは重複しない＝CDを0にリセットするだけ。
-      // CDは0/非0の二値なので、複数procが溜まっても再使用は1回分しか確保されない
-      // (既にCD0なら無駄proc)。トークン蓄積による連続使用は不可。
-      if(usejudg){
-        if(this.cd.judg>0) T.judg_reset++; else T.judg_waste++;
-        this.cd.judg=0;
+      // 連理procでジャッジメントが「再発動可能」になる。再発動上限はJUDG_REACT(同ターン4回)。
+      // CD>0のjudgをCD0に戻す=再発動1回分。即時発動方針のため通常judgは温存されず、
+      // procが来た時点ではCD>0→確実に再発動として消費される(上限まで)。
+      if(usejudg && this.cd.judg>0 && T.judgReact<JUDG_REACT){
+        this.cd.judg=0; T.judgReact++;
       }
     }
     if(channel==='a'&&T.ability>0&&T.ability%12===0) this.mooncode=2;
@@ -435,7 +435,7 @@ class Sim {
   takeTurn(t) {
     this.tick();
     const T={ability:0,yellow:0,burst:0,proc:0,fr:0,ra:0,tenya:0,
-             ju:0,judg_reset:0,judg_waste:0,mobius:0};
+             ju:0,judgReact:0,mobius:0};
     const ord=[], bset=new Set();
     const rdy=n=>this.cd[n]===0;
     // ── ドレイン関数（実体はCHAR_DEFの各キャラ記述子に集約。ここでは所有者から解決して束ねる） ──
@@ -446,9 +446,9 @@ class Sim {
     const drainJudg  =()=>{ if(judgRun)   judgRun(this,T,ord,ctx); };
     const drainFunki =(inRed=false)=>{ if(funkiRun)  funkiRun(this,T,ord,ctx,inRed); };
     const drainHecate=(inRed=false)=>{ if(hecateRun) hecateRun(this,T,ord,ctx,inRed); };
-    // 黄/青フェイズ用ラッパー: judg保留(全攻撃バフ・デバフを積んでから赤で消費)
-    const actY=(name,prep=null,note='')=>{ if(prep) prep(); this.use(name,T,ord,note); drainFunki(false); };
-    const actB=(name,prep=null,note='')=>{ if(prep) prep(); this.use(name,T,ord,note); };
+    // 黄/青フェイズ用ラッパー: judgは温存せず使用可になり次第即発動
+    const actY=(name,prep=null,note='')=>{ if(prep) prep(); this.use(name,T,ord,note); drainFunki(false); drainJudg(); };
+    const actB=(name,prep=null,note='')=>{ if(prep) prep(); this.use(name,T,ord,note); drainJudg(); };
     Object.assign(ctx,{drainJudg,drainFunki,drainHecate,actY});
 
     // ── 押し順メインシーケンス ──
@@ -483,8 +483,7 @@ class Sim {
     if(rdy('divinus')) actB('divinus');
     if(this.keigyo>=ABIL.knights[3]) actB('knights');
 
-    // ── 赤フェイズ開始: ここで初めてjudgを消費 ──
-    // 黄/青で溜まったprocを全バフ・デバフ適用後に一括放出→ジャッジが最大火力で入る
+    // ── 赤フェイズ: effond(ヘカテー赤)を解禁。judgは既に随時発動済みのため残りを掃く ──
     drainJudg();
     drainFunki(true);
 
@@ -520,7 +519,7 @@ class Sim {
     return {
       t,ord,atk,full:atk.length===5,
       burst:T.burst,ability:T.ability,ra:T.ra,ju:T.ju,
-      judg_reset:T.judg_reset,judg_waste:T.judg_waste,mobius_this:T.mobius,
+      judgReact:T.judgReact,mobius_this:T.mobius,
       rt,renri:this.renri,keigyo:this.keigyo,cum:this.cum,
       mooncode:this.mooncode,ycount:this.ycount,helix,robot:this.robot,
       gauge:{...this.g}, state:this.snap()
