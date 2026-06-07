@@ -471,7 +471,7 @@ class Sim {
   takeTurn(t) {
     this.tick();
     const T={ability:0,yellow:0,burst:0,proc:0,fr:0,ra:0,tenya:0,
-             ju:0,mobius:0};
+             ju:0,mobius:0,judgOpen:false};
     // ジャッジ同ターン発動上限 = 再発動4回 + (前ターンのフルバースト持ち越し等で開始時使用可なら+1)
     T.judgCap = JUDG_REACT + (this.cd.judg===0 ? 1 : 0);
     const ord=[], bset=new Set();
@@ -481,7 +481,8 @@ class Sim {
     const drainRunOf=key=>{ if(!ABIL[key]) return null; const d=CHAR_DEF[ownerOf(key)]; return d&&d.drain?d.drain.run:null; };
     const judgRun=drainRunOf('judg'), funkiRun=drainRunOf('funki'), hecateRun=drainRunOf('puvoir');
     const ctx={ bset, rdy };
-    const drainJudg  =()=>{ if(judgRun)   judgRun(this,T,ord,ctx); };
+    // judgは青デバフ展開後に解禁(T.judgOpen)。それまではarm(CD0)だけ蓄積し発火を保留。
+    const drainJudg  =()=>{ if(judgRun && T.judgOpen) judgRun(this,T,ord,ctx); };
     const drainFunki =(inRed=false)=>{ if(funkiRun)  funkiRun(this,T,ord,ctx,inRed); };
     const drainHecate=(inRed=false)=>{ if(hecateRun) hecateRun(this,T,ord,ctx,inRed); };
     // 黄/青フェイズ用ラッパー: judgは温存せず使用可になり次第即発動
@@ -517,11 +518,13 @@ class Sim {
     });
     drainFunki(false);
 
-    // 3) 青デバフ: 攻防DOWN・バースト耐性DOWN → 赤の直前
+    // 3) 青デバフ: 攻防DOWN・バースト耐性DOWN → 赤の直前。judgはここで初めて解禁する
+    //    (デバフを乗せてからジャッジを撃つ。actB内のdrainJudgはまだ保留中なので発火しない)
     if(rdy('divinus')) actB('divinus');
     if(ABIL.knights && this.keigyo>=ABIL.knights[3]) actB('knights');
 
-    // ── 赤フェイズ: effond(ヘカテー赤)を解禁。judgは既に随時発動済みのため残りを掃く ──
+    // ── 赤フェイズ: judg解禁。デバフ後にarm済み分をまとめて発火。effond等もここから ──
+    T.judgOpen=true;
     drainJudg();
     drainFunki(true);
 
