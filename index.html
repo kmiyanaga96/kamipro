@@ -279,18 +279,88 @@ const ABIL = {
 // 各キャラのゲージ上限・契晶獲得量・バースト時の固有処理を宣言的に集約。
 // エンジン側はこの記述子を読むだけにし、`owner==='edison'` 等の名前直書きを排除する。
 // 将来キャラを差し替える際は CHARS / ABIL / CHAR_DEF を編集すれば済むのが目標。
+// 各キャラの能力は以下のフックに集約される:
+//   gmax        : バースト後ゲージ上限
+//   keigyoGain  : 自身バースト時の契晶獲得量
+//   onBurst     : バースト時の固有処理(atk=自身の攻撃バーストか)
+//   robotBuffs  : ロボ作動連動の累積バフ(色キー)。英霊のみ保持
+//   drain       : 毎ターン「条件成立で自律発動する」リアクティブ処理
+//                 {phase:'yellow'|'red', run(sim,T,ord,ctx,inRed)}
+//   inori/tenya/legend/finisher/turnEnd : 押し順シーケンス上の戦略アクション
+//   ctxは {bset,rdy,JPHASE,drainJudg,drainFunki,drainHecate} を提供
 const CHAR_DEF = {
   edison: {
     gmax: BG.other_max,
     keigyoGain: 3,
+    // バノーシク=黄アビ毎に攻防UP / ドロイド=赤アビ毎にアビ性能UP
+    robotBuffs: {
+      y:{src:'banoshik',s:'party',k:'atk',  inc:0.05,max:0.80},
+      r:{src:'droid',   s:'party',k:'given',inc:0.05,max:0.60},
+    },
     // 自身の攻撃バースト時、ロボ(ドロイド/バノーシク)のCTを1短縮
     onBurst: (sim, atk) => {
       if(atk){ sim.cd.droid=Math.max(0,sim.cd.droid-1); sim.cd.banoshik=Math.max(0,sim.cd.banoshik-1); }
     },
+    // 累計契晶80以上で英霊にBG+20（ターン終了時）
+    turnEnd: (sim) => { if(sim.cum>=80) sim.addG([LEADER],20); },
   },
-  yamato: { gmax: BG.yamato_max, keigyoGain: 1 },
-  hecate: { gmax: BG.other_max, keigyoGain: 1 },
-  tetra:  {
+
+  yamato: {
+    gmax: BG.yamato_max,
+    keigyoGain: 1,
+    // 大和の奮起: CDが0なら全消費。集いし願いの黄4回リセットも拾う。
+    // 3回毎に現神の祈りCT-1。赤フェイズ中は奮起後にジャッジも消化。
+    drain: { phase:'yellow', run:(sim,T,ord,ctx,inRed)=>{
+      while(ctx.rdy('funki')){
+        sim.ycount++;
+        sim.addG(CHARS,BG.funki);
+        if(sim.ycount%3===0) sim.cd.inori=Math.max(0,sim.cd.inori-1);
+        sim.use('funki',T,ord);
+        if(inRed) ctx.drainJudg();
+      }
+    }},
+    // 現神の祈り: CD明け次第。ヤマトBG+100＋バースト性能UP＋天矢乱舞解放
+    inori: (sim,T,ord,ctx) => {
+      if(ctx.rdy('inori')) ctx.actY('inori',()=>{ sim.addG([ownerOf('inori')],BG.inori); sim.inori_p=0; });
+    },
+    // 天矢乱舞: ゲージ枯渇時のみ(T2以降)。発動後ゲージ-40で同ターン連続発動
+    tenya: (sim,T,ord,ctx,t) => {
+      const me=ownerOf('tenya');
+      const shortCount=CHARS.filter(c=>sim.g[c]<FB_THR).length;
+      if(!(t>=TENYA_FROM&&ctx.rdy('tenya')&&shortCount>0)) return;
+      const tidx=ord.length;
+      sim.use('tenya',T,ord,'①');
+      sim.burst(me,ctx.bset,T); ctx.drainJudg(); ctx.drainFunki(true);
+      if(T.mobius){ T.mobius=0; ctx.drainHecate(true); }
+      T.tenya=1;
+      while(T.tenya<3&&sim.g[me]>=40){
+        sim.g[me]-=40;
+        sim.burst(me,ctx.bset,T); ctx.drainJudg(); ctx.drainFunki(true);
+        if(T.mobius){ T.mobius=0; ctx.drainHecate(true); }
+        T.tenya++;
+        ord[tidx]={text:`天矢乱舞①〜${T.tenya}(-40×${T.tenya-1})`, color:'r'};
+      }
+    },
+  },
+
+  hecate: {
+    gmax: BG.other_max,
+    keigyoGain: 1,
+    // ヘカテーアビ: 黄(puvoir,sleur)優先→赤フェイズ&ムーンコード時にeffond即バースト。
+    // モビウスムーンズで多重リセットされた場合は再帰的に再消化。
+    drain: { phase:'yellow', run:(sim,T,ord,ctx,inRed)=>{
+      if(ctx.rdy('puvoir')) { sim.use('puvoir',T,ord);                            ctx.drainFunki(inRed); if(inRed) ctx.drainJudg(); }
+      if(ctx.rdy('sleur'))  { sim.addG(CHARS,BG.sleur); sim.use('sleur',T,ord);   ctx.drainFunki(inRed); if(inRed) ctx.drainJudg(); }
+      if(inRed&&ctx.rdy('effond')&&sim.mooncode>0){
+        sim.use('effond',T,ord,'→即バースト');
+        sim.burst(ownerOf('effond'),ctx.bset,T);
+        ctx.drainJudg(); ctx.drainFunki(true);
+        if(T.mobius>0){ T.mobius=0; ctx.drainHecate(true); }
+      }
+    }},
+  },
+
+  tetra: {
     gmax: BG.other_max,
     keigyoGain: 1,
     // テトラバースト効果: 自身のアビCD全て-1（誘発バースト時はジャッジ自体を除外）
@@ -301,10 +371,54 @@ const CHAR_DEF = {
         if(sim.cd[k]>0) sim.cd[k]--;
       }
     },
+    // ジャッジメント: CD=0なら即使用(フラグ非蓄積・二値制御)。3周期目(ph1)で自身バースト。
+    drain: { phase:'red', run:(sim,T,ord,ctx)=>{
+      const me=ownerOf('judg');
+      while(sim.cd.judg===0&&T.ju<JUDG_MAX){
+        const ph=T.ju%3;
+        sim.use('judg',T,ord,ctx.JPHASE[ph]);
+        T.ju++;
+        if(ph===1) sim.burst(me,ctx.bset,T);
+      }
+    }},
   },
-  elaine: { gmax: BG.other_max, keigyoGain: 1 },
+
+  elaine: {
+    gmax: BG.other_max,
+    keigyoGain: 1,
+    // レジェンドトラベラー: 累計契晶を参照(消費なし)。回数分BG供給。
+    legend: (sim,T,ord,ctx) => {
+      let lu=sim.cum>=1?2:1;
+      for(const thr of [26,51,71,80]) if(sim.cum>=thr) lu++;
+      const lead100=sim.g[LEADER]>=100;
+      for(let i=0;i<lu;i++) ctx.actY('legend',()=>sim.addG(lead100?CHARS:[LEADER,ownerOf('legend')],BG.legend));
+    },
+    // フィニッシャー: PactCore(英霊CT短縮+全BG)優先、不可ならアロンブレイク連打
+    finisher: (sim,T,ord,ctx) => {
+      const rdown=sim.cd.droid>0||sim.cd.banoshik>0;
+      if(sim.keigyo>=12&&rdown&&sim.g[LEADER]>=100){
+        sim.cd.droid=Math.max(0,sim.cd.droid-1);
+        sim.cd.banoshik=Math.max(0,sim.cd.banoshik-1);
+        sim.addG(CHARS,BG.pactcore);
+        sim.use('pactcore',T,ord,'(ロボ-1/全+100)');
+        ctx.drainJudg(); ctx.drainFunki(true);
+        if(T.mobius){ T.mobius=0; ctx.drainHecate(true); }
+      } else {
+        let al=0;
+        while(al<2&&sim.keigyo>=4){
+          sim.use('alone',T,ord);
+          sim.burst(ownerOf('alone'),ctx.bset,T);
+          ctx.drainJudg(); ctx.drainFunki(true);
+          if(T.mobius){ T.mobius=0; ctx.drainHecate(true); }
+          al++;
+        }
+      }
+    },
+  },
 };
 
+// アビリティ→所有キャラの解決（編成差し替え時はABIL/CHAR_DEFを編集すれば追従）
+const ownerOf = k => ABIL[k][0];
 const LABEL = {
   banoshik:"バノーシク",droid:"ドロイド",ifishant:"イフィシャント(全CD-1)",
   amplifa:"アンプリファ",inori:"現神の祈り(ヤ+100)",tenya:"天矢乱舞",
@@ -336,11 +450,6 @@ const BUFFS = {
   knights: [{s:'enemy',k:'bresist',v:0.20,d:6}],
   // 現神の祈り: ヤマトのバースト性能大幅UP（火力貢献。本来は発動ターン終了時付与）
   inori:   [{s:'self',k:'bperf',v:0.60,d:3}],
-};
-// ロボ作動連動の累積バフ（use内で付与）: バノーシク=黄アビ毎に攻防UP / ドロイド=赤アビ毎にアビ性能UP
-const ROBO_ACC = {
-  y:{src:'banoshik',s:'party',k:'atk',  inc:0.05,max:0.80},
-  r:{src:'droid',   s:'party',k:'given',inc:0.05,max:0.60},
 };
 // CDs that need CT display (non-zero CD abilities)
 const CD_SHOW = {
@@ -459,15 +568,23 @@ class Sim {
     this.procR(T,'b');
     // キャラ固有のバースト時処理（CHAR_DEF記述子に集約）
     CHAR_DEF[owner].onBurst?.(this, atk);
-    // モビウスムーンズ: party burst 5回毎にヘカテーのアビCD全リセット
+    // モビウスムーンズ: party burst 5回毎にヘカテー(=黄ドレイン所有者)のアビCD全リセット
     this.mburst++;
-    if(this.mburst%5===0){ this.cd.puvoir=0; this.cd.effond=0; this.cd.sleur=0; T.mobius=(T.mobius||0)+1; }
+    if(this.mburst%5===0){
+      const ho=ownerOf('puvoir');
+      for(const k of Object.keys(ABIL)) if(ownerOf(k)===ho) this.cd[k]=0;
+      T.mobius=(T.mobius||0)+1;
+    }
   }
 
   use(name, T, ord, note='') {
     const [,color,cd,cost]=ABIL[name];
     this.cd[name]=cd; if(cost) this.keigyo-=cost; T.ability++;
-    if((color==='y'||color==='r')&&this.robot>0){ T.ra++; if(ROBO_ACC[color]) this.accBuff(ROBO_ACC[color]); }
+    if((color==='y'||color==='r')&&this.robot>0){
+      T.ra++;
+      const rb=CHAR_DEF[LEADER].robotBuffs?.[color];
+      if(rb) this.accBuff(rb);
+    }
     if(color==='y'){
       T.yellow++;
       if(T.yellow%4===0&&T.fr<3){ this.cd.funki=0; T.fr++; }
@@ -487,46 +604,18 @@ class Sim {
     const rdy=n=>this.cd[n]===0;
     const JPHASE=['(AoE)','(バースト)','(通常)'];
 
-    // ── ドレイン関数 ──
-
-    // ジャッジメント: CD=0なら即使用(フラグ非蓄積・二値制御)
-    const drainJudg=()=>{
-      while(this.cd.judg===0&&T.ju<JUDG_MAX){
-        const ph=T.ju%3;
-        this.use('judg',T,ord,JPHASE[ph]);
-        T.ju++;
-        if(ph===1) this.burst('tetra',bset,T);
-      }
-    };
-
-    // 大和の奮起: CDが0なら全消費(集いし願いの黄4回リセットも拾う)
-    // inRedPhase=trueのとき奮起後もdrainJudgを走らせる
-    const drainFunki=(inRedPhase=false)=>{
-      while(rdy('funki')){
-        this.ycount++;
-        this.addG(CHARS,BG.funki);
-        if(this.ycount%3===0) this.cd.inori=Math.max(0,this.cd.inori-1);
-        this.use('funki',T,ord);
-        if(inRedPhase) drainJudg();
-      }
-    };
-
-    // ヘカテーアビリティ: 黄(puvoir,sleur)優先→ムーンコード時effond
-    // モビウスムーンズリセット後にも再呼び出し
-    const drainHecate=(inRedPhase=false)=>{
-      if(rdy('puvoir'))  { this.use('puvoir',T,ord);                              drainFunki(inRedPhase); if(inRedPhase) drainJudg(); }
-      if(rdy('sleur'))   { this.addG(CHARS,BG.sleur); this.use('sleur',T,ord);    drainFunki(inRedPhase); if(inRedPhase) drainJudg(); }
-      if(inRedPhase&&rdy('effond')&&this.mooncode>0){
-        this.use('effond',T,ord,'→即バースト');
-        this.burst('hecate',bset,T);
-        drainJudg(); drainFunki(true);
-        if(T.mobius>0){ T.mobius=0; drainHecate(true); } // モビウス多重リセット対応
-      }
-    };
-
+    // ── ドレイン関数（実体はCHAR_DEFの各キャラ記述子に集約。ここでは所有者から解決して束ねる） ──
+    // drainJudg=judg所有者の赤ドレイン / drainFunki=funki所有者の黄ドレイン / drainHecate=puvoir所有者の黄ドレイン
+    const drainRunOf=key=>{ const d=CHAR_DEF[ownerOf(key)]; return d&&d.drain?d.drain.run:null; };
+    const judgRun=drainRunOf('judg'), funkiRun=drainRunOf('funki'), hecateRun=drainRunOf('puvoir');
+    const ctx={ bset, rdy, JPHASE };
+    const drainJudg  =()=>{ if(judgRun)   judgRun(this,T,ord,ctx); };
+    const drainFunki =(inRed=false)=>{ if(funkiRun)  funkiRun(this,T,ord,ctx,inRed); };
+    const drainHecate=(inRed=false)=>{ if(hecateRun) hecateRun(this,T,ord,ctx,inRed); };
     // 黄/青フェイズ用ラッパー: judg保留(全攻撃バフ・デバフを積んでから赤で消費)
     const actY=(name,prep=null,note='')=>{ if(prep) prep(); this.use(name,T,ord,note); drainFunki(false); };
     const actB=(name,prep=null,note='')=>{ if(prep) prep(); this.use(name,T,ord,note); };
+    Object.assign(ctx,{drainJudg,drainFunki,drainHecate,actY});
 
     // ── 押し順メインシーケンス ──
 
@@ -544,15 +633,12 @@ class Sim {
     drainHecate(false); // puvoir・sleurをここで消化(黄アビ=ロボ作動+攻撃バフ累積)
     drainFunki(false);
     actY('absolute',()=>this.addG(CHARS,BG.absolute));
-    let lu=this.cum>=1?2:1;
-    for(const thr of [26,51,71,80]) if(this.cum>=thr) lu++;
-    const e100=this.g.edison>=100;
-    for(let i=0;i<lu;i++) actY('legend',()=>this.addG(e100?CHARS:['edison','elaine'],BG.legend));
+    // レジェンドトラベラー(エレイン戦略フック): 累計契晶参照のBG供給
+    CHAR_DEF[ownerOf('legend')].legend(this,T,ord,ctx);
     drainFunki(false);
 
-    // 現神の祈り: CD明け次第発動（バースト性能大幅UP＋天矢乱舞解放。CD14で頻度は自然に制限）
-    if(rdy('inori'))
-      actY('inori',()=>{ this.addG(['yamato'],BG.inori); this.inori_p=0; });
+    // 現神の祈り(ヤマト戦略フック): CD明け次第発動（バースト性能UP＋天矢乱舞解放）
+    CHAR_DEF[ownerOf('inori')].inori(this,T,ord,ctx);
 
     // イフィシャント: 全CD-1(自身除く) → 黄フェイズ最後に置いて最大効果
     if(rdy('ifishant')) actY('ifishant',()=>{
@@ -572,42 +658,11 @@ class Sim {
     // 4) ヘカテー赤(effond)+天矢乱舞+契晶 → 各バースト後にdrainJudg/drainFunki/モビウス確認
     drainHecate(true); // effond(ムーンコード時即バースト)含む
 
-    // 天矢乱舞: ゲージ枯渇時のみ（ゲージ十分なのに使う意味なし）
-    const shortCount=CHARS.filter(c=>this.g[c]<FB_THR).length;
-    const tenyaOK=shortCount>0;
-    if(t>=TENYA_FROM&&rdy('tenya')&&tenyaOK){
-      const tidx=ord.length;
-      this.use('tenya',T,ord,'①');
-      this.burst('yamato',bset,T); drainJudg(); drainFunki(true);
-      if(T.mobius){ T.mobius=0; drainHecate(true); }
-      T.tenya=1;
-      while(T.tenya<3&&this.g.yamato>=40){
-        this.g.yamato-=40;
-        this.burst('yamato',bset,T); drainJudg(); drainFunki(true);
-        if(T.mobius){ T.mobius=0; drainHecate(true); }
-        T.tenya++;
-        ord[tidx]={text:`天矢乱舞①〜${T.tenya}(-40×${T.tenya-1})`, color:'r'};
-      }
-    }
+    // 天矢乱舞(ヤマト戦略フック): ゲージ枯渇時のみ
+    CHAR_DEF[ownerOf('tenya')].tenya(this,T,ord,ctx,t);
 
-    const rdown=this.cd.droid>0||this.cd.banoshik>0;
-    if(this.keigyo>=12&&rdown&&this.g.edison>=100){
-      this.cd.droid=Math.max(0,this.cd.droid-1);
-      this.cd.banoshik=Math.max(0,this.cd.banoshik-1);
-      this.addG(CHARS,BG.pactcore);
-      this.use('pactcore',T,ord,'(ロボ-1/全+100)');
-      drainJudg(); drainFunki(true);
-      if(T.mobius){ T.mobius=0; drainHecate(true); }
-    } else {
-      let al=0;
-      while(al<2&&this.keigyo>=4){
-        this.use('alone',T,ord);
-        this.burst('elaine',bset,T);
-        drainJudg(); drainFunki(true);
-        if(T.mobius){ T.mobius=0; drainHecate(true); }
-        al++;
-      }
-    }
+    // フィニッシャー(エレイン戦略フック): PactCore優先・不可ならアロンブレイク連打
+    CHAR_DEF[ownerOf('alone')].finisher(this,T,ord,ctx);
 
     // 攻撃フェイズ（全バフ・デバフ適用後＝この時点のバフ状態で攻撃/バーストが入る）
     const buffsAtAtk=this.buffSummary();
@@ -627,7 +682,7 @@ class Sim {
     // ターン終了（連理魔力はprocRでリアルタイム加算済み）
     const rt=T.proc;
     this.addG(CHARS,MACH_BG*T.ra);
-    if(this.cum>=80) this.addG(['edison'],20);
+    CHAR_DEF[LEADER].turnEnd?.(this); // 英霊固有のターン終了処理（累計契晶80でBG+20）
     if(t%4===0){ this.keigyo=Math.min(this.keigyo+5,KEIGYO_MAX); this.cum+=5; }
     if(this.inori_p!==null){ this.inori_p++; if(this.inori_p===2){ this.cd.tenya=0; this.inori_p=null; } }
     const helix=this.renri>=30&&!this.helix_done;
@@ -662,7 +717,7 @@ function switchTab(tab){
 
 function gaugesHTML(g){
   return `<div class="gauges">${CHARS.map(c=>{
-    const max=c==='yamato'?200:100, pct=Math.min(100,(g[c]/max)*100);
+    const max=CHAR_DEF[c].gmax, pct=Math.min(100,(g[c]/max)*100);
     return `<div class="gauge-row">
       <div class="gauge-name">${JP[c]}</div>
       <div class="gauge-wrap"><div class="gauge-fill ${GCLS[c]}" style="width:${pct}%"></div></div>
@@ -833,7 +888,7 @@ function buildForms(){
   // Gauges
   let h='<div class="fgrid">';
   for(const c of CHARS){
-    const mx=c==='yamato'?200:100;
+    const mx=CHAR_DEF[c].gmax;
     h+=`<div class="frow" style="grid-column:span 2;">
       <label>${JP[c]} BG (0-${mx}) <span class="range-disp" id="gv-${c}">100</span></label>
       <input type="range" min="0" max="${mx}" value="100" step="1"
