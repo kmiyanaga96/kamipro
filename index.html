@@ -468,7 +468,11 @@ class Sim {
 
 
 
+  // 旧シーケンス型エンジン — greedyTakeTurnへの移行完了後に削除予定
   takeTurn(t) {
+    return this.greedyTakeTurn(t);
+  }
+  _oldTakeTurn(t) {
     this.tick();
     const T={ability:0,yellow:0,burst:0,proc:0,fr:0,ra:0,tenya:0,
              ju:0,mobius:0,judgOpen:false};
@@ -565,6 +569,130 @@ class Sim {
       mooncode:this.mooncode,ycount:this.ycount,helix,robot:this.robot,
       gauge:{...this.g}, state:this.snap()
     };
+  }
+
+  // ===== 貪欲ループ最適化エンジン =====
+  // 毎ステップ全アビをスコアリングして最高得点を1つ実行するループ。
+  // フェイズ概念を廃止 — 黄(>100)が赤(40-70)より高得点なので自然に黄→青→赤順になる。
+  // moebiusでヘカテー黄が解禁されても次ステップで高得点として拾う。
+  greedyTakeTurn(t) {
+    this.tick();
+    const T={ability:0,yellow:0,burst:0,proc:0,fr:0,ra:0,tenya:0,
+             ju:0,mobius:0,legendUsed:false,pactcoreUsed:false,alone:0,
+             knightsUsed:false,inoriLookahead:null};
+    T.judgCap = JUDG_REACT + (this.cd.judg===0 ? 1 : 0);
+    const ord=[], bset=new Set();
+    const sim=this, rdy=k=>sim.cd[k]===0;
+
+    const candidates=()=>{
+      const c=[];
+      // スコア: 黄バフ系 100-200 > 青デバフ 85-90 > 赤攻撃 40-70
+      // ── Edison ──
+      if(ABIL.droid    && rdy('droid'))    c.push({s:201,exec:()=>{ sim.robot=3; sim.use('droid',T,ord); }});
+      if(ABIL.banoshik && rdy('banoshik')) c.push({s:200,exec:()=>{ sim.robot=3; sim.use('banoshik',T,ord); }});
+      if(ABIL.amplifa  && rdy('amplifa'))  c.push({s:180,exec:()=>sim.use('amplifa',T,ord)});
+      if(ABIL.ifishant && rdy('ifishant')) c.push({s:110,exec:()=>{
+        for(const k of Object.keys(sim.cd)) if(k!=='ifishant'&&sim.cd[k]>0) sim.cd[k]--;
+        sim.use('ifishant',T,ord);
+      }});
+      // ── Yamato ──
+      if(ABIL.funki && rdy('funki')) c.push({s:150,exec:()=>{
+        sim.ycount++; sim.addG(CHARS,BG.funki);
+        if(sim.ycount%3===0) sim.cd.inori=Math.max(0,sim.cd.inori-1);
+        sim.use('funki',T,ord);
+      }});
+      if(ABIL.inori && rdy('inori') && !sim.planning){
+        // 先読みはターン初回1度だけ評価してキャッシュ
+        if(T.inoriLookahead===null){
+          let dep=false; const look=sim.clone();
+          for(let k=1;k<=LA_TURNS;k++) if(look.greedyTakeTurn(t+k).atk.length<5){dep=true;break;}
+          T.inoriLookahead=dep;
+        }
+        if(T.inoriLookahead) c.push({s:95,exec:()=>{
+          T.inoriLookahead=null;
+          sim.addG([ownerOf('inori')],BG.inori); sim.inori_p=0; sim.use('inori',T,ord);
+        }});
+      }
+      const shortCount=CHARS.filter(cc=>sim.g[cc]<FB_THR).length;
+      if(ABIL.tenya && rdy('tenya') && t>=TENYA_FROM && shortCount>0) c.push({s:55,exec:()=>{
+        const me=ownerOf('tenya'), tidx=ord.length;
+        sim.use('tenya',T,ord); sim.burst(me,bset,T); T.tenya=1;
+        while(T.tenya<3&&sim.g[me]>=40){
+          sim.g[me]-=40; sim.burst(me,bset,T); T.tenya++;
+          ord[tidx]={text:`${LABEL.tenya}×${T.tenya}(-40×${T.tenya-1})`,color:'r'};
+        }
+      }});
+      // ── Hecate ──
+      if(ABIL.puvoir && rdy('puvoir')) c.push({s:140,exec:()=>sim.use('puvoir',T,ord)});
+      if(ABIL.sleur  && rdy('sleur'))  c.push({s:140,exec:()=>{ sim.addG(CHARS,BG.sleur); sim.use('sleur',T,ord); }});
+      if(ABIL.effond && rdy('effond') && sim.mooncode>0) c.push({s:70,exec:()=>{
+        sim.use('effond',T,ord); sim.burst(ownerOf('effond'),bset,T);
+      }});
+      // ── Tetra ──
+      if(ABIL.absolute && rdy('absolute')) c.push({s:130,exec:()=>{ sim.addG(CHARS,BG.absolute); sim.use('absolute',T,ord); }});
+      if(ABIL.divinus  && rdy('divinus'))  c.push({s:90, exec:()=>sim.use('divinus',T,ord)});
+      if(ABIL.judg && rdy('judg') && T.ju<T.judgCap) c.push({s:60,exec:()=>{
+        const ph=T.ju%3; sim.use('judg',T,ord); T.ju++;
+        if(ph===1) sim.burst(ownerOf('judg'),bset,T);
+      }});
+      // ── Elaine ──
+      if(ABIL.legend && rdy('legend') && !T.legendUsed){
+        let lu=sim.cum>=1?2:1;
+        for(const thr of [26,51,71,80]) if(sim.cum>=thr) lu++;
+        c.push({s:120,exec:()=>{
+          T.legendUsed=true; const lead100=sim.g[LEADER]>=100;
+          for(let i=0;i<lu;i++){ sim.addG(lead100?CHARS:[LEADER,ownerOf('legend')],BG.legend); sim.use('legend',T,ord); }
+        }});
+      }
+      if(ABIL.knights && !T.knightsUsed && rdy('knights') && sim.keigyo>=ABIL.knights[3])
+        c.push({s:85,exec:()=>{ T.knightsUsed=true; sim.use('knights',T,ord); }});
+      const rdown=(sim.cd.droid??-1)>0||(sim.cd.banoshik??-1)>0;
+      if(ABIL.pactcore && !T.pactcoreUsed && rdy('pactcore') && sim.keigyo>=12 && rdown && sim.g[LEADER]>=100)
+        c.push({s:45,exec:()=>{
+          T.pactcoreUsed=true;
+          if(sim.cd.droid!==undefined) sim.cd.droid=Math.max(0,sim.cd.droid-1);
+          if(sim.cd.banoshik!==undefined) sim.cd.banoshik=Math.max(0,sim.cd.banoshik-1);
+          sim.addG(CHARS,BG.pactcore); sim.use('pactcore',T,ord,'(全+100)');
+        }});
+      if(ABIL.alone && rdy('alone') && (T.alone||0)<2 && sim.keigyo>=ABIL.alone[3])
+        c.push({s:40,exec:()=>{
+          T.alone=(T.alone||0)+1; sim.use('alone',T,ord); sim.burst(ownerOf('alone'),bset,T);
+        }});
+      return c;
+    };
+
+    // 攻撃前 貪欲ループ
+    for(let i=0;i<300;i++){
+      const cands=candidates(); if(!cands.length) break;
+      cands.reduce((a,b)=>b.s>a.s?b:a).exec();
+    }
+
+    // 攻撃フェイズ
+    const atk=[];
+    for(const c of CHARS){
+      if(this.g[c]>=FB_THR){
+        this.g[c]-=100; this.burst(c,bset,T,true); atk.push(c);
+        // 攻撃後誘発(judg rearm / moobius解禁 / alone等) — スコア40以上のみ
+        for(let i=0;i<50;i++){
+          const cands=candidates().filter(a=>a.s>=40); if(!cands.length) break;
+          cands.reduce((a,b)=>b.s>a.s?b:a).exec();
+        }
+      }
+    }
+
+    // ターン終了
+    const rt=T.proc;
+    this.addG(CHARS,MACH_BG*T.ra);
+    CHAR_DEF[LEADER].turnEnd?.(this);
+    if(t%4===0){ this.keigyo=Math.min(this.keigyo+5,KEIGYO_MAX); this.cum+=5; }
+    if(this.inori_p!==null){ this.inori_p++; if(this.inori_p===2){ this.cd.tenya=0; this.inori_p=null; } }
+    const helix=this.renri>=30&&!this.helix_done;
+    if(helix) this.helix_done=true;
+
+    return {t,ord,atk,full:atk.length===5,burst:T.burst,ability:T.ability,ra:T.ra,ju:T.ju,
+      mobius_this:T.mobius,rt,renri:this.renri,keigyo:this.keigyo,cum:this.cum,
+      mooncode:this.mooncode,ycount:this.ycount,helix,robot:this.robot,
+      gauge:{...this.g},state:this.snap()};
   }
 
   snap(){
@@ -698,7 +826,7 @@ function runSim(){
   const n=Math.max(1,Math.min(30,parseInt(document.getElementById('turns-n').value)||10));
   const sim=new Sim();
   SIM_ROWS=[];
-  for(let t=1;t<=n;t++) SIM_ROWS.push(sim.takeTurn(t));
+  for(let t=1;t<=n;t++) SIM_ROWS.push(sim.greedyTakeTurn(t));
   renderSim();
 }
 
