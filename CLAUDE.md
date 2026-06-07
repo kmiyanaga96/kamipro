@@ -1,0 +1,90 @@
+# 神姫PROJECT R — 光属性バーストトラッカー
+
+単一ファイル(`index.html`)で完結する、光属性バースト編成のシミュレーター＆最適押し順トラッカー。
+ビルド不要・外部依存なし（HTML+CSS+vanilla JS）。ブラウザで直接開いて動作する。
+
+現行編成: 英霊エジソン + ヤマト / ヘカテー / テトラ / エレイン
+
+## コード地図（index.html / 全1024行）
+
+セクション編集時は、まず該当範囲だけを Read すればトークンを節約できる。
+
+| 範囲(行) | 内容 |
+|---|---|
+| 7–128 | CSS（`<style>`、Material白基調UI） |
+| 130–248 | HTML構造（ヘッダ/タブ/サイドバー/自動Sim/インタラクティブ入力） |
+| 251–265 | ゲーム定数（確定仕様・後述） |
+| 266–290 | `ABIL`（[owner,color,cd,keigyo_cost]）/ `LABEL` / `ownerOf` |
+| 291–438 | **`CHAR_DEF`**（各キャラ固有ロジックの集約先） |
+| 439–461 | `STAT` / `BUFFS` / バフ関連テーブル |
+| 463–597 | `class Sim` エンジン（tick/applyBuffs/dmgIndex/burst/use 等） |
+| 599–709 | `takeTurn(t)` 押し順メインシーケンス |
+| 710–791 | UI helpers（gaugesHTML/ordChipsHTML/`ACOL`色パレット 等） |
+| 792–885 | 自動シミュレーション描画（runSim/renderSim/cardHTML） |
+| 886–末尾 | インタラクティブ入力（buildForms/getState/calcInteractive） |
+
+## アーキテクチャ原則
+
+- **キャラ固有ロジックは必ず `CHAR_DEF` に置く。** エンジン本体(`class Sim`/`takeTurn`)に
+  キャラ名リテラル(`'edison'`等)を書かない。所有者解決は `ownerOf(abilityKey)` を使う。
+- `CHAR_DEF[c]` のフック: `gmax` / `keigyoGain` / `onBurst` / `robotBuffs`(英霊のみ) /
+  `drain`(リアクティブ自律発動) / `inori`･`tenya`･`legend`･`finisher`･`turnEnd`(戦略アクション)。
+- 戦略フックには `ctx`（`bset/rdy/JPHASE/drainJudg/drainFunki/drainHecate/actY`）を渡す。
+- 押し順シーケンスはアビリティ名で記述され、`rdy()` ガードで未所持アビは自動スキップされる。
+
+### 編成を差し替えるときは3箇所だけ編集する
+1. `CHARS`（編成メンバー配列）/ `LEADER`（英霊）/ `JP`（表示名）
+2. `ABIL` / `LABEL`（そのキャラのアビリティ定義）
+3. `CHAR_DEF`（gmax・契晶・onBurst・drain・戦略フック）
+
+## 変更禁止スペック（確定ゲーム定数）
+
+`index.html` 冒頭の定数。値の変更は実機仕様と乖離するため不可。
+
+- `RENRI_CAP=5`（連理魔力 同ターン上限）
+- `JUDG_MAX=6`（ジャッジ 同ターン上限）
+- `TENYA_FROM=2`（天矢乱舞 使用可能開始ターン）
+- `FB_THR=100`（フルバースト閾値。カスケード+10で90/80…でも連鎖発火）
+- `MACH_BG=5`（マシーンタクトゥ ロボ作動1回あたりBG増加）
+- `KEIGYO_MAX=15`（契晶最大値）
+
+### 設計上の不変条件（壊さない）
+- **ジャッジ/奮起/ヘカテー3アビの「即使用可」フラグは非蓄積**。CDを0にリセットする二値制御で表現し、
+  トークン蓄積による連続使用は不可。`while(cd.judg===0)` ゲートで担保。
+- **連理魔力(renri)** は3チャネル（burst/2・abi/12）、同ターン上限5、目標30でHELIX解禁。
+- **テトラのバースト効果**は自身のバーストのみ対象。誘発バーストではジャッジ自体を除外。
+- **モビウスムーンズ**: partyバースト5回毎にヘカテー(黄ドレイン所有者)の全アビCDリセット。
+- **天矢乱舞**はゲージ枯渇時(shortCount>0)のみ・T2以降。
+
+## 検証方法
+
+リファクタ後は必ずベースラインと一致するか確認する（10ターン全て5人フルバースト＝10/10）。
+
+```bash
+node -e '
+const html=require("fs").readFileSync("index.html","utf8");
+let code=html.slice(html.indexOf("// ===== ゲーム定数"), html.indexOf("// ===== UI HELPERS"));
+code+="\nglobalThis.Sim=Sim;";
+(0,eval)(code);
+const sim=new globalThis.Sim();
+let fb=0;
+for(let t=1;t<=10;t++){const r=sim.takeTurn(t); if(r.full)fb++;
+  console.log("T"+t,"FB:"+r.atk.length,"J:"+r.ju,"renri:"+r.renri,"pow:"+r.power);}
+console.log("FullBurst:",fb+"/10");
+'
+```
+
+期待値（基準）:
+```
+T1 FB:5 J:5 renri:5  pow:73.14    T6  FB:5 J:4 renri:30 pow:209.83
+T2 FB:5 J:5 renri:10 pow:162.39   T7  FB:5 J:5 renri:35 pow:229.71
+T3 FB:5 J:5 renri:15 pow:269.47   T8  FB:5 J:5 renri:40 pow:229.71
+T4 FB:5 J:5 renri:20 pow:229.71   T9  FB:5 J:5 renri:45 pow:209.83
+T5 FB:5 J:5 renri:25 pow:189.95   T10 FB:5 J:5 renri:50 pow:249.59
+```
+
+## 開発ルール
+
+- 開発ブランチ: `claude/wizardly-dirac-JIdyw`
+- バフ/デバフ効果値（`BUFFS`）は暫定値。火力指数は「効果が攻撃/バースト時に乗るか」の相対比較が目的。
+- 単一ファイル構成を維持する（JS/CSSの外部ファイル分割はしない方針）。
