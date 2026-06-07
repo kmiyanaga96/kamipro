@@ -284,11 +284,11 @@ const CHAR_DEF = {
         if(sim.cd[k]>0) sim.cd[k]--;
       }
     },
-    // ジャッジメント: CD=0(使用可)になった時点で即発動。3周期目(ph1)で自身バースト。
-    // 再発動上限(JUDG_REACT)はprocR側で担保。ここは「使用可なら撃つ」のみ。
+    // ジャッジメント: CD=0(使用可)になり次第即発動。3周期目(ph1)で自身バースト。
+    // 同ターンの発動はjudgCap(=再発動4+開始時使用可分)まで。超過armは次ターンへ持ち越し。
     drain: { phase:'red', run:(sim,T,ord,ctx)=>{
       const me=ownerOf('judg');
-      while(sim.cd.judg===0){
+      while(sim.cd.judg===0 && T.ju<T.judgCap){
         const ph=T.ju%3;
         sim.use('judg',T,ord);
         T.ju++;
@@ -388,14 +388,11 @@ class Sim {
       (channel==='b'&&T.burst>0&&T.burst%2===0)||
       (channel==='a'&&T.ability>0&&T.ability%12===0)
     );
-    if(crossed&&T.proc<RENRI_CAP){
-      T.proc++; this.renri++;
-      // 連理procでジャッジメントが「再発動可能」になる。再発動上限はJUDG_REACT(同ターン4回)。
-      // CD>0のjudgをCD0に戻す=再発動1回分。即時発動方針のため通常judgは温存されず、
-      // procが来た時点ではCD>0→確実に再発動として消費される(上限まで)。
-      if(usejudg && this.cd.judg>0 && T.judgReact<JUDG_REACT){
-        this.cd.judg=0; T.judgReact++;
-      }
+    if(crossed){
+      if(T.proc<RENRI_CAP){ T.proc++; this.renri++; } // 連理魔力は同ターン上限5で別管理
+      // ジャッジ再発動は連理上限とは独立。通常バーストも含め2バースト毎にCD0へ(=再発動/持ち越し)。
+      // 同ターンの実発動回数はdrain側のjudgCapで制御し、超過分のarmは次ターンへ持ち越される。
+      if(usejudg && this.cd.judg>0) this.cd.judg=0;
     }
     if(channel==='a'&&T.ability>0&&T.ability%12===0) this.mooncode=2;
   }
@@ -435,7 +432,9 @@ class Sim {
   takeTurn(t) {
     this.tick();
     const T={ability:0,yellow:0,burst:0,proc:0,fr:0,ra:0,tenya:0,
-             ju:0,judgReact:0,mobius:0};
+             ju:0,mobius:0};
+    // ジャッジ同ターン発動上限 = 再発動4回 + (前ターンのフルバースト持ち越し等で開始時使用可なら+1)
+    T.judgCap = JUDG_REACT + (this.cd.judg===0 ? 1 : 0);
     const ord=[], bset=new Set();
     const rdy=n=>this.cd[n]===0;
     // ── ドレイン関数（実体はCHAR_DEFの各キャラ記述子に集約。ここでは所有者から解決して束ねる） ──
@@ -519,7 +518,7 @@ class Sim {
     return {
       t,ord,atk,full:atk.length===5,
       burst:T.burst,ability:T.ability,ra:T.ra,ju:T.ju,
-      judgReact:T.judgReact,mobius_this:T.mobius,
+      mobius_this:T.mobius,
       rt,renri:this.renri,keigyo:this.keigyo,cum:this.cum,
       mooncode:this.mooncode,ycount:this.ycount,helix,robot:this.robot,
       gauge:{...this.g}, state:this.snap()
