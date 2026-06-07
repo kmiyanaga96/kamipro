@@ -164,6 +164,7 @@ const TENYA_FROM= 2;   // 天矢乱舞: 使用可能開始ターン
 const FB_THR    = 100; // フルバースト閾値（カスケードあり）
 const MACH_BG   = 5;   // マシーンタクトゥ: ロボ作動1回あたりBG増加
 const KEIGYO_MAX= 15;  // 契晶最大値
+const LA_TURNS  = 3;   // 現神の祈り先読み: この先何ターン枯渇を予測するか
 const BG = {inori:100,funki:10,absolute:20,sleur:15,legend:10,
             pactcore:100,cascade:10,yamato_max:200,other_max:100};
 const CHARS = ["edison","yamato","hecate","tetra","elaine"];
@@ -221,9 +222,18 @@ const CHAR_DEF = {
         if(inRed) ctx.drainJudg();
       }
     }},
-    // 現神の祈り: CD明け次第。ヤマトBG+100＋バースト性能UP＋天矢乱舞解放
-    inori: (sim,T,ord,ctx) => {
-      if(ctx.rdy('inori')) ctx.actY('inori',()=>{ sim.addG([ownerOf('inori')],BG.inori); sim.inori_p=0; });
+    // 現神の祈り: 先読み発動。ゲージが十分なら撃たず、今後の枯渇(フルバースト崩れ)を
+    //   予測したときだけ発動して天矢乱舞(2T後に解禁)を間に合わせる。
+    //   planningクローン内では発動も先読みもしない（無介入時の枯渇を測る基準＆再帰防止）。
+    inori: (sim,T,ord,ctx,t) => {
+      if(!ctx.rdy('inori') || sim.planning) return;
+      // inoriを撃たない前提で先のターンを試走し、フルバーストが崩れるか確認
+      let willDeplete=false;
+      const look=sim.clone();
+      for(let k=1;k<=LA_TURNS;k++){
+        if(look.takeTurn(t+k).atk.length<5){ willDeplete=true; break; }
+      }
+      if(willDeplete) ctx.actY('inori',()=>{ sim.addG([ownerOf('inori')],BG.inori); sim.inori_p=0; });
     },
     // 天矢乱舞: ゲージ枯渇時のみ(T2以降)。発動後ゲージ-40で同ターン連続発動
     tenya: (sim,T,ord,ctx,t) => {
@@ -444,11 +454,10 @@ class Sim {
     // ── 押し順メインシーケンス ──
 
     // 1) ロボ+アンプリファ: 全てのロボット作動の土台。
-    //    バノーシク(黄ロボ)→ドロイド(赤ロボ)→アンプリファ(アビダメプラス)の順で
-    //    以降のアビ発動でロボ火力がフルに乗る状態を最初に確保する。
-    //    judg/funkiドレインはこの3本が揃ってから開始。
-    if(rdy('banoshik')){ this.robot=3; this.use('banoshik',T,ord); }
+    //    ドロイド(赤ロボ・与ダメ底上げ)を先に展開し、バノーシク発動時にも効果が乗るようにする。
+    //    ドロイド→バノーシク→アンプリファの順で土台を確保してからjudg/funkiドレイン開始。
     if(rdy('droid'))   { this.robot=3; this.use('droid',T,ord); }
+    if(rdy('banoshik')){ this.robot=3; this.use('banoshik',T,ord); }
     if(rdy('amplifa'))  this.use('amplifa',T,ord);
     drainFunki(false); // ロボ+アンプリファ展開後に奮起ドレイン開始
 
@@ -462,7 +471,7 @@ class Sim {
     drainFunki(false);
 
     // 現神の祈り(ヤマト戦略フック): CD明け次第発動（バースト性能UP＋天矢乱舞解放）
-    CHAR_DEF[ownerOf('inori')].inori(this,T,ord,ctx);
+    CHAR_DEF[ownerOf('inori')].inori(this,T,ord,ctx,t);
 
     // イフィシャント: 全CD-1(自身除く) → 黄フェイズ最後に置いて最大効果
     if(rdy('ifishant')) actY('ifishant',()=>{
@@ -522,6 +531,17 @@ class Sim {
     return{g:{...this.g},cd:{...this.cd},keigyo:this.keigyo,cum:this.cum,
       renri:this.renri,mooncode:this.mooncode,robot:this.robot,
       ycount:this.ycount,inori_p:this.inori_p,helix_done:this.helix_done,mburst:this.mburst};
+  }
+
+  // 先読み用の複製。planning=trueのクローンは戦略フック側で介入を抑止し再帰を防ぐ。
+  clone(){
+    const s=new Sim(); const snap=this.snap();
+    s.g={...snap.g}; s.cd={...snap.cd};
+    s.keigyo=snap.keigyo; s.cum=snap.cum; s.renri=snap.renri;
+    s.mooncode=snap.mooncode; s.robot=snap.robot; s.ycount=snap.ycount;
+    s.inori_p=snap.inori_p; s.helix_done=snap.helix_done; s.mburst=snap.mburst;
+    s.planning=true;
+    return s;
   }
 }
 
