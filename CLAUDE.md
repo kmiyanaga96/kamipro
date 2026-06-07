@@ -5,23 +5,26 @@
 
 現行編成: 英霊エジソン + ヤマト / ヘカテー / テトラ / エレイン
 
-## コード地図（index.html / 全1024行）
+## コード地図（index.html / 全688行）
 
 セクション編集時は、まず該当範囲だけを Read すればトークンを節約できる。
 
 | 範囲(行) | 内容 |
 |---|---|
-| 7–128 | CSS（`<style>`、Material白基調UI） |
-| 130–248 | HTML構造（ヘッダ/タブ/サイドバー/自動Sim/インタラクティブ入力） |
-| 251–265 | ゲーム定数（確定仕様・後述） |
-| 266–290 | `ABIL`（[owner,color,cd,keigyo_cost]）/ `LABEL` / `ownerOf` |
-| 291–438 | **`CHAR_DEF`**（各キャラ固有ロジックの集約先） |
-| 439–461 | `STAT` / `BUFFS` / バフ関連テーブル |
-| 463–597 | `class Sim` エンジン（tick/applyBuffs/dmgIndex/burst/use 等） |
-| 599–709 | `takeTurn(t)` 押し順メインシーケンス |
-| 710–791 | UI helpers（gaugesHTML/ordChipsHTML/`ACOL`色パレット 等） |
-| 792–885 | 自動シミュレーション描画（runSim/renderSim/cardHTML） |
-| 886–末尾 | インタラクティブ入力（buildForms/getState/calcInteractive） |
+| 7–101 | CSS（`<style>`、Material白基調UI） |
+| 103–158 | HTML構造（ヘッダ/サイドバー/自動Simメイン） |
+| 160–173 | ゲーム定数（確定仕様・後述） |
+| 174–197 | `ABIL`（[owner,color,cd,keigyo_cost]）/ `LABEL` / `ownerOf` |
+| 198–332 | **`CHAR_DEF`**（各キャラ固有ロジックの集約先） |
+| 333–339 | `CD_SHOW`（CT表示対象アビ） |
+| 340–523 | `class Sim` エンジン（tick/procR/burst/use/takeTurn 等） |
+| 420–523 | `takeTurn(t)` 押し順メインシーケンス |
+| 525–583 | UI helpers（gaugesHTML/ordChipsHTML/`ACOL`色パレット 等） |
+| 584–673 | 自動シミュレーション描画（runSim/renderSim/cardHTML） |
+| 674–末尾 | INIT（renderParty/runSim） |
+
+火力・バフ追跡は廃止済み（バースト回数で概算する方針）。最適化対象は
+「10ターン連続5人フルバースト」と各種カウンタ（連理/ジャッジ/契晶/ムーンコード）。
 
 ## アーキテクチャ原則
 
@@ -69,22 +72,23 @@ code+="\nglobalThis.Sim=Sim;";
 const sim=new globalThis.Sim();
 let fb=0;
 for(let t=1;t<=10;t++){const r=sim.takeTurn(t); if(r.full)fb++;
-  console.log("T"+t,"FB:"+r.atk.length,"J:"+r.ju,"renri:"+r.renri,"pow:"+r.power);}
+  console.log("T"+t,"FB:"+r.atk.length,"J:"+r.ju,"renri:"+r.renri);}
 console.log("FullBurst:",fb+"/10");
 '
 ```
 
 期待値（基準）:
 ```
-T1 FB:5 J:5 renri:5  pow:73.14    T6  FB:5 J:4 renri:30 pow:209.83
-T2 FB:5 J:5 renri:10 pow:162.39   T7  FB:5 J:5 renri:35 pow:229.71
-T3 FB:5 J:5 renri:15 pow:269.47   T8  FB:5 J:5 renri:40 pow:229.71
-T4 FB:5 J:5 renri:20 pow:229.71   T9  FB:5 J:5 renri:45 pow:209.83
-T5 FB:5 J:5 renri:25 pow:189.95   T10 FB:5 J:5 renri:50 pow:249.59
+T1 FB:5 J:5 renri:5    T6  FB:5 J:4 renri:30
+T2 FB:5 J:5 renri:10   T7  FB:5 J:5 renri:35
+T3 FB:5 J:5 renri:15   T8  FB:5 J:5 renri:40
+T4 FB:5 J:5 renri:20   T9  FB:5 J:5 renri:45
+T5 FB:5 J:5 renri:25   T10 FB:5 J:5 renri:50
 ```
 
 ## 開発ルール
 
 - 開発ブランチ: `claude/wizardly-dirac-JIdyw`
-- バフ/デバフ効果値（`BUFFS`）は暫定値。火力指数は「効果が攻撃/バースト時に乗るか」の相対比較が目的。
+- 火力指数・バフ/デバフ追跡は廃止済み。火力はバースト回数で概算する方針
+  （必要になればバーストダメージのみ別途追跡する）。
 - 単一ファイル構成を維持する（JS/CSSの外部ファイル分割はしない方針）。

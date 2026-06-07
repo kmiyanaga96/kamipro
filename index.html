@@ -17,12 +17,7 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
   padding:14px 24px;display:flex;align-items:center;gap:12px;}
 .header h1{font-size:16px;color:var(--text);font-weight:700;}
 .header .sub{font-size:11px;color:var(--muted);}
-.tabs{display:flex;gap:4px;background:var(--card);border-bottom:1px solid var(--border);padding:0 20px;}
-.tab{padding:12px 18px;cursor:pointer;border-bottom:2px solid transparent;color:var(--muted);
-  font-size:13px;font-weight:600;transition:all .15s;user-select:none;}
-.tab.active{border-bottom-color:var(--accent);color:var(--accent);}
-.tab:hover:not(.active){color:var(--text);background:var(--card2);}
-.layout{display:flex;height:calc(100vh - 92px);}
+.layout{display:flex;height:calc(100vh - 52px);}
 .sidebar{width:240px;min-width:240px;background:var(--card);border-right:1px solid var(--border);
   overflow-y:auto;padding:16px;}
 .main{flex:1;overflow-y:auto;padding:18px;}
@@ -104,27 +99,6 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
 .summary-table tr:last-child td{border-bottom:none;}
 .summary-table tr:hover td{background:var(--card2);}
 .tg{color:var(--green);font-weight:700;}.to{color:var(--orange);font-weight:600;}
-/* Interactive */
-.ilayout{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
-.panel{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:var(--shadow);}
-.panel-title{font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;
-  letter-spacing:1px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);
-  display:flex;align-items:center;justify-content:space-between;}
-.fsec{margin-bottom:14px;}
-.fsec-title{font-size:11px;color:var(--accent2);font-weight:700;margin-bottom:8px;
-  padding:4px 0;border-bottom:1px solid var(--border);}
-.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
-.frow{display:flex;flex-direction:column;gap:3px;}
-.frow label{font-size:10px;color:var(--muted);}
-.frow input[type=number],.frow select{background:var(--card);border:1px solid var(--border);
-  color:var(--text);padding:6px 8px;border-radius:8px;font-size:12px;width:100%;}
-.frow input[type=range]{width:100%;accent-color:var(--accent);}
-.range-disp{font-size:10px;color:var(--accent2);font-weight:700;}
-.result-step{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px;}
-.step-num{width:20px;height:20px;border-radius:50%;color:#fff;
-  display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;}
-.result-warn{background:rgba(224,138,0,.08);border:1px solid rgba(224,138,0,.25);
-  border-radius:8px;padding:9px 12px;font-size:11px;color:var(--orange);margin-bottom:10px;}
 </style>
 </head>
 <body>
@@ -134,11 +108,6 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
     <h1>⚡ 神姫PROJECT R — 光属性バーストトラッカー</h1>
     <div class="sub">バースト編成シミュレーター &amp; 最適押し順トラッカー</div>
   </div>
-</div>
-
-<div class="tabs">
-  <div class="tab active" data-tab="sim" onclick="switchTab('sim')">🔄 自動シミュレーション</div>
-  <div class="tab" data-tab="interactive" onclick="switchTab('interactive')">🎮 インタラクティブ入力</div>
 </div>
 
 <div class="layout">
@@ -168,7 +137,6 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
         · 天矢乱舞: T2以降のみ<br>
         · マシーンタクトゥ: +5/作動<br>
         · FB閾値: 100（カスケードあり）<br>
-        · バフ/デバフ効果値は暫定値<br>
         · 通常チャネル連理魔力=0
       </div>
     </div>
@@ -177,73 +145,14 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
   <div class="main">
     <!-- シミュレーション対象パーティ（動的描画） -->
     <div id="party-bar" class="party-bar"></div>
-    <!-- Auto Sim -->
-    <div id="tab-sim">
-      <div class="controls">
-        <label>ターン数:</label>
-        <input type="number" id="turns-n" value="10" min="1" max="30">
-        <button class="btn btn-primary" onclick="runSim()">▶ シミュレーション実行</button>
-        <button class="btn btn-secondary" onclick="clearSim()">✕ クリア</button>
-      </div>
-      <div id="summary-bar" style="display:none;"></div>
-      <div id="sim-results"></div>
+    <div class="controls">
+      <label>ターン数:</label>
+      <input type="number" id="turns-n" value="10" min="1" max="30">
+      <button class="btn btn-primary" onclick="runSim()">▶ シミュレーション実行</button>
+      <button class="btn btn-secondary" onclick="clearSim()">✕ クリア</button>
     </div>
-
-    <!-- Interactive -->
-    <div id="tab-interactive" style="display:none;">
-      <div class="ilayout">
-        <div class="panel">
-          <div class="panel-title">
-            現在の状態入力
-            <span id="load-ok" style="font-size:10px;color:var(--green);display:none;">✓ 読み込み済</span>
-          </div>
-          <div class="fsec">
-            <div class="fsec-title">基本情報</div>
-            <div class="fgrid">
-              <div class="frow"><label>現在ターン数</label><input type="number" id="i-turn" value="1" min="1" max="50"></div>
-              <div class="frow"><label>ムーンコード残T</label><input type="number" id="i-moon" value="2" min="0" max="2"></div>
-              <div class="frow"><label>連理魔力 累計</label><input type="number" id="i-renri" value="0" min="0" max="30"></div>
-              <div class="frow"><label>ロボ残T</label><input type="number" id="i-robot" value="0" min="0" max="3"></div>
-              <div class="frow"><label>HELIX解禁</label>
-                <select id="i-helix"><option value="0">未解禁</option><option value="1">解禁済</option></select>
-              </div>
-              <div class="frow"><label>大和奮起累計</label><input type="number" id="i-ycount" value="0" min="0"></div>
-              <div class="frow"><label>祈り進行</label>
-                <select id="i-inori-p">
-                  <option value="-1">未使用/完了</option>
-                  <option value="0">使用直後(0T)</option>
-                  <option value="1">1T経過</option>
-                </select>
-              </div>
-            </div>
-          </div>
-          <div class="fsec">
-            <div class="fsec-title">契晶</div>
-            <div class="fgrid">
-              <div class="frow"><label>現在値 (0-15)</label><input type="number" id="i-keigyo" value="4" min="0" max="15"></div>
-              <div class="frow"><label>累計獲得数</label><input type="number" id="i-cum" value="4" min="0"></div>
-            </div>
-          </div>
-          <div class="fsec">
-            <div class="fsec-title">ゲージ (BG)</div>
-            <div id="gauge-inputs"></div>
-          </div>
-          <div class="fsec">
-            <div class="fsec-title">アビリティ CT残り</div>
-            <div id="cd-inputs" class="fgrid"></div>
-          </div>
-          <button class="btn btn-primary" style="width:100%;margin-top:6px;" onclick="calcInteractive()">
-            ▶ このターンの最適押し順を計算
-          </button>
-        </div>
-        <div class="panel">
-          <div class="panel-title">推奨押し順 &amp; 結果</div>
-          <div id="i-result" style="color:var(--muted);font-size:13px;text-align:center;padding:40px 0;">
-            左のフォームを入力して「計算」を押してください
-          </div>
-        </div>
-      </div>
-    </div>
+    <div id="summary-bar" style="display:none;"></div>
+    <div id="sim-results"></div>
   </div>
 </div>
 
@@ -255,7 +164,6 @@ const TENYA_FROM= 2;   // 天矢乱舞: 使用可能開始ターン
 const FB_THR    = 100; // フルバースト閾値（カスケードあり）
 const MACH_BG   = 5;   // マシーンタクトゥ: ロボ作動1回あたりBG増加
 const KEIGYO_MAX= 15;  // 契晶最大値
-const LA_TURNS  = 3;   // 先読みプランナー: 予測ターン数
 const BG = {inori:100,funki:10,absolute:20,sleur:15,legend:10,
             pactcore:100,cascade:10,yamato_max:200,other_max:100};
 const CHARS = ["edison","yamato","hecate","tetra","elaine"];
@@ -283,7 +191,6 @@ const ABIL = {
 //   gmax        : バースト後ゲージ上限
 //   keigyoGain  : 自身バースト時の契晶獲得量
 //   onBurst     : バースト時の固有処理(atk=自身の攻撃バーストか)
-//   robotBuffs  : ロボ作動連動の累積バフ(色キー)。英霊のみ保持
 //   drain       : 毎ターン「条件成立で自律発動する」リアクティブ処理
 //                 {phase:'yellow'|'red', run(sim,T,ord,ctx,inRed)}
 //   inori/tenya/legend/finisher/turnEnd : 押し順シーケンス上の戦略アクション
@@ -292,11 +199,6 @@ const CHAR_DEF = {
   edison: {
     gmax: BG.other_max,
     keigyoGain: 3,
-    // バノーシク=黄アビ毎に攻防UP / ドロイド=赤アビ毎にアビ性能UP
-    robotBuffs: {
-      y:{src:'banoshik',s:'party',k:'atk',  inc:0.05,max:0.80},
-      r:{src:'droid',   s:'party',k:'given',inc:0.05,max:0.60},
-    },
     // 自身の攻撃バースト時、ロボ(ドロイド/バノーシク)のCTを1短縮
     onBurst: (sim, atk) => {
       if(atk){ sim.cd.droid=Math.max(0,sim.cd.droid-1); sim.cd.banoshik=Math.max(0,sim.cd.banoshik-1); }
@@ -427,30 +329,6 @@ const LABEL = {
   divinus:"ディウィヌス",alone:"アロンブレイク",legend:"レジェンド(+10)",
   knights:"ナイツサプレス(契-3)",pactcore:"PactCore",
 };
-// ===== バフ/デバフ効果テーブル（暫定値・編集可能） =====
-// s:適用先 party=味方全体 self=自身 enemy=敵  k:効果カテゴリ  v:倍率  d:持続ターン
-// ※実数値は要調整。火力指数は「効果が攻撃/バースト時に乗っているか」の相対比較が目的。
-const STAT = {
-  atk:'攻撃UP', elem:'光攻撃UP', given:'与ダメUP', cap:'ダメ上限UP',
-  bperf:'バースト性能UP', edef:'敵防御DOWN', bresist:'バースト耐性DOWN'
-};
-const BIG = 999; // 累積バフ＝戦闘中持続（実質失効しない）
-// 発動時に付与されるバフ（acc:true=累積／毎回スタック加算, max=合算上限）
-const BUFFS = {
-  // プヴワール: 光属性攻撃・ダメージ上限UP（累積／CD2で多用＝大きく伸びる）
-  puvoir:  [{s:'party',k:'elem',v:0.15,d:BIG,acc:true,max:0.90},
-            {s:'party',k:'cap', v:0.08,d:BIG,acc:true,max:0.50}],
-  // アブソリュート: 攻撃・全攻撃性能UP（タイマー式）
-  absolute:[{s:'party',k:'atk', v:0.40,d:3}],
-  // アンプリファ: 自身のみアビダメプラス
-  amplifa: [{s:'self', k:'given',v:0.30,d:BIG}],
-  // ディウィヌス: 敵 攻防・与ダメDOWN（必中・タイマー）
-  divinus: [{s:'enemy',k:'edef',v:0.25,d:6}],
-  // ナイツ: 敵 バースト攻撃耐性DOWN（必中）
-  knights: [{s:'enemy',k:'bresist',v:0.20,d:6}],
-  // 現神の祈り: ヤマトのバースト性能大幅UP（火力貢献。本来は発動ターン終了時付与）
-  inori:   [{s:'self',k:'bperf',v:0.60,d:3}],
-};
 // CDs that need CT display (non-zero CD abilities)
 const CD_SHOW = {
   banoshik:"バノーシク",droid:"ドロイド",ifishant:"イフィシャント",
@@ -461,72 +339,19 @@ const CD_SHOW = {
 
 // ===== SIM ENGINE =====
 class Sim {
-  constructor(init) {
-    if (init) {
-      this.g={...init.g}; this.cd={...init.cd};
-      this.keigyo=init.keigyo; this.cum=init.cum; this.renri=init.renri;
-      this.mooncode=init.mooncode; this.robot=init.robot;
-      this.ycount=init.ycount; this.inori_p=init.inori_p; this.helix_done=init.helix_done;
-      this.mburst=init.mburst||0;
-      this.buffs=(init.buffs||[]).map(b=>({...b}));
-    } else {
-      this.g=Object.fromEntries(CHARS.map(c=>[c,BG.other_max]));
-      this.cd=Object.fromEntries(Object.keys(ABIL).map(k=>[k,0]));
-      this.keigyo=4; this.cum=4; this.renri=0;
-      this.mooncode=2; this.robot=0; this.ycount=0; this.inori_p=null; this.helix_done=false;
-      this.mburst=0;
-      this.buffs=[];
-    }
+  constructor() {
+    this.g=Object.fromEntries(CHARS.map(c=>[c,BG.other_max]));
+    this.cd=Object.fromEntries(Object.keys(ABIL).map(k=>[k,0]));
+    this.keigyo=4; this.cum=4; this.renri=0;
+    this.mooncode=2; this.robot=0; this.ycount=0; this.inori_p=null; this.helix_done=false;
+    this.mburst=0;
     this.gmax=Object.fromEntries(CHARS.map(c=>[c,CHAR_DEF[c].gmax]));
-
   }
 
   tick() {
     for(const k of Object.keys(this.cd)) if(this.cd[k]>0) this.cd[k]--;
     if(this.robot>0) this.robot--;
     if(this.mooncode>0) this.mooncode--;
-    // バフ/デバフ残ターン減算（0以下は失効）
-    this.buffs=this.buffs.filter(b=>{ b.left--; return b.left>0; });
-  }
-
-  // バフ付与: タイマー式は残Tリフレッシュ／累積式(acc)は上限まで加算（別アビの同効果は別枠で加算）
-  applyBuffs(name){
-    const list=BUFFS[name]; if(!list) return;
-    for(const b of list){
-      const ex=this.buffs.find(x=>x.src===name&&x.k===b.k);
-      if(ex){
-        if(b.acc) ex.v=Math.min((b.max??Infinity), ex.v+b.v);
-        ex.left=b.d;
-      } else {
-        this.buffs.push({src:name,s:b.s,k:b.k,v:b.v,left:b.d});
-      }
-    }
-  }
-
-  // ロボ作動連動の累積バフ（黄/赤アビをロボ展開中に使う度に加算）
-  accBuff(spec){
-    const ex=this.buffs.find(x=>x.src===spec.src&&x.k===spec.k);
-    if(ex) ex.v=Math.min(spec.max, ex.v+spec.inc);
-    else this.buffs.push({src:spec.src,s:spec.s,k:spec.k,v:spec.inc,left:BIG});
-  }
-
-  sumStat(k){ return this.buffs.filter(b=>b.k===k).reduce((s,b)=>s+b.v,0); }
-
-  // 火力指数（無バフ=1.00基準の相対値）。isBurst時のみバースト耐性DOWNが乗る
-  dmgIndex(isBurst){
-    const off=(1+this.sumStat('atk')+this.sumStat('elem'))*(1+this.sumStat('given'))*(1+this.sumStat('cap'));
-    const mit=(1+this.sumStat('edef'))*(isBurst?(1+this.sumStat('bresist')+this.sumStat('bperf')):1);
-    return off*mit;
-  }
-
-  // 表示用: カテゴリ毎に合算したアクティブバフ一覧（残Tは最大値）
-  buffSummary(){
-    const m={};
-    for(const b of this.buffs){
-      if(!m[b.k]) m[b.k]={k:b.k,v:0,left:0,scope:b.s};
-      m[b.k].v+=b.v; m[b.k].left=Math.max(m[b.k].left,b.left);
-    }
-    return Object.values(m);
   }
 
   addG(targets, amt, excl=null) {
@@ -580,17 +405,13 @@ class Sim {
   use(name, T, ord, note='') {
     const [,color,cd,cost]=ABIL[name];
     this.cd[name]=cd; if(cost) this.keigyo-=cost; T.ability++;
-    if((color==='y'||color==='r')&&this.robot>0){
-      T.ra++;
-      const rb=CHAR_DEF[LEADER].robotBuffs?.[color];
-      if(rb) this.accBuff(rb);
-    }
+    // ロボ作動カウント（マシーンタクトゥのBG増加に使用）
+    if((color==='y'||color==='r')&&this.robot>0) T.ra++;
     if(color==='y'){
       T.yellow++;
       if(T.yellow%4===0&&T.fr<3){ this.cd.funki=0; T.fr++; }
     }
     this.procR(T,'a');
-    this.applyBuffs(name);
     ord.push({text:LABEL[name]+(note||''), color});
   }
 
@@ -664,9 +485,7 @@ class Sim {
     // フィニッシャー(エレイン戦略フック): PactCore優先・不可ならアロンブレイク連打
     CHAR_DEF[ownerOf('alone')].finisher(this,T,ord,ctx);
 
-    // 攻撃フェイズ（全バフ・デバフ適用後＝この時点のバフ状態で攻撃/バーストが入る）
-    const buffsAtAtk=this.buffSummary();
-    const dmgBurst=this.dmgIndex(true), dmgNormal=this.dmgIndex(false);
+    // 攻撃フェイズ: ゲージ100以上のキャラがフルバースト
     const atk=[];
     for(const c of CHARS){
       if(this.g[c]>=FB_THR){
@@ -676,8 +495,6 @@ class Sim {
         if(T.mobius){ T.mobius=0; drainHecate(true); }
       }
     }
-    // ターン火力指数: バースト火力(指数)×バースト数 + 通常火力(指数)
-    const power=Math.round((dmgBurst*T.burst + dmgNormal)*100)/100;
 
     // ターン終了（連理魔力はprocRでリアルタイム加算済み）
     const rt=T.proc;
@@ -694,7 +511,6 @@ class Sim {
       judg_reset:T.judg_reset,judg_waste:T.judg_waste,mobius_this:T.mobius,
       rt,renri:this.renri,keigyo:this.keigyo,cum:this.cum,
       mooncode:this.mooncode,ycount:this.ycount,helix,robot:this.robot,
-      buffs:buffsAtAtk,dmgBurst,dmgNormal,power,
       gauge:{...this.g}, state:this.snap()
     };
   }
@@ -702,18 +518,11 @@ class Sim {
   snap(){
     return{g:{...this.g},cd:{...this.cd},keigyo:this.keigyo,cum:this.cum,
       renri:this.renri,mooncode:this.mooncode,robot:this.robot,
-      ycount:this.ycount,inori_p:this.inori_p,helix_done:this.helix_done,mburst:this.mburst,
-      buffs:this.buffs.map(b=>({...b}))};
+      ycount:this.ycount,inori_p:this.inori_p,helix_done:this.helix_done,mburst:this.mburst};
   }
 }
 
 // ===== UI HELPERS =====
-
-function switchTab(tab){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
-  document.getElementById('tab-sim').style.display=tab==='sim'?'':'none';
-  document.getElementById('tab-interactive').style.display=tab==='interactive'?'':'none';
-}
 
 function gaugesHTML(g){
   return `<div class="gauges">${CHARS.map(c=>{
@@ -765,23 +574,6 @@ function loopsHTML(r){
   </div>`;
 }
 
-function buffsHTML(buffs,dmgBurst){
-  const scopeCls={party:'bg',self:'bp',enemy:'br'};
-  const items=buffs.length
-    ? buffs.map(b=>{
-        const cls=scopeCls[b.scope]||'bm';
-        const pct=Math.round(b.v*100);
-        return `<span class="badge ${cls}" title="${b.scope}">${STAT[b.k]} +${pct}% <span style="opacity:.7">${b.left}T</span></span>`;
-      }).join(' ')
-    : '<span style="color:var(--muted);font-size:10px;">バフなし</span>';
-  return `<div style="margin-bottom:8px;">
-    <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">
-      攻撃/バースト時の効果 <span style="color:var(--yellow);font-weight:700;">火力指数 ×${(dmgBurst||1).toFixed(2)}</span>
-    </div>
-    <div style="display:flex;flex-wrap:wrap;gap:3px;">${items}</div>
-  </div>`;
-}
-
 function cdBadgesHTML(cd){
   return Object.entries(CD_SHOW).map(([k,v])=>{
     const n=cd[k]||0, cls=n===0?'bg':(n<=2?'bo':'bm');
@@ -814,17 +606,14 @@ function cardHTML(r,first=false){
         <span class="badge bp">バ×${r.burst}</span>
         <span class="badge bp">アビ×${r.ability}</span>
         <span class="badge ${r.ju>0?'br':'bm'}">J×${r.ju}</span>
-        <span class="badge bo" title="火力指数(無バフ=1.00基準)">🔥${r.power}</span>
         <span class="badge bp">連理${r.renri}/30</span>
       </div>
       <div style="display:flex;align-items:center;gap:7px;">
-        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();loadState(${r.t})">📋 →インタラクティブ</button>
         <span style="color:var(--muted);font-size:11px;" id="ci-${r.t}">${first?'▲':'▼'}</span>
       </div>
     </div>
     <div class="card-body${first?'':' collapsed'}" id="cb-${r.t}">
       <div class="action-order">${ordHtml}</div>
-      ${buffsHTML(r.buffs,r.dmgBurst)}
       ${loopsHTML(r)}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
         <div>
@@ -865,13 +654,12 @@ function renderSim(){
       <div class="summary-stat"><span class="val">${fin.cum}</span><span class="lbl">累計契晶</span></div>
       <div class="summary-stat"><span class="val">${rows.reduce((s,r)=>s+r.burst,0)}</span><span class="lbl">総バースト</span></div>
       <div class="summary-stat"><span class="val">${rows.reduce((s,r)=>s+r.ability,0)}</span><span class="lbl">総アビ</span></div>
-      <div class="summary-stat"><span class="val" style="color:var(--orange)">🔥${Math.round(rows.reduce((s,r)=>s+r.power,0)*10)/10}</span><span class="lbl">総火力指数</span></div>
     </div>
     <table class="summary-table">
-      <tr><th>T</th><th>FB</th><th>バースト</th><th>アビ</th><th>ロボ作動</th><th>ジャッジ</th><th>🔥火力</th><th>連理累計</th><th>契晶(現/累)</th><th>🌙ムーン</th></tr>
+      <tr><th>T</th><th>FB</th><th>バースト</th><th>アビ</th><th>ロボ作動</th><th>ジャッジ</th><th>連理累計</th><th>契晶(現/累)</th><th>🌙ムーン</th></tr>
       ${rows.map(r=>{
         const fb2=r.full?`<span class="tg">✅5人</span>`:`<span class="to">${r.atk.length}人</span>`;
-        return `<tr><td><b>T${r.t}</b></td><td>${fb2}</td><td>${r.burst}</td><td>${r.ability}</td><td>${r.ra}</td><td>${r.ju}</td><td><span class="to">${r.power}</span></td><td>${r.renri}/30</td><td>${r.keigyo}/${r.cum}</td><td>${r.mooncode}T</td></tr>`;
+        return `<tr><td><b>T${r.t}</b></td><td>${fb2}</td><td>${r.burst}</td><td>${r.ability}</td><td>${r.ra}</td><td>${r.ju}</td><td>${r.renri}/30</td><td>${r.keigyo}/${r.cum}</td><td>${r.mooncode}T</td></tr>`;
       }).join('')}
     </table>`;
   document.getElementById('sim-results').innerHTML=rows.map((r,i)=>cardHTML(r,i===0)).join('');
@@ -883,130 +671,7 @@ function clearSim(){
   document.getElementById('summary-bar').style.display='none';
 }
 
-// ===== INTERACTIVE =====
-function buildForms(){
-  // Gauges
-  let h='<div class="fgrid">';
-  for(const c of CHARS){
-    const mx=CHAR_DEF[c].gmax;
-    h+=`<div class="frow" style="grid-column:span 2;">
-      <label>${JP[c]} BG (0-${mx}) <span class="range-disp" id="gv-${c}">100</span></label>
-      <input type="range" min="0" max="${mx}" value="100" step="1"
-             id="g-${c}" oninput="document.getElementById('gv-${c}').textContent=this.value">
-    </div>`;
-  }
-  h+='</div>';
-  document.getElementById('gauge-inputs').innerHTML=h;
-
-  // CDs
-  let ch='';
-  for(const [k,v] of Object.entries(CD_SHOW)){
-    const mx=ABIL[k][2];
-    ch+=`<div class="frow"><label>${v} CT残(0-${mx})</label><input type="number" id="cd-${k}" value="0" min="0" max="${mx}"></div>`;
-  }
-  document.getElementById('cd-inputs').innerHTML=ch;
-}
-
-function getState(){
-  const g=Object.fromEntries(CHARS.map(c=>[c,+(document.getElementById(`g-${c}`).value)]));
-  const cd=Object.fromEntries(Object.keys(ABIL).map(k=>{
-    const el=document.getElementById(`cd-${k}`); return [k,el?+el.value:0];
-  }));
-  const ip=+document.getElementById('i-inori-p').value;
-  return{g,cd,
-    keigyo:+document.getElementById('i-keigyo').value,
-    cum:+document.getElementById('i-cum').value,
-    renri:+document.getElementById('i-renri').value,
-    mooncode:+document.getElementById('i-moon').value,
-    robot:+document.getElementById('i-robot').value,
-    ycount:+document.getElementById('i-ycount').value,
-    inori_p:ip===-1?null:ip,
-    helix_done:document.getElementById('i-helix').value==='1',
-  };
-}
-
-function loadState(t){
-  const r=SIM_ROWS.find(x=>x.t===t); if(!r) return;
-  const s=r.state;
-  for(const c of CHARS){
-    const el=document.getElementById(`g-${c}`);
-    if(el){ el.value=s.g[c]; document.getElementById(`gv-${c}`).textContent=s.g[c]; }
-  }
-  for(const k of Object.keys(CD_SHOW)){
-    const el=document.getElementById(`cd-${k}`); if(el) el.value=s.cd[k]||0;
-  }
-  document.getElementById('i-keigyo').value=s.keigyo;
-  document.getElementById('i-cum').value=s.cum;
-  document.getElementById('i-renri').value=s.renri;
-  document.getElementById('i-moon').value=s.mooncode;
-  document.getElementById('i-robot').value=s.robot;
-  document.getElementById('i-ycount').value=s.ycount;
-  document.getElementById('i-helix').value=s.helix_done?'1':'0';
-  document.getElementById('i-inori-p').value=s.inori_p===null?-1:s.inori_p;
-  document.getElementById('i-turn').value=t+1;
-  document.getElementById('load-ok').style.display='';
-  switchTab('interactive');
-}
-
-function calcInteractive(){
-  const state=getState();
-  const t=+document.getElementById('i-turn').value||1;
-  const sim=new Sim(state);
-  const r=sim.takeTurn(t);
-
-  const fb=r.full
-    ?`<div class="badge bg" style="font-size:13px;padding:5px 13px;">✅ 5人フルバースト達成</div>`
-    :`<div class="badge bo" style="font-size:13px;padding:5px 13px;">⚠ ${r.atk.length}人 (${r.atk.map(c=>JP[c]).join(', ')})</div>`;
-
-  const warns=[];
-  if(r.mooncode===0) warns.push('⚠ ムーンコード切れ: エフォンド即バースト不可');
-  if(r.robot===0&&r.ra===0) warns.push('⚠ ロボ未展開: マシーンタクトゥBGなし');
-  if(r.rt===0&&r.renri<30) warns.push('⚠ 連理魔力: このターン加算なし');
-  if(r.judg_waste>0) warns.push(`⚠ ジャッジ即使用フラグ ${r.judg_waste}回 無駄（CD0時のリセット/重複不可）`);
-  // 攻撃時に主要バフ/デバフが乗っていなければ警告（火力ロス）
-  const haveK=k=>r.buffs.some(b=>b.k===k);
-  if(!haveK('atk')&&!haveK('elem')) warns.push('⚠ 攻撃/属性UPが攻撃時に未付与（火力ロス）');
-  if(!haveK('edef')) warns.push('⚠ 敵防御DOWN(ディウィヌス)が未付与');
-  if(!haveK('bresist')) warns.push('⚠ バースト耐性DOWN(ナイツ)が未付与＝バースト火力ロス');
-  if(r.helix) warns.push('★ HELIX解禁！テトラのゴッド・オムニポンテス＆フェイト・イモータル有効');
-
-  const steps=r.ord.map((o,i)=>{
-    const col=ACOL[o.color]||ACOL.y;
-    return `<div class="result-step"><span class="step-num" style="background:${col.bd};">${i+1}</span>`+
-      `<span class="abi-chip" style="background:${col.bg};color:${col.fg};border-color:${col.bd};">${o.text}</span></div>`;
-  }).join('');
-
-  document.getElementById('i-result').innerHTML=`
-    <div style="margin-bottom:10px;">${fb}</div>
-    ${warns.length?`<div class="result-warn">${warns.join('<br>')}</div>`:''}
-    <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;margin-bottom:7px;">押し順 (${r.ord.length}アクション)</div>
-    <div style="background:var(--card2);border-radius:6px;padding:10px 11px;margin-bottom:11px;border:1px solid var(--border);">${steps}</div>
-    <div style="background:var(--card2);border-radius:6px;padding:10px 11px;margin-bottom:11px;border:1px solid var(--border);">
-      ${buffsHTML(r.buffs,r.dmgBurst)}
-      <div style="font-size:11px;color:var(--muted);">ターン火力指数: <b style="color:var(--orange)">🔥${r.power}</b>（バースト×${r.dmgBurst.toFixed(2)} / 通常×${r.dmgNormal.toFixed(2)}）</div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:11px;">
-      <div>
-        <div style="font-size:10px;color:var(--muted);margin-bottom:5px;">ターン後ゲージ</div>
-        ${gaugesHTML(r.gauge)}
-      </div>
-      <div>
-        <div style="font-size:10px;color:var(--muted);margin-bottom:5px;">ターン後状態</div>
-        ${loopsHTML(r)}
-        <div style="font-size:12px;line-height:2;">
-          連理魔力: <b style="color:var(--accent2)">${r.renri}/30</b> (+${r.rt})<br>
-          契晶: <b style="color:var(--accent2)">${r.keigyo}/15</b> (累計${r.cum})<br>
-          バースト: <b>${r.burst}</b> / アビ: <b>${r.ability}</b> / ジャッジ: <b>${r.ju}</b>回
-        </div>
-      </div>
-    </div>
-    <div style="margin-top:11px;">
-      <div style="font-size:10px;color:var(--muted);margin-bottom:5px;">次ターンへのCT引き継ぎ</div>
-      <div style="display:flex;flex-wrap:wrap;gap:3px;">${cdBadgesHTML(r.state.cd)}</div>
-    </div>`;
-}
-
-// Init
+// ===== INIT =====
 function renderParty(){
   const chips=CHARS.map(c=>{
     const role=c===LEADER?'<span class="pc-role">英霊</span>':'';
@@ -1017,7 +682,6 @@ function renderParty(){
 }
 
 renderParty();
-buildForms();
 runSim();
 </script>
 </body>
