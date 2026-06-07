@@ -266,9 +266,10 @@ const CHAR_DEF = {
     gmax: BG.other_max,
     keigyoGain: 1,
     // テトラバースト効果: 自身のアビCD全て-1（誘発バースト時はジャッジ自体を除外）
-    onBurst: (sim, atk) => {
+    onBurst: (sim, atk, owner) => {
       const skip = atk ? [] : ['judg'];
       for(const k of Object.keys(sim.cd)){
+        if(ABIL[k]?.[0] !== owner) continue; // 自身のアビのみ対象
         if(skip.includes(k)) continue;
         if(sim.cd[k]>0) sim.cd[k]--;
       }
@@ -396,7 +397,7 @@ class Sim {
     // 連理魔力(コヴァレント): バースト2回毎に+1＆ジャッジ即使用可。攻撃フェーズのバーストも対象
     this.procR(T,'b');
     // キャラ固有のバースト時処理（CHAR_DEF記述子に集約）
-    CHAR_DEF[owner].onBurst?.(this, atk);
+    CHAR_DEF[owner].onBurst?.(this, atk, owner);
     // モビウスムーンズ: party burst 5回毎にヘカテー(=黄ドレイン所有者)のアビCD全リセット
     this.mburst++;
     if(this.mburst%5===0){
