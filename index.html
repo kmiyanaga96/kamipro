@@ -423,18 +423,16 @@ class Sim {
     this.cum+=gain;
   }
 
-  procR(T, channel, usejudg=true) {
+  procR(T, channel) {
     const crossed=(
       (channel==='b'&&T.burst>0&&T.burst%2===0)||
       (channel==='a'&&T.ability>0&&T.ability%12===0)
     );
-    if(crossed){
-      if(T.proc<RENRI_CAP){ T.proc++; this.renri++; } // 連理魔力は同ターン上限5で別管理
-      // ジャッジ再発動は連理上限とは独立。通常バーストも含め2バースト毎にCD0へ(=再発動/持ち越し)。
-      // 同ターンの実発動回数はjudgCapで制御し、超過分のarmは次ターンへ持ち越される。
-      // フラグは二値制御(非蓄積): judg CD中のみリセット。アイドル中(CD=0)は実機通り捨てる。
-      if(usejudg && ABIL.judg && this.cd.judg>0) this.cd.judg=0;
-    }
+    if(crossed && T.proc<RENRI_CAP){ T.proc++; this.renri++; } // 連理魔力は同ターン上限5で別管理
+    // ジャッジ再発動は【バーストチャネル(2バースト毎)のみ】に紐づく。
+    // アビ12回(abiチャネル)では再発動しない(連理魔力＋ムーンコードのみ)。
+    // フラグは二値制御(非蓄積): judg CD中のみリセット。アイドル中(CD=0)は実機通り捨てる。
+    if(channel==='b' && crossed && ABIL.judg && this.cd.judg>0) this.cd.judg=0;
     if(channel==='a'&&T.ability>0&&T.ability%12===0) this.mooncode=2;
   }
 
