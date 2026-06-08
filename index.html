@@ -176,8 +176,8 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
 
 <script>
 // ===== ゲーム定数（確定仕様） =====
-const RENRI_CAP = 5;   // コヴァレント: 同ターン連理魔力上限
-const JUDG_REACT= 4;   // ジャッジメント: 連理procによる同ターン再発動上限(再発動可になる回数)
+const RENRI_CAP = 5;   // コヴァレント: procの同ターン発動上限(連理魔力+1＆ジャッジ再発動を同時付与)
+const JUDG_REACT= RENRI_CAP; // ジャッジ再発動はprocと同一カウンタ。実発動上限=再発動5回+初回自然分1回=最大6回
 const TENYA_FROM= 2;   // 天矢乱舞: 使用可能開始ターン
 const FB_THR    = 100; // フルバースト閾値（カスケードあり）
 const MACH_BG   = 5;   // マシーンタクトゥ: ロボ作動1回あたりBG増加
@@ -428,10 +428,11 @@ class Sim {
       (channel==='b'&&T.burst>0&&T.burst%2===0)||
       (channel==='a'&&T.ability>0&&T.ability%12===0)
     );
-    if(crossed){
-      if(T.proc<RENRI_CAP){ T.proc++; this.renri++; }
-      // 3チャネル(abi/12・burst/2・通常攻撃/9)全てでジャッジ即使用可能に。
-      // フラグは二値制御(非蓄積): judg CD中のみリセット。アイドル中(CD=0)は捨てる。
+    // procは同ターン上限RENRI_CAP(5回)。1procが連理魔力+1＆ジャッジ即使用可を同時付与。
+    // 3チャネル(abi/12・burst/2・通常攻撃/9)を合算してカウント。
+    if(crossed && T.proc<RENRI_CAP){
+      T.proc++; this.renri++;
+      // ジャッジ再発動は二値制御(非蓄積): judg CD中のみリセット。アイドル中(CD=0)は捨てる。
       if(ABIL.judg && this.cd.judg>0) this.cd.judg=0;
     }
     if(channel==='a'&&T.ability>0&&T.ability%12===0) this.mooncode=2;

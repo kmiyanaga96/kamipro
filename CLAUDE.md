@@ -44,8 +44,8 @@
 
 `index.html` 冒頭の定数。値の変更は実機仕様と乖離するため不可。
 
-- `RENRI_CAP=5`（連理魔力 同ターン上限）
-- `JUDG_REACT=4`（ジャッジ 連理procによる同ターン再発動上限。自然回復が乗る初回を含めると最大5回）
+- `RENRI_CAP=5`（コヴァレントproc 同ターン発動上限＝連理魔力獲得＆ジャッジ再発動の共通カウンタ）
+- `JUDG_REACT=RENRI_CAP`（ジャッジ再発動はprocと同一カウンタ。初回自然分を含め最大6回）
 - `TENYA_FROM=2`（天矢乱舞 使用可能開始ターン）
 - `FB_THR=100`（フルバースト閾値。カスケード+10で90/80…でも連鎖発火）
 - `MACH_BG=5`（マシーンタクトゥ ロボ作動1回あたりBG増加）
@@ -55,9 +55,13 @@
 - **ジャッジ/奮起/ヘカテー3アビの「即使用可」フラグは非蓄積**。CDを0にリセットする二値制御で表現し、
   トークン蓄積による連続使用は不可。
 - **ジャッジは温存せず使用可になり次第即発動**。同ターン発動上限は
-  `judgCap = JUDG_REACT(4) + (開始時cd.judg===0なら1)`。連理上限とは独立に通常バースト含む
-  2バースト毎にarm(`cd.judg=0`)し、超過分は次ターンへ持ち越す（フルバースト→翌ターン開始時使用可）。
-- **連理魔力(renri)** は3チャネル（burst/2・abi/12）、同ターン上限5、目標30でHELIX解禁。
+  `judgCap = JUDG_REACT(5) + (開始時cd.judg===0なら1)` = 最大6。再発動はコヴァレントprocと
+  同一カウンタに紐づき(下記)、armは`cd.judg=0`の二値制御で超過分は次ターンへ持ち越す。
+- **コヴァレント・アルカナ(renri＆ジャッジ再発動)**: 同一ターンに光属性キャラが
+  **アビリティ12回・バースト2回・通常攻撃9回**(=3チャネル合算)行う度に1proc発火し、
+  **1procが「連理魔力+1」＆「ジャッジ即使用可(arm)」を同時付与**。procは同ターン**5回まで**
+  (`RENRI_CAP=5`)。よってジャッジ実発動は再発動5回+初回自然分1回=最大6回。連理魔力目標30でHELIX解禁。
+  通常攻撃チャネルは毎ターンフルバースト前提では未到達のため未実装。
 - **テトラのバースト効果**は自身のバーストのみ対象。誘発バーストではジャッジ自体を除外。
 - **モビウスムーンズ**: partyバースト5回毎にヘカテー(黄ドレイン所有者)の全アビCDリセット。
 - **天矢乱舞**はゲージ枯渇時(shortCount>0)のみ・T2以降。
@@ -70,8 +74,9 @@
 node -e '
 const html=require("fs").readFileSync("index.html","utf8");
 let code=html.slice(html.indexOf("// ===== ゲーム定数"), html.indexOf("// ===== UI HELPERS"));
-code+="\nglobalThis.Sim=Sim;";
+code+="\nglobalThis.Sim=Sim;globalThis.buildFormation=buildFormation;";
 (0,eval)(code);
+globalThis.buildFormation("edison",["yamato","hecate","tetra","elaine"]);
 const sim=new globalThis.Sim();
 let fb=0;
 for(let t=1;t<=10;t++){const r=sim.takeTurn(t); if(r.full)fb++;
@@ -82,13 +87,14 @@ console.log("FullBurst:",fb+"/10");
 
 期待値（基準）:
 ```
-T1 FB:5 J:5 renri:5    T6  FB:5 J:5 renri:30
-T2 FB:5 J:5 renri:10   T7  FB:5 J:5 renri:35
-T3 FB:5 J:5 renri:15   T8  FB:5 J:5 renri:40
-T4 FB:5 J:5 renri:20   T9  FB:5 J:5 renri:45
+T1 FB:5 J:5 renri:5    T6  FB:5 J:4 renri:30
+T2 FB:5 J:5 renri:10   T7  FB:5 J:4 renri:35
+T3 FB:5 J:4 renri:15   T8  FB:5 J:4 renri:40
+T4 FB:5 J:4 renri:20   T9  FB:5 J:5 renri:45
 T5 FB:5 J:5 renri:25   T10 FB:5 J:5 renri:50
 ```
-（毎ターンJ:5＝再発動4回＋前ターンのフルバースト持ち越しによる開始時1回）
+（FullBurst:10/10。Jは4〜5で変動＝procが「judgがarmed中」に発火すると再発動が無駄になるため。
+連理魔力は3チャネル合算で毎ターン5procに到達し+5ずつ累積、T6で30到達しHELIX解禁。）
 
 ## 開発ルール
 
