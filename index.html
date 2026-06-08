@@ -183,6 +183,7 @@ const FB_THR    = 100; // フルバースト閾値（カスケードあり）
 const MACH_BG   = 5;   // マシーンタクトゥ: ロボ作動1回あたりBG増加
 const KEIGYO_MAX= 15;  // 契晶最大値
 const LA_TURNS  = 3;   // 現神の祈り先読み: この先何ターン枯渇を予測するか
+const ROLL_LA   = 3;   // ロールアウト探索: 各候補を将来この先何ターンまでシミュレートして採点するか
 const BG = {inori:100,funki:10,absolute:20,sleur:15,legend:10,
             pactcore:100,cascade:10,yamato_max:200,other_max:100};
 
@@ -469,233 +470,199 @@ class Sim {
 
 
 
-  // 旧シーケンス型エンジン — greedyTakeTurnへの移行完了後に削除予定
+  // 公開API: ロールアウト探索エンジンへ委譲
   takeTurn(t) {
     return this.greedyTakeTurn(t);
   }
-  _oldTakeTurn(t) {
-    this.tick();
-    const T={ability:0,yellow:0,burst:0,proc:0,fr:0,ra:0,tenya:0,
-             ju:0,mobius:0,judgOpen:false};
-    // ジャッジ同ターン発動上限 = 再発動4回 + (前ターンのフルバースト持ち越し等で開始時使用可なら+1)
-    T.judgCap = JUDG_REACT + (this.cd.judg===0 ? 1 : 0);
-    const ord=[], bset=new Set();
-    const rdy=n=>this.cd[n]===0;
-    // ── ドレイン関数（実体はCHAR_DEFの各キャラ記述子に集約。ここでは所有者から解決して束ねる） ──
-    // drainJudg=judg所有者の赤ドレイン / drainFunki=funki所有者の黄ドレイン / drainHecate=puvoir所有者の黄ドレイン
-    const drainRunOf=key=>{ if(!ABIL[key]) return null; const d=CHAR_DEF[ownerOf(key)]; return d&&d.drain?d.drain.run:null; };
-    const judgRun=drainRunOf('judg'), funkiRun=drainRunOf('funki'), hecateRun=drainRunOf('puvoir');
-    const ctx={ bset, rdy };
-    // judgは青デバフ展開後に解禁(T.judgOpen)。それまではarm(CD0)だけ蓄積し発火を保留。
-    const drainJudg  =()=>{ if(judgRun && T.judgOpen) judgRun(this,T,ord,ctx); };
-    const drainFunki =(inRed=false)=>{ if(funkiRun)  funkiRun(this,T,ord,ctx,inRed); };
-    const drainHecate=(inRed=false)=>{ if(hecateRun) hecateRun(this,T,ord,ctx,inRed); };
-    // 黄/青フェイズ用ラッパー: judgは温存せず使用可になり次第即発動
-    const actY=(name,prep=null,note='')=>{ if(prep) prep(); this.use(name,T,ord,note); drainFunki(false); drainJudg(); };
-    const actB=(name,prep=null,note='')=>{ if(prep) prep(); this.use(name,T,ord,note); drainJudg(); };
-    Object.assign(ctx,{drainJudg,drainFunki,drainHecate,actY});
 
-    // ── 押し順メインシーケンス ──
+  // ===== ロールアウト探索エンジン =====
+  // 各ステップで「合法な候補アビ」を列挙し、実行時は候補ごとにcloneして
+  // ターン完遂＋将来ROLL_LAターンをシミュレートし、目的関数で採点して最良を選ぶ。
+  // 静的スコア(s)はロールアウト内の既定ポリシー＆同点時のタイブレークに用いる。
+  // フェイズ概念は廃止。色順序は静的スコアの大小(黄>青>赤)で既定ポリシーが担保する。
 
-    // 1) ロボ+アンプリファ: 全てのロボット作動の土台。
-    //    ドロイド(赤ロボ・与ダメ底上げ)を先に展開し、バノーシク発動時にも効果が乗るようにする。
-    //    ドロイド→バノーシク→アンプリファの順で土台を確保してからjudg/funkiドレイン開始。
-    if(rdy('droid'))   { this.robot=3; this.use('droid',T,ord); }
-    if(rdy('banoshik')){ this.robot=3; this.use('banoshik',T,ord); }
-    if(rdy('amplifa'))  this.use('amplifa',T,ord);
-    drainFunki(false); // ロボ+アンプリファ展開後に奮起ドレイン開始
-
-    // 2) 黄バフ(攻撃・火力UP系): 全て赤より前に積む
-    //    puvoir(光攻撃・ダメ上限UP) → sleur(防壁+BG) → absolute(全攻撃性能UP+BG) → legend(BG)
-    drainHecate(false); // puvoir・sleurをここで消化(黄アビ=ロボ作動+攻撃バフ累積)
-    drainFunki(false);
-    if(rdy('absolute')) actY('absolute',()=>this.addG(CHARS,BG.absolute));
-    // レジェンドトラベラー(エレイン戦略フック): 累計契晶参照のBG供給
-    if(ABIL.legend) CHAR_DEF[ownerOf('legend')].legend?.(this,T,ord,ctx);
-    drainFunki(false);
-
-    // 現神の祈り(ヤマト戦略フック): CD明け次第発動（バースト性能UP＋天矢乱舞解放）
-    if(ABIL.inori) CHAR_DEF[ownerOf('inori')].inori?.(this,T,ord,ctx,t);
-
-    // イフィシャント: 全CD-1(自身除く) → 黄フェイズ最後に置いて最大効果
-    if(rdy('ifishant')) actY('ifishant',()=>{
-      for(const k of Object.keys(this.cd)) if(k!=='ifishant'&&this.cd[k]>0) this.cd[k]--;
-    });
-    drainFunki(false);
-
-    // 3) 青デバフ: 攻防DOWN・バースト耐性DOWN → 赤の直前。judgはここで初めて解禁する
-    //    (デバフを乗せてからジャッジを撃つ。actB内のdrainJudgはまだ保留中なので発火しない)
-    if(rdy('divinus')) actB('divinus');
-    if(ABIL.knights && this.keigyo>=ABIL.knights[3]) actB('knights');
-
-    // ── 赤フェイズ: judg解禁。デバフ後にarm済み分をまとめて発火。effond等もここから ──
-    T.judgOpen=true;
-    drainJudg();
-    drainFunki(true);
-
-    // 4) ヘカテー赤(effond)+天矢乱舞+契晶 → 各バースト後にdrainJudg/drainFunki/モビウス確認
-    drainHecate(true); // effond(ムーンコード時即バースト)含む
-
-    // 天矢乱舞(ヤマト戦略フック): ゲージ枯渇時のみ
-    if(ABIL.tenya) CHAR_DEF[ownerOf('tenya')].tenya?.(this,T,ord,ctx,t);
-
-    // フィニッシャー(エレイン戦略フック): PactCore優先・不可ならアロンブレイク連打
-    if(ABIL.alone) CHAR_DEF[ownerOf('alone')].finisher?.(this,T,ord,ctx);
-
-    // 攻撃フェイズ: ゲージ100以上のキャラがフルバースト
-    const atk=[];
-    for(const c of CHARS){
-      if(this.g[c]>=FB_THR){
-        this.g[c]-=100; this.burst(c,bset,T,true); atk.push(c);
-        // 攻撃バーストで連理が溜まりジャッジが誘発される→赤フェーズ同様にドレイン
-        drainJudg(); drainFunki(true);
-        if(T.mobius){ T.mobius=0; drainHecate(true); }
-      }
-    }
-
-    // ターン終了（連理魔力はprocRでリアルタイム加算済み）
-    const rt=T.proc;
-    this.addG(CHARS,MACH_BG*T.ra);
-    CHAR_DEF[LEADER].turnEnd?.(this); // 英霊固有のターン終了処理（累計契晶80でBG+20）
-    if(t%4===0){ this.keigyo=Math.min(this.keigyo+5,KEIGYO_MAX); this.cum+=5; }
-    if(this.inori_p!==null){ this.inori_p++; if(this.inori_p===2){ this.cd.tenya=0; this.inori_p=null; } }
-    const helix=this.renri>=30&&!this.helix_done;
-    if(helix) this.helix_done=true;
-
-    return {
-      t,ord,atk,full:atk.length===5,
-      burst:T.burst,ability:T.ability,ra:T.ra,ju:T.ju,
-      mobius_this:T.mobius,
-      rt,renri:this.renri,keigyo:this.keigyo,cum:this.cum,
-      mooncode:this.mooncode,ycount:this.ycount,helix,robot:this.robot,
-      gauge:{...this.g}, state:this.snap()
-    };
-  }
-
-  // ===== 貪欲ループ最適化エンジン =====
-  // 毎ステップ全アビをスコアリングして最高得点を1つ実行するループ。
-  // フェイズ概念を廃止 — 黄(>100)が赤(40-70)より高得点なので自然に黄→青→赤順になる。
-  // moebiusでヘカテー黄が解禁されても次ステップで高得点として拾う。
-  greedyTakeTurn(t) {
-    this.tick();
-    const T={ability:0,yellow:0,burst:0,proc:0,fr:0,ra:0,tenya:0,
-             ju:0,mobius:0,legendUsed:false,pactcoreUsed:false,alone:0,
-             knightsUsed:false,inoriLookahead:null};
-    T.judgCap = JUDG_REACT + (this.cd.judg===0 ? 1 : 0);
-    const ord=[], bset=new Set();
-    const sim=this, rdy=k=>sim.cd[k]===0;
-
-    const candidates=()=>{
-      const c=[];
-      // スコア: 黄バフ系 100-200 > 青デバフ 85-90 > 赤攻撃 40-70
-      // ── Edison ──
-      if(ABIL.droid    && rdy('droid'))    c.push({s:201,exec:()=>{ sim.robot=3; sim.use('droid',T,ord); }});
-      if(ABIL.banoshik && rdy('banoshik')) c.push({s:200,exec:()=>{ sim.robot=3; sim.use('banoshik',T,ord); }});
-      if(ABIL.amplifa  && rdy('amplifa'))  c.push({s:180,exec:()=>sim.use('amplifa',T,ord)});
-      // ifishant: 黄アビ。赤フェイズ開始前の最後に置き、使用後CDを最大限削減する
-      if(ABIL.ifishant && rdy('ifishant')) c.push({s:82,exec:()=>{
+  // 合法候補の列挙。各候補は {s:静的スコア, key:識別子, exec:適用関数}。
+  // execはthisを参照するためcloneインスタンス上で呼べば同じ操作がクローンに適用される。
+  _candidates(){
+    const sim=this, T=this.T, ord=this.ord, bset=this.bset, t=this._t;
+    const rdy=k=>sim.cd[k]===0;
+    const c=[];
+    // スコア: 黄バフ系 100-200 > 青デバフ 85-90 > 赤攻撃 40-82
+    // ── Edison ──
+    if(ABIL.droid    && rdy('droid'))    c.push({s:201,key:'droid',exec:()=>{ sim.robot=3; sim.use('droid',T,ord); }});
+    if(ABIL.banoshik && rdy('banoshik')) c.push({s:200,key:'banoshik',exec:()=>{ sim.robot=3; sim.use('banoshik',T,ord); }});
+    if(ABIL.amplifa  && rdy('amplifa'))  c.push({s:180,key:'amplifa',exec:()=>sim.use('amplifa',T,ord)});
+    // ifishant: 黄アビ。全CD-1(自身除く)。スコア=CD中アビ数(=削減効果＝機会損失の逆数)。
+    // バフ系(120+)は preempt せず、CD中アビが増えるほど発動価値が上がり自然に遅延発火する。
+    {
+      const onCD=Object.keys(sim.cd).filter(k=>k!=='ifishant'&&sim.cd[k]>0).length;
+      if(ABIL.ifishant && rdy('ifishant')) c.push({s:onCD,key:'ifishant',exec:()=>{
         for(const k of Object.keys(sim.cd)) if(k!=='ifishant'&&sim.cd[k]>0) sim.cd[k]--;
         sim.use('ifishant',T,ord);
       }});
-      // ── Yamato ──
-      if(ABIL.funki && rdy('funki')) c.push({s:150,exec:()=>{
-        sim.ycount++; sim.addG(CHARS,BG.funki);
-        if(sim.ycount%3===0) sim.cd.inori=Math.max(0,sim.cd.inori-1);
-        sim.use('funki',T,ord);
-      }});
-      if(ABIL.inori && rdy('inori') && !sim.planning){
-        // 先読みはターン初回1度だけ評価してキャッシュ
-        if(T.inoriLookahead===null){
-          let dep=false; const look=sim.clone();
-          for(let k=1;k<=LA_TURNS;k++) if(look.greedyTakeTurn(t+k).atk.length<5){dep=true;break;}
-          T.inoriLookahead=dep;
-        }
-        if(T.inoriLookahead) c.push({s:95,exec:()=>{
-          T.inoriLookahead=null;
-          sim.addG([ownerOf('inori')],BG.inori); sim.inori_p=0; sim.use('inori',T,ord);
-        }});
-      }
-      const shortCount=CHARS.filter(cc=>sim.g[cc]<FB_THR).length;
-      if(ABIL.tenya && rdy('tenya') && t>=TENYA_FROM && shortCount>0) c.push({s:55,exec:()=>{
-        const me=ownerOf('tenya'), tidx=ord.length;
-        sim.use('tenya',T,ord); sim.burst(me,bset,T); T.tenya=1;
-        while(T.tenya<3&&sim.g[me]>=40){
-          sim.g[me]-=40; sim.burst(me,bset,T); T.tenya++;
-          ord[tidx]={text:`${LABEL.tenya}×${T.tenya}(-40×${T.tenya-1})`,color:'r'};
-        }
-      }});
-      // ── Hecate ──
-      if(ABIL.puvoir && rdy('puvoir')) c.push({s:140,exec:()=>sim.use('puvoir',T,ord)});
-      if(ABIL.sleur  && rdy('sleur'))  c.push({s:140,exec:()=>{ sim.addG(CHARS,BG.sleur); sim.use('sleur',T,ord); }});
-      if(ABIL.effond && rdy('effond') && sim.mooncode>0) c.push({s:70,exec:()=>{
-        sim.use('effond',T,ord); sim.burst(ownerOf('effond'),bset,T);
-      }});
-      // ── Tetra ──
-      if(ABIL.absolute && rdy('absolute')) c.push({s:130,exec:()=>{ sim.addG(CHARS,BG.absolute); sim.use('absolute',T,ord); }});
-      if(ABIL.divinus  && rdy('divinus'))  c.push({s:90, exec:()=>sim.use('divinus',T,ord)});
-      // judg: 赤アビ。青デバフ(85-90)より後に発動する(黄→青→赤の順序原則)
-      if(ABIL.judg && rdy('judg') && T.ju<T.judgCap) c.push({s:80,exec:()=>{
-        const ph=T.ju%3; sim.use('judg',T,ord); T.ju++;
-        if(ph===1) sim.burst(ownerOf('judg'),bset,T);
-      }});
-      // ── Elaine ──
-      if(ABIL.legend && rdy('legend') && !T.legendUsed){
-        let lu=sim.cum>=1?2:1;
-        for(const thr of [26,51,71,80]) if(sim.cum>=thr) lu++;
-        c.push({s:120,exec:()=>{
-          T.legendUsed=true; const lead100=sim.g[LEADER]>=100;
-          for(let i=0;i<lu;i++){ sim.addG(lead100?CHARS:[LEADER,ownerOf('legend')],BG.legend); sim.use('legend',T,ord); }
-        }});
-      }
-      if(ABIL.knights && !T.knightsUsed && rdy('knights') && sim.keigyo>=ABIL.knights[3])
-        c.push({s:85,exec:()=>{ T.knightsUsed=true; sim.use('knights',T,ord); }});
-      const rdown=(sim.cd.droid??-1)>0||(sim.cd.banoshik??-1)>0;
-      if(ABIL.pactcore && !T.pactcoreUsed && rdy('pactcore') && sim.keigyo>=12 && rdown && sim.g[LEADER]>=100)
-        c.push({s:45,exec:()=>{
-          T.pactcoreUsed=true;
-          if(sim.cd.droid!==undefined) sim.cd.droid=Math.max(0,sim.cd.droid-1);
-          if(sim.cd.banoshik!==undefined) sim.cd.banoshik=Math.max(0,sim.cd.banoshik-1);
-          sim.addG(CHARS,BG.pactcore); sim.use('pactcore',T,ord,'(全+100)');
-        }});
-      if(ABIL.alone && rdy('alone') && (T.alone||0)<2 && sim.keigyo>=ABIL.alone[3])
-        c.push({s:40,exec:()=>{
-          T.alone=(T.alone||0)+1; sim.use('alone',T,ord); sim.burst(ownerOf('alone'),bset,T);
-        }});
-      return c;
-    };
-
-    // 攻撃前 貪欲ループ
-    for(let i=0;i<300;i++){
-      const cands=candidates(); if(!cands.length) break;
-      cands.reduce((a,b)=>b.s>a.s?b:a).exec();
     }
+    // ── Yamato ──
+    if(ABIL.funki && rdy('funki')) c.push({s:150,key:'funki',exec:()=>{
+      sim.ycount++; sim.addG(CHARS,BG.funki);
+      if(sim.ycount%3===0) sim.cd.inori=Math.max(0,sim.cd.inori-1);
+      sim.use('funki',T,ord);
+    }});
+    if(ABIL.inori && rdy('inori') && !sim.planning){
+      // 先読みはターン初回1度だけ評価してキャッシュ
+      if(T.inoriLookahead===null){
+        let dep=false; const look=sim.clone();
+        for(let k=1;k<=LA_TURNS;k++) if(look.greedyTakeTurn(t+k).atk.length<5){dep=true;break;}
+        T.inoriLookahead=dep;
+      }
+      if(T.inoriLookahead) c.push({s:95,key:'inori',exec:()=>{
+        T.inoriLookahead=null;
+        sim.addG([ownerOf('inori')],BG.inori); sim.inori_p=0; sim.use('inori',T,ord);
+      }});
+    }
+    const shortCount=CHARS.filter(cc=>sim.g[cc]<FB_THR).length;
+    if(ABIL.tenya && rdy('tenya') && t>=TENYA_FROM && shortCount>0) c.push({s:55,key:'tenya',exec:()=>{
+      const me=ownerOf('tenya'), tidx=ord.length;
+      sim.use('tenya',T,ord); sim.burst(me,bset,T); T.tenya=1;
+      while(T.tenya<3&&sim.g[me]>=40){
+        sim.g[me]-=40; sim.burst(me,bset,T); T.tenya++;
+        ord[tidx]={text:`${LABEL.tenya}×${T.tenya}(-40×${T.tenya-1})`,color:'r'};
+      }
+    }});
+    // ── Hecate ──
+    if(ABIL.puvoir && rdy('puvoir')) c.push({s:140,key:'puvoir',exec:()=>sim.use('puvoir',T,ord)});
+    if(ABIL.sleur  && rdy('sleur'))  c.push({s:140,key:'sleur',exec:()=>{ sim.addG(CHARS,BG.sleur); sim.use('sleur',T,ord); }});
+    if(ABIL.effond && rdy('effond') && sim.mooncode>0) c.push({s:70,key:'effond',exec:()=>{
+      sim.use('effond',T,ord); sim.burst(ownerOf('effond'),bset,T);
+    }});
+    // ── Tetra ──
+    if(ABIL.absolute && rdy('absolute')) c.push({s:130,key:'absolute',exec:()=>{ sim.addG(CHARS,BG.absolute); sim.use('absolute',T,ord); }});
+    if(ABIL.divinus  && rdy('divinus'))  c.push({s:90,key:'divinus',exec:()=>sim.use('divinus',T,ord)});
+    // judg: 赤アビ。青デバフ(85-90)より後に発動する(黄→青→赤の順序原則)
+    if(ABIL.judg && rdy('judg') && T.ju<T.judgCap) c.push({s:80,key:'judg',exec:()=>{
+      const ph=T.ju%3; sim.use('judg',T,ord); T.ju++;
+      if(ph===1) sim.burst(ownerOf('judg'),bset,T);
+    }});
+    // ── Elaine ──
+    if(ABIL.legend && rdy('legend') && !T.legendUsed){
+      let lu=sim.cum>=1?2:1;
+      for(const thr of [26,51,71,80]) if(sim.cum>=thr) lu++;
+      c.push({s:120,key:'legend',exec:()=>{
+        T.legendUsed=true; const lead100=sim.g[LEADER]>=100;
+        for(let i=0;i<lu;i++){ sim.addG(lead100?CHARS:[LEADER,ownerOf('legend')],BG.legend); sim.use('legend',T,ord); }
+      }});
+    }
+    if(ABIL.knights && !T.knightsUsed && rdy('knights') && sim.keigyo>=ABIL.knights[3])
+      c.push({s:85,key:'knights',exec:()=>{ T.knightsUsed=true; sim.use('knights',T,ord); }});
+    // pactcore(エレイン4・白): 英霊アビのCDを1短縮。英霊アビが多くCD中のとき価値が高い。
+    // 発動可否ゲートのみ列挙し、最適タイミングはロールアウトに委ねる。
+    const leaderKeys=Object.keys(ABIL).filter(k=>ownerOf(k)===LEADER);
+    const leaderOnCD=leaderKeys.some(k=>sim.cd[k]>0);
+    if(ABIL.pactcore && !T.pactcoreUsed && rdy('pactcore') && sim.keigyo>=12 && leaderOnCD && sim.g[LEADER]>=100)
+      c.push({s:45,key:'pactcore',exec:()=>{
+        T.pactcoreUsed=true;
+        for(const k of leaderKeys) if(sim.cd[k]>0) sim.cd[k]=Math.max(0,sim.cd[k]-1);
+        sim.addG(CHARS,BG.pactcore); sim.use('pactcore',T,ord,'(全+100)');
+      }});
+    if(ABIL.alone && rdy('alone') && (T.alone||0)<2 && sim.keigyo>=ABIL.alone[3])
+      c.push({s:40,key:'alone',exec:()=>{
+        T.alone=(T.alone||0)+1; sim.use('alone',T,ord); sim.burst(ownerOf('alone'),bset,T);
+      }});
+    return c;
+  }
 
-    // 攻撃フェイズ
+  // 静的ポリシーで1ステップ実行（ロールアウト内の既定ポリシー）。候補が無ければfalse。
+  _stepStatic(){
+    const c=this._candidates(); if(!c.length) return false;
+    c.reduce((a,b)=>b.s>a.s?b:a).exec(); return true;
+  }
+
+  // key一致の候補をクローン上で実行（exec内のthisはクローン）。
+  _execKey(key){ const m=this._candidates().find(x=>x.key===key); if(m) m.exec(); }
+
+  // 攻撃フェイズ: ゲージ100以上がフルバースト。各バースト後に誘発分(score>=40)を静的消化。
+  _attackPhase(){
     const atk=[];
     for(const c of CHARS){
       if(this.g[c]>=FB_THR){
-        this.g[c]-=100; this.burst(c,bset,T,true); atk.push(c);
-        // 攻撃後誘発(judg rearm / moobius解禁 / alone等) — スコア40以上のみ
+        this.g[c]-=100; this.burst(c,this.bset,this.T,true); atk.push(c);
         for(let i=0;i<50;i++){
-          const cands=candidates().filter(a=>a.s>=40); if(!cands.length) break;
+          const cands=this._candidates().filter(a=>a.s>=40); if(!cands.length) break;
           cands.reduce((a,b)=>b.s>a.s?b:a).exec();
         }
       }
     }
+    return atk;
+  }
 
-    // ターン終了
-    const rt=T.proc;
-    this.addG(CHARS,MACH_BG*T.ra);
+  // ターン終了時の状態更新（結果オブジェクトは作らない）。
+  _endBookkeep(t){
+    this.addG(CHARS, MACH_BG*this.T.ra);
     CHAR_DEF[LEADER].turnEnd?.(this);
     if(t%4===0){ this.keigyo=Math.min(this.keigyo+5,KEIGYO_MAX); this.cum+=5; }
     if(this.inori_p!==null){ this.inori_p++; if(this.inori_p===2){ this.cd.tenya=0; this.inori_p=null; } }
-    const helix=this.renri>=30&&!this.helix_done;
-    if(helix) this.helix_done=true;
+    if(this.renri>=30) this.helix_done=true;
+  }
 
+  // 現在のターン状態から静的ポリシーで残りを完遂（クローン上で使用）。this._atkを設定。
+  _finishStatic(){
+    for(let i=0;i<300;i++){ if(!this._stepStatic()) break; }
+    this._atk=this._attackPhase();
+    this._endBookkeep(this._t);
+  }
+
+  // 目的関数: 現ターン(完遂済み)＋将来ROLL_LAターンを評価し
+  // [フルバーストターン数, 総バースト, 連理+契晶] を返す（辞書式で大きいほど良い）。
+  _objective(t0){
+    let fbTurns=(this._atk.length===5)?1:0;
+    let totalBurst=this.T.burst;
+    for(let k=1;k<=ROLL_LA;k++){
+      const r=this.greedyTakeTurn(t0+k); // planning=true → 静的
+      if(r.atk.length===5) fbTurns++;
+      totalBurst+=r.burst;
+    }
+    return [fbTurns, totalBurst, this.renri+this.cum];
+  }
+
+  // ロールアウトで1ステップ選択（実行時のみ）。候補が無ければfalse。
+  _stepRollout(){
+    const cands=this._candidates(); if(!cands.length) return false;
+    if(cands.length===1){ cands[0].exec(); return true; }
+    let best=null, bestKey=[-1,-1,-1,-1];
+    for(const cand of cands){
+      const cl=this.clone();
+      cl._execKey(cand.key);
+      cl._finishStatic();
+      const obj=cl._objective(this._t);
+      const key=[...obj, cand.s]; // 同点時は静的スコアでタイブレーク(色順序維持)
+      if(cmpVec(key,bestKey)>0){ bestKey=key; best=cand; }
+    }
+    best.exec(); return true;
+  }
+
+  greedyTakeTurn(t) {
+    this._beginTurn(t);
+    // 攻撃前: 実行時はロールアウト、planning(クローン内)では静的ポリシー
+    for(let i=0;i<300;i++){
+      if(!(this.planning ? this._stepStatic() : this._stepRollout())) break;
+    }
+    const atk=this._attackPhase();
+    const T=this.T, ord=this.ord;
+    const rt=T.proc;
+    const helix=this.renri>=30 && !this.helix_done; // 初回到達のみtrue
+    this._endBookkeep(t); // ここでhelix_done=trueに更新
     return {t,ord,atk,full:atk.length===5,burst:T.burst,ability:T.ability,ra:T.ra,ju:T.ju,
       mobius_this:T.mobius,rt,renri:this.renri,keigyo:this.keigyo,cum:this.cum,
       mooncode:this.mooncode,ycount:this.ycount,helix,robot:this.robot,
       gauge:{...this.g},state:this.snap()};
+  }
+
+  _beginTurn(t){
+    this.tick();
+    this.T={ability:0,yellow:0,burst:0,proc:0,fr:0,ra:0,tenya:0,
+            ju:0,mobius:0,legendUsed:false,pactcoreUsed:false,alone:0,
+            knightsUsed:false,inoriLookahead:null};
+    this.T.judgCap = JUDG_REACT + (this.cd.judg===0 ? 1 : 0);
+    this.ord=[]; this.bset=new Set(); this._t=t;
   }
 
   snap(){
@@ -704,7 +671,8 @@ class Sim {
       ycount:this.ycount,inori_p:this.inori_p,helix_done:this.helix_done,mburst:this.mburst};
   }
 
-  // 先読み用の複製。planning=trueのクローンは戦略フック側で介入を抑止し再帰を防ぐ。
+  // 先読み/ロールアウト用の複製。planning=trueのクローンは戦略フック側で介入を抑止し再帰を防ぐ。
+  // ターン途中(this.T存在)ならターンローカル状態も複製し、続きをクローン上で完遂できるようにする。
   clone(){
     const s=new Sim(); const snap=this.snap();
     s.g={...snap.g}; s.cd={...snap.cd};
@@ -712,8 +680,15 @@ class Sim {
     s.mooncode=snap.mooncode; s.robot=snap.robot; s.ycount=snap.ycount;
     s.inori_p=snap.inori_p; s.helix_done=snap.helix_done; s.mburst=snap.mburst;
     s.planning=true;
+    if(this.T){ s.T={...this.T}; s.ord=this.ord.slice(); s.bset=new Set(this.bset); s._t=this._t; }
     return s;
   }
+}
+
+// 辞書式ベクトル比較: a>b なら正・a<b なら負・等しければ0
+function cmpVec(a,b){
+  for(let i=0;i<a.length;i++){ if(a[i]!==b[i]) return a[i]>b[i]?1:-1; }
+  return 0;
 }
 
 // ===== UI HELPERS =====
