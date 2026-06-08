@@ -592,9 +592,8 @@ class Sim {
       if(ABIL.droid    && rdy('droid'))    c.push({s:201,exec:()=>{ sim.robot=3; sim.use('droid',T,ord); }});
       if(ABIL.banoshik && rdy('banoshik')) c.push({s:200,exec:()=>{ sim.robot=3; sim.use('banoshik',T,ord); }});
       if(ABIL.amplifa  && rdy('amplifa'))  c.push({s:180,exec:()=>sim.use('amplifa',T,ord)});
-      // ifishant: 攻撃前フェイズの最後に発動して全アビの使用後CDを最大限削減する
-      // 早期発動は機会損失(削減できるCDが少ない)。judgより後→ability#12 procが有効に機能する
-      if(ABIL.ifishant && rdy('ifishant')) c.push({s:10,exec:()=>{
+      // ifishant: 黄アビ。赤フェイズ開始前の最後に置き、使用後CDを最大限削減する
+      if(ABIL.ifishant && rdy('ifishant')) c.push({s:82,exec:()=>{
         for(const k of Object.keys(sim.cd)) if(k!=='ifishant'&&sim.cd[k]>0) sim.cd[k]--;
         sim.use('ifishant',T,ord);
       }});
@@ -634,8 +633,8 @@ class Sim {
       // ── Tetra ──
       if(ABIL.absolute && rdy('absolute')) c.push({s:130,exec:()=>{ sim.addG(CHARS,BG.absolute); sim.use('absolute',T,ord); }});
       if(ABIL.divinus  && rdy('divinus'))  c.push({s:90, exec:()=>sim.use('divinus',T,ord)});
-      // judg: 青デバフより先に発動してability#12 procを活かす(proc時点でcd>0になるよう)
-      if(ABIL.judg && rdy('judg') && T.ju<T.judgCap) c.push({s:95,exec:()=>{
+      // judg: 赤アビ。青デバフ(85-90)より後に発動する(黄→青→赤の順序原則)
+      if(ABIL.judg && rdy('judg') && T.ju<T.judgCap) c.push({s:80,exec:()=>{
         const ph=T.ju%3; sim.use('judg',T,ord); T.ju++;
         if(ph===1) sim.burst(ownerOf('judg'),bset,T);
       }});
