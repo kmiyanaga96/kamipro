@@ -428,11 +428,12 @@ class Sim {
       (channel==='b'&&T.burst>0&&T.burst%2===0)||
       (channel==='a'&&T.ability>0&&T.ability%12===0)
     );
-    if(crossed && T.proc<RENRI_CAP){ T.proc++; this.renri++; } // 連理魔力は同ターン上限5で別管理
-    // ジャッジ再発動は【バーストチャネル(2バースト毎)のみ】に紐づく。
-    // アビ12回(abiチャネル)では再発動しない(連理魔力＋ムーンコードのみ)。
-    // フラグは二値制御(非蓄積): judg CD中のみリセット。アイドル中(CD=0)は実機通り捨てる。
-    if(channel==='b' && crossed && ABIL.judg && this.cd.judg>0) this.cd.judg=0;
+    if(crossed){
+      if(T.proc<RENRI_CAP){ T.proc++; this.renri++; }
+      // 3チャネル(abi/12・burst/2・通常攻撃/9)全てでジャッジ即使用可能に。
+      // フラグは二値制御(非蓄積): judg CD中のみリセット。アイドル中(CD=0)は捨てる。
+      if(ABIL.judg && this.cd.judg>0) this.cd.judg=0;
+    }
     if(channel==='a'&&T.ability>0&&T.ability%12===0) this.mooncode=2;
   }
 
