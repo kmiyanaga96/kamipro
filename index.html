@@ -429,9 +429,14 @@ class Sim {
     );
     if(crossed){
       if(T.proc<RENRI_CAP){ T.proc++; this.renri++; } // 連理魔力は同ターン上限5で別管理
-      // ジャッジ再発動は連理上限とは独立。通常バーストも含め2バースト毎にCD0へ(=再発動/持ち越し)。
-      // 同ターンの実発動回数はdrain側のjudgCapで制御し、超過分のarmは次ターンへ持ち越される。
-      if(usejudg && ABIL.judg && this.cd.judg>0) this.cd.judg=0;
+      // ジャッジ再発動は連理上限とは独立。通常バーストも含め2バースト毎に再発動可能になる。
+      // judgがCD中(cd>0)なら即CD0へ。judgがまだ未発動でアイドル(cd===0)の場合は
+      // 「無駄打ちのない追跡」原則に従いフラグを捨てずjudgBankへ退避し、次回発動時に消費して即再arm。
+      // 同ターンの実発動回数はjudgCapで制御し、超過分は次ターンへ持ち越される。
+      if(usejudg && ABIL.judg){
+        if(this.cd.judg>0) this.cd.judg=0;
+        else this.judgBank=(this.judgBank||0)+1;
+      }
     }
     if(channel==='a'&&T.ability>0&&T.ability%12===0) this.mooncode=2;
   }
@@ -581,6 +586,7 @@ class Sim {
              ju:0,mobius:0,legendUsed:false,pactcoreUsed:false,alone:0,
              knightsUsed:false,inoriLookahead:null};
     T.judgCap = JUDG_REACT + (this.cd.judg===0 ? 1 : 0);
+    this.judgBank=0; // アイドルarm中に来た再発動フラグの退避先（無駄打ち防止）
     const ord=[], bset=new Set();
     const sim=this, rdy=k=>sim.cd[k]===0;
 
@@ -634,6 +640,8 @@ class Sim {
       if(ABIL.judg && rdy('judg') && T.ju<T.judgCap) c.push({s:60,exec:()=>{
         const ph=T.ju%3; sim.use('judg',T,ord); T.ju++;
         if(ph===1) sim.burst(ownerOf('judg'),bset,T);
+        // 退避済み再発動フラグがあれば消費して即再arm（アイドル中に来たproc分を無駄にしない）
+        if(sim.judgBank>0 && T.ju<T.judgCap){ sim.judgBank--; sim.cd.judg=0; }
       }});
       // ── Elaine ──
       if(ABIL.legend && rdy('legend') && !T.legendUsed){
