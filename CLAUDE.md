@@ -87,15 +87,16 @@ console.log("FullBurst:",fb+"/10");
 
 期待値（基準）:
 ```
-T1 FB:5 J:6 renri:5    T6  FB:5 J:4 renri:30
-T2 FB:5 J:5 renri:10   T7  FB:5 J:5 renri:35
-T3 FB:5 J:5 renri:15   T8  FB:5 J:5 renri:40
-T4 FB:5 J:5 renri:20   T9  FB:5 J:5 renri:45
-T5 FB:5 J:5 renri:25   T10 FB:5 J:5 renri:50
+T1 FB:5 J:3 renri:5    T6  FB:5 J:3 renri:29
+T2 FB:5 J:5 renri:10   T7  FB:5 J:6 renri:34
+T3 FB:5 J:3 renri:15   T8  FB:5 J:3 renri:39
+T4 FB:5 J:4 renri:20   T9  FB:5 J:4 renri:44
+T5 FB:5 J:4 renri:25   T10 FB:5 J:6 renri:49
 ```
-（FullBurst:10/10。T1はJ=6が最大値（初回自然分1回+proc5回=6回）。
-T2以降はJ=4〜5で変動=procが「judgがarmed中」に発火すると再発動が無駄になるため。
-連理魔力は3チャネル合算で毎ターン5procに到達し+5ずつ累積、T6で30到達しHELIX解禁。）
+（FullBurst:10/10。攻撃フェイズでのアビ発動はなし。
+Jはターンにより3〜6で変動（proc arm数＋メインフェイズのみのjudg発動機会に依存）。
+連理魔力はメインフェイズabi/12・burst/2と攻撃フェイズchar burst/2の合算。
+T6でpactcoreがkeigyo12消費後aloneが撃てず proc=4 → renri=29。HELIX解禁はT7。）
 
 ## 開発ルール
 
