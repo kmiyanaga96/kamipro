@@ -232,9 +232,16 @@ const BG = {inori:100,funki:10,absolute:20,sleur:15,legend:10,
 // 各キャラのデータをここに集約。buildFormation() で選択編成の globals を再構築する。
 // type:'hero'|'kamihime' / abilities: {key:[color,cd,keigyo_cost]} / def: CHAR_DEF エントリ
 const CHAR_REGISTRY = {
+  // ─── state フィールドの規約 ──────────────────────────────────────────
+  // キャラ固有のバトル持続状態変数をここに宣言する（初期値付き）。
+  // buildFormation() が CHAR_SIM_STATES に集約し、Sim の constructor/snap/clone が
+  // 自動的に管理する。新キャラ追加時はこのフィールドを追加するだけでよい。
+  // エンジン共通変数（renri/mooncode/mburst/keigyo/cum）はここに含めない。
+  // ─────────────────────────────────────────────────────────────────────
   edison: {
     type: 'hero',
     jp: 'エジソン', gcls: 'ge',
+    state: { robot: 0, ycount: 0 },  // robot: マシーンタクトゥ展開残T / ycount: 黄アビ累計
     abilities: {
       banoshik: ['y', 8, 0],
       droid:    ['y', 8, 0],
@@ -268,6 +275,7 @@ const CHAR_REGISTRY = {
   yamato: {
     type: 'kamihime',
     jp: 'ヤマト', gcls: 'gy',
+    state: { inori_p: null },  // 現神の祈りのテトラ4アビ短縮タイマー（null=未発動, 0〜1=カウント中）
     abilities: {
       inori: ['y', 14, 0],
       tenya: ['r', 12, 0],
@@ -329,6 +337,7 @@ const CHAR_REGISTRY = {
   tetra: {
     type: 'kamihime',
     jp: 'テトラ', gcls: 'gt',
+    state: { helix_done: false, helix_abil_used: false },  // HELIX解禁済み / 使用済み
     abilities: {
       judg:     ['r', 10, 0],
       absolute: ['y', 10, 0],
@@ -394,6 +403,9 @@ const CHAR_REGISTRY = {
 // ===== 編成グローバル（buildFormationで構築） =====
 // ABIL形式: [owner, color, cd, keigyo_cost]
 let CHARS, LEADER, JP, GCLS, ABIL, CHAR_DEF, LABEL_SUFFIX, LABEL, CD_SHOW;
+// CHAR_SIM_STATES: 編成キャラの state フィールドを合流させたマスター初期値。
+// Sim の constructor/snap/clone がこれを参照して自動管理する。
+let CHAR_SIM_STATES = {};
 const ownerOf = k => ABIL[k][0];
 
 function buildFormation(heroKey, kamihimeKeys) {
@@ -416,6 +428,10 @@ function buildFormation(heroKey, kamihimeKeys) {
   for(const c of CHARS) CHAR_DEF[c]=CHAR_REGISTRY[c].def;
   CD_SHOW = {};
   for(const c of CHARS) Object.assign(CD_SHOW, CHAR_REGISTRY[c].cdShow);
+  // キャラ固有 sim 状態の初期値を集約（新キャラ追加時は CHAR_REGISTRY[c].state に記述するだけ）
+  CHAR_SIM_STATES = Object.fromEntries(
+    CHARS.flatMap(c => Object.entries(CHAR_REGISTRY[c].state ?? {}))
+  );
 }
 
 // ===== SIM ENGINE =====
@@ -423,11 +439,12 @@ class Sim {
   constructor() {
     this.g=Object.fromEntries(CHARS.map(c=>[c,BG.other_max]));
     this.cd=Object.fromEntries(Object.keys(ABIL).map(k=>[k,0]));
+    // エンジン共通変数（キャラ非依存）
     this.keigyo=4; this.cum=4; this.renri=0;
-    this.mooncode=2; this.robot=0; this.ycount=0; this.inori_p=null; this.helix_done=false;
-    this.helix_abil_used=false; // テトラ4アビ: 連理魔力30到達後1回のみ使用可
-    this.mburst=0; this.totalTurns=10; this.planDepth=0;
-    this.gmax=Object.fromEntries(CHARS.map(c=>[c,CHAR_DEF[c].gmax]));
+    this.mooncode=2; this.mburst=0; this.totalTurns=10; this.planDepth=0;
+    this.gmax=Object.fromEntries(CHARS.map(c=>[c,CHAR_DEF[c].gmax??BG.other_max]));
+    // キャラ固有状態変数（CHAR_REGISTRY[c].state から自動展開）
+    for(const [k,v] of Object.entries(CHAR_SIM_STATES)) this[k]=v;
   }
 
   tick() {
@@ -653,10 +670,9 @@ class Sim {
   }
 
   snap(){
+    const cs=Object.fromEntries(Object.keys(CHAR_SIM_STATES).map(k=>[k,this[k]]));
     return{g:{...this.g},cd:{...this.cd},keigyo:this.keigyo,cum:this.cum,
-      renri:this.renri,mooncode:this.mooncode,robot:this.robot,
-      ycount:this.ycount,inori_p:this.inori_p,helix_done:this.helix_done,
-      helix_abil_used:this.helix_abil_used,mburst:this.mburst};
+      renri:this.renri,mooncode:this.mooncode,mburst:this.mburst,...cs};
   }
 
   // 先読み/ロールアウト用の複製。planDepth+1 で深度管理し再帰を防ぐ。
@@ -665,8 +681,8 @@ class Sim {
     const s=new Sim(); const snap=this.snap();
     s.g={...snap.g}; s.cd={...snap.cd};
     s.keigyo=snap.keigyo; s.cum=snap.cum; s.renri=snap.renri;
-    s.mooncode=snap.mooncode; s.robot=snap.robot; s.ycount=snap.ycount;
-    s.inori_p=snap.inori_p; s.helix_done=snap.helix_done; s.helix_abil_used=snap.helix_abil_used; s.mburst=snap.mburst;
+    s.mooncode=snap.mooncode; s.mburst=snap.mburst;
+    for(const k of Object.keys(CHAR_SIM_STATES)) s[k]=snap[k];
     s.totalTurns=this.totalTurns; s.planDepth=this.planDepth+1;
     if(this.T){ s.T={...this.T}; s.ord=this.ord.slice(); s.bset=new Set(this.bset); s._t=this._t; }
     return s;
