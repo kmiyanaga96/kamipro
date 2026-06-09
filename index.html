@@ -223,7 +223,8 @@ const TENYA_FROM= 2;   // 天矢乱舞: 使用可能開始ターン
 const FB_THR    = 100; // フルバースト閾値（カスケードあり）
 const MACH_BG   = 5;   // マシーンタクトゥ: ロボ作動1回あたりBG増加
 const KEIGYO_MAX= 15;  // 契晶最大値
-const BEAM_W    = 8;   // ビームサーチ幅: 各ステップで保持する候補数（大きいほど高精度・低速）
+const BEAM_W      = 24;  // ビームサーチ幅（本ターン）: 各ステップで保持する候補数
+const BEAM_W_INNER= 4;   // ビームサーチ幅（ロールアウト内）: 深度1クローンで使用
 const BG = {inori:100,funki:10,absolute:20,sleur:15,legend:10,
             pactcore:100,cascade:10,yamato_max:200,other_max:100};
 
@@ -277,18 +278,15 @@ const CHAR_REGISTRY = {
     cands: {
       funki: { s:150, exec:(sim,T,ord)=>{ sim.ycount++; sim.addG(CHARS,BG.funki); if(sim.ycount%3===0) sim.cd.inori=Math.max(0,sim.cd.inori-1); sim.use('funki',T,ord); }},
       inori: { s:95,
-        // キャッシュ済み(非null)なら planning クローン内でもそのまま返す。
-        // _beamSearch が開始前にキャッシュするので、ビームクローン(planning=true)にも伝播する。
-        guard:(sim,T,t)=>{
-          if(T.inoriLookahead===null){
-            if(sim.planning) return false;
-            let dep=false; const look=sim.clone();
-            for(let k=1;k<=sim.totalTurns-t;k++) if(look.greedyTakeTurn(t+k).atk.length<5){dep=true;break;}
-            T.inoriLookahead=dep;
-          }
-          return T.inoriLookahead;
+        // lookahead: _primeLookaheads() がターン開始前に1回だけ計算してT['_la_inori']にキャッシュ。
+        // ビームクローンはTをコピーするため再計算不要。planDepth>=2の静的クローンも安全。
+        lookahead:(sim,t)=>{
+          for(let k=1;k<=sim.totalTurns-t;k++)
+            if(sim.greedyTakeTurn(t+k).atk.length<5) return true;
+          return false;
         },
-        exec:(sim,T,ord)=>{ T.inoriLookahead=null; sim.addG([ownerOf('inori')],BG.inori); sim.inori_p=0; sim.use('inori',T,ord); }},
+        guard:(sim,T)=>T['_la_inori']===true,
+        exec:(sim,T,ord)=>{ sim.addG([ownerOf('inori')],BG.inori); sim.inori_p=0; sim.use('inori',T,ord); }},
       tenya: { s:55,
         guard:(sim,T,t)=>t>=TENYA_FROM&&CHARS.filter(c=>sim.g[c]<FB_THR).length>0,
         exec:(sim,T,ord,bset)=>{
@@ -422,7 +420,7 @@ class Sim {
     this.cd=Object.fromEntries(Object.keys(ABIL).map(k=>[k,0]));
     this.keigyo=4; this.cum=4; this.renri=0;
     this.mooncode=2; this.robot=0; this.ycount=0; this.inori_p=null; this.helix_done=false;
-    this.mburst=0; this.totalTurns=10;
+    this.mburst=0; this.totalTurns=10; this.planDepth=0;
     this.gmax=Object.fromEntries(CHARS.map(c=>[c,CHAR_DEF[c].gmax]));
   }
 
@@ -558,32 +556,39 @@ class Sim {
   }
 
   // 目的関数: 現ターン(完遂済み)＋残り全ターンを評価し
-  // [フルバーストターン数, 総バースト, 総ジャッジ発動, 連理+契晶] を返す（辞書式で大きいほど良い）。
-  // ジャッジ発動回数を加えることで、procの空打ち(アイドルjudgへの再arm)を避ける手を最適化が選ぶ。
+  // [FB数, 総バースト, 総ジャッジ, 連理魔力, 累積契晶, 現在契晶] を返す（辞書式で大きいほど良い）。
+  // 連理魔力・契晶を分離して各マイルストーン（HELIX解禁・pactcore使用可）を独立評価。
   _objective(t0){
     let fbTurns=(this._atk.length===5)?1:0;
     let totalBurst=this.T.burst;
     let totalJudg=this.T.ju;
     const la=this.totalTurns-t0;
     for(let k=1;k<=la;k++){
-      const r=this.greedyTakeTurn(t0+k); // planning=true → 静的
+      const r=this.greedyTakeTurn(t0+k); // planDepth>=2 → 静的、planDepth=1 → 内部ビーム
       if(r.atk.length===5) fbTurns++;
       totalBurst+=r.burst;
       totalJudg+=r.ju;
     }
-    return [fbTurns, totalBurst, totalJudg, this.renri+this.cum];
+    return [fbTurns, totalBurst, totalJudg, this.renri, this.cum, this.keigyo];
   }
 
-  // ビームサーチ: BEAM_W本の仮想シムを並列維持し最良アビ順序列を返す。
-  // 各ステップで全候補をcloneして展開 → _finishStatic()+_objective()で採点 → 上位BEAM_W保持 → 収束後に最良列を返す。
-  // planning=trueのクローンを使うためinoriガードはT.inoriLookaheadキャッシュ経由で動作する。
-  _beamSearch(){
-    // inori先読みを事前にキャッシュ（ビームクローンへ引き継ぐため）
-    if(ABIL.inori && this.cd.inori===0 && this.T.inoriLookahead===null){
-      let dep=false; const look=this.clone();
-      for(let k=1;k<=this.totalTurns-this._t;k++) if(look.greedyTakeTurn(this._t+k).atk.length<5){dep=true;break;}
-      this.T.inoriLookahead=dep;
+  // 先読みガードのキャッシュを一括計算し T['_la_'+key] に格納。
+  // ビームクローンはTをコピーするため、ビーム開始前に1回呼べば全クローンに伝播する。
+  _primeLookaheads(t){
+    for(const [key,[owner]] of Object.entries(ABIL)){
+      if(this.cd[key]!==0) continue;
+      const cand=CHAR_REGISTRY[owner]?.cands?.[key];
+      if(!cand?.lookahead) continue;
+      if(this.T['_la_'+key]!==null) continue;
+      const look=this.clone(); // planDepth+1 のクローンで評価（再帰深度+1）
+      this.T['_la_'+key]=cand.lookahead(look,t);
     }
+  }
+
+  // ビームサーチ: beamW本の仮想シムを並列維持し最良アビ順序列を返す。
+  // 各ステップで全候補をcloneして展開 → _finishStatic()+_objective()で採点 → 上位beamW保持。
+  // planDepth=0(本ターン)はBEAM_W、planDepth=1(ロールアウト内)はBEAM_W_INNERで呼ばれる。
+  _beamSearch(beamW){
     const evalEntry=e=>{
       const cl=e.sim.clone(); cl._finishStatic(); e.obj=cl._objective(this._t);
     };
@@ -593,7 +598,7 @@ class Sim {
       const next=[]; let anyLive=false;
       for(const entry of beam){
         const cands=entry.sim._candidates();
-        if(!cands.length){ next.push(entry); continue; }  // terminal: carry forward as-is
+        if(!cands.length){ next.push(entry); continue; }
         anyLive=true;
         for(const cand of cands){
           const cl=entry.sim.clone(); cl._execKey(cand.key);
@@ -602,18 +607,19 @@ class Sim {
         }
       }
       if(!anyLive) break;
-      next.sort((a,b)=>cmpVec(b.obj,a.obj)); beam=next.slice(0,BEAM_W);
+      next.sort((a,b)=>cmpVec(b.obj,a.obj)); beam=next.slice(0,beamW);
     }
     return beam[0]?.keys??[];
   }
 
   greedyTakeTurn(t) {
     this._beginTurn(t);
-    // 攻撃前: 実行時はビームサーチ、planning(クローン内)では静的ポリシー（再帰防止）
-    if(this.planning){
+    // planDepth=0: 本ターン(フルビーム) / planDepth=1: ロールアウト(内部ビーム) / >=2: 静的greedy
+    if(this.planDepth>=2){
       for(let i=0;i<300;i++) if(!this._stepStatic()) break;
     } else {
-      const keys=this._beamSearch();
+      this._primeLookaheads(t);
+      const keys=this._beamSearch(this.planDepth===1?BEAM_W_INNER:BEAM_W);
       for(const key of keys) this._execKey(key);
     }
     const atk=this._attackPhase();
@@ -630,8 +636,12 @@ class Sim {
   _beginTurn(t){
     this.tick();
     this.T={ability:0,yellow:0,burst:0,proc:0,fr:0,ra:0,tenya:0,
-            ju:0,mobius:0,legend:0,pactcoreUsed:false,alone:0,
-            knightsUsed:false,inoriLookahead:null};
+            ju:0,mobius:0,legend:0,pactcoreUsed:false,alone:0,knightsUsed:false};
+    // lookaheadフックを持つアビのキャッシュスロットをnullで初期化（_primeLookaheadsで埋める）
+    for(const [key,[owner]] of Object.entries(ABIL)){
+      const cand=CHAR_REGISTRY[owner]?.cands?.[key];
+      if(cand?.lookahead) this.T['_la_'+key]=null;
+    }
     this.T.judgCap = JUDG_REACT + (this.cd.judg===0 ? 1 : 0);
     this.ord=[]; this.bset=new Set(); this._t=t;
   }
@@ -642,7 +652,7 @@ class Sim {
       ycount:this.ycount,inori_p:this.inori_p,helix_done:this.helix_done,mburst:this.mburst};
   }
 
-  // 先読み/ロールアウト用の複製。planning=trueのクローンは戦略フック側で介入を抑止し再帰を防ぐ。
+  // 先読み/ロールアウト用の複製。planDepth+1 で深度管理し再帰を防ぐ。
   // ターン途中(this.T存在)ならターンローカル状態も複製し、続きをクローン上で完遂できるようにする。
   clone(){
     const s=new Sim(); const snap=this.snap();
@@ -650,8 +660,7 @@ class Sim {
     s.keigyo=snap.keigyo; s.cum=snap.cum; s.renri=snap.renri;
     s.mooncode=snap.mooncode; s.robot=snap.robot; s.ycount=snap.ycount;
     s.inori_p=snap.inori_p; s.helix_done=snap.helix_done; s.mburst=snap.mburst;
-    s.totalTurns=this.totalTurns;
-    s.planning=true;
+    s.totalTurns=this.totalTurns; s.planDepth=this.planDepth+1;
     if(this.T){ s.T={...this.T}; s.ord=this.ord.slice(); s.bset=new Set(this.bset); s._t=this._t; }
     return s;
   }

@@ -88,15 +88,15 @@ console.log("FullBurst:",fb+"/10");
 期待値（基準）:
 ```
 T1 FB:5 J:3 renri:5    T6  FB:5 J:4 renri:30
-T2 FB:5 J:5 renri:10   T7  FB:5 J:6 renri:35
+T2 FB:5 J:6 renri:10   T7  FB:5 J:6 renri:35
 T3 FB:5 J:3 renri:15   T8  FB:5 J:3 renri:40
 T4 FB:5 J:4 renri:20   T9  FB:5 J:3 renri:45
 T5 FB:5 J:5 renri:25   T10 FB:5 J:6 renri:50
 ```
 （FullBurst:10/10。攻撃フェイズでのアビ発動はなし。
 Jはターンにより3〜6で変動（proc arm数＋メインフェイズのみのjudg発動機会に依存）。
-連理魔力はメインフェイズabi/12・burst/2と攻撃フェイズchar burst/2の合算。
-renriは毎ターン+5で完全線形。フル先読みによりpactcore/alone順序が最適化され全ターンで5proc確保。HELIX解禁はT6。）
+renriは毎ターン+5で完全線形。HELIX解禁はT6。
+エンジン: BEAM_W=24/BEAM_W_INNER=4、planDepth整数管理、lookaheadガード汎用化。）
 
 ## 開発ルール
 
