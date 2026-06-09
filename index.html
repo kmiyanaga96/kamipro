@@ -243,6 +243,15 @@ const CHAR_REGISTRY = {
     },
     labelSuffix: {},
     cdShow: { banoshik:"バノーシク", droid:"ドロイド", ifishant:"イフィシャント", amplifa:"アンプリファ" },
+    // cands: 各アビリティの候補登録。{s:優先スコア(数値or関数), guard?:(sim,T,t)=>bool, exec?:(sim,T,ord,bset,t)=>void}
+    // exec省略時はデフォルト: sim.use(key,T,ord)
+    cands: {
+      droid:    { s:201, exec:(sim,T,ord)=>{ sim.robot=3; sim.use('droid',T,ord); }},
+      banoshik: { s:200, exec:(sim,T,ord)=>{ sim.robot=3; sim.use('banoshik',T,ord); }},
+      amplifa:  { s:180 },
+      ifishant: { s:(sim)=>Object.keys(sim.cd).filter(k=>k!=='ifishant'&&sim.cd[k]>0).length,
+                  exec:(sim,T,ord)=>{ for(const k of Object.keys(sim.cd)) if(k!=='ifishant'&&sim.cd[k]>0) sim.cd[k]--; sim.use('ifishant',T,ord); }},
+    },
     def: {
       gmax: BG.other_max,
       keigyoGain: 3,
@@ -263,44 +272,33 @@ const CHAR_REGISTRY = {
     },
     labelSuffix: { inori:'(ヤ+100)', funki:'(+10)' },
     cdShow: { inori:"現神の祈り", tenya:"天矢乱舞", funki:"大和の奮起" },
+    cands: {
+      funki: { s:150, exec:(sim,T,ord)=>{ sim.ycount++; sim.addG(CHARS,BG.funki); if(sim.ycount%3===0) sim.cd.inori=Math.max(0,sim.cd.inori-1); sim.use('funki',T,ord); }},
+      inori: { s:95,
+        guard:(sim,T,t)=>{
+          if(sim.planning) return false;
+          if(T.inoriLookahead===null){
+            let dep=false; const look=sim.clone();
+            for(let k=1;k<=LA_TURNS;k++) if(look.greedyTakeTurn(t+k).atk.length<5){dep=true;break;}
+            T.inoriLookahead=dep;
+          }
+          return T.inoriLookahead;
+        },
+        exec:(sim,T,ord)=>{ T.inoriLookahead=null; sim.addG([ownerOf('inori')],BG.inori); sim.inori_p=0; sim.use('inori',T,ord); }},
+      tenya: { s:55,
+        guard:(sim,T,t)=>t>=TENYA_FROM&&CHARS.filter(c=>sim.g[c]<FB_THR).length>0,
+        exec:(sim,T,ord,bset)=>{
+          const me=ownerOf('tenya'), tidx=ord.length;
+          sim.use('tenya',T,ord); sim.burst(me,bset,T); T.tenya=1;
+          while(T.tenya<3&&sim.g[me]>=40){
+            sim.g[me]-=40; sim.burst(me,bset,T); T.tenya++;
+            ord[tidx]={text:`${LABEL.tenya}×${T.tenya}(-40×${T.tenya-1})`,color:'r'};
+          }
+        }},
+    },
     def: {
       gmax: BG.yamato_max,
       keigyoGain: 1,
-      drain: { phase:'yellow', run:(sim,T,ord,ctx,inRed)=>{
-        while(ctx.rdy('funki')){
-          sim.ycount++;
-          sim.addG(CHARS,BG.funki);
-          if(sim.ycount%3===0) sim.cd.inori=Math.max(0,sim.cd.inori-1);
-          sim.use('funki',T,ord);
-          ctx.drainJudg();
-        }
-      }},
-      inori: (sim,T,ord,ctx,t) => {
-        if(!ctx.rdy('inori') || sim.planning) return;
-        let willDeplete=false;
-        const look=sim.clone();
-        for(let k=1;k<=LA_TURNS;k++){
-          if(look.takeTurn(t+k).atk.length<5){ willDeplete=true; break; }
-        }
-        if(willDeplete) ctx.actY('inori',()=>{ sim.addG([ownerOf('inori')],BG.inori); sim.inori_p=0; });
-      },
-      tenya: (sim,T,ord,ctx,t) => {
-        const me=ownerOf('tenya');
-        const shortCount=CHARS.filter(c=>sim.g[c]<FB_THR).length;
-        if(!(t>=TENYA_FROM&&ctx.rdy('tenya')&&shortCount>0)) return;
-        const tidx=ord.length;
-        sim.use('tenya',T,ord);
-        sim.burst(me,ctx.bset,T); ctx.drainJudg(); ctx.drainFunki(true);
-        if(T.mobius){ T.mobius=0; ctx.drainHecate(true); }
-        T.tenya=1;
-        while(T.tenya<3&&sim.g[me]>=40){
-          sim.g[me]-=40;
-          sim.burst(me,ctx.bset,T); ctx.drainJudg(); ctx.drainFunki(true);
-          if(T.mobius){ T.mobius=0; ctx.drainHecate(true); }
-          T.tenya++;
-          ord[tidx]={text:`${LABEL.tenya}×${T.tenya}(-40×${T.tenya-1})`, color:'r'};
-        }
-      },
     },
   },
 
@@ -314,19 +312,15 @@ const CHAR_REGISTRY = {
     },
     labelSuffix: { sleur:'(+15)' },
     cdShow: { puvoir:"プヴワール", effond:"エフォンド", sleur:"スリール" },
+    cands: {
+      puvoir: { s:140 },
+      sleur:  { s:140, exec:(sim,T,ord)=>{ sim.addG(CHARS,BG.sleur); sim.use('sleur',T,ord); }},
+      effond: { s:70, guard:(sim)=>sim.mooncode>0,
+                exec:(sim,T,ord,bset)=>{ sim.use('effond',T,ord); sim.burst(ownerOf('effond'),bset,T); }},
+    },
     def: {
       gmax: BG.other_max,
       keigyoGain: 1,
-      drain: { phase:'yellow', run:(sim,T,ord,ctx,inRed)=>{
-        if(ctx.rdy('puvoir')) { sim.use('puvoir',T,ord); ctx.drainFunki(inRed); ctx.drainJudg(); }
-        if(ctx.rdy('sleur'))  { sim.addG(CHARS,BG.sleur); sim.use('sleur',T,ord); ctx.drainFunki(inRed); ctx.drainJudg(); }
-        if(inRed&&ctx.rdy('effond')&&sim.mooncode>0){
-          sim.use('effond',T,ord);
-          sim.burst(ownerOf('effond'),ctx.bset,T);
-          ctx.drainJudg(); ctx.drainFunki(true);
-          if(T.mobius>0){ T.mobius=0; ctx.drainHecate(true); }
-        }
-      }},
     },
   },
 
@@ -340,6 +334,12 @@ const CHAR_REGISTRY = {
     },
     labelSuffix: { absolute:'(+20)' },
     cdShow: { judg:"ジャッジメント", absolute:"アブソ", divinus:"ディウィヌス" },
+    cands: {
+      judg:     { s:80, guard:(sim,T)=>T.ju<T.judgCap,
+                  exec:(sim,T,ord,bset)=>{ const ph=T.ju%3; sim.use('judg',T,ord); T.ju++; if(ph===1) sim.burst(ownerOf('judg'),bset,T); }},
+      absolute: { s:130, exec:(sim,T,ord)=>{ sim.addG(CHARS,BG.absolute); sim.use('absolute',T,ord); }},
+      divinus:  { s:90 },
+    },
     def: {
       gmax: BG.other_max,
       keigyoGain: 1,
@@ -351,15 +351,6 @@ const CHAR_REGISTRY = {
           if(sim.cd[k]>0) sim.cd[k]--;
         }
       },
-      drain: { phase:'red', run:(sim,T,ord,ctx)=>{
-        const me=ownerOf('judg');
-        while(sim.cd.judg===0 && T.ju<T.judgCap){
-          const ph=T.ju%3;
-          sim.use('judg',T,ord);
-          T.ju++;
-          if(ph===1) sim.burst(me,ctx.bset,T);
-        }
-      }},
     },
   },
 
@@ -374,35 +365,21 @@ const CHAR_REGISTRY = {
     },
     labelSuffix: { legend:'(+10)' },
     cdShow: {},
+    cands: {
+      alone:    { s:40, guard:(sim,T)=>(T.alone||0)<2,
+                  exec:(sim,T,ord,bset)=>{ T.alone=(T.alone||0)+1; sim.use('alone',T,ord); sim.burst(ownerOf('alone'),bset,T); }},
+      legend:   { s:120,
+                  guard:(sim,T)=>{ let lu=sim.cum>=1?2:1; for(const thr of [26,51,71,80]) if(sim.cum>=thr) lu++; return (T.legend||0)<lu; },
+                  exec:(sim,T,ord)=>{ T.legend=(T.legend||0)+1; const lead100=sim.g[LEADER]>=100; sim.addG(lead100?CHARS:[LEADER,ownerOf('legend')],BG.legend); sim.use('legend',T,ord); }},
+      knights:  { s:85, guard:(sim,T)=>!T.knightsUsed,
+                  exec:(sim,T,ord)=>{ T.knightsUsed=true; sim.use('knights',T,ord); }},
+      pactcore: { s:45,
+                  guard:(sim,T)=>{ if(T.pactcoreUsed||sim.g[LEADER]<100) return false; return Object.keys(ABIL).filter(k=>ownerOf(k)===LEADER).some(k=>sim.cd[k]>0); },
+                  exec:(sim,T,ord)=>{ T.pactcoreUsed=true; const lk=Object.keys(ABIL).filter(k=>ownerOf(k)===LEADER); for(const k of lk) if(sim.cd[k]>0) sim.cd[k]=Math.max(0,sim.cd[k]-1); sim.addG(CHARS,BG.pactcore); sim.use('pactcore',T,ord,'(全+100)'); }},
+    },
     def: {
       gmax: BG.other_max,
       keigyoGain: 1,
-      legend: (sim,T,ord,ctx) => {
-        let lu=sim.cum>=1?2:1;
-        for(const thr of [26,51,71,80]) if(sim.cum>=thr) lu++;
-        const lead100=sim.g[LEADER]>=100;
-        for(let i=0;i<lu;i++) ctx.actY('legend',()=>sim.addG(lead100?CHARS:[LEADER,ownerOf('legend')],BG.legend));
-      },
-      finisher: (sim,T,ord,ctx) => {
-        const rdown=(sim.cd.droid??-1)>0||(sim.cd.banoshik??-1)>0;
-        if(sim.keigyo>=12&&rdown&&sim.g[LEADER]>=100){
-          if(sim.cd.droid!==undefined) sim.cd.droid=Math.max(0,sim.cd.droid-1);
-          if(sim.cd.banoshik!==undefined) sim.cd.banoshik=Math.max(0,sim.cd.banoshik-1);
-          sim.addG(CHARS,BG.pactcore);
-          sim.use('pactcore',T,ord,'(全+100)');
-          ctx.drainJudg(); ctx.drainFunki(true);
-          if(T.mobius){ T.mobius=0; ctx.drainHecate(true); }
-        } else {
-          let al=0;
-          while(al<2&&sim.keigyo>=4){
-            sim.use('alone',T,ord);
-            sim.burst(ownerOf('alone'),ctx.bset,T);
-            ctx.drainJudg(); ctx.drainFunki(true);
-            if(T.mobius){ T.mobius=0; ctx.drainHecate(true); }
-            al++;
-          }
-        }
-      },
     },
   },
 };
@@ -522,96 +499,22 @@ class Sim {
   // 静的スコア(s)はロールアウト内の既定ポリシー＆同点時のタイブレークに用いる。
   // フェイズ概念は廃止。色順序は静的スコアの大小(黄>青>赤)で既定ポリシーが担保する。
 
-  // 合法候補の列挙。各候補は {s:静的スコア, key:識別子, exec:適用関数}。
-  // execはthisを参照するためcloneインスタンス上で呼べば同じ操作がクローンに適用される。
+  // 合法候補の列挙。各候補は {s:静的スコア, key:識別子, col:色, exec:適用関数}。
+  // CHAR_REGISTRY[owner].cands[key] の定義を読み取って汎用的に生成する。
+  // 新キャラ追加時はCHAR_REGISTRYのcandsにエントリを追加するだけでよい。
   _candidates(){
     const sim=this, T=this.T, ord=this.ord, bset=this.bset, t=this._t;
-    const rdy=k=>sim.cd[k]===0;
     const c=[];
-    // colはABIL[key][1]から自動導出。_stepRolloutで黄→青→赤の色順を強制する。
-    const push=(obj)=>{ obj.col=ABIL[obj.key]?.[1]??'r'; c.push(obj); };
-    // スコア: 黄バフ系 100-200 > 青デバフ 85-90 > 赤攻撃 40-82
-    // ── Edison ──
-    if(ABIL.droid    && rdy('droid'))    push({s:201,key:'droid',exec:()=>{ sim.robot=3; sim.use('droid',T,ord); }});
-    if(ABIL.banoshik && rdy('banoshik')) push({s:200,key:'banoshik',exec:()=>{ sim.robot=3; sim.use('banoshik',T,ord); }});
-    if(ABIL.amplifa  && rdy('amplifa'))  push({s:180,key:'amplifa',exec:()=>sim.use('amplifa',T,ord)});
-    // ifishant: 黄アビ。全CD-1(自身除く)。スコア=CD中アビ数(=削減効果＝機会損失の逆数)。
-    // バフ系(120+)は preempt せず、CD中アビが増えるほど発動価値が上がり自然に遅延発火する。
-    {
-      const onCD=Object.keys(sim.cd).filter(k=>k!=='ifishant'&&sim.cd[k]>0).length;
-      if(ABIL.ifishant && rdy('ifishant')) push({s:onCD,key:'ifishant',exec:()=>{
-        for(const k of Object.keys(sim.cd)) if(k!=='ifishant'&&sim.cd[k]>0) sim.cd[k]--;
-        sim.use('ifishant',T,ord);
-      }});
+    for(const [key,[owner,col,,kc]] of Object.entries(ABIL)){
+      if(sim.cd[key]!==0) continue;
+      if(kc&&sim.keigyo<kc) continue;
+      const cand=CHAR_REGISTRY[owner]?.cands?.[key];
+      if(!cand) continue;
+      if(cand.guard&&!cand.guard(sim,T,t)) continue;
+      const s=typeof cand.s==='function'?cand.s(sim,T,t):(cand.s??50);
+      const exec=cand.exec?()=>cand.exec(sim,T,ord,bset,t):()=>sim.use(key,T,ord);
+      c.push({s,key,col,exec});
     }
-    // ── Yamato ──
-    if(ABIL.funki && rdy('funki')) push({s:150,key:'funki',exec:()=>{
-      sim.ycount++; sim.addG(CHARS,BG.funki);
-      if(sim.ycount%3===0) sim.cd.inori=Math.max(0,sim.cd.inori-1);
-      sim.use('funki',T,ord);
-    }});
-    if(ABIL.inori && rdy('inori') && !sim.planning){
-      // 先読みはターン初回1度だけ評価してキャッシュ
-      if(T.inoriLookahead===null){
-        let dep=false; const look=sim.clone();
-        for(let k=1;k<=LA_TURNS;k++) if(look.greedyTakeTurn(t+k).atk.length<5){dep=true;break;}
-        T.inoriLookahead=dep;
-      }
-      if(T.inoriLookahead) push({s:95,key:'inori',exec:()=>{
-        T.inoriLookahead=null;
-        sim.addG([ownerOf('inori')],BG.inori); sim.inori_p=0; sim.use('inori',T,ord);
-      }});
-    }
-    const shortCount=CHARS.filter(cc=>sim.g[cc]<FB_THR).length;
-    if(ABIL.tenya && rdy('tenya') && t>=TENYA_FROM && shortCount>0) push({s:55,key:'tenya',exec:()=>{
-      const me=ownerOf('tenya'), tidx=ord.length;
-      sim.use('tenya',T,ord); sim.burst(me,bset,T); T.tenya=1;
-      while(T.tenya<3&&sim.g[me]>=40){
-        sim.g[me]-=40; sim.burst(me,bset,T); T.tenya++;
-        ord[tidx]={text:`${LABEL.tenya}×${T.tenya}(-40×${T.tenya-1})`,color:'r'};
-      }
-    }});
-    // ── Hecate ──
-    if(ABIL.puvoir && rdy('puvoir')) push({s:140,key:'puvoir',exec:()=>sim.use('puvoir',T,ord)});
-    if(ABIL.sleur  && rdy('sleur'))  push({s:140,key:'sleur',exec:()=>{ sim.addG(CHARS,BG.sleur); sim.use('sleur',T,ord); }});
-    if(ABIL.effond && rdy('effond') && sim.mooncode>0) push({s:70,key:'effond',exec:()=>{
-      sim.use('effond',T,ord); sim.burst(ownerOf('effond'),bset,T);
-    }});
-    // ── Tetra ──
-    if(ABIL.absolute && rdy('absolute')) push({s:130,key:'absolute',exec:()=>{ sim.addG(CHARS,BG.absolute); sim.use('absolute',T,ord); }});
-    if(ABIL.divinus  && rdy('divinus'))  push({s:90,key:'divinus',exec:()=>sim.use('divinus',T,ord)});
-    // judg: 赤アビ。青デバフ(85-90)より後に発動する(黄→青→赤の順序原則)
-    if(ABIL.judg && rdy('judg') && T.ju<T.judgCap) push({s:80,key:'judg',exec:()=>{
-      const ph=T.ju%3; sim.use('judg',T,ord); T.ju++;
-      if(ph===1) sim.burst(ownerOf('judg'),bset,T);
-    }});
-    // ── Elaine ──
-    // レジェンドトラベラー: 累計契晶に応じた回数だけ「1回ずつ手動発動」。間に他アビを挟める
-    // (=judgインターリーブ可)ため、1キャストずつの候補として列挙する。
-    if(ABIL.legend && rdy('legend')){
-      let lu=sim.cum>=1?2:1;
-      for(const thr of [26,51,71,80]) if(sim.cum>=thr) lu++;
-      if((T.legend||0)<lu) push({s:120,key:'legend',exec:()=>{
-        T.legend=(T.legend||0)+1; const lead100=sim.g[LEADER]>=100;
-        sim.addG(lead100?CHARS:[LEADER,ownerOf('legend')],BG.legend); sim.use('legend',T,ord);
-      }});
-    }
-    if(ABIL.knights && !T.knightsUsed && rdy('knights') && sim.keigyo>=ABIL.knights[3])
-      push({s:85,key:'knights',exec:()=>{ T.knightsUsed=true; sim.use('knights',T,ord); }});
-    // pactcore(エレイン4・白): 英霊アビのCDを1短縮。英霊アビが多くCD中のとき価値が高い。
-    // 発動可否ゲートのみ列挙し、最適タイミングはロールアウトに委ねる。
-    const leaderKeys=Object.keys(ABIL).filter(k=>ownerOf(k)===LEADER);
-    const leaderOnCD=leaderKeys.some(k=>sim.cd[k]>0);
-    if(ABIL.pactcore && !T.pactcoreUsed && rdy('pactcore') && sim.keigyo>=12 && leaderOnCD && sim.g[LEADER]>=100)
-      push({s:45,key:'pactcore',exec:()=>{
-        T.pactcoreUsed=true;
-        for(const k of leaderKeys) if(sim.cd[k]>0) sim.cd[k]=Math.max(0,sim.cd[k]-1);
-        sim.addG(CHARS,BG.pactcore); sim.use('pactcore',T,ord,'(全+100)');
-      }});
-    if(ABIL.alone && rdy('alone') && (T.alone||0)<2 && sim.keigyo>=ABIL.alone[3])
-      push({s:40,key:'alone',exec:()=>{
-        T.alone=(T.alone||0)+1; sim.use('alone',T,ord); sim.burst(ownerOf('alone'),bset,T);
-      }});
     return c;
   }
 
