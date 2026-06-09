@@ -116,6 +116,47 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
 .kslot-wrap select{padding:5px 8px;border-radius:8px;border:1px solid var(--border);
   background:var(--card);font-size:12px;color:var(--text);min-width:90px;cursor:pointer;}
 .kslot-wrap select:focus{outline:none;border-color:var(--accent);}
+
+/* ===== レスポンシブ（タブレット〜スマホ） ===== */
+@media (max-width:768px){
+  body{font-size:13px;}
+  .header{padding:11px 14px;gap:8px;}
+  .header h1{font-size:14px;}
+  .header .sub{font-size:10px;}
+  /* 横並びレイアウト→縦積み。100vh固定を解除しページ全体でスクロール */
+  .layout{flex-direction:column;height:auto;}
+  .main{order:1;padding:12px;overflow:visible;}
+  /* サイドバー(凡例/固定仕様)はメインの下へ。全幅・高さ自動 */
+  .sidebar{order:2;width:100%;min-width:0;border-right:none;border-top:1px solid var(--border);
+    padding:14px;overflow:visible;}
+  .formation-panel{padding:12px;margin-bottom:12px;}
+  .formation-panel .fp-row{gap:12px;}
+  .kslot-wrap select{min-width:0;width:100%;}
+  .kslots{gap:8px;}
+  /* 神姫スロットを2列グリッドで指がタップしやすく */
+  .kslot-wrap{flex:1 1 calc(50% - 4px);min-width:120px;}
+  .controls input[type=number]{font-size:16px;}/* iOSズーム防止に16px */
+  .btn{padding:10px 16px;}/* タップ領域確保 */
+  /* サマリは2列に折返し */
+  .summary-stat{min-width:64px;flex:1 1 28%;}
+  .summary-stat .val{font-size:17px;}
+  .card-header{padding:11px 13px;}
+  .card-body{padding:12px 13px;}
+  .action-order{line-height:2.2;padding:10px 11px;}
+  .gauge-name{width:46px;}
+  .summary-table{font-size:10px;display:block;overflow-x:auto;white-space:nowrap;}
+}
+@media (max-width:430px){
+  .header h1{font-size:13px;}
+  .main{padding:10px;}
+  .sidebar{padding:12px;}
+  .turn-num{font-size:15px;min-width:26px;}
+  .abi-chip{font-size:10px;padding:3px 8px;}
+  .ord-arrow{margin:0 3px;}
+  .summary-stat{flex:1 1 44%;}
+  /* 神姫スロットは1列(狭幅で潰れ防止) */
+  .kslot-wrap{flex:1 1 100%;}
+}
 </style>
 </head>
 <body>
