@@ -586,12 +586,14 @@ class Sim {
       if(ph===1) sim.burst(ownerOf('judg'),bset,T);
     }});
     // ── Elaine ──
-    if(ABIL.legend && rdy('legend') && !T.legendUsed){
+    // レジェンドトラベラー: 累計契晶に応じた回数だけ「1回ずつ手動発動」。間に他アビを挟める
+    // (=judgインターリーブ可)ため、1キャストずつの候補として列挙する。
+    if(ABIL.legend && rdy('legend')){
       let lu=sim.cum>=1?2:1;
       for(const thr of [26,51,71,80]) if(sim.cum>=thr) lu++;
-      push({s:120,key:'legend',exec:()=>{
-        T.legendUsed=true; const lead100=sim.g[LEADER]>=100;
-        for(let i=0;i<lu;i++){ sim.addG(lead100?CHARS:[LEADER,ownerOf('legend')],BG.legend); sim.use('legend',T,ord); }
+      if((T.legend||0)<lu) push({s:120,key:'legend',exec:()=>{
+        T.legend=(T.legend||0)+1; const lead100=sim.g[LEADER]>=100;
+        sim.addG(lead100?CHARS:[LEADER,ownerOf('legend')],BG.legend); sim.use('legend',T,ord);
       }});
     }
     if(ABIL.knights && !T.knightsUsed && rdy('knights') && sim.keigyo>=ABIL.knights[3])
@@ -708,7 +710,7 @@ class Sim {
   _beginTurn(t){
     this.tick();
     this.T={ability:0,yellow:0,burst:0,proc:0,fr:0,ra:0,tenya:0,
-            ju:0,mobius:0,legendUsed:false,pactcoreUsed:false,alone:0,
+            ju:0,mobius:0,legend:0,pactcoreUsed:false,alone:0,
             knightsUsed:false,inoriLookahead:null};
     this.T.judgCap = JUDG_REACT + (this.cd.judg===0 ? 1 : 0);
     this.ord=[]; this.bset=new Set(); this._t=t;
