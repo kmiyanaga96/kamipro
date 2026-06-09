@@ -538,7 +538,7 @@ class Sim {
       if(cand.guard&&!cand.guard(sim,T,t)) continue;
       const s=typeof cand.s==='function'?cand.s(sim,T,t):(cand.s??50);
       const exec=cand.exec?()=>cand.exec(sim,T,ord,bset,t):()=>sim.use(key,T,ord);
-      c.push({s,key,col,exec,atkBuf:!!cand.atkBuf,burstTrigger:!!cand.burstTrigger});
+      c.push({s,key,col,exec});
     }
     return c;
   }
