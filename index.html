@@ -654,29 +654,30 @@ class Sim {
   }
 
   // 目的関数: 現ターン(完遂済み)＋将来ROLL_LAターンを評価し
-  // [フルバーストターン数, 総バースト, 連理+契晶] を返す（辞書式で大きいほど良い）。
+  // [フルバーストターン数, 総バースト, 総ジャッジ発動, 連理+契晶] を返す（辞書式で大きいほど良い）。
+  // ジャッジ発動回数を加えることで、procの空打ち(アイドルjudgへの再arm)を避ける手を最適化が選ぶ。
   _objective(t0){
     let fbTurns=(this._atk.length===5)?1:0;
     let totalBurst=this.T.burst;
+    let totalJudg=this.T.ju;
     for(let k=1;k<=ROLL_LA;k++){
       const r=this.greedyTakeTurn(t0+k); // planning=true → 静的
       if(r.atk.length===5) fbTurns++;
       totalBurst+=r.burst;
+      totalJudg+=r.ju;
     }
-    return [fbTurns, totalBurst, this.renri+this.cum];
+    return [fbTurns, totalBurst, totalJudg, this.renri+this.cum];
   }
 
   // ロールアウトで1ステップ選択（実行時のみ）。候補が無ければfalse。
-  // 黄→青→赤の色順序をハード制約として強制: 上位色の候補が残る間は下位色を選ばない。
+  // 色順序(黄→青→赤)はハード制約ではなく目安。全候補を目的関数で評価し、
+  // 同点時のみ静的スコア(色優先を内包)でタイブレークする。
+  // これにより「procが無駄になる直前にjudgを発動」等、トークン浪費回避を最適化が選べる。
   _stepRollout(){
     const cands=this._candidates(); if(!cands.length) return false;
     if(cands.length===1){ cands[0].exec(); return true; }
-    const CTIER={y:0,b:1,r:2,w:2};
-    const minTier=Math.min(...cands.map(x=>CTIER[x.col]??2));
-    const pool=cands.filter(x=>(CTIER[x.col]??2)===minTier);
-    if(pool.length===1){ pool[0].exec(); return true; }
-    let best=null, bestKey=[-1,-1,-1,-1];
-    for(const cand of pool){
+    let best=null, bestKey=[-1,-1,-1,-1,-1];
+    for(const cand of cands){
       const cl=this.clone();
       cl._execKey(cand.key);
       cl._finishStatic();
