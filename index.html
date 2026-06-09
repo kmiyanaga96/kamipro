@@ -224,7 +224,8 @@ const FB_THR    = 100; // フルバースト閾値（カスケードあり）
 const MACH_BG   = 5;   // マシーンタクトゥ: ロボ作動1回あたりBG増加
 const KEIGYO_MAX= 15;  // 契晶最大値
 const LA_TURNS  = 3;   // 現神の祈り先読み: この先何ターン枯渇を予測するか
-const ROLL_LA   = 3;   // ロールアウト探索: 各候補を将来この先何ターンまでシミュレートして採点するか
+const ROLL_LA   = 3;   // ビームサーチ: 各候補を将来この先何ターンまでシミュレートして採点するか
+const BEAM_W    = 8;   // ビームサーチ幅: 各ステップで保持する候補数（大きいほど高精度・低速）
 const BG = {inori:100,funki:10,absolute:20,sleur:15,legend:10,
             pactcore:100,cascade:10,yamato_max:200,other_max:100};
 
@@ -275,9 +276,11 @@ const CHAR_REGISTRY = {
     cands: {
       funki: { s:150, exec:(sim,T,ord)=>{ sim.ycount++; sim.addG(CHARS,BG.funki); if(sim.ycount%3===0) sim.cd.inori=Math.max(0,sim.cd.inori-1); sim.use('funki',T,ord); }},
       inori: { s:95,
+        // キャッシュ済み(非null)なら planning クローン内でもそのまま返す。
+        // _beamSearch が開始前にキャッシュするので、ビームクローン(planning=true)にも伝播する。
         guard:(sim,T,t)=>{
-          if(sim.planning) return false;
           if(T.inoriLookahead===null){
+            if(sim.planning) return false;
             let dep=false; const look=sim.clone();
             for(let k=1;k<=LA_TURNS;k++) if(look.greedyTakeTurn(t+k).atk.length<5){dep=true;break;}
             T.inoriLookahead=dep;
@@ -574,30 +577,47 @@ class Sim {
     return [fbTurns, totalBurst, totalJudg, this.renri+this.cum];
   }
 
-  // ロールアウトで1ステップ選択（実行時のみ）。候補が無ければfalse。
-  // 色順序(黄→青→赤)はハード制約ではなく目安。全候補を目的関数で評価し、
-  // 同点時のみ静的スコア(色優先を内包)でタイブレークする。
-  // これにより「procが無駄になる直前にjudgを発動」等、トークン浪費回避を最適化が選べる。
-  _stepRollout(){
-    const cands=this._candidates(); if(!cands.length) return false;
-    if(cands.length===1){ cands[0].exec(); return true; }
-    let best=null, bestKey=[-1,-1,-1,-1,-1];
-    for(const cand of cands){
-      const cl=this.clone();
-      cl._execKey(cand.key);
-      cl._finishStatic();
-      const obj=cl._objective(this._t);
-      const key=[...obj, cand.s];
-      if(cmpVec(key,bestKey)>0){ bestKey=key; best=cand; }
+  // ビームサーチ: BEAM_W本の仮想シムを並列維持し最良アビ順序列を返す。
+  // 各ステップで全候補をcloneして展開 → _finishStatic()+_objective()で採点 → 上位BEAM_W保持 → 収束後に最良列を返す。
+  // planning=trueのクローンを使うためinoriガードはT.inoriLookaheadキャッシュ経由で動作する。
+  _beamSearch(){
+    // inori先読みを事前にキャッシュ（ビームクローンへ引き継ぐため）
+    if(ABIL.inori && this.cd.inori===0 && this.T.inoriLookahead===null){
+      let dep=false; const look=this.clone();
+      for(let k=1;k<=LA_TURNS;k++) if(look.greedyTakeTurn(this._t+k).atk.length<5){dep=true;break;}
+      this.T.inoriLookahead=dep;
     }
-    best.exec(); return true;
+    const evalEntry=e=>{
+      const cl=e.sim.clone(); cl._finishStatic(); e.obj=cl._objective(this._t);
+    };
+    let beam=[{sim:this.clone(), keys:[], obj:null}];
+    evalEntry(beam[0]);
+    for(let step=0;step<300;step++){
+      const next=[]; let anyLive=false;
+      for(const entry of beam){
+        const cands=entry.sim._candidates();
+        if(!cands.length){ next.push(entry); continue; }  // terminal: carry forward as-is
+        anyLive=true;
+        for(const cand of cands){
+          const cl=entry.sim.clone(); cl._execKey(cand.key);
+          const child={sim:cl, keys:[...entry.keys,cand.key], obj:null};
+          evalEntry(child); next.push(child);
+        }
+      }
+      if(!anyLive) break;
+      next.sort((a,b)=>cmpVec(b.obj,a.obj)); beam=next.slice(0,BEAM_W);
+    }
+    return beam[0]?.keys??[];
   }
 
   greedyTakeTurn(t) {
     this._beginTurn(t);
-    // 攻撃前: 実行時はロールアウト、planning(クローン内)では静的ポリシー
-    for(let i=0;i<300;i++){
-      if(!(this.planning ? this._stepStatic() : this._stepRollout())) break;
+    // 攻撃前: 実行時はビームサーチ、planning(クローン内)では静的ポリシー（再帰防止）
+    if(this.planning){
+      for(let i=0;i<300;i++) if(!this._stepStatic()) break;
+    } else {
+      const keys=this._beamSearch();
+      for(const key of keys) this._execKey(key);
     }
     const atk=this._attackPhase();
     const T=this.T, ord=this.ord;
