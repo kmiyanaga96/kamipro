@@ -287,7 +287,7 @@ const CHAR_REGISTRY = {
         },
         guard:(sim,T)=>T['_la_inori']===true,
         exec:(sim,T,ord)=>{ sim.addG([ownerOf('inori')],BG.inori); sim.inori_p=0; sim.use('inori',T,ord); }},
-      tenya: { s:55,
+      tenya: { s:55, burstTrigger:true,
         guard:(sim,T,t)=>t>=TENYA_FROM&&CHARS.filter(c=>sim.g[c]<FB_THR).length>0,
         exec:(sim,T,ord,bset)=>{
           const me=ownerOf('tenya'), tidx=ord.length;
@@ -317,7 +317,7 @@ const CHAR_REGISTRY = {
     cands: {
       puvoir: { s:140, atkBuf:true },
       sleur:  { s:140, atkBuf:true, exec:(sim,T,ord)=>{ sim.addG(CHARS,BG.sleur); sim.use('sleur',T,ord); }},
-      effond: { s:70, guard:(sim)=>sim.mooncode>0,
+      effond: { s:70, burstTrigger:true, guard:(sim)=>sim.mooncode>0,
                 exec:(sim,T,ord,bset)=>{ sim.use('effond',T,ord); sim.burst(ownerOf('effond'),bset,T); }},
     },
     def: {
@@ -373,7 +373,7 @@ const CHAR_REGISTRY = {
     labelSuffix: { legend:'(+10)' },
     cdShow: {},
     cands: {
-      alone:    { s:40, guard:(sim,T)=>(T.alone||0)<2,
+      alone:    { s:40, burstTrigger:true, guard:(sim,T)=>(T.alone||0)<2,
                   exec:(sim,T,ord,bset)=>{ T.alone=(T.alone||0)+1; sim.use('alone',T,ord); sim.burst(ownerOf('alone'),bset,T); }},
       legend:   { s:120, atkBuf:true,
                   guard:(sim,T)=>{ let lu=sim.cum>=1?2:1; for(const thr of [26,51,71,80]) if(sim.cum>=thr) lu++; return (T.legend||0)<lu; },
@@ -521,7 +521,7 @@ class Sim {
       if(cand.guard&&!cand.guard(sim,T,t)) continue;
       const s=typeof cand.s==='function'?cand.s(sim,T,t):(cand.s??50);
       const exec=cand.exec?()=>cand.exec(sim,T,ord,bset,t):()=>sim.use(key,T,ord);
-      c.push({s,key,col,exec,atkBuf:!!cand.atkBuf});
+      c.push({s,key,col,exec,atkBuf:!!cand.atkBuf,burstTrigger:!!cand.burstTrigger});
     }
     return c;
   }
