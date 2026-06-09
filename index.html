@@ -223,8 +223,6 @@ const TENYA_FROM= 2;   // 天矢乱舞: 使用可能開始ターン
 const FB_THR    = 100; // フルバースト閾値（カスケードあり）
 const MACH_BG   = 5;   // マシーンタクトゥ: ロボ作動1回あたりBG増加
 const KEIGYO_MAX= 15;  // 契晶最大値
-const LA_TURNS  = 3;   // 現神の祈り先読み: この先何ターン枯渇を予測するか
-const ROLL_LA   = 3;   // ビームサーチ: 各候補を将来この先何ターンまでシミュレートして採点するか
 const BEAM_W    = 8;   // ビームサーチ幅: 各ステップで保持する候補数（大きいほど高精度・低速）
 const BG = {inori:100,funki:10,absolute:20,sleur:15,legend:10,
             pactcore:100,cascade:10,yamato_max:200,other_max:100};
@@ -285,7 +283,7 @@ const CHAR_REGISTRY = {
           if(T.inoriLookahead===null){
             if(sim.planning) return false;
             let dep=false; const look=sim.clone();
-            for(let k=1;k<=LA_TURNS;k++) if(look.greedyTakeTurn(t+k).atk.length<5){dep=true;break;}
+            for(let k=1;k<=sim.totalTurns-t;k++) if(look.greedyTakeTurn(t+k).atk.length<5){dep=true;break;}
             T.inoriLookahead=dep;
           }
           return T.inoriLookahead;
@@ -424,7 +422,7 @@ class Sim {
     this.cd=Object.fromEntries(Object.keys(ABIL).map(k=>[k,0]));
     this.keigyo=4; this.cum=4; this.renri=0;
     this.mooncode=2; this.robot=0; this.ycount=0; this.inori_p=null; this.helix_done=false;
-    this.mburst=0;
+    this.mburst=0; this.totalTurns=10;
     this.gmax=Object.fromEntries(CHARS.map(c=>[c,CHAR_DEF[c].gmax]));
   }
 
@@ -559,14 +557,15 @@ class Sim {
     this._endBookkeep(this._t);
   }
 
-  // 目的関数: 現ターン(完遂済み)＋将来ROLL_LAターンを評価し
+  // 目的関数: 現ターン(完遂済み)＋残り全ターンを評価し
   // [フルバーストターン数, 総バースト, 総ジャッジ発動, 連理+契晶] を返す（辞書式で大きいほど良い）。
   // ジャッジ発動回数を加えることで、procの空打ち(アイドルjudgへの再arm)を避ける手を最適化が選ぶ。
   _objective(t0){
     let fbTurns=(this._atk.length===5)?1:0;
     let totalBurst=this.T.burst;
     let totalJudg=this.T.ju;
-    for(let k=1;k<=ROLL_LA;k++){
+    const la=this.totalTurns-t0;
+    for(let k=1;k<=la;k++){
       const r=this.greedyTakeTurn(t0+k); // planning=true → 静的
       if(r.atk.length===5) fbTurns++;
       totalBurst+=r.burst;
@@ -582,7 +581,7 @@ class Sim {
     // inori先読みを事前にキャッシュ（ビームクローンへ引き継ぐため）
     if(ABIL.inori && this.cd.inori===0 && this.T.inoriLookahead===null){
       let dep=false; const look=this.clone();
-      for(let k=1;k<=LA_TURNS;k++) if(look.greedyTakeTurn(this._t+k).atk.length<5){dep=true;break;}
+      for(let k=1;k<=this.totalTurns-this._t;k++) if(look.greedyTakeTurn(this._t+k).atk.length<5){dep=true;break;}
       this.T.inoriLookahead=dep;
     }
     const evalEntry=e=>{
@@ -651,6 +650,7 @@ class Sim {
     s.keigyo=snap.keigyo; s.cum=snap.cum; s.renri=snap.renri;
     s.mooncode=snap.mooncode; s.robot=snap.robot; s.ycount=snap.ycount;
     s.inori_p=snap.inori_p; s.helix_done=snap.helix_done; s.mburst=snap.mburst;
+    s.totalTurns=this.totalTurns;
     s.planning=true;
     if(this.T){ s.T={...this.T}; s.ord=this.ord.slice(); s.bset=new Set(this.bset); s._t=this._t; }
     return s;
@@ -775,6 +775,7 @@ function cardHTML(r,first=false){
 function runSim(){
   const n=Math.max(1,Math.min(30,parseInt(document.getElementById('turns-n').value)||10));
   const sim=new Sim();
+  sim.totalTurns=n;
   SIM_ROWS=[];
   for(let t=1;t<=n;t++) SIM_ROWS.push(sim.greedyTakeTurn(t));
   renderSim();

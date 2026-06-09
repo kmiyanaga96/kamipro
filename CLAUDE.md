@@ -87,16 +87,16 @@ console.log("FullBurst:",fb+"/10");
 
 期待値（基準）:
 ```
-T1 FB:5 J:3 renri:5    T6  FB:5 J:3 renri:29
-T2 FB:5 J:5 renri:10   T7  FB:5 J:6 renri:34
-T3 FB:5 J:3 renri:15   T8  FB:5 J:3 renri:39
-T4 FB:5 J:4 renri:20   T9  FB:5 J:4 renri:44
-T5 FB:5 J:4 renri:25   T10 FB:5 J:6 renri:49
+T1 FB:5 J:3 renri:5    T6  FB:5 J:4 renri:30
+T2 FB:5 J:5 renri:10   T7  FB:5 J:6 renri:35
+T3 FB:5 J:3 renri:15   T8  FB:5 J:3 renri:40
+T4 FB:5 J:4 renri:20   T9  FB:5 J:3 renri:45
+T5 FB:5 J:5 renri:25   T10 FB:5 J:6 renri:50
 ```
 （FullBurst:10/10。攻撃フェイズでのアビ発動はなし。
 Jはターンにより3〜6で変動（proc arm数＋メインフェイズのみのjudg発動機会に依存）。
 連理魔力はメインフェイズabi/12・burst/2と攻撃フェイズchar burst/2の合算。
-T6でpactcoreがkeigyo12消費後aloneが撃てず proc=4 → renri=29。HELIX解禁はT7。）
+renriは毎ターン+5で完全線形。フル先読みによりpactcore/alone順序が最適化され全ターンで5proc確保。HELIX解禁はT6。）
 
 ## 開発ルール
 
