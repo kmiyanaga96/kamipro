@@ -333,14 +333,19 @@ const CHAR_REGISTRY = {
       judg:     ['r', 10, 0],
       absolute: ['y', 10, 0],
       divinus:  ['b', 10, 0],
+      helix:    ['y', 10, 0],  // テトラ4: [HELIX]テトラ / 連理魔力30以上・戦闘中1回のみ
     },
     labelSuffix: { absolute:'(+20)' },
-    cdShow: { judg:"ジャッジメント", absolute:"アブソ", divinus:"ディウィヌス" },
+    cdShow: { judg:"ジャッジメント", absolute:"アブソ", divinus:"ディウィヌス", helix:"HELIX" },
     cands: {
       judg:     { s:80, guard:(sim,T)=>T.ju<T.judgCap,
                   exec:(sim,T,ord,bset)=>{ const ph=T.ju%3; sim.use('judg',T,ord); T.ju++; if(ph===1) sim.burst(ownerOf('judg'),bset,T); }},
       absolute: { s:130, atkBuf:true, exec:(sim,T,ord)=>{ sim.addG(CHARS,BG.absolute); sim.use('absolute',T,ord); }},
       divinus:  { s:90 },
+      // ゴッド・オムニポンテス: 全体BG+100。連理魔力30以上かつ戦闘中1回のみ。
+      helix:    { s:400, atkBuf:true,
+                  guard:(sim)=>sim.renri>=30&&!sim.helix_abil_used,
+                  exec:(sim,T,ord)=>{ sim.helix_abil_used=true; sim.addG(CHARS,100); sim.use('helix',T,ord); }},
     },
     def: {
       gmax: BG.other_max,
@@ -420,6 +425,7 @@ class Sim {
     this.cd=Object.fromEntries(Object.keys(ABIL).map(k=>[k,0]));
     this.keigyo=4; this.cum=4; this.renri=0;
     this.mooncode=2; this.robot=0; this.ycount=0; this.inori_p=null; this.helix_done=false;
+    this.helix_abil_used=false; // テトラ4アビ: 連理魔力30到達後1回のみ使用可
     this.mburst=0; this.totalTurns=10; this.planDepth=0;
     this.gmax=Object.fromEntries(CHARS.map(c=>[c,CHAR_DEF[c].gmax]));
   }
@@ -517,9 +523,6 @@ class Sim {
       const exec=cand.exec?()=>cand.exec(sim,T,ord,bset,t):()=>sim.use(key,T,ord);
       c.push({s,key,col,exec,atkBuf:!!cand.atkBuf});
     }
-    // 攻撃バフ優先制約: atkBuf:true の候補が1つでもあれば非atkBuf候補を除外する。
-    // これによりbeam・static greedyの両方でバフ系が先行し、バースト誘発系はバフ消化後に発動する。
-    if(c.some(x=>x.atkBuf)) return c.filter(x=>x.atkBuf);
     return c;
   }
 
@@ -652,7 +655,8 @@ class Sim {
   snap(){
     return{g:{...this.g},cd:{...this.cd},keigyo:this.keigyo,cum:this.cum,
       renri:this.renri,mooncode:this.mooncode,robot:this.robot,
-      ycount:this.ycount,inori_p:this.inori_p,helix_done:this.helix_done,mburst:this.mburst};
+      ycount:this.ycount,inori_p:this.inori_p,helix_done:this.helix_done,
+      helix_abil_used:this.helix_abil_used,mburst:this.mburst};
   }
 
   // 先読み/ロールアウト用の複製。planDepth+1 で深度管理し再帰を防ぐ。
@@ -662,7 +666,7 @@ class Sim {
     s.g={...snap.g}; s.cd={...snap.cd};
     s.keigyo=snap.keigyo; s.cum=snap.cum; s.renri=snap.renri;
     s.mooncode=snap.mooncode; s.robot=snap.robot; s.ycount=snap.ycount;
-    s.inori_p=snap.inori_p; s.helix_done=snap.helix_done; s.mburst=snap.mburst;
+    s.inori_p=snap.inori_p; s.helix_done=snap.helix_done; s.helix_abil_used=snap.helix_abil_used; s.mburst=snap.mburst;
     s.totalTurns=this.totalTurns; s.planDepth=this.planDepth+1;
     if(this.T){ s.T={...this.T}; s.ord=this.ord.slice(); s.bset=new Set(this.bset); s._t=this._t; }
     return s;
