@@ -250,8 +250,9 @@ const CHAR_REGISTRY = {
       droid:    { s:201, exec:(sim,T,ord)=>{ sim.robot=3; sim.use('droid',T,ord); }},
       banoshik: { s:200, exec:(sim,T,ord)=>{ sim.robot=3; sim.use('banoshik',T,ord); }},
       amplifa:  { s:180 },
-      // 短縮対象はCD中のアビのみ。1本もなければ使用しない（T1序盤は全CD=0で効果なし）
-      ifishant: { s:(sim)=>Object.keys(sim.cd).filter(k=>k!=='ifishant'&&sim.cd[k]>0).length,
+      // スコアは(CD中アビ数)²: count=4→16(低),count=8→64(effond直前),count=10→100(高)
+      // 多くのアビがCD中のターンで自然に高優先度になり、T1序盤の空打ちを回避する
+      ifishant: { s:(sim)=>{ const ct=Object.keys(sim.cd).filter(k=>k!=='ifishant'&&sim.cd[k]>0).length; return ct*ct; },
                   guard:(sim)=>Object.keys(sim.cd).some(k=>k!=='ifishant'&&sim.cd[k]>0),
                   exec:(sim,T,ord)=>{ for(const k of Object.keys(sim.cd)) if(k!=='ifishant'&&sim.cd[k]>0) sim.cd[k]--; sim.use('ifishant',T,ord); }},
     },
