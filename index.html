@@ -302,6 +302,16 @@ const GEAR_BOXES = [
 ];
 const GEAR = Object.fromEntries(GEAR_BOXES.map(([k])=>[k,0]));
 
+// 幻獣プリセット(3種)。シミュ時に重複を許して2枠採用する。
+// box: { ボックスキー: 加算fraction }。効果量は実測値で確定させる(現状プレースホルダ=全0)。
+// ※ GEAR_BOXES のキー(assault/elem/vigor/spec/dmgup/acute/crit_rate/other)で記述する。
+const SUMMON_REGISTRY = {
+  shugo: { jp:'守護',   box:{} },
+  catas: { jp:'カタス', box:{} },
+  oni:   { jp:'鬼',     box:{} },
+};
+const SUMMON_SLOTS = 2; // シミュ時に採用する幻獣枠数(重複可)
+
 // ===== キャラクタ登録簿 =====
 // 各キャラのデータをここに集約。buildFormation() で選択編成の globals を再構築する。
 // type:'hero'|'kamihime' / abilities: {key:[color,cd,keigyo_cost]} / def: CHAR_DEF エントリ
@@ -1082,12 +1092,11 @@ function applyFormation(){
 // ===== 装備設定UI =====
 function renderGearPanel(){
   const sumOpts = '<option value="none">-- なし --</option>'+
-    GEAR_BOXES.map(([k,jp])=>`<option value="${k}">${jp}UP</option>`).join('');
-  const summonRows = [0,1,2].map(i=>`
+    Object.entries(SUMMON_REGISTRY).map(([k,v])=>`<option value="${k}">${v.jp}</option>`).join('');
+  const summonRows = Array.from({length:SUMMON_SLOTS},(_,i)=>`
     <div class="gear-row">
       <span class="slot-num">幻獣${i+1}</span>
       <select id="summon-${i}" onchange="applyGear()">${sumOpts}</select>
-      <input type="number" id="summon-amt-${i}" value="0" min="0" step="1" onchange="applyGear()" style="width:60px"> %
     </div>`).join('');
   const wpnRows = GEAR_BOXES.map(([k,jp])=>`
     <div class="gear-row">
@@ -1096,10 +1105,10 @@ function renderGearPanel(){
     </div>`).join('');
   document.getElementById('gear-panel').innerHTML=`
     <div class="gear-card">
-      <div class="cfg-title">⚙️ 幻獣・ウェポン設定（各ボックスへの加算%・全0でベース倍率）</div>
+      <div class="cfg-title">⚙️ 幻獣・ウェポン設定（全0でベース倍率）</div>
       <div class="gear-grid">
-        <div><div class="gear-sub">幻獣（3枠：種別＋効果量）</div>${summonRows}</div>
-        <div><div class="gear-sub">ウェポンスキル合計</div>${wpnRows}</div>
+        <div><div class="gear-sub">幻獣（${SUMMON_SLOTS}枠・重複可）</div>${summonRows}</div>
+        <div><div class="gear-sub">ウェポンスキル合計（各ボックス%）</div>${wpnRows}</div>
       </div>
     </div>`;
 }
@@ -1111,11 +1120,13 @@ function applyGear(){
     const v=parseFloat(document.getElementById('wpn-'+box)?.value)||0;
     GEAR[box]+=v/100;
   }
-  // 幻獣3枠(プリセット種別 → 効果量を該当ボックスに加算)
-  for(let i=0;i<3;i++){
-    const box=document.getElementById('summon-'+i)?.value;
-    const amt=parseFloat(document.getElementById('summon-amt-'+i)?.value)||0;
-    if(box && box!=='none' && GEAR[box]!==undefined) GEAR[box]+=amt/100;
+  // 幻獣枠(重複可・プリセットのboxを該当ボックスに加算)
+  for(let i=0;i<SUMMON_SLOTS;i++){
+    const key=document.getElementById('summon-'+i)?.value;
+    const s=SUMMON_REGISTRY[key];
+    if(!s) continue;
+    for(const [box,amt] of Object.entries(s.box))
+      if(GEAR[box]!==undefined) GEAR[box]+=amt;
   }
   if(SIM_ROWS.length) runSim();
 }

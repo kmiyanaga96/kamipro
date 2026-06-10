@@ -107,9 +107,10 @@ CHAR_REGISTRY[charKey] = {
 
 押し順非依存の常時ボックス補正。シミュ開始時にUIから設定し、`_na()` の各ボックスへ flat 加算する。
 `GEAR_BOXES` が `[key, 表示名]` のボックス定義、`GEAR` が各ボックスの加算値(fraction)。
-- **幻獣3枠**: プリセット種別(`GEAR_BOXES` のいずれか)を選択し、効果量を%で入力 → 該当ボックスへ加算。
-- **ウェポンスキル**: 各ボックスの合計%を1欄ずつ入力(スキル個数は問わず合算値のみ)。
-- UI: `renderGearPanel()`/`applyGear()`（%入力→/100でfraction格納）。全0で倍率1.0=ベースライン不変。
+- **幻獣**: `SUMMON_REGISTRY`(守護/カタス/鬼の3プリセット)から `SUMMON_SLOTS`(=2)枠を**重複可**で採用。
+  各プリセットは `box:{ボックスキー:加算fraction}` を持ち、採用枠分を合算してGEARへ加算する(効果量は実測確定)。
+- **ウェポンスキル**: 各ボックスの合計%を1欄ずつ入力(スキル個数は問わず合算値のみ・%→/100でfraction)。
+- UI: `renderGearPanel()`/`applyGear()`。全0で倍率1.0=ベースライン不変。
 - バースト = `_na() × (burst_coef_a + absolute本数×burst_dmg_absolute)`、フルバースト5人時は攻撃フェイズ合計に `×(1+burst_streak)`
 - ジャッジ循環: ph0=10ヒット(`min(_na()×3, judg_cap)`＋アンプリファ作動中は`amplifa_flat`) / ph1=バースト / ph2=通常攻撃
 - `dmg`(総ダメージ累計)は burst()/judg exec/通常攻撃で加算。反逆は無視。急所は本来有利属性のみだが期待値で一律計上。
