@@ -5,7 +5,7 @@
 
 現行編成: 英霊エジソン + ヤマト / ヘカテー / テトラ / エレイン
 
-## コード地図（index.html / 約1176行）
+## コード地図（index.html / 約1260行）
 
 セクション編集時は該当範囲だけを Read すればトークンを節約できる。
 
@@ -19,14 +19,26 @@
 | 327–512 | **`CHAR_REGISTRY`**（全キャラ定義の唯一の集約先） |
 | 513–571 | 編成グローバル構築（`buildFormation`/`CHAR_SIM_STATES`/`MILESTONES`/`computeBaseScore`） |
 | 572–879 | `class Sim` エンジン（tick/procR/burst/use/`_na`/beam等） |
-| 880–938 | UI helpers（gaugesHTML/ordChipsHTML/ACOL等） |
-| 939–1052 | 自動シミュレーション描画（runSim/renderSim/cardHTML） |
-| 1053–1110 | 編成選択UI（編成・装備とも▶実行時にrunSimが読み取り反映） |
-| 1111–1158 | 装備設定UI（renderGearPanel/applyGear） |
-| 1159–末尾 | INIT |
+| 880–938 | UI helpers（loopsHTML/gaugesHTML/cdBadgesHTML等） |
+| 939–989 | カード描画（cardHTML/toggleCard） |
+| 990–1136 | **Web Worker**（`_buildWorkerCode`/`runSim`/`_fallbackRunSim`/`renderSim`） |
+| 1137–1194 | 編成選択UI（編成・装備とも▶実行時にrunSimが読み取り反映） |
+| 1195–1242 | 装備設定UI（renderGearPanel/applyGear） |
+| 1243–末尾 | INIT |
 
 最適化の最上位目標は**概算総ダメージ**（`DMG` モデル）。FB回数/総バースト/総ジャッジ/連理魔力
 は補助指標として目的関数の下位次元に残る。詳細は「概算火力モデル」節を参照。
+
+### 実行アーキテクチャ（Web Worker）
+
+ビームサーチは重い（数秒〜10秒）ため、シムエンジン（`// ===== ゲーム定数` 〜 `// ===== UI HELPERS`
+直前）を `_buildWorkerCode()` が文字列抽出 → Blob URL で Worker 化し、メインスレッドをブロックしない。
+Worker はターン毎に `{type:'progress'}`（スピナー進捗）と `{type:'turn',row}`（カード逐次追記）を送り、
+最後に `{type:'done',baseDmg}` を送る。`row` は `greedyTakeTurn` の戻り値（構造化複製可能な
+plainオブジェクト）をそのまま転送する。Worker 非対応環境は `_fallbackRunSim()`（`setTimeout(0)`同期実行）へ。
+
+**相対比率評価**: 最適シム（ビーム）と基準シム（`planDepth=2` 強制＝静的greedy）の総ダメージ比を
+`renderSim(baseDmg)` がサマリーに「対基準比」として表示する（押し順最適化の効きを相対値で可視化）。
 
 ## アーキテクチャ原則
 

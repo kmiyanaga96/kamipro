@@ -994,35 +994,23 @@ function cardHTML(r,first=false){
 let _simWorker=null;
 
 function _buildWorkerCode(){
-  // <script>〜// ===== UI HELPERS の間のエンジンコードを抽出
-  const src=document.currentScript?.ownerDocument
-    ? document.currentScript.ownerDocument.documentElement.innerHTML
-    : document.documentElement.innerHTML;
-  // index.html全体から // ===== ゲーム定数 〜 // ===== UI HELPERS の直前までを取り出す
-  const start=src.indexOf('// ===== ゲーム定数');
-  const end=src.indexOf('// ===== UI HELPERS');
-  const engineCode=src.slice(start,end);
+  // index.html全体から // ===== ゲーム定数 〜 // ===== UI HELPERS 直前までのエンジンコードを抽出。
+  // greedyTakeTurn の戻り値は構造化複製可能なplainオブジェクトなのでそのまま転送できる。
+  const src=document.documentElement.innerHTML;
+  const engineCode=src.slice(src.indexOf('// ===== ゲーム定数'), src.indexOf('// ===== UI HELPERS'));
   return `
 ${engineCode}
 // ===== Worker エントリポイント =====
 self.onmessage=function(e){
   const {heroKey,kamihimeKeys,gearState,n}=e.data;
-  // GEAR を復元
   for(const [k,v] of Object.entries(gearState)) GEAR[k]=v;
   recalcGearK();
   buildFormation(heroKey,kamihimeKeys);
-  // 最適シム(ビームサーチ)
+  // 最適シム(ビームサーチ): ターン毎に進捗と結果行を送信
   const sim=new Sim(); sim.totalTurns=n;
-  const rows=[];
   for(let t=1;t<=n;t++){
     self.postMessage({type:'progress',t,n});
-    const r=sim.greedyTakeTurn(t);
-    // snap は循環参照なしのプレーンオブジェクトなので転送可
-    rows.push({t,ord:r.ord,atk:r.atk,full:r.full,burst:r.burst,ability:r.ability,
-      ra:r.ra,ju:r.ju,rt:r.rt,renri:r.renri,keigyo:r.keigyo,cum:r.cum,
-      mooncode:r.mooncode,ycount:r.ycount,helix:r.helix,robot:r.robot,
-      dmg:r.dmg,gauge:r.gauge,state:r.state});
-    self.postMessage({type:'turn',row:rows[rows.length-1]});
+    self.postMessage({type:'turn',row:sim.greedyTakeTurn(t)});
   }
   // 基準シム(静的greedyのみ・planDepth=2で強制): 相対比率算出用
   const base=new Sim(); base.totalTurns=n; base.planDepth=2;
