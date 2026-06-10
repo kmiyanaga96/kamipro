@@ -5,23 +5,25 @@
 
 現行編成: 英霊エジソン + ヤマト / ヘカテー / テトラ / エレイン
 
-## コード地図（index.html / 約1009行）
+## コード地図（index.html / 約1162行）
 
 セクション編集時は該当範囲だけを Read すればトークンを節約できる。
 
 | 範囲(行) | 内容 |
 |---|---|
-| 7–159 | CSS（`<style>`、Material白基調UI） |
-| 161–217 | HTML構造（ヘッダ/サイドバー/メイン） |
-| 219–230 | ゲーム定数（確定仕様・後述） |
-| 231–250 | **`DMG`**（概算火力モデル定数・後述） |
-| 251–430 | **`CHAR_REGISTRY`**（全キャラ定義の唯一の集約先） |
-| 431–489 | 編成グローバル構築（`buildFormation`/`CHAR_SIM_STATES`/`MILESTONES`/`computeBaseScore`） |
-| 490–722 | `class Sim` エンジン（tick/procR/burst/use/`_na`/beam等） |
-| 770–828 | UI helpers（gaugesHTML/ordChipsHTML/ACOL等） |
-| 829–921 | 自動シミュレーション描画（runSim/renderSim/cardHTML） |
-| 922–992 | 編成選択UI |
-| 993–末尾 | INIT |
+| 7–171 | CSS（`<style>`、Material白基調UI） |
+| 173–229 | HTML構造（ヘッダ/サイドバー/メイン） |
+| 231–242 | ゲーム定数（確定仕様・後述） |
+| 243–287 | **`DMG`**（概算火力モデル定数・後述） |
+| 289–319 | **`GEAR`/`SUMMON_REGISTRY`**（装備設定・幻獣プリセット・`GEAR_K`） |
+| 320–505 | **`CHAR_REGISTRY`**（全キャラ定義の唯一の集約先） |
+| 506–564 | 編成グローバル構築（`buildFormation`/`CHAR_SIM_STATES`/`MILESTONES`/`computeBaseScore`） |
+| 565–872 | `class Sim` エンジン（tick/procR/burst/use/`_na`/beam等） |
+| 873–931 | UI helpers（gaugesHTML/ordChipsHTML/ACOL等） |
+| 932–1025 | 自動シミュレーション描画（runSim/renderSim/cardHTML） |
+| 1026–1096 | 編成選択UI |
+| 1097–1144 | 装備設定UI（renderGearPanel/applyGear） |
+| 1145–末尾 | INIT |
 
 最適化の最上位目標は**概算総ダメージ**（`DMG` モデル）。FB回数/総バースト/総ジャッジ/連理魔力
 は補助指標として目的関数の下位次元に残る。詳細は「概算火力モデル」節を参照。
@@ -113,6 +115,10 @@ CHAR_REGISTRY[charKey] = {
   - 守護: weapon_amp=0.40 / カタス: weapon_amp=0.50, assault+1.0 / 鬼: weapon_amp=0.50, assault+1.0, spec+0.10
 - **ウェポンスキル**: 各ボックスの合計%を1欄ずつ入力(スキル個数は問わず合算値のみ・%→/100でfraction)。
 - UI: `renderGearPanel()`/`applyGear()`。全0で倍率1.0=ベースライン不変。
+  シミュは重い(ビームサーチ・数秒〜10秒)ため入力変更での自動再実行はせず、`runSim()` 冒頭で
+  `applyGear()` を呼んで実行時に同期する(▶ボタンで明示実行)。
+- **`GEAR_K`**: `_na()` ホットパス用の事前畳み込み係数 = `base_atk×(1+dmgup)(1+other)×misc/enemy_def`。
+  `recalcGearK()` で GEAR 変更時に再計算。`_na()` は乗算ボックスにこれを掛けるだけ。
 - バースト = `_na() × (burst_coef_a + absolute本数×burst_dmg_absolute)`、フルバースト5人時は攻撃フェイズ合計に `×(1+burst_streak)`
 - ジャッジ循環: ph0=10ヒット(`min(_na()×3, judg_cap)`＋アンプリファ作動中は`amplifa_flat`) / ph1=バースト / ph2=通常攻撃
 - `dmg`(総ダメージ累計)は burst()/judg exec/通常攻撃で加算。反逆は無視。急所は本来有利属性のみだが期待値で一律計上。

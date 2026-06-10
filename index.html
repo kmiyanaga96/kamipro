@@ -287,9 +287,9 @@ const DMG = {
 };
 
 // ===== 装備設定(幻獣・ウェポン) =====
-// 押し順非依存の常時ボックス補正。幻獣3枠(プリセット選択+効果量)とウェポンスキル合計を集約し、
+// 押し順非依存の常時ボックス補正。幻獣2枠(プリセット・重複可)とウェポンスキル合計を集約し、
 // 各ボックスへの加算値(fraction)として _na() が参照する。シミュ開始時にUIから applyGear() で設定。
-// 全0なら倍率1.0でベースライン不変。値は % 入力 → fraction で格納(例: 50 → 0.50)。
+// 全0なら倍率1.0でベースライン不変。ウェポンは % 入力 → ×(1+Σweapon_amp) → fraction で格納。
 const GEAR_BOXES = [
   ['assault',  'アサルト'],      // (1+アサルト...) 枠: キャラUP幻獣・アサルトスキル
   ['elem',     '属性値'],        // 属性値枠: 属性値UP幻獣・属性スキル
@@ -302,15 +302,20 @@ const GEAR_BOXES = [
 ];
 const GEAR = Object.fromEntries(GEAR_BOXES.map(([k])=>[k,0]));
 
-// 幻獣プリセット(3種)。シミュ時に重複を許して2枠採用する。
-// box: { ボックスキー: 加算fraction }。効果量は実測値で確定させる(現状プレースホルダ=全0)。
-// ※ GEAR_BOXES のキー(assault/elem/vigor/spec/dmgup/acute/crit_rate/other)で記述する。
+// 幻獣プリセット(3種)。シミュ時に重複を許して SUMMON_SLOTS 枠採用する。
+// weapon_amp: ウェポンスキル効果量UP(採用枠分を加算) / box: {ボックスキー: 直接加算fraction}。
+// ※ box は GEAR_BOXES のキー(assault/elem/vigor/spec/dmgup/acute/crit_rate/other)で記述する。
 const SUMMON_REGISTRY = {
   shugo: { jp:'守護',   weapon_amp:0.40, box:{} },
   catas: { jp:'カタス', weapon_amp:0.50, box:{assault:1.0} },
   oni:   { jp:'鬼',     weapon_amp:0.50, box:{assault:1.0, spec:0.10} },
 };
 const SUMMON_SLOTS = 2; // シミュ時に採用する幻獣枠数(重複可)
+
+// _na() ホットパス用: 押し順非依存の固定係数を事前畳み込み(GEAR変更時に再計算)
+let GEAR_K = 0;
+function recalcGearK(){ GEAR_K = DMG.base_atk*(1+GEAR.dmgup)*(1+GEAR.other)*DMG.misc/DMG.enemy_def; }
+recalcGearK();
 
 // ===== キャラクタ登録簿 =====
 // 各キャラのデータをここに集約。buildFormation() で選択編成の globals を再構築する。
@@ -632,9 +637,8 @@ class Sim {
     const acute = nPuv*D.acute_puvoir + nAbs*D.acute_absolute + nLeg*D.acute_legend + G.acute;
     // 特殊攻撃枠: レジェンド(契晶80+) + 装備
     const spec = (b.leg_spec ? D.spec_legend : 0) + G.spec;
-    // 与ダメージUP枠・その他/テクニカ枠は装備のみ(押し順非依存)
-    return D.base_atk*(1+aslt)*(1+elem)*(1+vigor)*(1+crit)*(1+acute)*(1+spec)
-      *(1+G.dmgup)*(1+G.other)*D.misc/D.enemy_def;
+    // GEAR_K = base_atk×(1+与ダメUP)(1+その他/テクニカ)×misc/敵防御(押し順非依存・事前畳み込み)
+    return GEAR_K*(1+aslt)*(1+elem)*(1+vigor)*(1+crit)*(1+acute)*(1+spec);
   }
 
   burst(owner, bset, T, atk=false) {
@@ -977,6 +981,7 @@ function cardHTML(r,first=false){
 }
 
 function runSim(){
+  applyGear(); // 実行直前に装備設定を確実に反映
   const n=Math.max(1,Math.min(30,parseInt(document.getElementById('turns-n').value)||10));
   const sim=new Sim();
   sim.totalTurns=n;
@@ -1096,12 +1101,12 @@ function renderGearPanel(){
   const summonRows = Array.from({length:SUMMON_SLOTS},(_,i)=>`
     <div class="gear-row">
       <span class="slot-num">幻獣${i+1}</span>
-      <select id="summon-${i}" onchange="applyGear()">${sumOpts}</select>
+      <select id="summon-${i}">${sumOpts}</select>
     </div>`).join('');
   const wpnRows = GEAR_BOXES.map(([k,jp])=>`
     <div class="gear-row">
       <span class="wpn-lbl">${jp}</span>
-      <input type="number" id="wpn-${k}" value="0" min="0" step="1" onchange="applyGear()" style="width:60px"> %
+      <input type="number" id="wpn-${k}" value="0" min="0" step="1" style="width:60px"> %
     </div>`).join('');
   document.getElementById('gear-panel').innerHTML=`
     <div class="gear-card">
@@ -1133,7 +1138,8 @@ function applyGear(){
   for(const sb of summonBoxes)
     for(const [box,amt] of Object.entries(sb))
       if(GEAR[box]!==undefined) GEAR[box]+=amt;
-  if(SIM_ROWS.length) runSim();
+  recalcGearK();
+  // シミュは重い(ビームサーチ・数秒〜10秒)ため自動再実行しない。▶ボタンで明示実行する。
 }
 
 // ===== INIT =====
