@@ -306,9 +306,9 @@ const GEAR = Object.fromEntries(GEAR_BOXES.map(([k])=>[k,0]));
 // box: { ボックスキー: 加算fraction }。効果量は実測値で確定させる(現状プレースホルダ=全0)。
 // ※ GEAR_BOXES のキー(assault/elem/vigor/spec/dmgup/acute/crit_rate/other)で記述する。
 const SUMMON_REGISTRY = {
-  shugo: { jp:'守護',   box:{} },
-  catas: { jp:'カタス', box:{} },
-  oni:   { jp:'鬼',     box:{} },
+  shugo: { jp:'守護',   weapon_amp:0.40, box:{} },
+  catas: { jp:'カタス', weapon_amp:0.50, box:{assault:1.0} },
+  oni:   { jp:'鬼',     weapon_amp:0.50, box:{assault:1.0, spec:0.10} },
 };
 const SUMMON_SLOTS = 2; // シミュ時に採用する幻獣枠数(重複可)
 
@@ -1115,19 +1115,24 @@ function renderGearPanel(){
 
 function applyGear(){
   for(const [box] of GEAR_BOXES) GEAR[box]=0;
-  // ウェポンスキル合計(ボックス毎の1欄)
+  // 採用幻獣のweapon_amp合計(ウェポンスキル倍率)と直接ボックス補正を収集
+  let weaponAmp=0;
+  const summonBoxes=[];
+  for(let i=0;i<SUMMON_SLOTS;i++){
+    const s=SUMMON_REGISTRY[document.getElementById('summon-'+i)?.value];
+    if(!s) continue;
+    weaponAmp+=s.weapon_amp||0;
+    summonBoxes.push(s.box);
+  }
+  // ウェポンスキル合計(幻獣のウェポンスキル効果量UPを乗算して加算)
   for(const [box] of GEAR_BOXES){
     const v=parseFloat(document.getElementById('wpn-'+box)?.value)||0;
-    GEAR[box]+=v/100;
+    GEAR[box]+=v/100*(1+weaponAmp);
   }
-  // 幻獣枠(重複可・プリセットのboxを該当ボックスに加算)
-  for(let i=0;i<SUMMON_SLOTS;i++){
-    const key=document.getElementById('summon-'+i)?.value;
-    const s=SUMMON_REGISTRY[key];
-    if(!s) continue;
-    for(const [box,amt] of Object.entries(s.box))
+  // 幻獣直接ボックス補正(キャラUP/特殊攻撃UP等)
+  for(const sb of summonBoxes)
+    for(const [box,amt] of Object.entries(sb))
       if(GEAR[box]!==undefined) GEAR[box]+=amt;
-  }
   if(SIM_ROWS.length) runSim();
 }
 

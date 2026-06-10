@@ -108,7 +108,9 @@ CHAR_REGISTRY[charKey] = {
 押し順非依存の常時ボックス補正。シミュ開始時にUIから設定し、`_na()` の各ボックスへ flat 加算する。
 `GEAR_BOXES` が `[key, 表示名]` のボックス定義、`GEAR` が各ボックスの加算値(fraction)。
 - **幻獣**: `SUMMON_REGISTRY`(守護/カタス/鬼の3プリセット)から `SUMMON_SLOTS`(=2)枠を**重複可**で採用。
-  各プリセットは `box:{ボックスキー:加算fraction}` を持ち、採用枠分を合算してGEARへ加算する(効果量は実測確定)。
+  各プリセットは `weapon_amp`(ウェポンスキル倍率UP・2枠分を加算)と `box:{ボックスキー:加算fraction}`(直接補正)を持つ。
+  実効ウェポンスキル = 入力% × (1 + Σ weapon_amp) で計算し、各ボックスへ加算する(効果量は実測確定)。
+  - 守護: weapon_amp=0.40 / カタス: weapon_amp=0.50, assault+1.0 / 鬼: weapon_amp=0.50, assault+1.0, spec+0.10
 - **ウェポンスキル**: 各ボックスの合計%を1欄ずつ入力(スキル個数は問わず合算値のみ・%→/100でfraction)。
 - UI: `renderGearPanel()`/`applyGear()`。全0で倍率1.0=ベースライン不変。
 - バースト = `_na() × (burst_coef_a + absolute本数×burst_dmg_absolute)`、フルバースト5人時は攻撃フェイズ合計に `×(1+burst_streak)`
