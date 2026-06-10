@@ -5,25 +5,25 @@
 
 現行編成: 英霊エジソン + ヤマト / ヘカテー / テトラ / エレイン
 
-## コード地図（index.html / 約1162行）
+## コード地図（index.html / 約1151行）
 
 セクション編集時は該当範囲だけを Read すればトークンを節約できる。
 
 | 範囲(行) | 内容 |
 |---|---|
 | 7–171 | CSS（`<style>`、Material白基調UI） |
-| 173–229 | HTML構造（ヘッダ/サイドバー/メイン） |
-| 231–242 | ゲーム定数（確定仕様・後述） |
-| 243–287 | **`DMG`**（概算火力モデル定数・後述） |
-| 289–319 | **`GEAR`/`SUMMON_REGISTRY`**（装備設定・幻獣プリセット・`GEAR_K`） |
-| 320–505 | **`CHAR_REGISTRY`**（全キャラ定義の唯一の集約先） |
-| 506–564 | 編成グローバル構築（`buildFormation`/`CHAR_SIM_STATES`/`MILESTONES`/`computeBaseScore`） |
-| 565–872 | `class Sim` エンジン（tick/procR/burst/use/`_na`/beam等） |
-| 873–931 | UI helpers（gaugesHTML/ordChipsHTML/ACOL等） |
-| 932–1025 | 自動シミュレーション描画（runSim/renderSim/cardHTML） |
-| 1026–1096 | 編成選択UI |
-| 1097–1144 | 装備設定UI（renderGearPanel/applyGear） |
-| 1145–末尾 | INIT |
+| 173–217 | HTML構造（ヘッダ/サイドバー/メイン） |
+| 220–231 | ゲーム定数（確定仕様・後述） |
+| 232–277 | **`DMG`**（概算火力モデル定数・後述） |
+| 278–308 | **`GEAR`/`SUMMON_REGISTRY`**（装備設定・幻獣プリセット・`GEAR_K`） |
+| 309–494 | **`CHAR_REGISTRY`**（全キャラ定義の唯一の集約先） |
+| 495–553 | 編成グローバル構築（`buildFormation`/`CHAR_SIM_STATES`/`MILESTONES`/`computeBaseScore`） |
+| 554–861 | `class Sim` エンジン（tick/procR/burst/use/`_na`/beam等） |
+| 862–920 | UI helpers（gaugesHTML/ordChipsHTML/ACOL等） |
+| 921–1014 | 自動シミュレーション描画（runSim/renderSim/cardHTML） |
+| 1015–1085 | 編成選択UI |
+| 1086–1133 | 装備設定UI（renderGearPanel/applyGear） |
+| 1134–末尾 | INIT |
 
 最適化の最上位目標は**概算総ダメージ**（`DMG` モデル）。FB回数/総バースト/総ジャッジ/連理魔力
 は補助指標として目的関数の下位次元に残る。詳細は「概算火力モデル」節を参照。

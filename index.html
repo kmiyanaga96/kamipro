@@ -195,18 +195,7 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
         <span class="abi-chip" style="background:#ffebee;color:#c62828;border-color:#ef5350;">赤</span>
         <span class="abi-chip" style="background:#e3f2fd;color:#1565c0;border-color:#42a5f5;">青</span>
         <span class="abi-chip" style="background:#fafafa;color:#616161;border-color:#bdbdbd;">白</span>
-        <span class="abi-chip" style="background:#e8f5e9;color:#2e7d32;border-color:#66bb6a;">緑(回復)</span>
-      </div>
-    </div>
-    <div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border);">
-      <div class="cfg-title">📌 固定仕様</div>
-      <div style="font-size:10px;color:var(--muted);line-height:1.9;">
-        · 連理魔力 同T上限: 5<br>
-        · ジャッジ 同T上限: 6回<br>
-        · 天矢乱舞: T2以降のみ<br>
-        · マシーンタクトゥ: +5/作動<br>
-        · FB閾値: 100（カスケードあり）<br>
-        · 攻撃フェイズ: バーストのみ（アビ発動なし）
+        <span class="abi-chip" style="background:#e8f5e9;color:#2e7d32;border-color:#66bb6a;">緑</span>
       </div>
     </div>
   </div>
@@ -972,7 +961,7 @@ function cardHTML(r,first=false){
         <div>
           <div style="font-size:10px;color:var(--muted);margin-bottom:5px;">連理魔力 累計${r.renri}/30</div>
           ${renriHTML(r.renri)}
-          <div style="margin-top:9px;font-size:10px;color:var(--muted);margin-bottom:5px;">CT残り</div>
+          <div style="margin-top:9px;font-size:10px;color:var(--muted);margin-bottom:5px;">アビCT（再使用まで残りT・0=使用可）</div>
           <div style="display:flex;flex-wrap:wrap;gap:3px;">${cdBadgesHTML(r.state.cd)}</div>
         </div>
       </div>
