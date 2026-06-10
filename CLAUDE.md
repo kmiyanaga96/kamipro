@@ -82,18 +82,25 @@ CHAR_REGISTRY[charKey] = {
 `buf = {abilityKey: [残ターン数, ...]}` でスタック毎に管理し、`tick()` が毎ターン
 デクリメント・失効削除する。各 cands の exec で `(sim.buf.KEY??=[]).push(DMG.dur_KEY)` を実行。
 
-| buf キー | 枠 | 効果量(1スタック) | 持続 |
-|---|---|---|---|
-| `banoshik` | アサルト | `assault_banoshik=0.10`(ロボ作動中の黄アビ毎・use内で付与) | `dur_banoshik=3` |
-| `absolute` | アサルト+バーストダメUP+旺盛+会心+急所 | `assault_absolute=0.30`/`burst_dmg_absolute=0.30` | `dur_absolute=2` |
-| `puvoir` | 属性値+急所 | `elem_puvoir=0.15` | `dur_puvoir=6` |
-| `legend` | 急所 | `acute_legend=0.005` | `dur_legend=3` |
+**累積可バフ**(`push`で独立累積・各スタック固有持続)と**閾値refreshバフ**(`=[dur]`で単発上書き)の2系統。
 
-- 通常攻撃概算 `_na()` = `base_atk × (1+aslt) × (1+elem) × (1+vigor) × (1+crit) × (1+acute) × misc / enemy_def`
-  - `aslt` = banoshik本数×0.10 + absolute本数×0.30
+| buf キー | 枠 | 効果量 | 持続 | 累積 |
+|---|---|---|---|---|
+| `banoshik` | アサルト | `assault_banoshik=0.10`(ロボ作動中の黄アビ毎・use内付与) | 3 | 累積 |
+| `absolute` | アサルト+バーストダメUP+旺盛+会心+急所 | `assault_absolute=0.30`/`burst_dmg_absolute=0.30` | 2 | 累積 |
+| `puvoir` | 属性値+急所 | `elem_puvoir=0.15` | 6 | 累積 |
+| `legend` | 急所 | `acute_legend=0.005` | 3 | 累積 |
+| `leg_aslt` | アサルト | `assault_legend=0.20`(レジェンドアシ・契晶cum≥10) | 3 | refresh |
+| `leg_vigor` | 旺盛 | `vigor_legend=0.3552`(契晶cum≥70) | 3 | refresh |
+| `leg_spec` | 特殊攻撃 | `spec_legend=0.20`(契晶cum≥80) | 3 | refresh |
+
+- 通常攻撃概算 `_na()` = `base_atk × (1+aslt)(1+elem)(1+vigor)(1+crit)(1+acute)(1+spec) × misc / enemy_def`
+  - `aslt` = banoshik本数×0.10 + absolute本数×0.30 + (leg_aslt?0.20:0)
   - `elem` = puvoir本数×0.15
-  - `vigor`/`crit` = アブソ有効時のみ(二値): `vigor_absolute=0.468` / `crit_absolute=0.125`
+  - `vigor` = min((absolute?0.30:0)+(leg_vigor?0.3552:0), 1.0)（フルHP前提で最大・+100%頭打ち）
+  - `crit` = min(crit_rate_arrive0.20 + absolute本数×0.25, 1.0)×0.5（倍率固定1.5倍・ARRIVE永続+アブソ発動率）
   - `acute` = puvoir本数×0.010 + absolute本数×0.030 + legend本数×0.005（発動率×(倍率-1)の期待値・複数発動は倍率加算で近似）
+  - `spec` = leg_spec?0.20:0
 - バースト = `_na() × (burst_coef_a + absolute本数×burst_dmg_absolute)`、フルバースト5人時は攻撃フェイズ合計に `×(1+burst_streak)`
 - ジャッジ循環: ph0=10ヒット(`min(_na()×3, judg_cap)`＋アンプリファ作動中は`amplifa_flat`) / ph1=バースト / ph2=通常攻撃
 - `dmg`(総ダメージ累計)は burst()/judg exec/通常攻撃で加算。反逆は無視。急所は本来有利属性のみだが期待値で一律計上。
@@ -154,13 +161,13 @@ console.log("FullBurst:",fb+"/10","TotalDmg:",Math.round(sim.dmg));
 
 期待値（基準・DMG定数が現行値の場合）:
 ```
-T1  FB:5 J:1 renri:4  dmg:153,092     T6  FB:5 J:3 renri:29 dmg:2,008,165
-T2  FB:5 J:4 renri:9  dmg:498,584     T7  FB:5 J:4 renri:34 dmg:2,522,501
-T3  FB:5 J:4 renri:14 dmg:820,407     T8  FB:5 J:4 renri:39 dmg:3,315,916
-T4  FB:5 J:4 renri:19 dmg:1,121,313   T9  FB:5 J:4 renri:44 dmg:4,072,207
-T5  FB:5 J:6 renri:24 dmg:1,610,100   T10 FB:5 J:4 renri:49 dmg:4,591,993
+T1  FB:5 J:1 renri:4  dmg:151,434     T6  FB:5 J:4 renri:29 dmg:2,114,169
+T2  FB:5 J:4 renri:9  dmg:500,410     T7  FB:5 J:4 renri:34 dmg:2,829,346
+T3  FB:5 J:4 renri:14 dmg:841,503     T8  FB:5 J:4 renri:39 dmg:3,887,934
+T4  FB:5 J:4 renri:19 dmg:1,161,038   T9  FB:5 J:3 renri:44 dmg:4,594,460
+T5  FB:5 J:2 renri:24 dmg:1,480,379   T10 FB:5 J:4 renri:49 dmg:5,356,227
 ```
-（FullBurst:10/10、TotalDmg:4,591,993。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
+（FullBurst:10/10、TotalDmg:5,356,227。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
 バフは上限なしで独立累積し持続ターンで失効(buf辞書管理)。
 エンジン: BEAM_W=24/BEAM_W_INNER=4、目的関数最上位=概算総ダメージ。）
 
