@@ -145,13 +145,13 @@ console.log("FullBurst:",fb+"/10","TotalDmg:",Math.round(sim.dmg));
 
 期待値（基準・DMG定数が現行値の場合）:
 ```
-T1  FB:5 J:1 renri:4  dmg:131,154     T6  FB:5 J:3 renri:29 dmg:1,952,084
-T2  FB:5 J:4 renri:9  dmg:412,973     T7  FB:5 J:4 renri:34 dmg:2,644,233
-T3  FB:5 J:4 renri:14 dmg:738,637     T8  FB:5 J:4 renri:39 dmg:3,528,003
-T4  FB:5 J:4 renri:19 dmg:1,090,713   T9  FB:5 J:3 renri:43 dmg:4,143,538
-T5  FB:5 J:6 renri:24 dmg:1,572,205   T10 FB:5 J:4 renri:48 dmg:5,296,854
+T1  FB:5 J:1 renri:4  dmg:128,238     T6  FB:5 J:4 renri:29 dmg:1,354,822
+T2  FB:5 J:4 renri:9  dmg:388,941     T7  FB:5 J:4 renri:34 dmg:1,615,670
+T3  FB:5 J:4 renri:14 dmg:616,993     T8  FB:5 J:4 renri:39 dmg:1,874,209
+T4  FB:5 J:4 renri:19 dmg:865,921     T9  FB:5 J:5 renri:44 dmg:2,102,261
+T5  FB:5 J:5 renri:24 dmg:1,126,770   T10 FB:5 J:4 renri:49 dmg:2,363,110
 ```
-（FullBurst:10/10、TotalDmg:5,296,854。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
+（FullBurst:10/10、TotalDmg:2,363,110。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
 エンジン: BEAM_W=24/BEAM_W_INNER=4、目的関数最上位=概算総ダメージ。）
 
 ## 開発ルール

@@ -230,22 +230,37 @@ const BG = {inori:100,funki:10,absolute:20,sleur:15,legend:10,
 
 // ===== 概算火力モデル定数 =====
 // damageCalculator.txt の乗算ボックスのうち、押し順で動く加算枠(アサルト/属性値/バーストダメUP)
-// のみ追跡対象とし、押し順非依存の枠(旺盛/反逆/特殊攻撃/急所/会心/各種ダメージ上限)は
-// misc に一括概算する。非有利属性も一括でシミュするため属性相性倍率は考慮しない(ベース1.0)。
+// のみ追跡対象とし、押し順非依存の枠(特殊攻撃/上限等)は misc に一括概算する。
+// 反逆は無視。旺盛/急所/会心はアブソ依存の条件付き枠として buf 経由で計算する。
+// 非有利属性も一括でシミュするため属性相性倍率は考慮しない(ベース1.0)。
 // 値は実測ベース。火力は「プランのランキング(相対比較)」に用いるため絶対値の厳密性は問わない。
 const DMG = {
   base_atk: 1500,            // 表示攻撃力
   enemy_def: 10,             // 敵防御
-  misc: 1.0,                 // 旺盛/反逆/特殊/急所/会心/上限等の押し順非依存枠の一括概算
-  assault_banoshik: 0.10,    // バノーシク: 補助ロボ作動中の黄アビ毎にアサルト+10%(累積)
-  assault_absolute: 0.30,    // アブソ: アサルト+30%(累積)
-  elem_puvoir: 0.15,         // プヴワール: 光属性攻撃+15%(累積)
-  burst_dmg_absolute: 0.30,  // アブソ: バーストダメージ+30%(累積)
+  misc: 1.0,                 // 特殊攻撃/各種ダメージ上限等の押し順非依存枠の一括概算
+  // ─── バフ効果量 ─────────────────────────────────────────────────────────
+  assault_banoshik: 0.10,    // バノーシク: 補助ロボ作動中の黄アビ毎にアサルト+10%
+  assault_absolute: 0.30,    // アブソ: アサルト+30%
+  elem_puvoir:      0.15,    // プヴワール: 光属性攻撃+15%
+  burst_dmg_absolute: 0.30,  // アブソ: バーストダメージ+30%
+  // ─── アブソ条件付き概算枠 ─────────────────────────────────────────────
+  // 旺盛: 基礎値36% × アビリティ性能UP1.3倍 = 46.8% 上乗せ。アブソ有効時のみ。
+  vigor_absolute: 0.468,
+  // 会心: 発動率25% × +0.5 = 期待値+12.5%。アブソ有効時のみ。
+  crit_absolute:  0.125,
+  // 急所: 要実測。プレースホルダー0.0。確認次第更新。
+  acute_absolute: 0.0,
+  // ─── バフ効果ターン（失効管理用）────────────────────────────────────
+  dur_absolute: 2,           // アブソ効果ターン
+  dur_puvoir:   6,           // プヴワール効果ターン
+  dur_banoshik: 3,           // バノーシク黄アビ付与バフ効果ターン(ロボと同期)
+  // ─── バーストダメージ式 ────────────────────────────────────────────────
   burst_coef_a: 4.5,         // バーストダメージ式の係数 a
   burst_streak: 0.5,         // フルバースト(5人)時のバーストストリーク補正
-  judg_mult: 3,              // ジャッジメント: 通常攻撃比3倍
-  judg_cap: 200000,          // ジャッジ1ヒットの減衰上限(20万)
+  judg_mult:  3,             // ジャッジメント: 通常攻撃比3倍
+  judg_cap:   200000,        // ジャッジ1ヒットの減衰上限(20万)
   amplifa_flat: 100000,      // アンプリファ: アビダメプラス +10万(ジャッジ発動時に加算)
+  puvoir_max_stacks: 3,     // プヴワール: 同時スタック上限(暫定: CD=2/dur=6 の定常最大値)。要実機確認。
 };
 
 // ===== キャラクタ登録簿 =====
@@ -345,7 +360,9 @@ const CHAR_REGISTRY = {
     cands: {
       // モビウスムーンズ最適化: 発動まで3バースト以内(mburst%5>=2)は最高優先。
       // バースト誘発系アビより先に使い切ることで、リキャストを有効活用する。
-      puvoir: { s:(sim)=>sim.mburst%5>=2?9999:140, atkBuf:true, exec:(sim,T,ord)=>{ sim.elem+=DMG.elem_puvoir; sim.use('puvoir',T,ord); }},
+      // puvoir: スタック上限は DMG.puvoir_max_stacks(暫定3: CD=2/dur=6 の定常最大値)。
+      // 実機で上限が判明次第 DMG.puvoir_max_stacks を更新すること。
+      puvoir: { s:(sim)=>sim.mburst%5>=2?9999:140, atkBuf:true, exec:(sim,T,ord)=>{ if(!sim.buf.puvoir)sim.buf.puvoir=[]; if(sim.buf.puvoir.length<DMG.puvoir_max_stacks) sim.buf.puvoir.push(DMG.dur_puvoir); sim.use('puvoir',T,ord); }},
       sleur:  { s:(sim)=>sim.mburst%5>=2?9999:140, atkBuf:true, partyBG:true, exec:(sim,T,ord)=>{ sim.addG(CHARS,BG.sleur); sim.use('sleur',T,ord); }},
       effond: { s:70, burstTrigger:true, guard:(sim)=>sim.mooncode>0,
                 exec:(sim,T,ord,bset)=>{ sim.use('effond',T,ord); sim.burst(ownerOf('effond'),bset,T); }},
@@ -375,7 +392,7 @@ const CHAR_REGISTRY = {
                     if(ph===0){ const amp=sim.cd.amplifa>0?DMG.amplifa_flat:0; sim.dmg += 10*Math.min(sim._na()*DMG.judg_mult,DMG.judg_cap) + amp; }
                     else if(ph===1) sim.burst(ownerOf('judg'),bset,T);
                     else sim.dmg += sim._na(); }},
-      absolute: { s:130, atkBuf:true, partyBG:true, exec:(sim,T,ord)=>{ sim.aslt+=DMG.assault_absolute; sim.bdmg+=DMG.burst_dmg_absolute; sim.addG(CHARS,BG.absolute); sim.use('absolute',T,ord); }},
+      absolute: { s:130, atkBuf:true, partyBG:true, exec:(sim,T,ord)=>{ if(!sim.buf.absolute)sim.buf.absolute=[]; sim.buf.absolute.push(DMG.dur_absolute); sim.addG(CHARS,BG.absolute); sim.use('absolute',T,ord); }},
       divinus:  { s:90 },
       // ゴッド・オムニポンテス: 全体BG+100。連理魔力30以上かつ戦闘中1回のみ。
       helix:    { s:400, atkBuf:true, partyBG:true,
@@ -495,8 +512,10 @@ class Sim {
     // エンジン共通変数（キャラ非依存）
     this.keigyo=4; this.cum=4; this.renri=0;
     this.mooncode=2; this.mburst=0; this.totalTurns=10; this.planDepth=0;
-    // 概算火力モデル: 累積バフ枠(アサルト/属性値/バーストダメUP)と総ダメージ
-    this.dmg=0; this.aslt=0; this.elem=0; this.bdmg=0;
+    // 概算火力モデル: バフ期間管理辞書と総ダメージ累計
+    // buf = {abilityKey: [remaining_turns, ...]}  スタック毎に残りターン数を管理。
+    // tick() でデクリメント・失効削除。_na() がbufから動的に乗数を計算する。
+    this.dmg=0; this.buf={};
     this.gmax=Object.fromEntries(CHARS.map(c=>[c,CHAR_DEF[c].gmax??BG.other_max]));
     // キャラ固有状態変数（CHAR_REGISTRY[c].state から自動展開）
     for(const [k,v] of Object.entries(CHAR_SIM_STATES)) this[k]=v;
@@ -506,6 +525,11 @@ class Sim {
     for(const k of Object.keys(this.cd)) if(this.cd[k]>0) this.cd[k]--;
     if(this.robot>0) this.robot--;
     if(this.mooncode>0) this.mooncode--;
+    // バフ残ターンをデクリメントし失効スタックを除去
+    for(const k of Object.keys(this.buf)){
+      this.buf[k]=this.buf[k].map(x=>x-1).filter(x=>x>0);
+      if(!this.buf[k].length) delete this.buf[k];
+    }
   }
 
   addG(targets, amt, excl=null) {
@@ -536,14 +560,26 @@ class Sim {
     if(channel==='a'&&T.ability>0&&T.ability%12===0) this.mooncode=2;
   }
 
-  // 概算通常攻撃ダメージ(中央値): 押し順依存の加算枠のみ反映し残りは misc に畳む。
-  _na(){ return DMG.base_atk*(1+this.aslt)*(1+this.elem)*DMG.misc/DMG.enemy_def; }
+  // 概算通常攻撃ダメージ(中央値): バフ期間管理辞書(buf)から動的に枠を計算する。
+  // 各バフキーのスタック数が実効枠値を決定し、失効スタックは tick() で除去済み。
+  _na(){
+    const D=DMG, b=this.buf;
+    const nAbs  = b.absolute?.length||0;
+    const aslt  = (b.banoshik?.length||0)*D.assault_banoshik + nAbs*D.assault_absolute;
+    const elem  = (b.puvoir?.length||0)*D.elem_puvoir;
+    // アブソ有効時のみ旺盛/会心/急所の概算枠を加算
+    const vigor = nAbs>0 ? D.vigor_absolute : 0;
+    const crit  = nAbs>0 ? D.crit_absolute  : 0;
+    const acute = nAbs>0 ? D.acute_absolute : 0;
+    return D.base_atk*(1+aslt)*(1+elem)*(1+vigor)*(1+crit+acute)*D.misc/D.enemy_def;
+  }
 
   burst(owner, bset, T, atk=false) {
     this.addG(CHARS.filter(c=>c!==owner), BG.cascade, atk?bset:null);
     this.grif(owner); T.burst++;
-    // 概算バーストダメージ: 通常攻撃ダメージ ×(a + バーストダメージUP累積)
-    this.dmg += this._na()*(DMG.burst_coef_a + this.bdmg);
+    // 概算バーストダメージ: buf.absolute のスタック数からバーストダメUPを動的計算
+    const bdmg=(this.buf.absolute?.length||0)*DMG.burst_dmg_absolute;
+    this.dmg += this._na()*(DMG.burst_coef_a + bdmg);
     if(atk) bset.add(owner);
     // 連理魔力(コヴァレント): バースト2回毎に+1＆ジャッジ即使用可。攻撃フェーズのバーストも対象
     this.procR(T,'b');
@@ -563,8 +599,11 @@ class Sim {
     this.cd[name]=cd; if(cost) this.keigyo-=cost; T.ability++;
     // ロボ作動カウント（マシーンタクトゥのBG増加に使用）
     if((color==='y'||color==='r')&&this.robot>0) T.ra++;
-    // バノーシク: 補助ロボ作動中の黄アビ毎にアサルト累積（概算: ロボ=banoshik前提）
-    if(color==='y'&&this.robot>0) this.aslt += DMG.assault_banoshik;
+    // バノーシク: 補助ロボ作動中の黄アビ毎にアサルトバフ付与(上書き: 同一バフ枠のため最大値保持)
+    if(color==='y'&&this.robot>0){
+      const cur=this.buf.banoshik?.[0]??0;
+      this.buf.banoshik=[Math.max(cur, DMG.dur_banoshik)];
+    }
     if(color==='y'){
       T.yellow++;
       if(T.yellow%4===0&&T.fr<3){ this.cd.funki=0; T.fr++; }
@@ -722,8 +761,7 @@ class Sim {
     return {t,ord,atk,full:atk.length===5,burst:T.burst,ability:T.ability,ra:T.ra,ju:T.ju,
       mobius_this:T.mobius,rt,renri:this.renri,keigyo:this.keigyo,cum:this.cum,
       mooncode:this.mooncode,ycount:this.ycount,helix,robot:this.robot,
-      dmg:this.dmg,aslt:this.aslt,elem:this.elem,bdmg:this.bdmg,
-      gauge:{...this.g},state:this.snap()};
+      dmg:this.dmg,gauge:{...this.g},state:this.snap()};
   }
 
   _beginTurn(t){
@@ -741,9 +779,10 @@ class Sim {
 
   snap(){
     const cs=Object.fromEntries(Object.keys(CHAR_SIM_STATES).map(k=>[k,this[k]]));
+    const buf=Object.fromEntries(Object.entries(this.buf).map(([k,v])=>[k,[...v]]));
     return{g:{...this.g},cd:{...this.cd},keigyo:this.keigyo,cum:this.cum,
       renri:this.renri,mooncode:this.mooncode,mburst:this.mburst,
-      dmg:this.dmg,aslt:this.aslt,elem:this.elem,bdmg:this.bdmg,...cs};
+      dmg:this.dmg,buf,...cs};
   }
 
   // 先読み/ロールアウト用の複製。planDepth+1 で深度管理し再帰を防ぐ。
@@ -753,7 +792,7 @@ class Sim {
     s.g={...snap.g}; s.cd={...snap.cd};
     s.keigyo=snap.keigyo; s.cum=snap.cum; s.renri=snap.renri;
     s.mooncode=snap.mooncode; s.mburst=snap.mburst;
-    s.dmg=snap.dmg; s.aslt=snap.aslt; s.elem=snap.elem; s.bdmg=snap.bdmg;
+    s.dmg=snap.dmg; s.buf=Object.fromEntries(Object.entries(snap.buf).map(([k,v])=>[k,[...v]]));
     for(const k of Object.keys(CHAR_SIM_STATES)) s[k]=snap[k];
     s.totalTurns=this.totalTurns; s.planDepth=this.planDepth+1;
     if(this.T){ s.T={...this.T}; s.ord=this.ord.slice(); s.bset=new Set(this.bset); s._t=this._t; }
