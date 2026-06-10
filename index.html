@@ -988,6 +988,11 @@ function cardHTML(r,first=false){
 }
 
 function runSim(){
+  // 編成をUIから読み取り検証(編成・装備とも実行時に反映する方式で統一)
+  const heroEl=document.querySelector('input[name="hero-sel"]:checked');
+  if(!heroEl){ alert('英霊を選択してください'); return; }
+  const kamihimeKeys=[0,1,2,3].map(i=>document.getElementById(`kslot-${i}`)?.value||'');
+  if(kamihimeKeys.some(k=>!k)){ alert('神姫を4人選択してください'); return; }
   // ローディング表示(setTimeout 0 でブラウザに1フレーム描画させてからシミュ実行)
   const ld=document.getElementById('sim-loading');
   const sr=document.getElementById('sim-results');
@@ -996,6 +1001,8 @@ function runSim(){
   sr.innerHTML='';
   ld.classList.add('active');
   setTimeout(()=>{
+    buildFormation(heroEl.value, kamihimeKeys);
+    renderParty();
     applyGear();
     const n=Math.max(1,Math.min(30,parseInt(document.getElementById('turns-n').value)||10));
     const sim=new Sim();
@@ -1075,9 +1082,6 @@ function renderFormationPanel(){
           <div class="fp-label">神姫（順序で選択）</div>
           <div class="kslots">${slotsHtml}</div>
         </div>
-        <div class="fp-section" style="justify-content:flex-end;">
-          <button class="btn btn-primary btn-sm" onclick="applyFormation()">編成確定 ▶</button>
-        </div>
       </div>
     </div>`;
 
@@ -1102,16 +1106,6 @@ function syncSlots(){
         sel.innerHTML += `<option value="${k}"${k===cur?' selected':''}>${v.jp}</option>`;
     }
   }
-}
-
-function applyFormation(){
-  const heroEl = document.querySelector('input[name="hero-sel"]:checked');
-  if(!heroEl){ alert('英霊を選択してください'); return; }
-  const kamihimeKeys = [0,1,2,3].map(i=>document.getElementById(`kslot-${i}`)?.value||'');
-  if(kamihimeKeys.some(k=>!k)){ alert('神姫を4人選択してください'); return; }
-  buildFormation(heroEl.value, kamihimeKeys);
-  renderParty();
-  runSim();
 }
 
 // ===== 装備設定UI =====
