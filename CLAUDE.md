@@ -94,13 +94,22 @@ CHAR_REGISTRY[charKey] = {
 | `leg_vigor` | 旺盛 | `vigor_legend=0.3552`(契晶cum≥70) | 3 | refresh |
 | `leg_spec` | 特殊攻撃 | `spec_legend=0.20`(契晶cum≥80) | 3 | refresh |
 
-- 通常攻撃概算 `_na()` = `base_atk × (1+aslt)(1+elem)(1+vigor)(1+crit)(1+acute)(1+spec) × misc / enemy_def`
-  - `aslt` = banoshik本数×0.10 + absolute本数×0.30 + (leg_aslt?0.20:0)
-  - `elem` = puvoir本数×0.15
-  - `vigor` = min((absolute?0.30:0)+(leg_vigor?0.3552:0), 1.0)（フルHP前提で最大・+100%頭打ち）
-  - `crit` = min(crit_rate_arrive0.20 + absolute本数×0.25, 1.0)×0.5（倍率固定1.5倍・ARRIVE永続+アブソ発動率）
-  - `acute` = puvoir本数×0.010 + absolute本数×0.030 + legend本数×0.005（発動率×(倍率-1)の期待値・複数発動は倍率加算で近似）
-  - `spec` = leg_spec?0.20:0
+- 通常攻撃概算 `_na()` = `base_atk × (1+aslt)(1+elem)(1+vigor)(1+crit)(1+acute)(1+spec)(1+dmgup)(1+other) × misc / enemy_def`
+  - `aslt` = banoshik本数×0.10 + absolute本数×0.30 + (leg_aslt?0.20:0) + `GEAR.assault`
+  - `elem` = puvoir本数×0.15 + `GEAR.elem`
+  - `vigor` = min((absolute?0.30:0)+(leg_vigor?0.3552:0)+`GEAR.vigor`, 1.0)（フルHP前提で最大・+100%頭打ち）
+  - `crit` = min(crit_rate_arrive0.20 + absolute本数×0.25 + `GEAR.crit_rate`, 1.0)×0.5（倍率固定1.5倍・ARRIVE永続+アブソ発動率）
+  - `acute` = puvoir本数×0.010 + absolute本数×0.030 + legend本数×0.005 + `GEAR.acute`（発動率×(倍率-1)の期待値・複数発動は倍率加算で近似）
+  - `spec` = (leg_spec?0.20:0) + `GEAR.spec`
+  - `dmgup`/`other` = 装備のみ（与ダメUP枠・その他/テクニカ枠。押し順非依存）
+
+### 装備設定（`GEAR` 定数・幻獣/ウェポン）
+
+押し順非依存の常時ボックス補正。シミュ開始時にUIから設定し、`_na()` の各ボックスへ flat 加算する。
+`GEAR_BOXES` が `[key, 表示名]` のボックス定義、`GEAR` が各ボックスの加算値(fraction)。
+- **幻獣3枠**: プリセット種別(`GEAR_BOXES` のいずれか)を選択し、効果量を%で入力 → 該当ボックスへ加算。
+- **ウェポンスキル**: 各ボックスの合計%を1欄ずつ入力(スキル個数は問わず合算値のみ)。
+- UI: `renderGearPanel()`/`applyGear()`（%入力→/100でfraction格納）。全0で倍率1.0=ベースライン不変。
 - バースト = `_na() × (burst_coef_a + absolute本数×burst_dmg_absolute)`、フルバースト5人時は攻撃フェイズ合計に `×(1+burst_streak)`
 - ジャッジ循環: ph0=10ヒット(`min(_na()×3, judg_cap)`＋アンプリファ作動中は`amplifa_flat`) / ph1=バースト / ph2=通常攻撃
 - `dmg`(総ダメージ累計)は burst()/judg exec/通常攻撃で加算。反逆は無視。急所は本来有利属性のみだが期待値で一律計上。

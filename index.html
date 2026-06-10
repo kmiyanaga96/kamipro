@@ -156,7 +156,18 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
   .summary-stat{flex:1 1 44%;}
   /* 神姫スロットは1列(狭幅で潰れ防止) */
   .kslot-wrap{flex:1 1 100%;}
+  .gear-grid{grid-template-columns:1fr!important;}
 }
+.gear-card{background:var(--card);border:1px solid var(--border);border-radius:10px;
+  padding:12px 14px;margin-bottom:14px;}
+.gear-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:8px;}
+.gear-sub{font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px;}
+.gear-row{display:flex;align-items:center;gap:8px;font-size:11px;margin-bottom:5px;}
+.gear-row .slot-num,.gear-row .wpn-lbl{min-width:88px;color:var(--muted);}
+.gear-row select{flex:1;background:var(--bg);border:1px solid var(--border);
+  border-radius:6px;padding:3px 6px;font-size:11px;}
+.gear-row input[type=number]{background:var(--bg);border:1px solid var(--border);
+  border-radius:6px;padding:3px 6px;font-size:11px;}
 </style>
 </head>
 <body>
@@ -202,6 +213,7 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
 
   <div class="main">
     <div id="formation-panel"></div>
+    <div id="gear-panel"></div>
     <!-- シミュレーション対象パーティ（動的描画） -->
     <div id="party-bar" class="party-bar"></div>
     <div class="controls">
@@ -273,6 +285,22 @@ const DMG = {
   judg_cap:   200000,        // ジャッジ1ヒットの減衰上限(20万)
   amplifa_flat: 100000,      // アンプリファ: アビダメプラス +10万(ジャッジ発動時に加算)
 };
+
+// ===== 装備設定(幻獣・ウェポン) =====
+// 押し順非依存の常時ボックス補正。幻獣3枠(プリセット選択+効果量)とウェポンスキル合計を集約し、
+// 各ボックスへの加算値(fraction)として _na() が参照する。シミュ開始時にUIから applyGear() で設定。
+// 全0なら倍率1.0でベースライン不変。値は % 入力 → fraction で格納(例: 50 → 0.50)。
+const GEAR_BOXES = [
+  ['assault',  'アサルト'],      // (1+アサルト...) 枠: キャラUP幻獣・アサルトスキル
+  ['elem',     '属性値'],        // 属性値枠: 属性値UP幻獣・属性スキル
+  ['vigor',    '旺盛'],          // 旺盛枠(+100%上限はpush分と合算): 旺盛UP幻獣・ヴィゴラス
+  ['spec',     '特殊攻撃'],      // 特殊攻撃枠: 特殊攻撃UP幻獣・特殊スキル
+  ['dmgup',    '与ダメージ'],    // 与ダメージUP枠(白虎等)
+  ['acute',    '急所'],          // 急所枠: 急所スキル(期待寄与を直接入力)
+  ['crit_rate','会心発動率'],    // 会心発動率枠(min1.0でクランプ)
+  ['other',    'その他/テクニカ'],// その他バフ補正+テクニカ枠
+];
+const GEAR = Object.fromEntries(GEAR_BOXES.map(([k])=>[k,0]));
 
 // ===== キャラクタ登録簿 =====
 // 各キャラのデータをここに集約。buildFormation() で選択編成の globals を再構築する。
@@ -578,23 +606,25 @@ class Sim {
   // 概算通常攻撃ダメージ(中央値): バフ期間管理辞書(buf)から動的に枠を計算する。
   // 各バフキーのスタック数が実効枠値を決定し、失効スタックは tick() で除去済み。
   _na(){
-    const D=DMG, b=this.buf;
+    const D=DMG, b=this.buf, G=GEAR;
     const nAbs = b.absolute?.length||0, nPuv = b.puvoir?.length||0;
     const nBan = b.banoshik?.length||0, nLeg = b.legend?.length||0;
-    // アサルト枠: banoshik/absolute(本数比例) + legend閾値(契晶10+・単発)
-    const aslt = nBan*D.assault_banoshik + nAbs*D.assault_absolute + (b.leg_aslt?D.assault_legend:0);
+    // アサルト枠: banoshik/absolute(本数比例) + legend閾値(契晶10+・単発) + 装備(幻獣/ウェポン)
+    const aslt = nBan*D.assault_banoshik + nAbs*D.assault_absolute + (b.leg_aslt?D.assault_legend:0) + G.assault;
     // 属性値枠
-    const elem = nPuv*D.elem_puvoir;
-    // 旺盛枠: アブソ + レジェンド(契晶70+)を加算し+100%で頭打ち(フルHP前提で最大)
-    const vigor = Math.min((nAbs>0?D.vigor_absolute:0)+(b.leg_vigor?D.vigor_legend:0), 1.0);
-    // 会心枠: 倍率固定+0.5、発動率を合算しmin1.0(ARRIVE永続+アブソ本数比例)
-    const critRate = Math.min(D.crit_rate_arrive + nAbs*D.crit_rate_absolute, 1.0);
+    const elem = nPuv*D.elem_puvoir + G.elem;
+    // 旺盛枠: アブソ + レジェンド(契晶70+) + 装備を加算し+100%で頭打ち(フルHP前提で最大)
+    const vigor = Math.min((nAbs>0?D.vigor_absolute:0)+(b.leg_vigor?D.vigor_legend:0)+G.vigor, 1.0);
+    // 会心枠: 倍率固定+0.5、発動率を合算しmin1.0(ARRIVE永続+アブソ本数比例+装備)
+    const critRate = Math.min(D.crit_rate_arrive + nAbs*D.crit_rate_absolute + G.crit_rate, 1.0);
     const crit = critRate*D.crit_mult;
     // 急所枠: 各ソースのスタック数 × 期待寄与を加算(複数発動時は倍率加算=線形累積で近似)
-    const acute = nPuv*D.acute_puvoir + nAbs*D.acute_absolute + nLeg*D.acute_legend;
-    // 特殊攻撃枠: レジェンド(契晶80+)
-    const spec = b.leg_spec ? D.spec_legend : 0;
-    return D.base_atk*(1+aslt)*(1+elem)*(1+vigor)*(1+crit)*(1+acute)*(1+spec)*D.misc/D.enemy_def;
+    const acute = nPuv*D.acute_puvoir + nAbs*D.acute_absolute + nLeg*D.acute_legend + G.acute;
+    // 特殊攻撃枠: レジェンド(契晶80+) + 装備
+    const spec = (b.leg_spec ? D.spec_legend : 0) + G.spec;
+    // 与ダメージUP枠・その他/テクニカ枠は装備のみ(押し順非依存)
+    return D.base_atk*(1+aslt)*(1+elem)*(1+vigor)*(1+crit)*(1+acute)*(1+spec)
+      *(1+G.dmgup)*(1+G.other)*D.misc/D.enemy_def;
   }
 
   burst(owner, bset, T, atk=false) {
@@ -1049,6 +1079,47 @@ function applyFormation(){
   runSim();
 }
 
+// ===== 装備設定UI =====
+function renderGearPanel(){
+  const sumOpts = '<option value="none">-- なし --</option>'+
+    GEAR_BOXES.map(([k,jp])=>`<option value="${k}">${jp}UP</option>`).join('');
+  const summonRows = [0,1,2].map(i=>`
+    <div class="gear-row">
+      <span class="slot-num">幻獣${i+1}</span>
+      <select id="summon-${i}" onchange="applyGear()">${sumOpts}</select>
+      <input type="number" id="summon-amt-${i}" value="0" min="0" step="1" onchange="applyGear()" style="width:60px"> %
+    </div>`).join('');
+  const wpnRows = GEAR_BOXES.map(([k,jp])=>`
+    <div class="gear-row">
+      <span class="wpn-lbl">${jp}</span>
+      <input type="number" id="wpn-${k}" value="0" min="0" step="1" onchange="applyGear()" style="width:60px"> %
+    </div>`).join('');
+  document.getElementById('gear-panel').innerHTML=`
+    <div class="gear-card">
+      <div class="cfg-title">⚙️ 幻獣・ウェポン設定（各ボックスへの加算%・全0でベース倍率）</div>
+      <div class="gear-grid">
+        <div><div class="gear-sub">幻獣（3枠：種別＋効果量）</div>${summonRows}</div>
+        <div><div class="gear-sub">ウェポンスキル合計</div>${wpnRows}</div>
+      </div>
+    </div>`;
+}
+
+function applyGear(){
+  for(const [box] of GEAR_BOXES) GEAR[box]=0;
+  // ウェポンスキル合計(ボックス毎の1欄)
+  for(const [box] of GEAR_BOXES){
+    const v=parseFloat(document.getElementById('wpn-'+box)?.value)||0;
+    GEAR[box]+=v/100;
+  }
+  // 幻獣3枠(プリセット種別 → 効果量を該当ボックスに加算)
+  for(let i=0;i<3;i++){
+    const box=document.getElementById('summon-'+i)?.value;
+    const amt=parseFloat(document.getElementById('summon-amt-'+i)?.value)||0;
+    if(box && box!=='none' && GEAR[box]!==undefined) GEAR[box]+=amt/100;
+  }
+  if(SIM_ROWS.length) runSim();
+}
+
 // ===== INIT =====
 function renderParty(){
   const chips=CHARS.map(c=>{
@@ -1061,6 +1132,7 @@ function renderParty(){
 
 buildFormation('edison',['yamato','hecate','tetra','elaine']);
 renderFormationPanel();
+renderGearPanel();
 renderParty();
 runSim();
 </script>
