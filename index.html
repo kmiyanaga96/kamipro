@@ -594,7 +594,9 @@ class Sim {
       totalBurst+=r.burst;
       totalJudg+=r.ju;
     }
-    return [fbTurns, totalBurst, totalJudg, this.renri, this.cum, this.keigyo];
+    // renri は HELIX解禁(30)までをマイルストーン目標とし、超過分は評価しない。
+    // 解禁後は totalJudg が JD複数発動の恩恵を既に捕捉している。
+    return [fbTurns, totalBurst, totalJudg, Math.min(this.renri, 30), this.cum, this.keigyo];
   }
 
   // 先読みガードのキャッシュを一括計算し T['_la_'+key] に格納。
