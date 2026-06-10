@@ -361,6 +361,8 @@ const CHAR_REGISTRY = {
     def: {
       gmax: BG.other_max,
       keigyoGain: 1,
+      // HELIX(テトラ4)は連理魔力30で解禁。目的関数は renri をここまで評価し超過分は追わない。
+      milestones: { renri: 30 },
       onBurst: (sim, atk, owner) => {
         const skip = atk ? [] : ['judg'];
         for(const k of Object.keys(sim.cd)){
@@ -408,6 +410,10 @@ let CHARS, LEADER, JP, GCLS, ABIL, CHAR_DEF, LABEL_SUFFIX, LABEL, CD_SHOW;
 // CHAR_SIM_STATES: 編成キャラの state フィールドを合流させたマスター初期値。
 // Sim の constructor/snap/clone がこれを参照して自動管理する。
 let CHAR_SIM_STATES = {};
+// MILESTONES: 編成キャラが宣言した目的関数マイルストーン。
+// def.milestones の同一キーは最大値で集約（例: renri はHELIX解禁閾値30）。
+// 目的関数はこの値で頭打ち評価し、解禁後の超過分を無駄に追わない。
+let MILESTONES = {};
 const ownerOf = k => ABIL[k][0];
 
 function buildFormation(heroKey, kamihimeKeys) {
@@ -434,6 +440,11 @@ function buildFormation(heroKey, kamihimeKeys) {
   CHAR_SIM_STATES = Object.fromEntries(
     CHARS.flatMap(c => Object.entries(CHAR_REGISTRY[c].state ?? {}))
   );
+  // 目的関数マイルストーンを集約（同一キーは最大値を採用）
+  MILESTONES = {};
+  for(const c of CHARS)
+    for(const [k,v] of Object.entries(CHAR_REGISTRY[c].def.milestones ?? {}))
+      MILESTONES[k] = Math.max(MILESTONES[k] ?? -Infinity, v);
 }
 
 // 候補スコア自動算出: s を省略したアビに対して構造的特徴から標準スコアを導出する。
@@ -610,9 +621,10 @@ class Sim {
       totalBurst+=r.burst;
       totalJudg+=r.ju;
     }
-    // renri は HELIX解禁(30)までをマイルストーン目標とし、超過分は評価しない。
+    // renri は MILESTONES.renri(HELIX解禁閾値)までをマイルストーン目標とし、超過分は評価しない。
     // 解禁後は totalJudg が JD複数発動の恩恵を既に捕捉している。
-    return [fbTurns, totalBurst, totalJudg, Math.min(this.renri, 30), this.cum, this.keigyo];
+    const renriObj = Math.min(this.renri, MILESTONES.renri ?? Infinity);
+    return [fbTurns, totalBurst, totalJudg, renriObj, this.cum, this.keigyo];
   }
 
   // 先読みガードのキャッシュを一括計算し T['_la_'+key] に格納。
