@@ -228,7 +228,7 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
     <div id="sim-loading" class="sim-loading">
       <div class="spin"></div>
       <div class="spin-msg">最適押し順を計算中…</div>
-      <div class="spin-sub">ビームサーチ実行中（数秒かかります）</div>
+      <div id="spin-progress" class="spin-sub">準備中</div>
     </div>
     <div id="sim-results"></div>
   </div>
@@ -987,42 +987,136 @@ function cardHTML(r,first=false){
   </div>`;
 }
 
+// ===== Web Worker (Blob) =====
+// シムエンジンコードを文字列として取り出しBlobWorkerを生成する。
+// Workerはターン毎に {type:'progress', t, n} と {type:'turn', row} を投げ、
+// 最後に {type:'done', baseDmg} を投げる。
+let _simWorker=null;
+
+function _buildWorkerCode(){
+  // <script>〜// ===== UI HELPERS の間のエンジンコードを抽出
+  const src=document.currentScript?.ownerDocument
+    ? document.currentScript.ownerDocument.documentElement.innerHTML
+    : document.documentElement.innerHTML;
+  // index.html全体から // ===== ゲーム定数 〜 // ===== UI HELPERS の直前までを取り出す
+  const start=src.indexOf('// ===== ゲーム定数');
+  const end=src.indexOf('// ===== UI HELPERS');
+  const engineCode=src.slice(start,end);
+  return `
+${engineCode}
+// ===== Worker エントリポイント =====
+self.onmessage=function(e){
+  const {heroKey,kamihimeKeys,gearState,n}=e.data;
+  // GEAR を復元
+  for(const [k,v] of Object.entries(gearState)) GEAR[k]=v;
+  recalcGearK();
+  buildFormation(heroKey,kamihimeKeys);
+  // 最適シム(ビームサーチ)
+  const sim=new Sim(); sim.totalTurns=n;
+  const rows=[];
+  for(let t=1;t<=n;t++){
+    self.postMessage({type:'progress',t,n});
+    const r=sim.greedyTakeTurn(t);
+    // snap は循環参照なしのプレーンオブジェクトなので転送可
+    rows.push({t,ord:r.ord,atk:r.atk,full:r.full,burst:r.burst,ability:r.ability,
+      ra:r.ra,ju:r.ju,rt:r.rt,renri:r.renri,keigyo:r.keigyo,cum:r.cum,
+      mooncode:r.mooncode,ycount:r.ycount,helix:r.helix,robot:r.robot,
+      dmg:r.dmg,gauge:r.gauge,state:r.state});
+    self.postMessage({type:'turn',row:rows[rows.length-1]});
+  }
+  // 基準シム(静的greedyのみ・planDepth=2で強制): 相対比率算出用
+  const base=new Sim(); base.totalTurns=n; base.planDepth=2;
+  for(let t=1;t<=n;t++) base.greedyTakeTurn(t);
+  self.postMessage({type:'done',baseDmg:base.dmg});
+};
+`;
+}
+
 function runSim(){
-  // 編成をUIから読み取り検証(編成・装備とも実行時に反映する方式で統一)
   const heroEl=document.querySelector('input[name="hero-sel"]:checked');
   if(!heroEl){ alert('英霊を選択してください'); return; }
   const kamihimeKeys=[0,1,2,3].map(i=>document.getElementById(`kslot-${i}`)?.value||'');
   if(kamihimeKeys.some(k=>!k)){ alert('神姫を4人選択してください'); return; }
-  // ローディング表示(setTimeout 0 でブラウザに1フレーム描画させてからシミュ実行)
+
+  const n=Math.max(1,Math.min(30,parseInt(document.getElementById('turns-n').value)||10));
+  const heroKey=heroEl.value;
+
+  // 編成・装備をメインスレッド側でも反映(renderParty用)
+  applyGear();
+  buildFormation(heroKey,kamihimeKeys);
+  renderParty();
+
+  // ローディング表示
   const ld=document.getElementById('sim-loading');
-  const sr=document.getElementById('sim-results');
-  const sb=document.getElementById('summary-bar');
-  sb.style.display='none';
-  sr.innerHTML='';
+  const prog=document.getElementById('spin-progress');
+  document.getElementById('summary-bar').style.display='none';
+  document.getElementById('sim-results').innerHTML='';
   ld.classList.add('active');
-  setTimeout(()=>{
-    buildFormation(heroEl.value, kamihimeKeys);
-    renderParty();
-    applyGear();
-    const n=Math.max(1,Math.min(30,parseInt(document.getElementById('turns-n').value)||10));
-    const sim=new Sim();
-    sim.totalTurns=n;
-    SIM_ROWS=[];
-    for(let t=1;t<=n;t++) SIM_ROWS.push(sim.greedyTakeTurn(t));
-    ld.classList.remove('active');
-    renderSim();
-  }, 0);
+  prog.textContent='準備中';
+
+  SIM_ROWS=[];
+
+  // 既存Workerを破棄して新規生成
+  if(_simWorker){ _simWorker.terminate(); _simWorker=null; }
+  let workerCode;
+  try{ workerCode=_buildWorkerCode(); } catch(err){ _fallbackRunSim(heroKey,kamihimeKeys,n); return; }
+  let blob,url;
+  try{
+    blob=new Blob([workerCode],{type:'text/javascript'});
+    url=URL.createObjectURL(blob);
+    _simWorker=new Worker(url);
+  } catch(err){ _fallbackRunSim(heroKey,kamihimeKeys,n); return; }
+  URL.revokeObjectURL(url); // Workerが参照を持つので即revoke可
+
+  _simWorker.onmessage=function(e){
+    const d=e.data;
+    if(d.type==='progress'){
+      prog.textContent=`T${d.t} / ${d.n} 計算中…`;
+    } else if(d.type==='turn'){
+      SIM_ROWS.push(d.row);
+      // ターンカードを1枚ずつ追記(最初の1枚は展開状態)
+      const sr=document.getElementById('sim-results');
+      sr.insertAdjacentHTML('beforeend', cardHTML(d.row, SIM_ROWS.length===1));
+    } else if(d.type==='done'){
+      ld.classList.remove('active');
+      _simWorker=null;
+      renderSim(d.baseDmg);
+    }
+  };
+  _simWorker.onerror=function(){ _simWorker=null; _fallbackRunSim(heroKey,kamihimeKeys,n); };
+  _simWorker.postMessage({heroKey,kamihimeKeys,gearState:{...GEAR},n});
 }
 
-function renderSim(){
+// Workerが使えない環境向けフォールバック(メインスレッド同期実行)
+function _fallbackRunSim(heroKey,kamihimeKeys,n){
+  const ld=document.getElementById('sim-loading');
+  ld.classList.add('active');
+  setTimeout(()=>{
+    buildFormation(heroKey,kamihimeKeys); applyGear();
+    const sim=new Sim(); sim.totalTurns=n; SIM_ROWS=[];
+    for(let t=1;t<=n;t++) SIM_ROWS.push(sim.greedyTakeTurn(t));
+    const base=new Sim(); base.totalTurns=n; base.planDepth=2;
+    for(let t=1;t<=n;t++) base.greedyTakeTurn(t);
+    ld.classList.remove('active');
+    renderSim(base.dmg);
+  },0);
+}
+
+function renderSim(baseDmg){
   const rows=SIM_ROWS; if(!rows.length) return;
   const fb=rows.filter(r=>r.full).length;
   const ht=rows.find(r=>r.helix);
   const fin=rows[rows.length-1];
+  const optDmg=Math.round(fin.dmg);
+  // 相対比率: 最適 ÷ 静的greedy基準(baseDmg)。baseDmg未提供時は非表示。
+  const ratioHtml=baseDmg>0
+    ? `<div class="summary-stat"><span class="val" style="color:var(--accent)">${((optDmg/baseDmg-1)*100).toFixed(1)}%</span><span class="lbl">対基準比（静的greedy比）</span></div>`
+    : '';
   document.getElementById('summary-bar').style.display='';
   document.getElementById('summary-bar').innerHTML=`
     <div class="summary-bar">
-      <div class="summary-stat"><span class="val" style="color:var(--red)">${Math.round(fin.dmg).toLocaleString()}</span><span class="lbl">概算総ダメージ</span></div>
+      <div class="summary-stat"><span class="val" style="color:var(--red)">${optDmg.toLocaleString()}</span><span class="lbl">概算総ダメージ</span></div>
+      ${ratioHtml}
       <div class="summary-stat"><span class="val" style="color:var(--green)">${fb}/${rows.length}</span><span class="lbl">フルバースト</span></div>
       <div class="summary-stat"><span class="val">${ht?`T${ht.t}`:'未達'}</span><span class="lbl">HELIX解禁</span></div>
       <div class="summary-stat"><span class="val">${fin.renri}/30</span><span class="lbl">最終連理魔力</span></div>
@@ -1038,7 +1132,9 @@ function renderSim(){
         return `<tr><td><b>T${r.t}</b></td><td>${fb2}</td><td>${Math.round(r.dmg).toLocaleString()}</td><td>${r.burst}</td><td>${r.ability}</td><td>${r.ra}</td><td>${r.ju}</td><td>${r.renri}/30</td><td>${r.keigyo}/${r.cum}</td><td>${r.mooncode}T</td></tr>`;
       }).join('')}
     </table>`;
-  document.getElementById('sim-results').innerHTML=rows.map((r,i)=>cardHTML(r,i===0)).join('');
+  // ターンカードはWorkerのtype:'turn'で逐次描画済み。フォールバック時のみここで描画。
+  if(!document.getElementById('sim-results').children.length)
+    document.getElementById('sim-results').innerHTML=rows.map((r,i)=>cardHTML(r,i===0)).join('');
 }
 
 function clearSim(){
