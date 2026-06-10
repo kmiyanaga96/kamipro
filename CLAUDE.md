@@ -5,7 +5,7 @@
 
 現行編成: 英霊エジソン + ヤマト / ヘカテー / テトラ / エレイン
 
-## コード地図（index.html / 約935行）
+## コード地図（index.html / 約1009行）
 
 セクション編集時は該当範囲だけを Read すればトークンを節約できる。
 
@@ -14,16 +14,17 @@
 | 7–159 | CSS（`<style>`、Material白基調UI） |
 | 161–217 | HTML構造（ヘッダ/サイドバー/メイン） |
 | 219–230 | ゲーム定数（確定仕様・後述） |
-| 231–402 | **`CHAR_REGISTRY`**（全キャラ定義の唯一の集約先） |
-| 403–436 | 編成グローバル構築（`buildFormation`/`CHAR_SIM_STATES`） |
-| 437–697 | `class Sim` エンジン（tick/procR/burst/use/beam等） |
-| 698–756 | UI helpers（gaugesHTML/ordChipsHTML/ACOL等） |
-| 757–847 | 自動シミュレーション描画（runSim/renderSim/cardHTML） |
-| 848–918 | 編成選択UI |
-| 919–末尾 | INIT |
+| 231–250 | **`DMG`**（概算火力モデル定数・後述） |
+| 251–430 | **`CHAR_REGISTRY`**（全キャラ定義の唯一の集約先） |
+| 431–489 | 編成グローバル構築（`buildFormation`/`CHAR_SIM_STATES`/`MILESTONES`/`computeBaseScore`） |
+| 490–722 | `class Sim` エンジン（tick/procR/burst/use/`_na`/beam等） |
+| 770–828 | UI helpers（gaugesHTML/ordChipsHTML/ACOL等） |
+| 829–921 | 自動シミュレーション描画（runSim/renderSim/cardHTML） |
+| 922–992 | 編成選択UI |
+| 993–末尾 | INIT |
 
-火力・バフ追跡は廃止済み（バースト回数で概算する方針）。最適化対象は
-「10ターン連続5人フルバースト」と各種カウンタ（連理/ジャッジ/契晶/ムーンコード）。
+最適化の最上位目標は**概算総ダメージ**（`DMG` モデル）。FB回数/総バースト/総ジャッジ/連理魔力
+は補助指標として目的関数の下位次元に残る。詳細は「概算火力モデル」節を参照。
 
 ## アーキテクチャ原則
 
@@ -68,7 +69,35 @@ CHAR_REGISTRY[charKey] = {
 
 キャラ固有のバトル持続変数（一度限りフラグ・独自タイマー等）を宣言する。
 `buildFormation()` が全キャラの state を集約し、Sim が自動管理する。
-エンジン共通変数（renri/mooncode/mburst/keigyo/cum）はここに含めない。
+エンジン共通変数（renri/mooncode/mburst/keigyo/cum/dmg/aslt/elem/bdmg）はここに含めない。
+
+## 概算火力モデル（`DMG` 定数・231行付近）
+
+`damageCalculator.txt` の実機ダメージ式は乗算ボックスが多数あり、全変数の厳密追跡は非現実的。
+そこで**押し順で動く加算枠のみ追跡し、押し順非依存の枠は概算定数 `DMG.misc` に一括で畳む**。
+
+### 追跡する加算スタック（エンジン共通変数）
+
+| 変数 | 枠 | 加算元（cands の exec で `DMG.*` を加算） |
+|---|---|---|
+| `aslt` | アサルト | バノーシク(ロボ作動中の黄アビ毎+0.10) / アブソ(+0.30) |
+| `elem` | 属性値 | プヴワール(+0.15) |
+| `bdmg` | バーストダメージUP | アブソ(+0.30) |
+| `dmg`  | 総ダメージ累計 | burst()/judg exec/通常攻撃で加算 |
+
+- 通常攻撃概算 `_na()` = `base_atk × (1+aslt) × (1+elem) × misc / enemy_def`
+- バースト = `_na() × (burst_coef_a + bdmg)`、フルバースト5人時は攻撃フェイズ合計に `×(1+burst_streak)`
+- ジャッジ循環: ph0=10ヒット(`min(_na()×3, judg_cap)`＋アンプリファ作動中は`amplifa_flat`) / ph1=バースト / ph2=通常攻撃
+
+### 値の所在と原則
+
+値は**全て `DMG` 定数に集約**し、各キャラの加算ロジックは `CHAR_REGISTRY[*].cands[*].exec` 内で
+`DMG.*` を参照する（エンジン本体・キャラ定義のどちらにも数値リテラルを散らさない）。
+非有利属性も一括シミュするため属性相性倍率は考慮しない（ベース1.0）。
+火力は**プランのランキング（相対比較）**用途であり、絶対値の厳密性は問わない。
+
+目的関数 `_objective()` は `[総ダメージ(整数), FB数, 総バースト, 総ジャッジ, renri, cum, keigyo]` を
+辞書式で返す（**総ダメージが最上位**、以降は補助指標／タイブレーク）。
 
 ## 変更禁止スペック（確定ゲーム定数）
 
@@ -96,7 +125,8 @@ CHAR_REGISTRY[charKey] = {
 
 ## 検証方法
 
-リファクタ後は必ずベースラインと一致するか確認する（10ターン全て5人フルバースト＝10/10）。
+リファクタ後は FB10/10 維持＆概算総ダメージが基準と一致するか確認する。
+目的関数の最上位が総ダメージのため、押し順は火力最大化方向に決まる（renriは線形ではない）。
 
 ```bash
 node -e '
@@ -108,24 +138,24 @@ globalThis.buildFormation("edison",["yamato","hecate","tetra","elaine"]);
 const sim=new globalThis.Sim();
 let fb=0;
 for(let t=1;t<=10;t++){const r=sim.takeTurn(t); if(r.full)fb++;
-  console.log("T"+t,"FB:"+r.atk.length,"J:"+r.ju,"renri:"+r.renri);}
-console.log("FullBurst:",fb+"/10");
+  console.log("T"+t,"FB:"+r.atk.length,"J:"+r.ju,"renri:"+r.renri,"dmg:"+Math.round(r.dmg));}
+console.log("FullBurst:",fb+"/10","TotalDmg:",Math.round(sim.dmg));
 '
 ```
 
-期待値（基準）:
+期待値（基準・DMG定数が現行値の場合）:
 ```
-T1 FB:5 J:3 renri:5    T6  FB:5 J:4 renri:30
-T2 FB:5 J:6 renri:10   T7  FB:5 J:6 renri:35 [HELIX発動]
-T3 FB:5 J:3 renri:15   T8  FB:5 J:3 renri:40
-T4 FB:5 J:4 renri:20   T9  FB:5 J:3 renri:45
-T5 FB:5 J:5 renri:25   T10 FB:5 J:6 renri:50
+T1  FB:5 J:1 renri:4  dmg:131,154     T6  FB:5 J:3 renri:29 dmg:1,952,084
+T2  FB:5 J:4 renri:9  dmg:412,973     T7  FB:5 J:4 renri:34 dmg:2,644,233
+T3  FB:5 J:4 renri:14 dmg:738,637     T8  FB:5 J:4 renri:39 dmg:3,528,003
+T4  FB:5 J:4 renri:19 dmg:1,090,713   T9  FB:5 J:3 renri:43 dmg:4,143,538
+T5  FB:5 J:6 renri:24 dmg:1,572,205   T10 FB:5 J:4 renri:48 dmg:5,296,854
 ```
-（FullBurst:10/10。renriは毎ターン+5で完全線形。HELIX解禁T6・テトラ4(HELIX)発動T7。
-エンジン: BEAM_W=24/BEAM_W_INNER=4、planDepth整数管理、lookaheadガード汎用化。）
+（FullBurst:10/10、TotalDmg:5,296,854。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
+エンジン: BEAM_W=24/BEAM_W_INNER=4、目的関数最上位=概算総ダメージ。）
 
 ## 開発ルール
 
 - 開発ブランチ: `claude/wizardly-dirac-JIdyw`
-- 火力指数・バフ/デバフ追跡は廃止済み。火力はバースト回数で概算する方針。
+- 火力は `DMG` 概算モデルで算出（押し順依存の加算枠のみ追跡・残りは misc に概算）。
 - 単一ファイル構成を維持する（JS/CSSの外部ファイル分割はしない方針）。
