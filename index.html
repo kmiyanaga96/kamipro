@@ -430,8 +430,12 @@ const CHAR_REGISTRY = {
     // cands: 各アビリティの候補登録。{s:優先スコア(数値or関数), guard?:(sim,T,t)=>bool, exec?:(sim,T,ord,bset,t)=>void}
     // exec省略時はデフォルト: sim.use(key,T,ord)
     cands: {
-      droid:    { s:201, atkBuf:true, deploysRobot:true, exec:(sim,T,ord)=>{ sim.robot=3; sim.use('droid',T,ord); }},
-      banoshik: { s:200, atkBuf:true, deploysRobot:true, exec:(sim,T,ord)=>{ sim.robot=3; sim.use('banoshik',T,ord); }},
+      // ロボ展開(robot=3は上書き)。ロボ作動中(robot>0)は再展開を抑止し失効時のみ展開する。
+      // 同一ターン/被覆中の二重展開はrobot上書きで2本目が空費されるため(ビーム先読み限界の補完)。
+      droid:    { s:201, atkBuf:true, deploysRobot:true, guard:(sim)=>sim.robot===0,
+                  exec:(sim,T,ord)=>{ sim.robot=3; sim.use('droid',T,ord); }},
+      banoshik: { s:200, atkBuf:true, deploysRobot:true, guard:(sim)=>sim.robot===0,
+                  exec:(sim,T,ord)=>{ sim.robot=3; sim.use('banoshik',T,ord); }},
       amplifa:  { s:180, atkBuf:true },
       // スコアは(CD中アビ数)²: count=4→16(低),count=8→64(effond直前),count=10→100(高)
       // 多くのアビがCD中のターンで自然に高優先度になり、T1序盤の空打ちを回避する

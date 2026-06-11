@@ -206,6 +206,9 @@ CHAR_REGISTRY[charKey] = {
 - **天矢乱舞**: ゲージ不足キャラが存在するターン(T2以降)のみ使用可。
 - **proc機会損失の最小化**: alone・judg が攻撃バフより先に発動するのは意図的最適化。
   alone→judg→攻撃バフ の順でburst-2 procとabi-12 procの両方を同一ターンで取得できる。
+- **ロボ展開のスタガリング**: バノーシク/ドロイドは `robot=3` の上書き(非加算)。ロボ作動中(robot>0)は
+  両アビとも `guard:(sim)=>sim.robot===0` で再展開を抑止し、失効時のみ展開する。同一ターン/被覆中の
+  二重展開は2本目が空費されるため。ビームの先読み深度では3T先の被覆空白を回避できず、ガードで補完する。
 
 ## 検証方法
 
@@ -229,13 +232,13 @@ console.log("FullBurst:",fb+"/10","TotalDmg:",Math.round(sim.dmg));
 
 期待値（基準・DMG定数が現行値の場合）:
 ```
-T1  FB:5 J:1 renri:4  dmg:151,434     T6  FB:5 J:4 renri:29 dmg:2,114,169
-T2  FB:5 J:4 renri:9  dmg:500,410     T7  FB:5 J:4 renri:34 dmg:2,829,346
-T3  FB:5 J:4 renri:14 dmg:841,503     T8  FB:5 J:4 renri:39 dmg:3,887,934
-T4  FB:5 J:4 renri:19 dmg:1,161,038   T9  FB:5 J:3 renri:44 dmg:4,594,460
-T5  FB:5 J:2 renri:24 dmg:1,480,379   T10 FB:5 J:4 renri:49 dmg:5,356,227
+T1  FB:5 J:2 renri:5  dmg:153,152     T6  FB:5 J:3 renri:30 dmg:2,159,952
+T2  FB:5 J:4 renri:10 dmg:494,427     T7  FB:5 J:4 renri:35 dmg:3,211,477
+T3  FB:5 J:5 renri:15 dmg:869,215     T8  FB:5 J:4 renri:40 dmg:4,262,899
+T4  FB:5 J:3 renri:20 dmg:1,197,235   T9  FB:5 J:2 renri:45 dmg:4,700,055
+T5  FB:5 J:4 renri:25 dmg:1,778,683   T10 FB:5 J:4 renri:50 dmg:5,683,276
 ```
-（FullBurst:10/10、TotalDmg:5,356,227。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
+（FullBurst:10/10、TotalDmg:5,683,276。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
 バフは上限なしで独立累積し持続ターンで失効(buf辞書管理)。
 エンジン: BEAM_W=24/BEAM_W_INNER=4、目的関数最上位=概算総ダメージ。）
 
