@@ -418,7 +418,7 @@ const CHAR_REGISTRY = {
   edison: {
     type: 'hero',
     jp: 'エジソン', gcls: 'ge', elem: null,
-    state: { robot: 0, ycount: 0 },  // robot: マシーンタクトゥ展開残T / ycount: 黄アビ累計
+    state: { droid: 0, banoshik_robot: 0, ycount: 0 },  // droid: 攻撃ロボ残T / banoshik_robot: 補助ロボ残T / ycount: 黄アビ累計
     abilities: {
       banoshik: ['y', 8, 0],
       droid:    ['y', 8, 0],
@@ -430,12 +430,8 @@ const CHAR_REGISTRY = {
     // cands: 各アビリティの候補登録。{s:優先スコア(数値or関数), guard?:(sim,T,t)=>bool, exec?:(sim,T,ord,bset,t)=>void}
     // exec省略時はデフォルト: sim.use(key,T,ord)
     cands: {
-      // ロボ展開(robot=3は上書き)。ロボ作動中(robot>0)は再展開を抑止し失効時のみ展開する。
-      // 同一ターン/被覆中の二重展開はrobot上書きで2本目が空費されるため(ビーム先読み限界の補完)。
-      droid:    { s:201, atkBuf:true, deploysRobot:true, guard:(sim)=>sim.robot===0,
-                  exec:(sim,T,ord)=>{ sim.robot=3; sim.use('droid',T,ord); }},
-      banoshik: { s:200, atkBuf:true, deploysRobot:true, guard:(sim)=>sim.robot===0,
-                  exec:(sim,T,ord)=>{ sim.robot=3; sim.use('banoshik',T,ord); }},
+      droid:    { s:201, atkBuf:true, deploysRobot:true, exec:(sim,T,ord)=>{ sim.droid=3; sim.use('droid',T,ord); }},
+      banoshik: { s:200, atkBuf:true, deploysRobot:true, exec:(sim,T,ord)=>{ sim.banoshik_robot=3; sim.use('banoshik',T,ord); }},
       amplifa:  { s:180, atkBuf:true },
       // スコアは(CD中アビ数)²: count=4→16(低),count=8→64(effond直前),count=10→100(高)
       // 多くのアビがCD中のターンで自然に高優先度になり、T1序盤の空打ちを回避する
@@ -944,7 +940,8 @@ class Sim {
 
   tick() {
     for(const k of Object.keys(this.cd)) if(this.cd[k]>0) this.cd[k]--;
-    if(this.robot>0) this.robot--;
+    if(this.droid>0) this.droid--;
+    if(this.banoshik_robot>0) this.banoshik_robot--;
     if(this.mooncode>0) this.mooncode--;
     // バフ残ターンをデクリメントし失効スタックを除去
     for(const k of Object.keys(this.buf)){
@@ -1053,10 +1050,11 @@ class Sim {
   use(name, T, ord, note='') {
     const [,color,cd,cost]=ABIL[name];
     this.cd[name]=cd; if(cost) this.keigyo-=cost; T.ability++;
-    // ロボ作動カウント（マシーンタクトゥのBG増加に使用）
-    if((color==='y'||color==='r')&&this.robot>0) T.ra++;
+    // ロボ作動カウント: 攻撃ロボ(droid)=赤アビ反応 / 補助ロボ(banoshik_robot)=黄アビ反応
+    if(color==='r'&&this.droid>0) T.ra++;
+    if(color==='y'&&this.banoshik_robot>0) T.ra++;
     // バノーシク: 補助ロボ作動中の黄アビ毎にアサルトバフを独立付与(上限なし累積・各 dur_banoshik 持続)
-    if(color==='y'&&this.robot>0) (this.buf.banoshik??=[]).push(DMG.dur_banoshik);
+    if(color==='y'&&this.banoshik_robot>0) (this.buf.banoshik??=[]).push(DMG.dur_banoshik);
     if(color==='y'){
       T.yellow++;
       if(T.yellow%4===0&&T.fr<3){ this.cd.funki=0; T.fr++; }
@@ -1219,7 +1217,7 @@ class Sim {
     this._endBookkeep(t); // ここでhelix_done=trueに更新
     return {t,ord,atk,full:atk.length===5,burst:T.burst,ability:T.ability,ra:T.ra,ju:T.ju,
       mobius_this:T.mobius,rt,renri:this.renri,keigyo:this.keigyo,cum:this.cum,
-      mooncode:this.mooncode,ycount:this.ycount,helix,robot:this.robot,
+      mooncode:this.mooncode,ycount:this.ycount,helix,droid:this.droid,banoshik_robot:this.banoshik_robot,
       dmg:this.dmg,gauge:{...this.g},state:this.snap()};
   }
 
@@ -1270,7 +1268,7 @@ function cmpVec(a,b){
 // 編成依存のUI機能フラグ。buildFormation後に評価し、不在キャラ固有のUI(ロボ/ムーン/連理/契晶)を隠す。
 function uiFeats(){
   return {
-    robot:  'robot' in CHAR_SIM_STATES,            // エジソン: マシーンタクトゥ
+    robot:  'droid' in CHAR_SIM_STATES,             // エジソン: マシーンタクトゥ
     moon:   !!ABIL.effond,                         // ヘカテー: ムーンコード
     renri:  !!ABIL.judg,                           // テトラ: 連理魔力(/30)・ジャッジ・HELIX
     nikeRenri: 'nike_renri' in CHAR_SIM_STATES,    // ニケ: 専用連理魔力(/20)・[HELIX]ニケ
@@ -1318,7 +1316,10 @@ function ordChipsHTML(ord){
 
 function loopsHTML(r){
   const f=uiFeats(), b=[];
-  if(f.robot) b.push(`<div class="loop-badge ${r.robot>0?'la':'li'}"><span class="ln">ロボ</span><span class="lv">${r.robot}T</span></div>`);
+  if(f.robot){
+    b.push(`<div class="loop-badge ${r.droid>0?'la':'li'}"><span class="ln">攻撃ロボ</span><span class="lv">${r.droid}T</span></div>`);
+    b.push(`<div class="loop-badge ${r.banoshik_robot>0?'la':'li'}"><span class="ln">補助ロボ</span><span class="lv">${r.banoshik_robot}T</span></div>`);
+  }
   if(f.moon)  b.push(`<div class="loop-badge ${r.mooncode>0?'la':'lw'}"><span class="ln">🌙ムーン</span><span class="lv">${r.mooncode}T</span></div>`);
   if(f.renri) b.push(`<div class="loop-badge ${r.renri>=30?'la':(r.renri>=20?'lw':'li')}"><span class="ln">⚡連理</span><span class="lv">${r.renri}/30</span></div>`);
   if(f.nikeRenri){ const nr=r.state.nike_renri;

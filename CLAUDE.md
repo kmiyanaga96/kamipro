@@ -45,7 +45,7 @@ plainオブジェクト）をそのまま転送する。Worker 非対応環境�
 **相対比率評価**: 最適シム（ビーム）と基準シム（`planDepth=2` 強制＝静的greedy）の総ダメージ比を
 `renderSim(baseDmg)` がサマリーに「対基準比」として表示する（押し順最適化の効きを相対値で可視化）。
 
-**編成依存UI（`uiFeats()`）**: ロボ（エジソン`state.robot`）・🌙ムーン（ヘカテー`ABIL.effond`）・
+**編成依存UI（`uiFeats()`）**: ロボ（エジソン`state.droid`）・🌙ムーン（ヘカテー`ABIL.effond`）・
 ⚡連理/HELIX/ジャッジ（テトラ`ABIL.judg`）・⚡ニケ連理/20（`state.nike_renri`）・💎契晶（kc>0アビ＝エレイン）
 の表示は編成から導出したフラグで出し分ける（凡例/ターンカード/サマリーバー/サマリー表）。
 新キャラのループ系UIを追加する場合も `uiFeats()` にフラグを足し、固定表示にしない。
@@ -206,9 +206,10 @@ CHAR_REGISTRY[charKey] = {
 - **天矢乱舞**: ゲージ不足キャラが存在するターン(T2以降)のみ使用可。
 - **proc機会損失の最小化**: alone・judg が攻撃バフより先に発動するのは意図的最適化。
   alone→judg→攻撃バフ の順でburst-2 procとabi-12 procの両方を同一ターンで取得できる。
-- **ロボ展開のスタガリング**: バノーシク/ドロイドは `robot=3` の上書き(非加算)。ロボ作動中(robot>0)は
-  両アビとも `guard:(sim)=>sim.robot===0` で再展開を抑止し、失効時のみ展開する。同一ターン/被覆中の
-  二重展開は2本目が空費されるため。ビームの先読み深度では3T先の被覆空白を回避できず、ガードで補完する。
+- **ロボ独立追跡**: ドロイド(2アビ)＝攻撃ロボ(`sim.droid`)、バノーシク(1アビ)＝補助ロボ(`sim.banoshik_robot`)。
+  両者は独立した3T変数で管理し、互いに干渉しない。
+  BG増加(T.ra)は攻撃ロボ=赤アビ反応・補助ロボ=黄アビ反応（同一アビに両ロボが反応することはない）。
+  バノーシクアサルトバフ(`buf.banoshik`)は補助ロボ作動中の黄アビ限定。
 
 ## 検証方法
 
@@ -232,13 +233,13 @@ console.log("FullBurst:",fb+"/10","TotalDmg:",Math.round(sim.dmg));
 
 期待値（基準・DMG定数が現行値の場合）:
 ```
-T1  FB:5 J:2 renri:5  dmg:153,152     T6  FB:5 J:3 renri:30 dmg:2,159,952
-T2  FB:5 J:4 renri:10 dmg:494,427     T7  FB:5 J:4 renri:35 dmg:3,211,477
-T3  FB:5 J:5 renri:15 dmg:869,215     T8  FB:5 J:4 renri:40 dmg:4,262,899
-T4  FB:5 J:3 renri:20 dmg:1,197,235   T9  FB:5 J:2 renri:45 dmg:4,700,055
-T5  FB:5 J:4 renri:25 dmg:1,778,683   T10 FB:5 J:4 renri:50 dmg:5,683,276
+T1  FB:5 J:1 renri:4  dmg:151,521     T6  FB:5 J:4 renri:29 dmg:2,114,255
+T2  FB:5 J:4 renri:9  dmg:500,496     T7  FB:5 J:4 renri:34 dmg:2,829,432
+T3  FB:5 J:4 renri:14 dmg:841,589     T8  FB:5 J:4 renri:39 dmg:3,888,020
+T4  FB:5 J:4 renri:19 dmg:1,161,124   T9  FB:5 J:3 renri:44 dmg:4,594,546
+T5  FB:5 J:2 renri:24 dmg:1,480,466   T10 FB:5 J:4 renri:49 dmg:5,356,314
 ```
-（FullBurst:10/10、TotalDmg:5,683,276。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
+（FullBurst:10/10、TotalDmg:5,356,314。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
 バフは上限なしで独立累積し持続ターンで失効(buf辞書管理)。
 エンジン: BEAM_W=24/BEAM_W_INNER=4、目的関数最上位=概算総ダメージ。）
 
