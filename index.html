@@ -295,10 +295,13 @@ const DMG = {
   // 効果ターンは確定値。効果量(%)は実測待ちのため仮値(要実測)。
   // バフ系buf키はスタック追跡のみ実装済みで、効果量確定後に _na() へ配線する。
   // ─── ナポレオン ───
-  dur_roy: 2,                // ロワ・クモンド: 全攻撃ダメージプラス(英霊バフ数比例)
+  dur_roy: 2,                // ロワ・クモンド: 全攻撃ダメージプラス(バフ数tier依存・2T)
+  // 通常攻撃への加算値をsim_na比率で定義(tier=0-3: buffCount 0-5/6-10/11-15/16+)
+  // 実ゲーム通攻プラス 6万/7万/10万/20万 ÷ 典型総攻撃1M ≈ 0.06/0.07/0.10/0.20
+  roy_na_frac: [0.06, 0.07, 0.10, 0.20],
   dur_pike: 2,               // オーンフォッセモ・パイク: 旺盛・防壁(バフ15+で急所会心追加)
   dur_consort_def: 6,        // コンソート・アーティオリ: 防御DOWN(累積可)
-  consort_mult: 3.0,         // コンソート: 敵単体大ダメージ倍率(仮値・要実測)
+  consort_cap: 2500000,      // コンソート: 1発あたり減衰上限250万
   betaia_mult: 1.0,          // ベタイア・コンヴェフティ: ターン終了時自属性ダメージ倍率(仮値・要実測)
   betaia_bg_per_aura: 3,     // ベタイア: 闘気1個あたりBG+3(確定)
   factor_bg: 30,             // ファクター・ディシジフ: バフ10+時の全体BG+30(確定)
@@ -560,7 +563,7 @@ const CHAR_REGISTRY = {
     jp: 'ナポレオン', gcls: 'ge', elem: null,
     // aura: 英雄の闘気(エキープ・ベニフィッシで蓄積、ベタイアがターン終了時に消費)
     // betaia2: ファクター・ディシジフによるベタイア2回発動状態の残ターン
-    state: { aura: 0, betaia2: 0 },
+    state: { aura: 0, betaia2: 0, roy_tier: 0 },
     abilities: {
       roy:     ['y', 3, 0],
       pike:    ['y', 3, 0],
@@ -570,15 +573,19 @@ const CHAR_REGISTRY = {
     labelSuffix: { factor:'(全CD-1)' },
     cdShow: { roy:"ロワ・クモンド", pike:"パイク", consort:"アーティオリ", factor:"ディシジフ" },
     cands: {
-      // ロワ・クモンド: 英霊バフ数に応じ全攻撃ダメージプラス(2T)。効果量は実測待ち。
-      roy:     { atkBuf:true, exec:(sim,T,ord)=>{ (sim.buf.roy??=[]).push(DMG.dur_roy); sim.use('roy',T,ord); }},
-      // パイク: 旺盛・防壁(2T)。バフ15以上で急所・会心付与追加。
+      // ロワ・クモンド: バフ数tierに応じ全攻撃ダメージプラス(2T)。tier確定後にbuf追加。
+      roy:     { atkBuf:true, exec:(sim,T,ord)=>{ const bc=buffCount(sim);
+                   sim.roy_tier = bc>=16?3:bc>=11?2:bc>=6?1:0;
+                   (sim.buf.roy??=[]).push(DMG.dur_roy); sim.use('roy',T,ord); }},
+      // パイク: 旺盛・防壁(2T)。自身のバフ2個を含めてバフ15以上で急所・会心付与追加。
       pike:    { atkBuf:true, exec:(sim,T,ord)=>{ (sim.buf.pike??=[]).push(DMG.dur_pike);
+                   (sim.buf.pike_def??=[]).push(DMG.dur_pike);
                    if(buffCount(sim)>=15) (sim.buf.pike_crit??=[]).push(DMG.dur_pike);
                    sim.use('pike',T,ord); }},
-      // アーティオリ: 敵単体大ダメージ+防御DOWN(6T累積可)。バフ20以上で2回発動。
-      consort: { exec:(sim,T,ord)=>{ const hits=buffCount(sim)>=20?2:1;
-                   sim.dmg += hits*sim._na()*DMG.consort_mult;
+      // アーティオリ: (2+0.5×バフ数)倍のダメージ(上限250万)。防御DOWN(6T累積可)。バフ20以上で2回。
+      consort: { exec:(sim,T,ord)=>{ const bc=buffCount(sim); const hits=bc>=20?2:1;
+                   const mult=2+0.5*bc;
+                   for(let i=0;i<hits;i++) sim.dmg+=Math.min(sim._na()*mult,DMG.consort_cap);
                    for(let i=0;i<hits;i++) (sim.buf.consort_def??=[]).push(DMG.dur_consort_def);
                    sim.use('consort',T,ord,hits===2?'(×2)':''); }},
       // ディシジフ: ベタイア2回発動化(2T)。バフ10以上で全体アビCD-1・BG+30追加。
@@ -952,7 +959,10 @@ class Sim {
     // 特殊攻撃枠: レジェンド(契晶80+) + 装備
     const spec = (b.leg_spec ? D.spec_legend : 0) + G.spec;
     // GEAR_K = base_atk×(1+与ダメUP)(1+その他/テクニカ)×misc/敵防御(押し順非依存・事前畳み込み)
-    return GEAR_K*(1+aslt)*(1+elem)*(1+vigor)*(1+crit)*(1+acute)*(1+spec);
+    const base = GEAR_K*(1+aslt)*(1+elem)*(1+vigor)*(1+crit)*(1+acute)*(1+spec);
+    // ロワ・クモンド: 独立枠フラット(tierはbuf使用時に確定・base比率で近似)
+    const royFlat = (b.roy?.length||0)*base*DMG.roy_na_frac[this.roy_tier??0];
+    return base + royFlat;
   }
 
   burst(owner, bset, T, atk=false) {

@@ -8,8 +8,9 @@
 - 神姫: 光4人（ヤマト/ヘカテー/テトラ/エレイン）or 火4人（アマテラス/ミネルヴァ/ニケ/ラミエル）
 
 基準編成（検証用ベースライン）: エジソン + 光4人。
-火属性キャラ(data2.xlsx)は機構実装済みだが**効果量(%)は実測待ち**: バフはbufスタック追跡のみで
-`_na()` への配線は未実施（`DMG` の火属性セクションの仮値コメント参照）。
+火属性キャラ(data2.xlsx)は機構実装済み。ナポレオンは実測値で配線済み。
+他の火属性キャラ（アマテラス/ミネルヴァ/ニケ/ラミエル）は**効果量(%)は実測待ち**:
+バフはbufスタック追跡のみで `_na()` への配線は未実施（`DMG` の火属性セクションの仮値コメント参照）。
 
 ## コード地図（index.html / 約1576行）
 
@@ -118,8 +119,14 @@ CHAR_REGISTRY[charKey] = {
 | `leg_aslt` | アサルト | `assault_legend=0.20`(レジェンドアシ・契晶cum≥10) | 3 | refresh |
 | `leg_vigor` | 旺盛 | `vigor_legend=0.3552`(契晶cum≥70) | 3 | refresh |
 | `leg_spec` | 特殊攻撃 | `spec_legend=0.20`(契晶cum≥80) | 3 | refresh |
+| `roy` | 独立フラット | `roy_na_frac[tier]`×`_na()`(tier=buffCount 0-5/6-10/11-15/16+) | 2 | 累積 |
+| `pike` | 旺盛+防壁 | 未配線(buffCount精度用) | 2 | 累積 |
+| `pike_def` | 防壁(pike2枠目) | buffCount精度用 | 2 | 累積 |
+| `pike_crit` | 急所+会心 | 未配線(buffCount≥15で追加) | 2 | 累積 |
+| `consort_def` | 防御DOWN | 累積可 | 6 | 累積 |
 
-- 通常攻撃概算 `_na()` = `base_atk × (1+aslt)(1+elem)(1+vigor)(1+crit)(1+acute)(1+spec)(1+dmgup)(1+other) × misc / enemy_def`
+- 通常攻撃概算 `_na()` = `base_atk × (1+aslt)(1+elem)(1+vigor)(1+crit)(1+acute)(1+spec)(1+dmgup)(1+other) × misc / enemy_def + royFlat`
+  - `royFlat` = `(roy本数) × base × roy_na_frac[roy_tier]`（ロワ・クモンド独立枠）
   - `aslt` = banoshik本数×0.10 + absolute本数×0.30 + (leg_aslt?0.20:0) + `GEAR.assault`
   - `elem` = puvoir本数×0.15 + `GEAR.elem`
   - `vigor` = min((absolute?0.30:0)+(leg_vigor?0.3552:0)+`GEAR.vigor`, 1.0)（フルHP前提で最大・+100%頭打ち）
