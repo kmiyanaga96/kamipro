@@ -187,7 +187,7 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
 
 <div class="header">
   <div>
-    <h1>⚡ 神姫PROJECT R — 光属性バーストトラッカー</h1>
+    <h1>⚡ 神姫PROJECT R — バーストトラッカー</h1>
     <div class="sub">バースト編成シミュレーター &amp; 最適押し順トラッカー</div>
   </div>
 </div>
@@ -198,11 +198,7 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
     <div style="font-size:10px;color:var(--muted);line-height:2.1;">
       <div><span style="color:var(--green)">●</span> 5人フルバースト</div>
       <div><span style="color:var(--orange)">●</span> 部分バースト</div>
-      <div><span style="color:var(--red)">★</span> HELIX解禁ターン</div>
-      <div style="margin-top:6px;"><b style="color:var(--accent2)">ロボ</b> 展開残T</div>
-      <div><b style="color:var(--accent2)">🌙</b> ムーンコード残T</div>
-      <div><b style="color:var(--accent2)">⚡</b> 連理魔力/30</div>
-      <div><b style="color:var(--accent2)">💎</b> 契晶現在/累計</div>
+      <span id="legend-dyn"></span>
       <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;">
         <span class="abi-chip" style="background:#fff8e1;color:#b7791f;border-color:#f6c344;">黄</span>
         <span class="abi-chip" style="background:#ffebee;color:#c62828;border-color:#ef5350;">赤</span>
@@ -1202,6 +1198,16 @@ function cmpVec(a,b){
 
 // ===== UI HELPERS =====
 
+// 編成依存のUI機能フラグ。buildFormation後に評価し、不在キャラ固有のUI(ロボ/ムーン/連理/契晶)を隠す。
+function uiFeats(){
+  return {
+    robot:  'robot' in CHAR_SIM_STATES,            // エジソン: マシーンタクトゥ
+    moon:   !!ABIL.effond,                         // ヘカテー: ムーンコード
+    renri:  !!ABIL.judg,                           // テトラ: 連理魔力/HELIX
+    keigyo: Object.values(ABIL).some(a=>a[3]>0),   // 契晶コスト持ちアビの有無
+  };
+}
+
 function gaugesHTML(g){
   return `<div class="gauges">${CHARS.map(c=>{
     const max=CHAR_DEF[c].gmax, pct=Math.min(100,(g[c]/max)*100);
@@ -1242,14 +1248,12 @@ function ordChipsHTML(ord){
 }
 
 function loopsHTML(r){
-  const rc=r.robot>0?'la':'li', mc=r.mooncode>0?'la':'lw';
-  const ec=r.renri>=30?'la':(r.renri>=20?'lw':'li');
-  return `<div class="loops">
-    <div class="loop-badge ${rc}"><span class="ln">ロボ</span><span class="lv">${r.robot}T</span></div>
-    <div class="loop-badge ${mc}"><span class="ln">🌙ムーン</span><span class="lv">${r.mooncode}T</span></div>
-    <div class="loop-badge ${ec}"><span class="ln">⚡連理</span><span class="lv">${r.renri}/30</span></div>
-    <div class="loop-badge lp"><span class="ln">💎契晶</span><span class="lv">${r.keigyo}/15</span></div>
-  </div>`;
+  const f=uiFeats(), b=[];
+  if(f.robot) b.push(`<div class="loop-badge ${r.robot>0?'la':'li'}"><span class="ln">ロボ</span><span class="lv">${r.robot}T</span></div>`);
+  if(f.moon)  b.push(`<div class="loop-badge ${r.mooncode>0?'la':'lw'}"><span class="ln">🌙ムーン</span><span class="lv">${r.mooncode}T</span></div>`);
+  if(f.renri) b.push(`<div class="loop-badge ${r.renri>=30?'la':(r.renri>=20?'lw':'li')}"><span class="ln">⚡連理</span><span class="lv">${r.renri}/30</span></div>`);
+  if(f.keigyo)b.push(`<div class="loop-badge lp"><span class="ln">💎契晶</span><span class="lv">${r.keigyo}/15</span></div>`);
+  return b.length?`<div class="loops">${b.join('')}</div>`:'';
 }
 
 function cdBadgesHTML(cd){
@@ -1271,6 +1275,7 @@ function toggleCard(t){
 
 function cardHTML(r,first=false){
   EXPANDED[r.t]=first;
+  const f=uiFeats();
   const cls=r.helix?'helix-turn':(r.full?'full-burst':'partial');
   const fb=r.full
     ?`<span class="badge bg">✅ 5人FB</span>`
@@ -1283,8 +1288,8 @@ function cardHTML(r,first=false){
         <span class="turn-num">T${r.t}</span>${fb}${hx}
         <span class="badge bp">バ×${r.burst}</span>
         <span class="badge bp">アビ×${r.ability}</span>
-        <span class="badge ${r.ju>0?'br':'bm'}">J×${r.ju}</span>
-        <span class="badge bp">連理${r.renri}/30</span>
+        ${f.renri?`<span class="badge ${r.ju>0?'br':'bm'}">J×${r.ju}</span>
+        <span class="badge bp">連理${r.renri}/30</span>`:''}
         <span class="badge br" title="概算累計ダメージ">💥${Math.round(r.dmg).toLocaleString()}</span>
       </div>
       <div style="display:flex;align-items:center;gap:7px;">
@@ -1300,9 +1305,10 @@ function cardHTML(r,first=false){
           ${gaugesHTML(r.gauge)}
         </div>
         <div>
-          <div style="font-size:10px;color:var(--muted);margin-bottom:5px;">連理魔力 累計${r.renri}/30</div>
+          ${f.renri?`<div style="font-size:10px;color:var(--muted);margin-bottom:5px;">連理魔力 累計${r.renri}/30</div>
           ${renriHTML(r.renri)}
-          <div style="margin-top:9px;font-size:10px;color:var(--muted);margin-bottom:5px;">アビCT（再使用まで残りT・0=使用可）</div>
+          <div style="margin-top:9px;font-size:10px;color:var(--muted);margin-bottom:5px;">アビCT（再使用まで残りT・0=使用可）</div>`
+          :`<div style="font-size:10px;color:var(--muted);margin-bottom:5px;">アビCT（再使用まで残りT・0=使用可）</div>`}
           <div style="display:flex;flex-wrap:wrap;gap:3px;">${cdBadgesHTML(r.state.cd)}</div>
         </div>
       </div>
@@ -1418,6 +1424,7 @@ function _fallbackRunSim(heroKey,kamihimeKeys,n){
 
 function renderSim(baseDmg){
   const rows=SIM_ROWS; if(!rows.length) return;
+  const f=uiFeats();
   const fb=rows.filter(r=>r.full).length;
   const ht=rows.find(r=>r.helix);
   const fin=rows[rows.length-1];
@@ -1432,18 +1439,18 @@ function renderSim(baseDmg){
       <div class="summary-stat"><span class="val" style="color:var(--red)">${optDmg.toLocaleString()}</span><span class="lbl">概算総ダメージ</span></div>
       ${ratioHtml}
       <div class="summary-stat"><span class="val" style="color:var(--green)">${fb}/${rows.length}</span><span class="lbl">フルバースト</span></div>
-      <div class="summary-stat"><span class="val">${ht?`T${ht.t}`:'未達'}</span><span class="lbl">HELIX解禁</span></div>
-      <div class="summary-stat"><span class="val">${fin.renri}/30</span><span class="lbl">最終連理魔力</span></div>
-      <div class="summary-stat"><span class="val">${fin.keigyo}/15</span><span class="lbl">最終契晶</span></div>
-      <div class="summary-stat"><span class="val">${fin.cum}</span><span class="lbl">累計契晶</span></div>
+      ${f.renri?`<div class="summary-stat"><span class="val">${ht?`T${ht.t}`:'未達'}</span><span class="lbl">HELIX解禁</span></div>
+      <div class="summary-stat"><span class="val">${fin.renri}/30</span><span class="lbl">最終連理魔力</span></div>`:''}
+      ${f.keigyo?`<div class="summary-stat"><span class="val">${fin.keigyo}/15</span><span class="lbl">最終契晶</span></div>
+      <div class="summary-stat"><span class="val">${fin.cum}</span><span class="lbl">累計契晶</span></div>`:''}
       <div class="summary-stat"><span class="val">${rows.reduce((s,r)=>s+r.burst,0)}</span><span class="lbl">総バースト</span></div>
       <div class="summary-stat"><span class="val">${rows.reduce((s,r)=>s+r.ability,0)}</span><span class="lbl">総アビ</span></div>
     </div>
     <table class="summary-table">
-      <tr><th>T</th><th>FB</th><th>概算累計Dmg</th><th>バースト</th><th>アビ</th><th>ロボ作動</th><th>ジャッジ</th><th>連理累計</th><th>契晶(現/累)</th><th>🌙ムーン</th></tr>
+      <tr><th>T</th><th>FB</th><th>概算累計Dmg</th><th>バースト</th><th>アビ</th>${f.robot?'<th>ロボ作動</th>':''}${f.renri?'<th>ジャッジ</th><th>連理累計</th>':''}${f.keigyo?'<th>契晶(現/累)</th>':''}${f.moon?'<th>🌙ムーン</th>':''}</tr>
       ${rows.map(r=>{
         const fb2=r.full?`<span class="tg">✅5人</span>`:`<span class="to">${r.atk.length}人</span>`;
-        return `<tr><td><b>T${r.t}</b></td><td>${fb2}</td><td>${Math.round(r.dmg).toLocaleString()}</td><td>${r.burst}</td><td>${r.ability}</td><td>${r.ra}</td><td>${r.ju}</td><td>${r.renri}/30</td><td>${r.keigyo}/${r.cum}</td><td>${r.mooncode}T</td></tr>`;
+        return `<tr><td><b>T${r.t}</b></td><td>${fb2}</td><td>${Math.round(r.dmg).toLocaleString()}</td><td>${r.burst}</td><td>${r.ability}</td>${f.robot?`<td>${r.ra}</td>`:''}${f.renri?`<td>${r.ju}</td><td>${r.renri}/30</td>`:''}${f.keigyo?`<td>${r.keigyo}/${r.cum}</td>`:''}${f.moon?`<td>${r.mooncode}T</td>`:''}</tr>`;
       }).join('')}
     </table>`;
   // ターンカードはWorkerのtype:'turn'で逐次描画済み。フォールバック時のみここで描画。
@@ -1574,6 +1581,18 @@ function renderParty(){
   }).join('');
   document.getElementById('party-bar').innerHTML=
     `<span class="pb-label">編成</span>${chips}`;
+  renderLegend();
+}
+
+// 凡例のキャラ固有項目(ロボ/ムーン/連理/契晶)を編成に合わせて出し分ける
+function renderLegend(){
+  const f=uiFeats(), b=[];
+  if(f.renri) b.push(`<div><span style="color:var(--red)">★</span> HELIX解禁ターン</div>`);
+  if(f.robot) b.push(`<div style="margin-top:6px;"><b style="color:var(--accent2)">ロボ</b> 展開残T</div>`);
+  if(f.moon)  b.push(`<div><b style="color:var(--accent2)">🌙</b> ムーンコード残T</div>`);
+  if(f.renri) b.push(`<div><b style="color:var(--accent2)">⚡</b> 連理魔力/30</div>`);
+  if(f.keigyo)b.push(`<div><b style="color:var(--accent2)">💎</b> 契晶現在/累計</div>`);
+  document.getElementById('legend-dyn').innerHTML=b.join('');
 }
 
 buildFormation('edison',['yamato','hecate','tetra','elaine']);

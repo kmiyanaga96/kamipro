@@ -1,4 +1,4 @@
-# 神姫PROJECT R — 光属性バーストトラッカー
+# 神姫PROJECT R — バーストトラッカー
 
 単一ファイル(`index.html`)で完結する、バースト編成のシミュレーター＆最適押し順トラッカー。
 ビルド不要・外部依存なし（HTML+CSS+vanilla JS）。ブラウザで直接開いて動作する。
@@ -26,7 +26,7 @@
 | 366–805 | **`CHAR_REGISTRY`**（全キャラ定義の唯一の集約先。光5キャラ→火5キャラの順） |
 | 806–874 | 編成グローバル構築（`buildFormation`/`ELEM`/`CHAR_SIM_STATES`/`MILESTONES`/`computeBaseScore`） |
 | 875–1192 | `class Sim` エンジン（tick/procR/burst/use/`_na`/beam等） |
-| 1193–1251 | UI helpers（loopsHTML/gaugesHTML/cdBadgesHTML等） |
+| 1193–1270 | UI helpers（`uiFeats`/loopsHTML/gaugesHTML/cdBadgesHTML等） |
 | 1252–1302 | カード描画（cardHTML/toggleCard） |
 | 1303–1452 | **Web Worker**（`_buildWorkerCode`/`runSim`/`_fallbackRunSim`/`renderSim`） |
 | 1453–1510 | 編成選択UI（編成・装備とも▶実行時にrunSimが読み取り反映） |
@@ -46,6 +46,11 @@ plainオブジェクト）をそのまま転送する。Worker 非対応環境�
 
 **相対比率評価**: 最適シム（ビーム）と基準シム（`planDepth=2` 強制＝静的greedy）の総ダメージ比を
 `renderSim(baseDmg)` がサマリーに「対基準比」として表示する（押し順最適化の効きを相対値で可視化）。
+
+**編成依存UI（`uiFeats()`）**: ロボ（エジソン`state.robot`）・🌙ムーン（ヘカテー`ABIL.effond`）・
+⚡連理/HELIX/ジャッジ（テトラ`ABIL.judg`）・💎契晶（kc>0アビ＝エレイン）の表示は編成から導出した
+フラグで出し分ける（凡例/ターンカード/サマリーバー/サマリー表）。新キャラのループ系UIを追加する
+場合も `uiFeats()` にフラグを足し、固定表示にしない。
 
 ## アーキテクチャ原則
 
