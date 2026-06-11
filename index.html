@@ -336,7 +336,7 @@ const CHAR_REGISTRY = {
   // ─────────────────────────────────────────────────────────────────────
   edison: {
     type: 'hero',
-    jp: 'エジソン', gcls: 'ge',
+    jp: 'エジソン', gcls: 'ge', elem: null,
     state: { robot: 0, ycount: 0 },  // robot: マシーンタクトゥ展開残T / ycount: 黄アビ累計
     abilities: {
       banoshik: ['y', 8, 0],
@@ -370,7 +370,7 @@ const CHAR_REGISTRY = {
 
   yamato: {
     type: 'kamihime',
-    jp: 'ヤマト', gcls: 'gy',
+    jp: 'ヤマト', gcls: 'gy', elem: 'light',
     state: { inori_p: null },  // 現神の祈りのテトラ4アビ短縮タイマー（null=未発動, 0〜1=カウント中）
     abilities: {
       inori: ['y', 14, 0],
@@ -410,7 +410,7 @@ const CHAR_REGISTRY = {
 
   hecate: {
     type: 'kamihime',
-    jp: 'ヘカテー', gcls: 'gh',
+    jp: 'ヘカテー', gcls: 'gh', elem: 'light',
     abilities: {
       puvoir: ['y', 2, 0],
       effond: ['r', 3, 0],
@@ -435,7 +435,7 @@ const CHAR_REGISTRY = {
 
   tetra: {
     type: 'kamihime',
-    jp: 'テトラ', gcls: 'gt',
+    jp: 'テトラ', gcls: 'gt', elem: 'light',
     state: { helix_done: false, helix_abil_used: false },  // HELIX解禁済み / 使用済み
     abilities: {
       judg:     ['r', 10, 0],
@@ -477,7 +477,7 @@ const CHAR_REGISTRY = {
 
   elaine: {
     type: 'kamihime',
-    jp: 'エレイン', gcls: 'gl',
+    jp: 'エレイン', gcls: 'gl', elem: 'light',
     abilities: {
       alone:    ['r', 0, 4],
       legend:   ['y', 0, 0],
@@ -520,13 +520,23 @@ let CHAR_SIM_STATES = {};
 // def.milestones の同一キーは最大値で集約（例: renri はHELIX解禁閾値30）。
 // 目的関数はこの値で頭打ち評価し、解禁後の超過分を無駄に追わない。
 let MILESTONES = {};
+// ELEM: 各キャラの実効属性 {charKey: 'light'|'fire'|...}。
+// 英霊(elem:null)はウェポン依存のため編成の主属性(神姫の最多属性)を採用する。
+// elemCount(e)が「編成内のe属性キャラ数」(英霊込み)を返す共通ヘルパ。
+let ELEM = {};
 const ownerOf = k => ABIL[k][0];
+const elemCount = e => CHARS.filter(c=>ELEM[c]===e).length;
 
 function buildFormation(heroKey, kamihimeKeys) {
   LEADER = heroKey;
   CHARS  = [heroKey, ...kamihimeKeys];
   JP = {}; GCLS = {};
   for(const c of CHARS){ JP[c]=CHAR_REGISTRY[c].jp; GCLS[c]=CHAR_REGISTRY[c].gcls; }
+  // 実効属性: 神姫はelem宣言値、英霊(null)は神姫の最多属性に追従
+  const tally = {};
+  for(const c of kamihimeKeys) tally[CHAR_REGISTRY[c].elem]=(tally[CHAR_REGISTRY[c].elem]||0)+1;
+  const mainElem = Object.entries(tally).sort((a,b)=>b[1]-a[1])[0]?.[0] ?? null;
+  ELEM = Object.fromEntries(CHARS.map(c=>[c, CHAR_REGISTRY[c].elem ?? mainElem]));
   ABIL = {};
   for(const c of CHARS)
     for(const [k,[col,cd,kc]] of Object.entries(CHAR_REGISTRY[c].abilities))

@@ -50,6 +50,8 @@ plainオブジェクト）をそのまま転送する。Worker 非対応環境�
 CHAR_REGISTRY[charKey] = {
   type: 'hero'|'kamihime',
   jp, gcls,                        // 表示名・ゲージCSSクラス
+  elem: 'light'|'fire'|null,       // 属性。英霊はnull=編成の主属性(神姫の最多属性)に追従
+                                   // buildFormationがELEM(実効属性マップ)とelemCount(e)を構築
   state: { key: initVal, ... },    // キャラ固有sim状態変数（自動管理）
   abilities: { key:[col,cd,kc] },  // [色, CD, 契晶コスト]
   labelSuffix: { key: '...' },
