@@ -8,9 +8,7 @@
 - 神姫: 光4人（ヤマト/ヘカテー/テトラ/エレイン）or 火4人（アマテラス/ミネルヴァ/ニケ/ラミエル）
 
 基準編成（検証用ベースライン）: エジソン + 光4人。
-火属性キャラ(data2.xlsx)は機構実装済み。ナポレオンは実測値で配線済み。
-他の火属性キャラ（アマテラス/ミネルヴァ/ニケ/ラミエル）は**効果量(%)は実測待ち**:
-バフはbufスタック追跡のみで `_na()` への配線は未実施（`DMG` の火属性セクションの仮値コメント参照）。
+火属性キャラ(data2.xlsx)は機構・効果量ともに実装済み。passion/victory のみ効果量が未確定で未配線。
 
 ## コード地図（index.html / 約1576行）
 
@@ -128,20 +126,34 @@ CHAR_REGISTRY[charKey] = {
 | `leg_vigor` | 旺盛 | `vigor_legend=0.3552`(契晶cum≥70) | 3 | refresh |
 | `leg_spec` | 特殊攻撃 | `spec_legend=0.20`(契晶cum≥80) | 3 | refresh |
 | `roy` | 独立フラット | `roy_na_frac[tier]`×`_na()`(tier=buffCount 0-5/6-10/11-15/16+) | 2 | 累積 |
-| `pike` | 旺盛+防壁 | 未配線(buffCount精度用) | 2 | 累積 |
-| `pike_def` | 防壁(pike2枠目) | buffCount精度用 | 2 | 累積 |
-| `pike_crit` | 急所+会心 | 未配線(buffCount≥15で追加) | 2 | 累積 |
-| `consort_def` | 防御DOWN | 累積可 | 6 | 累積 |
+| `pike` | 旺盛 | `vigor_pike=0.3552`(基礎値42・フルHP) | 2 | 累積 |
+| `pike_def` | 防壁 | buffCount精度用(ダメージ無寄与) | 2 | 累積 |
+| `pike_crit` | 急所+会心 | `acute_pike_crit=0.30`(確実100%×倍率1.3) | 2 | 累積 |
+| `consort_def` | 防御DOWN→`defdown` | `defdown_consort=0.10`/stack | 6 | 累積 |
+| `enten` | 属性値+急所 | `elem_enten=0.10`/`acute_enten=0.03` | 4 | 累積 |
+| `fastes` | 属性値 | `elem_fastes=0.20`/stack | 4 | 累積 |
+| `fastes_acute` | 急所(祝福消費時) | `acute_fastes=0.02`/stack | 4 | 累積 |
+| `logos` | 属性値(耐性DOWN→elem近似) | `defdown_logos=0.40`(有効化で一括elem加算) | 6 | 累積 |
+| `divine` | アサルト+急所 | `assault_divine=0.05`/`acute_divine=0.03` | 3 | 累積 |
+| `hobby_def` | 防御DOWN→`defdown` | `defdown_hobby=0.10`/stack | 4 | 累積 |
+| `hydro_def` | 防御DOWN→`defdown` | `defdown_hydro=0.30`(推定) | 3 | 累積 |
+| `universa` | 敵デバフ→`defdown` | `defdown_universa=0.20`/stack | 2 | 累積 |
+| `universa_b` | バースト耐性DOWN→`defdown` | `defdown_universa_b=0.15`/stack | 2 | 累積 |
+| `ama_link` | 特殊攻撃 | `spec_ama_link=0.30` | 1 | 累積 |
+| `lami_power` | バースト威力 | `lami_power_val=0.10`/stack(burst係数に加算) | 6 | 累積 |
 
-- 通常攻撃概算 `_na()` = `base_atk × (1+aslt)(1+elem)(1+vigor)(1+crit)(1+acute)(1+spec)(1+dmgup)(1+other) × misc / enemy_def + royFlat`
+- 通常攻撃概算 `_na()` = `(base + royFlat) × (1+defdown)`
+  - `base` = `GEAR_K × (1+aslt)(1+elem)(1+vigor)(1+crit)(1+acute)(1+spec)`
   - `royFlat` = `(roy本数) × base × roy_na_frac[roy_tier]`（ロワ・クモンド独立枠）
-  - `aslt` = banoshik本数×0.10 + absolute本数×0.30 + (leg_aslt?0.20:0) + `GEAR.assault`
-  - `elem` = puvoir本数×0.15 + `GEAR.elem`
-  - `vigor` = min((absolute?0.30:0)+(leg_vigor?0.3552:0)+`GEAR.vigor`, 1.0)（フルHP前提で最大・+100%頭打ち）
-  - `crit` = min(crit_rate_arrive0.20 + absolute本数×0.25 + `GEAR.crit_rate`, 1.0)×0.5（倍率固定1.5倍・ARRIVE永続+アブソ発動率）
-  - `acute` = puvoir本数×0.010 + absolute本数×0.030 + legend本数×0.005 + `GEAR.acute`（発動率×(倍率-1)の期待値・複数発動は倍率加算で近似）
-  - `spec` = (leg_spec?0.20:0) + `GEAR.spec`
-  - `dmgup`/`other` = 装備のみ（与ダメUP枠・その他/テクニカ枠。押し順非依存）
+  - `defdown` = 防御/耐性DOWN各ソースの合算（独立乗算枠）
+  - `aslt` = banoshik×0.10 + absolute×0.30 + (leg_aslt?0.20:0) + divine×0.05 + GEAR
+  - `elem` = puvoir×0.15 + enten×0.10 + fastes×0.20 + (logos?0.40:0) + GEAR
+  - `vigor` = min(absolute→0.30 + leg_vigor→0.3552 + pike→0.3552 + GEAR, 1.0)
+  - `crit` = min(0.20 + absolute×0.25 + GEAR, 1.0) × 0.5
+  - `acute` = puvoir×0.010 + absolute×0.030 + legend×0.005 + enten×0.03 + fastes_acute×0.02 + divine×0.03 + pike_crit×0.30 + GEAR
+  - `spec` = (leg_spec?0.20:0) + (ama_link?0.30:0) + GEAR
+  - `defdown` = hydro_def×0.30 + consort_def×0.10 + hobby_def×0.10 + universa×0.20 + universa_b×0.15
+    ※ 敵火耐性DOWN(logos)はゲームでは独立ボックスだが、近似として elem に0.40加算している
 
 ### 装備設定（`GEAR` 定数・幻獣/ウェポン）
 

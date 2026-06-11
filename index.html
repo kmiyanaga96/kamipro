@@ -313,7 +313,8 @@ const DMG = {
   dur_pike: 2,               // オーンフォッセモ・パイク: 旺盛・防壁(バフ15+で急所会心追加)
   dur_consort_def: 6,        // コンソート・アーティオリ: 防御DOWN(累積可)
   consort_cap: 2500000,      // コンソート: 1発あたり減衰上限250万
-  betaia_mult: 1.0,          // ベタイア・コンヴェフティ: ターン終了時自属性ダメージ倍率(仮値・要実測)
+  betaia_mult: 3.0,          // ベタイア・コンヴェフティ: ターン終了時自属性ダメージ×3倍(確定)
+  betaia_cap: 500000,        // ベタイア: 1ヒット減衰上限50万(確定)・闘気1個につき1ヒット
   betaia_bg_per_aura: 3,     // ベタイア: 闘気1個あたりBG+3(確定)
   factor_bg: 30,             // ファクター・ディシジフ: バフ10+時の全体BG+30(確定)
   dur_factor: 2,             // ファクター: ベタイア2回発動状態
@@ -327,7 +328,7 @@ const DMG = {
   dur_passion: 1,            // パッションティアー+: 火属性攻撃・急所UP・旺盛(奇数回で旺壮追加)
   dur_logos: 6,              // ロゴス・ソフィアス: 敵火耐性DOWN(累積可・最大40%)
   dur_logos_def: 3,          // ロゴス: 被回復上限・防御UP(累積可)
-  sapico_mult: 1.0,          // サピコンシリウム: 火ダメージ倍率×5回(仮値・要実測)
+  sapico_mult: 1.0,          // サピコンシリウム: 火ダメージ×1倍×5回(確定)
   sapico_red_every: 5,       // サピコ: 赤アビ5回毎に発動(確定)
   // ─── [HELIX]ニケ ───
   dur_hydro_def: 3,          // ヒュドールバースト+: 敵防御DOWN(特大)
@@ -344,6 +345,29 @@ const DMG = {
   bless_y_every: 6,          // ブレッシングチャージ: 黄アビ6回毎に祝福+1(確定)
   flame_per_bless: 2,        // フレームチェッカー: 2回祝福される毎に1チャージ(確定)
   lami_power_per: 3,         // ラミラミパワー: 火キャラバースト3回毎にバースト性能UP(累積可・確定)
+  // ─── 効果量確定値(全キャラ配線済み) ───────────────────────────────────
+  // ナポレオン
+  vigor_pike:       0.3552,  // パイク旺盛: 基礎値42 → ×1.3552(vigor_legendと同値)
+  acute_pike_crit:  0.30,    // パイク急所(確実100%) × (1.3−1)=0.30
+  defdown_consort:  0.10,    // コンソート防御DOWN: 10%/stack
+  // アマテラス
+  elem_enten:       0.10,    // 炎天ノ加護: 火属性攻撃+10%/stack
+  acute_enten:      0.03,    // 炎天ノ加護: 急所確率30% × (1.1−1)
+  spec_ama_link:    0.30,    // LinkSkill: 特殊攻撃+30%
+  defdown_hobby:    0.10,    // 充実した趣味: 敵防御DOWN10%/stack
+  // ミネルヴァ
+  defdown_logos:    0.40,    // ロゴス: 敵火耐性DOWN(最大40%・有効化で一括計上)
+  // ニケ
+  assault_divine:   0.05,    // ディヴァインウィング: 攻撃+5%/stack
+  acute_divine:     0.03,    // ディヴァイン: 急所確率30% × (1.1−1)
+  defdown_hydro:    0.30,    // ヒュドール: 敵防御DOWN30%(推定)
+  // ラミエル
+  elem_fastes:      0.20,    // ファステスコール: 火属性攻撃+20%/stack
+  acute_fastes:     0.02,    // ファステス急所(祝福消費時): 発動率20% × (1.1−1)
+  lami_power_val:   0.10,    // ラミラミパワー: バースト威力+10%/stack
+  dur_lami_power:   6,       // ラミラミパワー効果ターン
+  defdown_universa:   0.20,  // ユニバーサー: 敵デバフ20%/stack
+  defdown_universa_b: 0.15,  // ユニバーサー(祝福消費時): バースト耐性DOWN15%/stack
 };
 
 // ===== 装備設定(幻獣・ウェポン) =====
@@ -614,12 +638,14 @@ const CHAR_REGISTRY = {
       keigyoGain: 3,
       // エキープ・ベニフィッシ: 味方の強化系アビ(atkBufタグ)毎に闘気+1
       onAbility: (sim, name) => { if(CHAR_REGISTRY[ownerOf(name)]?.cands?.[name]?.atkBuf) sim.aura++; },
-      // ベタイア・コンヴェフティ: ターン終了時に闘気を消費して全体BG+3×闘気・自属性ダメージ
+      // ベタイア・コンヴェフティ: ターン終了時に闘気を消費(闘気1個=1ヒット×3倍・上限50万)
+      // ファクター発動中(betaia2>0)は2回発動。BG+3×闘気も同様。
       turnEnd: (sim) => {
         const times = sim.betaia2>0 ? 2 : 1;
         if(sim.aura>0){
           sim.addG(CHARS, DMG.betaia_bg_per_aura*sim.aura*times);
-          sim.dmg += sim._na()*DMG.betaia_mult*times;
+          for(let i=0;i<sim.aura*times;i++)
+            sim.dmg += Math.min(sim._na()*DMG.betaia_mult, DMG.betaia_cap);
           sim.aura=0;
         }
         if(sim.betaia2>0) sim.betaia2--;
@@ -814,7 +840,7 @@ const CHAR_REGISTRY = {
       onPartyBurst: (sim, owner) => {
         if(ELEM[owner]!=='fire') return;
         sim.lami_fb++;
-        if(sim.lami_fb%DMG.lami_power_per===0) (sim.buf.lami_power??=[]).push(999);
+        if(sim.lami_fb%DMG.lami_power_per===0) (sim.buf.lami_power??=[]).push(DMG.dur_lami_power);
       },
       // バースト効果: 祝福消費(全体BG+10)・自分のアビCD2短縮
       onBurst: (sim, atk, owner) => {
@@ -959,33 +985,50 @@ class Sim {
   // 各バフキーのスタック数が実効枠値を決定し、失効スタックは tick() で除去済み。
   _na(){
     const D=DMG, b=this.buf, G=GEAR;
-    const nAbs = b.absolute?.length||0, nPuv = b.puvoir?.length||0;
-    const nBan = b.banoshik?.length||0, nLeg = b.legend?.length||0;
-    // アサルト枠: banoshik/absolute(本数比例) + legend閾値(契晶10+・単発) + 装備(幻獣/ウェポン)
-    const aslt = nBan*D.assault_banoshik + nAbs*D.assault_absolute + (b.leg_aslt?D.assault_legend:0) + G.assault;
-    // 属性値枠
-    const elem = nPuv*D.elem_puvoir + G.elem;
-    // 旺盛枠: アブソ + レジェンド(契晶70+) + 装備を加算し+100%で頭打ち(フルHP前提で最大)
-    const vigor = Math.min((nAbs>0?D.vigor_absolute:0)+(b.leg_vigor?D.vigor_legend:0)+G.vigor, 1.0);
-    // 会心枠: 倍率固定+0.5、発動率を合算しmin1.0(ARRIVE永続+アブソ本数比例+装備)
+    const nAbs=b.absolute?.length||0, nPuv=b.puvoir?.length||0;
+    const nBan=b.banoshik?.length||0, nLeg=b.legend?.length||0;
+    // 火属性バフ(スタック数)
+    const nEnt=b.enten?.length||0, nFas=b.fastes?.length||0;
+    const nFasA=b.fastes_acute?.length||0, nDiv=b.divine?.length||0;
+    const nPikeCrit=b.pike_crit?.length||0;
+    // アサルト枠: banoshik/absolute + legend(契晶) + divine + 装備
+    const aslt = nBan*D.assault_banoshik + nAbs*D.assault_absolute
+               + (b.leg_aslt?D.assault_legend:0) + nDiv*D.assault_divine + G.assault;
+    // 属性値枠: puvoir(光) + enten/fastes(火属性攻撃) + logos(耐性DOWN→elem近似) + 装備
+    const elem = nPuv*D.elem_puvoir + nEnt*D.elem_enten + nFas*D.elem_fastes
+               + (b.logos?.length>0?D.defdown_logos:0) + G.elem;
+    // 旺盛枠: absolute/leg_vigor(光) + pike(火) + 装備。+100%上限(フルHP前提)
+    const vigor = Math.min(
+      (nAbs>0?D.vigor_absolute:0)+(b.leg_vigor?D.vigor_legend:0)
+      +(b.pike?.length>0?D.vigor_pike:0)+G.vigor, 1.0);
+    // 会心枠: ARRIVE永続 + absolute + 装備
     const critRate = Math.min(D.crit_rate_arrive + nAbs*D.crit_rate_absolute + G.crit_rate, 1.0);
     const crit = critRate*D.crit_mult;
-    // 急所枠: 各ソースのスタック数 × 期待寄与を加算(複数発動時は倍率加算=線形累積で近似)
-    const acute = nPuv*D.acute_puvoir + nAbs*D.acute_absolute + nLeg*D.acute_legend + G.acute;
-    // 特殊攻撃枠: レジェンド(契晶80+) + 装備
-    const spec = (b.leg_spec ? D.spec_legend : 0) + G.spec;
-    // GEAR_K = base_atk×(1+与ダメUP)(1+その他/テクニカ)×misc/敵防御(押し順非依存・事前畳み込み)
+    // 急所枠: 光(puvoir/absolute/legend) + 火(enten/fastes_acute/divine/pike_crit) + 装備
+    const acute = nPuv*D.acute_puvoir + nAbs*D.acute_absolute + nLeg*D.acute_legend
+                + nEnt*D.acute_enten + nFasA*D.acute_fastes + nDiv*D.acute_divine
+                + nPikeCrit*D.acute_pike_crit + G.acute;
+    // 特殊攻撃枠: leg_spec(光) + ama_link(火) + 装備
+    const spec = (b.leg_spec?D.spec_legend:0)+(b.ama_link?.length>0?D.spec_ama_link:0)+G.spec;
+    // GEAR_K = base_atk×(1+与ダメUP)(1+その他/テクニカ)×misc/敵防御
     const base = GEAR_K*(1+aslt)*(1+elem)*(1+vigor)*(1+crit)*(1+acute)*(1+spec);
     // ロワ・クモンド: 独立枠フラット(tierはbuf使用時に確定・base比率で近似)
-    const royFlat = (b.roy?.length||0)*base*DMG.roy_na_frac[this.roy_tier??0];
-    return base + royFlat;
+    const royFlat = (b.roy?.length||0)*base*D.roy_na_frac[this.roy_tier??0];
+    // 防御DOWN: 敵防御/耐性DOWN各ソース合算 → 独立乗算(ダメージ × (1+defdown))
+    const defdown = (b.hydro_def?.length||0)*D.defdown_hydro
+                  + (b.consort_def?.length||0)*D.defdown_consort
+                  + (b.hobby_def?.length||0)*D.defdown_hobby
+                  + (b.universa?.length||0)*D.defdown_universa
+                  + (b.universa_b?.length||0)*D.defdown_universa_b;
+    return (base + royFlat) * (1 + defdown);
   }
 
   burst(owner, bset, T, atk=false) {
     this.addG(CHARS.filter(c=>c!==owner), BG.cascade, atk?bset:null);
     this.grif(owner); T.burst++;
-    // 概算バーストダメージ: buf.absolute のスタック数からバーストダメUPを動的計算
-    const bdmg=(this.buf.absolute?.length||0)*DMG.burst_dmg_absolute;
+    // 概算バーストダメージ: absolute(バーストダメUP) + lami_power(バースト威力UP)
+    const bdmg = (this.buf.absolute?.length||0)*DMG.burst_dmg_absolute
+               + (this.buf.lami_power?.length||0)*DMG.lami_power_val;
     this.dmg += this._na()*(DMG.burst_coef_a + bdmg);
     if(atk) bset.add(owner);
     // 連理魔力(コヴァレント): バースト2回毎に+1＆ジャッジ即使用可。攻撃フェーズのバーストも対象
