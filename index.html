@@ -506,6 +506,8 @@ const CHAR_REGISTRY = {
       keigyoGain: 1,
       // HELIX(テトラ4)は連理魔力30で解禁。目的関数は renri をここまで評価し超過分は追わない。
       milestones: { renri: 30 },
+      // HELIX解禁検出(初回到達ターン表示用)。doneKeyは自前state。
+      helix: { reached: s=>s.renri>=30, doneKey: 'helix_done' },
       onBurst: (sim, atk, owner) => {
         const skip = atk ? [] : ['judg'];
         for(const k of Object.keys(sim.cd)){
@@ -697,7 +699,7 @@ const CHAR_REGISTRY = {
     jp: 'ニケ', gcls: 'gt', elem: 'fire',
     // nike_renri: ニケ専用連理魔力(テトラのrenriとは別カウンタ・閾値20)
     // hydro_n: ヒュドール発動回数(3の倍数でCT減少) / victory_done: ヴィクトリー発動済み
-    state: { nike_renri: 0, hydro_n: 0, nike_helix_used: false, victory_done: false },
+    state: { nike_renri: 0, hydro_n: 0, nike_helix_used: false, nike_helix_done: false, victory_done: false },
     abilities: {
       hydro:     ['r', 6, 0],
       divine:    ['y', 7, 0],
@@ -726,7 +728,10 @@ const CHAR_REGISTRY = {
       gmax: BG.other_max,
       keigyoGain: 1,
       // ニケ専用連理は閾値20([HELIX]ニケ解禁・ヴィクトリー)まで目的関数で評価
+      // (テトラのrenri同様、milestonesが目的関数の連理次元に合算され最速解禁へ重みづけされる)
       milestones: { nike_renri: 20 },
+      // [HELIX]ニケ解禁検出(初回到達ターン表示用)
+      helix: { reached: s=>s.nike_renri>=20, doneKey: 'nike_helix_done' },
       // セイクリッド・アルカナ: ターン中火キャラバースト3回毎に連理+1＆ヒュドール/ディヴァイン即使用可(同T3回まで)
       onPartyBurst: (sim, owner, T) => {
         if(ELEM[owner]!=='fire') return;
@@ -1060,7 +1065,8 @@ class Sim {
     if(t%4===0){ this.keigyo=Math.min(this.keigyo+5,KEIGYO_MAX); this.cum+=5; }
     // inori_p はヤマト固有状態(不在編成では undefined → != でスキップ)
     if(this.inori_p!=null){ this.inori_p++; if(this.inori_p===2){ this.cd.tenya=0; this.inori_p=null; } }
-    if(this.renri>=30) this.helix_done=true;
+    // HELIX解禁の既達マーク(def.helix宣言キャラのみ・初回到達ターン検出用)
+    for(const c of CHARS){ const h=CHAR_DEF[c].helix; if(h&&h.reached(this)) this[h.doneKey]=true; }
   }
 
   // 現在のターン状態から静的ポリシーで残りを完遂（クローン上で使用）。this._atkを設定。
@@ -1146,7 +1152,8 @@ class Sim {
     const atk=this._attackPhase();
     const T=this.T, ord=this.ord;
     const rt=T.proc;
-    const helix=this.renri>=30 && !this.helix_done; // 初回到達のみtrue
+    // HELIX解禁(初回到達ターンのみtrue): def.helix 宣言キャラの閾値到達を汎用検出
+    const helix=CHARS.some(c=>{ const h=CHAR_DEF[c].helix; return h&&h.reached(this)&&!this[h.doneKey]; });
     this._endBookkeep(t); // ここでhelix_done=trueに更新
     return {t,ord,atk,full:atk.length===5,burst:T.burst,ability:T.ability,ra:T.ra,ju:T.ju,
       mobius_this:T.mobius,rt,renri:this.renri,keigyo:this.keigyo,cum:this.cum,
@@ -1203,7 +1210,8 @@ function uiFeats(){
   return {
     robot:  'robot' in CHAR_SIM_STATES,            // エジソン: マシーンタクトゥ
     moon:   !!ABIL.effond,                         // ヘカテー: ムーンコード
-    renri:  !!ABIL.judg,                           // テトラ: 連理魔力/HELIX
+    renri:  !!ABIL.judg,                           // テトラ: 連理魔力(/30)・ジャッジ・HELIX
+    nikeRenri: 'nike_renri' in CHAR_SIM_STATES,    // ニケ: 専用連理魔力(/20)・[HELIX]ニケ
     keigyo: Object.values(ABIL).some(a=>a[3]>0),   // 契晶コスト持ちアビの有無
   };
 }
@@ -1219,16 +1227,15 @@ function gaugesHTML(g){
   }).join('')}</div>`;
 }
 
-function renriHTML(r){
-  const pct=Math.min(100,(r/30)*100);
+function renriHTML(r,cap=30,marks=[10,20]){
+  const pct=Math.min(100,(r/cap)*100);
   return `<div class="renri-wrap">
     <div class="renri-fill" style="width:${pct}%"></div>
-    <div class="renri-mark" style="left:${(10/30)*100}%"></div>
-    <div class="renri-mark" style="left:${(20/30)*100}%"></div>
+    ${marks.map(m=>`<div class="renri-mark" style="left:${(m/cap)*100}%"></div>`).join('')}
   </div>
   <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--muted);">
-    <span>0</span><span>10</span><span>20</span>
-    <span style="color:${r>=30?'var(--red)':'var(--muted)'}">30★</span>
+    <span>0</span>${marks.map(m=>`<span>${m}</span>`).join('')}
+    <span style="color:${r>=cap?'var(--red)':'var(--muted)'}">${cap}★</span>
   </div>`;
 }
 
@@ -1252,6 +1259,8 @@ function loopsHTML(r){
   if(f.robot) b.push(`<div class="loop-badge ${r.robot>0?'la':'li'}"><span class="ln">ロボ</span><span class="lv">${r.robot}T</span></div>`);
   if(f.moon)  b.push(`<div class="loop-badge ${r.mooncode>0?'la':'lw'}"><span class="ln">🌙ムーン</span><span class="lv">${r.mooncode}T</span></div>`);
   if(f.renri) b.push(`<div class="loop-badge ${r.renri>=30?'la':(r.renri>=20?'lw':'li')}"><span class="ln">⚡連理</span><span class="lv">${r.renri}/30</span></div>`);
+  if(f.nikeRenri){ const nr=r.state.nike_renri;
+    b.push(`<div class="loop-badge ${nr>=20?'la':(nr>=12?'lw':'li')}"><span class="ln">⚡ニケ連理</span><span class="lv">${nr}/20</span></div>`); }
   if(f.keigyo)b.push(`<div class="loop-badge lp"><span class="ln">💎契晶</span><span class="lv">${r.keigyo}/15</span></div>`);
   return b.length?`<div class="loops">${b.join('')}</div>`:'';
 }
@@ -1290,6 +1299,7 @@ function cardHTML(r,first=false){
         <span class="badge bp">アビ×${r.ability}</span>
         ${f.renri?`<span class="badge ${r.ju>0?'br':'bm'}">J×${r.ju}</span>
         <span class="badge bp">連理${r.renri}/30</span>`:''}
+        ${f.nikeRenri?`<span class="badge bp">連理${r.state.nike_renri}/20</span>`:''}
         <span class="badge br" title="概算累計ダメージ">💥${Math.round(r.dmg).toLocaleString()}</span>
       </div>
       <div style="display:flex;align-items:center;gap:7px;">
@@ -1306,9 +1316,10 @@ function cardHTML(r,first=false){
         </div>
         <div>
           ${f.renri?`<div style="font-size:10px;color:var(--muted);margin-bottom:5px;">連理魔力 累計${r.renri}/30</div>
-          ${renriHTML(r.renri)}
-          <div style="margin-top:9px;font-size:10px;color:var(--muted);margin-bottom:5px;">アビCT（再使用まで残りT・0=使用可）</div>`
-          :`<div style="font-size:10px;color:var(--muted);margin-bottom:5px;">アビCT（再使用まで残りT・0=使用可）</div>`}
+          ${renriHTML(r.renri)}`:''}
+          ${f.nikeRenri?`<div style="font-size:10px;color:var(--muted);margin-bottom:5px;">ニケ連理魔力 累計${r.state.nike_renri}/20</div>
+          ${renriHTML(r.state.nike_renri,20,[10])}`:''}
+          <div style="margin-top:${(f.renri||f.nikeRenri)?9:0}px;font-size:10px;color:var(--muted);margin-bottom:5px;">アビCT（再使用まで残りT・0=使用可）</div>
           <div style="display:flex;flex-wrap:wrap;gap:3px;">${cdBadgesHTML(r.state.cd)}</div>
         </div>
       </div>
@@ -1439,18 +1450,19 @@ function renderSim(baseDmg){
       <div class="summary-stat"><span class="val" style="color:var(--red)">${optDmg.toLocaleString()}</span><span class="lbl">概算総ダメージ</span></div>
       ${ratioHtml}
       <div class="summary-stat"><span class="val" style="color:var(--green)">${fb}/${rows.length}</span><span class="lbl">フルバースト</span></div>
-      ${f.renri?`<div class="summary-stat"><span class="val">${ht?`T${ht.t}`:'未達'}</span><span class="lbl">HELIX解禁</span></div>
-      <div class="summary-stat"><span class="val">${fin.renri}/30</span><span class="lbl">最終連理魔力</span></div>`:''}
+      ${(f.renri||f.nikeRenri)?`<div class="summary-stat"><span class="val">${ht?`T${ht.t}`:'未達'}</span><span class="lbl">HELIX解禁</span></div>`:''}
+      ${f.renri?`<div class="summary-stat"><span class="val">${fin.renri}/30</span><span class="lbl">最終連理魔力</span></div>`:''}
+      ${f.nikeRenri?`<div class="summary-stat"><span class="val">${fin.state.nike_renri}/20</span><span class="lbl">最終ニケ連理</span></div>`:''}
       ${f.keigyo?`<div class="summary-stat"><span class="val">${fin.keigyo}/15</span><span class="lbl">最終契晶</span></div>
       <div class="summary-stat"><span class="val">${fin.cum}</span><span class="lbl">累計契晶</span></div>`:''}
       <div class="summary-stat"><span class="val">${rows.reduce((s,r)=>s+r.burst,0)}</span><span class="lbl">総バースト</span></div>
       <div class="summary-stat"><span class="val">${rows.reduce((s,r)=>s+r.ability,0)}</span><span class="lbl">総アビ</span></div>
     </div>
     <table class="summary-table">
-      <tr><th>T</th><th>FB</th><th>概算累計Dmg</th><th>バースト</th><th>アビ</th>${f.robot?'<th>ロボ作動</th>':''}${f.renri?'<th>ジャッジ</th><th>連理累計</th>':''}${f.keigyo?'<th>契晶(現/累)</th>':''}${f.moon?'<th>🌙ムーン</th>':''}</tr>
+      <tr><th>T</th><th>FB</th><th>概算累計Dmg</th><th>バースト</th><th>アビ</th>${f.robot?'<th>ロボ作動</th>':''}${f.renri?'<th>ジャッジ</th><th>連理累計</th>':''}${f.nikeRenri?'<th>ニケ連理</th>':''}${f.keigyo?'<th>契晶(現/累)</th>':''}${f.moon?'<th>🌙ムーン</th>':''}</tr>
       ${rows.map(r=>{
         const fb2=r.full?`<span class="tg">✅5人</span>`:`<span class="to">${r.atk.length}人</span>`;
-        return `<tr><td><b>T${r.t}</b></td><td>${fb2}</td><td>${Math.round(r.dmg).toLocaleString()}</td><td>${r.burst}</td><td>${r.ability}</td>${f.robot?`<td>${r.ra}</td>`:''}${f.renri?`<td>${r.ju}</td><td>${r.renri}/30</td>`:''}${f.keigyo?`<td>${r.keigyo}/${r.cum}</td>`:''}${f.moon?`<td>${r.mooncode}T</td>`:''}</tr>`;
+        return `<tr><td><b>T${r.t}</b></td><td>${fb2}</td><td>${Math.round(r.dmg).toLocaleString()}</td><td>${r.burst}</td><td>${r.ability}</td>${f.robot?`<td>${r.ra}</td>`:''}${f.renri?`<td>${r.ju}</td><td>${r.renri}/30</td>`:''}${f.nikeRenri?`<td>${r.state.nike_renri}/20</td>`:''}${f.keigyo?`<td>${r.keigyo}/${r.cum}</td>`:''}${f.moon?`<td>${r.mooncode}T</td>`:''}</tr>`;
       }).join('')}
     </table>`;
   // ターンカードはWorkerのtype:'turn'で逐次描画済み。フォールバック時のみここで描画。
@@ -1587,10 +1599,11 @@ function renderParty(){
 // 凡例のキャラ固有項目(ロボ/ムーン/連理/契晶)を編成に合わせて出し分ける
 function renderLegend(){
   const f=uiFeats(), b=[];
-  if(f.renri) b.push(`<div><span style="color:var(--red)">★</span> HELIX解禁ターン</div>`);
+  if(f.renri||f.nikeRenri) b.push(`<div><span style="color:var(--red)">★</span> HELIX解禁ターン</div>`);
   if(f.robot) b.push(`<div style="margin-top:6px;"><b style="color:var(--accent2)">ロボ</b> 展開残T</div>`);
   if(f.moon)  b.push(`<div><b style="color:var(--accent2)">🌙</b> ムーンコード残T</div>`);
   if(f.renri) b.push(`<div><b style="color:var(--accent2)">⚡</b> 連理魔力/30</div>`);
+  if(f.nikeRenri) b.push(`<div><b style="color:var(--accent2)">⚡</b> ニケ連理魔力/20</div>`);
   if(f.keigyo)b.push(`<div><b style="color:var(--accent2)">💎</b> 契晶現在/累計</div>`);
   document.getElementById('legend-dyn').innerHTML=b.join('');
 }

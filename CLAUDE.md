@@ -48,9 +48,11 @@ plainオブジェクト）をそのまま転送する。Worker 非対応環境�
 `renderSim(baseDmg)` がサマリーに「対基準比」として表示する（押し順最適化の効きを相対値で可視化）。
 
 **編成依存UI（`uiFeats()`）**: ロボ（エジソン`state.robot`）・🌙ムーン（ヘカテー`ABIL.effond`）・
-⚡連理/HELIX/ジャッジ（テトラ`ABIL.judg`）・💎契晶（kc>0アビ＝エレイン）の表示は編成から導出した
-フラグで出し分ける（凡例/ターンカード/サマリーバー/サマリー表）。新キャラのループ系UIを追加する
-場合も `uiFeats()` にフラグを足し、固定表示にしない。
+⚡連理/HELIX/ジャッジ（テトラ`ABIL.judg`）・⚡ニケ連理/20（`state.nike_renri`）・💎契晶（kc>0アビ＝エレイン）
+の表示は編成から導出したフラグで出し分ける（凡例/ターンカード/サマリーバー/サマリー表）。
+新キャラのループ系UIを追加する場合も `uiFeats()` にフラグを足し、固定表示にしない。
+HELIX解禁ターン検出は `def.helix` 宣言（reached/doneKey）から汎用判定（エンジンにキャラ名リテラルなし）。
+ニケのHELIX最速解禁は `milestones:{nike_renri:20}` がテトラ`renri:30`と同じ連理次元で目的関数に効く。
 
 ## アーキテクチャ原則
 
@@ -82,6 +84,7 @@ CHAR_REGISTRY[charKey] = {
     gmax: 数値,                    // BG上限（省略時 other_max=100）
     keigyoGain: 数値,
     milestones?: { 状態変数キー: 上限 },   // 目的関数が min(sim[key],上限) を合算評価
+    helix?: { reached:(sim)=>bool, doneKey:'stateキー' }, // HELIX解禁検出(初回到達ターン表示・テトラrenri30/ニケnike_renri20)
     onBurst?: (sim, atk, owner)=>void,     // 自分のバースト時
     onPartyBurst?: (sim, owner, T, atk)=>void, // 誰かのバースト時(ニケ連理/ラミエル等)
     onAbility?: (sim, name, color, T)=>void,   // 誰かのアビ使用時(闘気/赤カウント/祝福等)
