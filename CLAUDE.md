@@ -1,11 +1,17 @@
 # 神姫PROJECT R — 光属性バーストトラッカー
 
-単一ファイル(`index.html`)で完結する、光属性バースト編成のシミュレーター＆最適押し順トラッカー。
+単一ファイル(`index.html`)で完結する、バースト編成のシミュレーター＆最適押し順トラッカー。
 ビルド不要・外部依存なし（HTML+CSS+vanilla JS）。ブラウザで直接開いて動作する。
 
-現行編成: 英霊エジソン + ヤマト / ヘカテー / テトラ / エレイン
+編成は4パターン（属性混在は不可・runSimがバリデーション）:
+- 英霊: エジソン / ナポレオン（elem:null=神姫の最多属性に追従）
+- 神姫: 光4人（ヤマト/ヘカテー/テトラ/エレイン）or 火4人（アマテラス/ミネルヴァ/ニケ/ラミエル）
 
-## コード地図（index.html / 約1260行）
+基準編成（検証用ベースライン）: エジソン + 光4人。
+火属性キャラ(data2.xlsx)は機構実装済みだが**効果量(%)は実測待ち**: バフはbufスタック追跡のみで
+`_na()` への配線は未実施（`DMG` の火属性セクションの仮値コメント参照）。
+
+## コード地図（index.html / 約1576行）
 
 セクション編集時は該当範囲だけを Read すればトークンを節約できる。
 
@@ -14,17 +20,17 @@
 | 7–184 | CSS（`<style>`、Material白基調UI・スピナー） |
 | 186–235 | HTML構造（ヘッダ/サイドバー/メイン/ローディング） |
 | 238–249 | ゲーム定数（確定仕様・後述） |
-| 250–295 | **`DMG`**（概算火力モデル定数・後述） |
-| 296–326 | **`GEAR`/`SUMMON_REGISTRY`**（装備設定・幻獣プリセット・`GEAR_K`） |
-| 327–512 | **`CHAR_REGISTRY`**（全キャラ定義の唯一の集約先） |
-| 513–571 | 編成グローバル構築（`buildFormation`/`CHAR_SIM_STATES`/`MILESTONES`/`computeBaseScore`） |
-| 572–879 | `class Sim` エンジン（tick/procR/burst/use/`_na`/beam等） |
-| 880–938 | UI helpers（loopsHTML/gaugesHTML/cdBadgesHTML等） |
-| 939–989 | カード描画（cardHTML/toggleCard） |
-| 990–1136 | **Web Worker**（`_buildWorkerCode`/`runSim`/`_fallbackRunSim`/`renderSim`） |
-| 1137–1194 | 編成選択UI（編成・装備とも▶実行時にrunSimが読み取り反映） |
-| 1195–1242 | 装備設定UI（renderGearPanel/applyGear） |
-| 1243–末尾 | INIT |
+| 250–334 | **`DMG`**（概算火力モデル定数・末尾に火属性セクション） |
+| 335–365 | **`GEAR`/`SUMMON_REGISTRY`**（装備設定・幻獣プリセット・`GEAR_K`） |
+| 366–805 | **`CHAR_REGISTRY`**（全キャラ定義の唯一の集約先。光5キャラ→火5キャラの順） |
+| 806–874 | 編成グローバル構築（`buildFormation`/`ELEM`/`CHAR_SIM_STATES`/`MILESTONES`/`computeBaseScore`） |
+| 875–1192 | `class Sim` エンジン（tick/procR/burst/use/`_na`/beam等） |
+| 1193–1251 | UI helpers（loopsHTML/gaugesHTML/cdBadgesHTML等） |
+| 1252–1302 | カード描画（cardHTML/toggleCard） |
+| 1303–1452 | **Web Worker**（`_buildWorkerCode`/`runSim`/`_fallbackRunSim`/`renderSim`） |
+| 1453–1510 | 編成選択UI（編成・装備とも▶実行時にrunSimが読み取り反映） |
+| 1511–1558 | 装備設定UI（renderGearPanel/applyGear） |
+| 1559–末尾 | INIT |
 
 最適化の最上位目標は**概算総ダメージ**（`DMG` モデル）。FB回数/総バースト/総ジャッジ/連理魔力
 は補助指標として目的関数の下位次元に残る。詳細は「概算火力モデル」節を参照。
@@ -69,8 +75,11 @@ CHAR_REGISTRY[charKey] = {
   def: {
     gmax: 数値,                    // BG上限（省略時 other_max=100）
     keigyoGain: 数値,
-    onBurst?: (sim, atk, owner)=>void,
-    turnEnd?: (sim)=>void,
+    milestones?: { 状態変数キー: 上限 },   // 目的関数が min(sim[key],上限) を合算評価
+    onBurst?: (sim, atk, owner)=>void,     // 自分のバースト時
+    onPartyBurst?: (sim, owner, T, atk)=>void, // 誰かのバースト時(ニケ連理/ラミエル等)
+    onAbility?: (sim, name, color, T)=>void,   // 誰かのアビ使用時(闘気/赤カウント/祝福等)
+    turnEnd?: (sim, T)=>void,              // ターン終了時(全キャラ呼出)
   },
 }
 ```
