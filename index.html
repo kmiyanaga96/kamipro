@@ -45,6 +45,19 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
 .summary-stat{display:flex;flex-direction:column;align-items:center;flex:1;min-width:80px;}
 .summary-stat .val{font-size:20px;font-weight:700;color:var(--accent2);}
 .summary-stat .lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:2px;}
+/* 火力指数ブロック */
+.fi-block{display:flex;flex-direction:column;align-items:center;flex:0 0 auto;min-width:180px;
+  padding:10px 18px;border-radius:10px;background:var(--card2);border:1px solid var(--border);}
+.fi-top{display:flex;align-items:baseline;gap:8px;}
+.fi-val{font-size:32px;font-weight:800;letter-spacing:-1px;}
+.fi-grade{font-size:15px;font-weight:800;padding:2px 10px;border-radius:6px;color:#fff;}
+.fi-grade.gs{background:#d97706;}
+.fi-grade.ga{background:var(--accent2);}
+.fi-grade.gb{background:var(--green);}
+.fi-grade.gc{background:var(--muted);}
+.fi-bar-wrap{width:100%;height:7px;background:var(--border);border-radius:4px;margin-top:7px;overflow:hidden;}
+.fi-bar-fill{height:100%;border-radius:4px;transition:width .4s;}
+.fi-sub{font-size:9px;color:var(--muted);margin-top:4px;letter-spacing:.4px;}
 .turn-card{background:var(--card);border:1px solid var(--border);border-radius:12px;
   margin-bottom:12px;overflow:hidden;box-shadow:var(--shadow);}
 .turn-card.full-burst{border-left:4px solid var(--green);}
@@ -138,6 +151,8 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
   .controls input[type=number]{font-size:16px;}/* iOSズーム防止に16px */
   .btn{padding:10px 16px;}/* タップ領域確保 */
   /* サマリは2列に折返し */
+  .fi-block{min-width:150px;padding:8px 12px;}
+  .fi-val{font-size:26px;}
   .summary-stat{min-width:64px;flex:1 1 28%;}
   .summary-stat .val{font-size:17px;}
   .card-header{padding:11px 13px;}
@@ -1439,16 +1454,27 @@ function renderSim(baseDmg){
   const fb=rows.filter(r=>r.full).length;
   const ht=rows.find(r=>r.helix);
   const fin=rows[rows.length-1];
-  const optDmg=Math.round(fin.dmg);
-  // 相対比率: 最適 ÷ 静的greedy基準(baseDmg)。baseDmg未提供時は非表示。
-  const ratioHtml=baseDmg>0
-    ? `<div class="summary-stat"><span class="val" style="color:var(--accent)">${((optDmg/baseDmg-1)*100).toFixed(1)}%</span><span class="lbl">対基準比（静的greedy比）</span></div>`
-    : '';
+  const optDmg=fin.dmg;
+  // 火力指数: optimal÷baseline×100。基準(素直押し)=100。baseDmg未提供時はindex非表示。
+  const idx=baseDmg>0 ? optDmg/baseDmg*100 : 0;
+  const grade=idx>=130?'S':idx>=115?'A':idx>=105?'B':'C';
+  const gcls=grade==='S'?'gs':grade==='A'?'ga':grade==='B'?'gb':'gc';
+  const barColor=grade==='S'?'#d97706':grade==='A'?'var(--accent2)':grade==='B'?'var(--green)':'var(--muted)';
+  // バー: 100=左端, 160=右端(60pt幅)でクランプ
+  const barPct=Math.min(100,Math.max(0,(idx-100)/60*100));
+  const fiHtml=baseDmg>0?`
+    <div class="fi-block">
+      <div class="fi-top">
+        <span class="fi-val" style="color:${barColor}">${idx.toFixed(1)}</span>
+        <span class="fi-grade ${gcls}">${grade}</span>
+      </div>
+      <div class="fi-bar-wrap"><div class="fi-bar-fill" style="width:${barPct}%;background:${barColor}"></div></div>
+      <div class="fi-sub">🔥 火力指数（素直押し=100）</div>
+    </div>`:'';
   document.getElementById('summary-bar').style.display='';
   document.getElementById('summary-bar').innerHTML=`
     <div class="summary-bar">
-      <div class="summary-stat"><span class="val" style="color:var(--red)">${optDmg.toLocaleString()}</span><span class="lbl">概算総ダメージ</span></div>
-      ${ratioHtml}
+      ${fiHtml}
       <div class="summary-stat"><span class="val" style="color:var(--green)">${fb}/${rows.length}</span><span class="lbl">フルバースト</span></div>
       ${(f.renri||f.nikeRenri)?`<div class="summary-stat"><span class="val">${ht?`T${ht.t}`:'未達'}</span><span class="lbl">HELIX解禁</span></div>`:''}
       ${f.renri?`<div class="summary-stat"><span class="val">${fin.renri}/30</span><span class="lbl">最終連理魔力</span></div>`:''}
@@ -1459,10 +1485,11 @@ function renderSim(baseDmg){
       <div class="summary-stat"><span class="val">${rows.reduce((s,r)=>s+r.ability,0)}</span><span class="lbl">総アビ</span></div>
     </div>
     <table class="summary-table">
-      <tr><th>T</th><th>FB</th><th>概算累計Dmg</th><th>バースト</th><th>アビ</th>${f.robot?'<th>ロボ作動</th>':''}${f.renri?'<th>ジャッジ</th><th>連理累計</th>':''}${f.nikeRenri?'<th>ニケ連理</th>':''}${f.keigyo?'<th>契晶(現/累)</th>':''}${f.moon?'<th>🌙ムーン</th>':''}</tr>
+      <tr><th>T</th><th>FB</th><th>火力推移</th><th>バースト</th><th>アビ</th>${f.robot?'<th>ロボ作動</th>':''}${f.renri?'<th>ジャッジ</th><th>連理累計</th>':''}${f.nikeRenri?'<th>ニケ連理</th>':''}${f.keigyo?'<th>契晶(現/累)</th>':''}${f.moon?'<th>🌙ムーン</th>':''}</tr>
       ${rows.map(r=>{
         const fb2=r.full?`<span class="tg">✅5人</span>`:`<span class="to">${r.atk.length}人</span>`;
-        return `<tr><td><b>T${r.t}</b></td><td>${fb2}</td><td>${Math.round(r.dmg).toLocaleString()}</td><td>${r.burst}</td><td>${r.ability}</td>${f.robot?`<td>${r.ra}</td>`:''}${f.renri?`<td>${r.ju}</td><td>${r.renri}/30</td>`:''}${f.nikeRenri?`<td>${r.state.nike_renri}/20</td>`:''}${f.keigyo?`<td>${r.keigyo}/${r.cum}</td>`:''}${f.moon?`<td>${r.mooncode}T</td>`:''}</tr>`;
+        const dmgDisp=baseDmg>0?(r.dmg/baseDmg*100).toFixed(1):`${Math.round(r.dmg).toLocaleString()}`;
+        return `<tr><td><b>T${r.t}</b></td><td>${fb2}</td><td>${dmgDisp}</td><td>${r.burst}</td><td>${r.ability}</td>${f.robot?`<td>${r.ra}</td>`:''}${f.renri?`<td>${r.ju}</td><td>${r.renri}/30</td>`:''}${f.nikeRenri?`<td>${r.state.nike_renri}/20</td>`:''}${f.keigyo?`<td>${r.keigyo}/${r.cum}</td>`:''}${f.moon?`<td>${r.mooncode}T</td>`:''}</tr>`;
       }).join('')}
     </table>`;
   // ターンカードはWorkerのtype:'turn'で逐次描画済み。フォールバック時のみここで描画。
