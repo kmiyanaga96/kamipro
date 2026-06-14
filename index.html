@@ -264,11 +264,12 @@ const BG = {inori:100,funki:10,absolute:20,sleur:15,legend:10,
 // 旺盛/会心はアブソ有効時のみの条件付き枠。急所は puvoir/absolute/legend の各スタックから期待値計算。
 // バフは上限なしで独立累積し、それぞれが持続ターンを持つ(buf辞書で管理・tickで失効)。
 // 急所は有利属性のみ発動だが、ランキング用途のため期待値(発動率×(倍率-1))で一律加算する。
-// 非有利属性も一括でシミュするため属性相性倍率は考慮しない(ベース1.0)。
+// 属性相性はUIで有利(×1.5)/中立(×1.0)を選択しGEAR_Kに畳み込む。
 // 値は実測ベース。火力は「プランのランキング(相対比較)」に用いるため絶対値の厳密性は問わない。
 const DMG = {
-  base_atk: 1500,            // 表示攻撃力
-  enemy_def: 10,             // 敵防御
+  base_atk: 1500,            // 表示攻撃力（UIから上書き可）
+  enemy_def: 10,             // 敵防御（UIから上書き可）
+  affinity: 1.0,             // 属性相性: 有利=1.5 / 中立=1.0（UIから上書き可）
   misc: 1.0,                 // 特殊攻撃/各種ダメージ上限等の押し順非依存枠の一括概算
   // ─── アサルト枠(1スタックあたり) ────────────────────────────────────
   assault_banoshik: 0.10,    // バノーシク: 補助ロボ作動中の黄アビ毎にアサルト+10%
@@ -417,7 +418,7 @@ const SUMMON_SLOTS = 2; // シミュ時に採用する幻獣枠数(重複可)
 
 // _na() ホットパス用: 押し順非依存の固定係数を事前畳み込み(GEAR変更時に再計算)
 let GEAR_K = 0;
-function recalcGearK(){ GEAR_K = DMG.base_atk*(1+GEAR.dmgup)*(1+GEAR.other)*DMG.misc/DMG.enemy_def; }
+function recalcGearK(){ GEAR_K = DMG.base_atk*DMG.affinity*(1+GEAR.dmgup)*(1+GEAR.other)*DMG.misc/DMG.enemy_def; }
 recalcGearK();
 
 // ===== キャラクタ登録簿 =====
@@ -1462,8 +1463,9 @@ function _buildWorkerCode(){
 ${engineCode}
 // ===== Worker エントリポイント =====
 self.onmessage=function(e){
-  const {heroKey,kamihimeKeys,gearState,n}=e.data;
+  const {heroKey,kamihimeKeys,gearState,dmgBase,n}=e.data;
   for(const [k,v] of Object.entries(gearState)) GEAR[k]=v;
+  if(dmgBase){ DMG.base_atk=dmgBase.base_atk; DMG.enemy_def=dmgBase.enemy_def; DMG.affinity=dmgBase.affinity; }
   recalcGearK();
   buildFormation(heroKey,kamihimeKeys);
   // 最適シム(ビームサーチ): ターン毎に進捗と結果行を送信
@@ -1535,7 +1537,8 @@ function runSim(){
     }
   };
   _simWorker.onerror=function(){ _simWorker=null; _fallbackRunSim(heroKey,kamihimeKeys,n); };
-  _simWorker.postMessage({heroKey,kamihimeKeys,gearState:{...GEAR},n});
+  _simWorker.postMessage({heroKey,kamihimeKeys,gearState:{...GEAR},
+    dmgBase:{base_atk:DMG.base_atk,enemy_def:DMG.enemy_def,affinity:DMG.affinity},n});
 }
 
 // Workerが使えない環境向けフォールバック(メインスレッド同期実行)
@@ -1686,17 +1689,33 @@ function renderGearPanel(){
   document.getElementById('gear-panel').innerHTML=`
     <div class="gear-card">
       <div class="cfg-title">⚙️ 幻獣・ウェポン設定（全0でベース倍率）</div>
+      <div class="gear-row" style="margin-bottom:8px;gap:12px;flex-wrap:wrap;">
+        <span class="wpn-lbl">表示攻撃力</span>
+        <input type="number" id="dmg-base-atk" value="${DMG.base_atk}" min="1" step="100" style="width:90px">
+        <span class="wpn-lbl" style="margin-left:8px;">敵防御</span>
+        <input type="number" id="dmg-enemy-def" value="${DMG.enemy_def}" min="1" step="100" style="width:90px">
+        <span class="wpn-lbl" style="margin-left:8px;">属性相性</span>
+        <select id="dmg-affinity">
+          <option value="neu"${DMG.affinity===1.0?' selected':''}>中立（×1.0）</option>
+          <option value="adv"${DMG.affinity===1.5?' selected':''}>有利（×1.5）</option>
+        </select>
+      </div>
       <div class="gear-grid">
         <div><div class="gear-sub">幻獣（${SUMMON_SLOTS}枠・重複可）</div>${summonRows}</div>
         <div><div class="gear-sub">ウェポンスキル合計（各ボックス%）</div>${wpnRows}
           <div style="font-size:10px;color:var(--muted);margin-top:6px;">
             ※上限UP系は第一上限を増加（実機の区分線形減衰モデル実装済・実ダメージ単位）。<br>
-            　現状は抽象スケールのため減衰未到達で休眠（base_atk較正で発火）</div></div>
+            　表示攻撃力・敵防御を実値入力で絶対ダメージ精度が向上し減衰も有効化。</div></div>
       </div>
     </div>`;
 }
 
 function applyGear(){
+  // 基本パラメータ(表示攻撃力・敵防御・属性相性)
+  const ba=parseFloat(document.getElementById('dmg-base-atk')?.value)||DMG.base_atk;
+  const ed=parseFloat(document.getElementById('dmg-enemy-def')?.value)||DMG.enemy_def;
+  const af=document.getElementById('dmg-affinity')?.value==='adv'?1.5:1.0;
+  DMG.base_atk=ba; DMG.enemy_def=ed; DMG.affinity=af;
   for(const [box] of GEAR_BOXES) GEAR[box]=0;
   // 採用幻獣のweapon_amp合計(ウェポンスキル倍率)と直接ボックス補正を収集
   let weaponAmp=0;
