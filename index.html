@@ -185,6 +185,7 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
   border-top-color:var(--accent);border-radius:50%;
   animation:spin .8s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
+.pc-atk{font-size:10px;color:var(--muted);margin-left:4px;}
 .spin-msg{font-size:13px;color:var(--muted);}
 .spin-sub{font-size:11px;color:var(--muted);opacity:0.7;}
 
@@ -245,6 +246,7 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
   </div>
 </div>
 
+<script src="data/weapons.js"></script>
 <script>
 // ===== ゲーム定数（確定仕様） =====
 const RENRI_CAP = 5;   // コヴァレント: procの同ターン発動上限(連理魔力+1＆ジャッジ再発動を同時付与)
@@ -410,14 +412,63 @@ const GEAR = Object.fromEntries(GEAR_BOXES.map(([k])=>[k,0]));
 // weapon_amp: ウェポンスキル効果量UP(採用枠分を加算) / box: {ボックスキー: 直接加算fraction}。
 // ※ box は GEAR_BOXES のキー(assault/elem/vigor/spec/dmgup/acute/crit_rate/other)で記述する。
 const SUMMON_REGISTRY = {
-  shugo: { jp:'守護',   weapon_amp:0.40, box:{} },
-  catas: { jp:'カタス', weapon_amp:0.50, box:{assault:1.0} },
-  oni:   { jp:'鬼',     weapon_amp:0.50, box:{assault:1.0, spec:0.10} },
+  shugo: { jp:'守護(ハギト)', weapon_amp:0.40, atk:3375, hp:0, elem:'light', box:{} },
+  catas: { jp:'カタス',       weapon_amp:0.50, atk:0,    hp:0, elem:'light', box:{assault:1.0} },
+  oni:   { jp:'鬼',           weapon_amp:0.50, atk:0,    hp:0, elem:'dark',  box:{assault:1.0, spec:0.10} },
 };
 const SUMMON_SLOTS = 2; // シミュ時に採用する幻獣枠数(重複可)
 
 // _na() ホットパス用: 押し順非依存の固定係数を事前畳み込み(GEAR変更時に再計算)
 let GEAR_K = 0;
+let GEAR_K_C = {};      // per-character GEAR_K: {charKey: 表示攻撃力ベースのスケール係数}
+let DISPLAY_ATK_C = {}; // per-character 表示攻撃力(UI表示用)
+// 表示攻撃力算出: 武器ATK×得意補正 + 幻獣ATK×同属性補正 + キャラ基本ATK(神姫) or 英霊基本値
+// slots: 長さ10の武器キー配列(slot0=メイン, 1-9=サブ。空文字=未装備)
+// summons: SUMMON_REGISTRYエントリの配列 / heroRank: ランク値 / heroMasterBonusAtkPct: マスターATK%
+function calcDisplayAtk(charKey, slots, summons, heroRank, heroMasterBonusAtkPct){
+  const def = CHAR_REGISTRY[charKey];
+  if(!def || typeof WEAPON_MASTER==='undefined') return 0;
+  const fav = def.favWeapon||[], charElem = ELEM[charKey], heroKey = CHARS[0];
+  let weaponAtk=0;
+  for(let i=0;i<slots.length;i++){
+    const w=WEAPON_MASTER[slots[i]]; if(!w) continue;
+    weaponAtk += Math.floor(w.atk*(fav.includes(w.type)?1.2:1.0));
+  }
+  let summonAtk=0;
+  for(const s of summons){
+    if(!s?.atk) continue;
+    summonAtk += Math.floor(s.atk*((s.elem&&s.elem===charElem)?1.1:1.0));
+  }
+  if(def.type==='hero'){
+    const r=heroRank, lvUp=def.lvUpAtk||0;
+    const rankBonus=Math.min(r,100)*40+Math.max(0,Math.min(r,200)-100)*20+Math.max(0,r-200)*10;
+    return Math.round((1000+lvUp+rankBonus+weaponAtk+summonAtk)*(1+heroMasterBonusAtkPct/100));
+  }
+  return (def.baseAtk||0)+weaponAtk+summonAtk;
+}
+// 表示HPスキャフォールド(旺壮実装時にhp値を埋める予定。現状は全武器/幻獣hp=0のため全て0返却)
+function calcDisplayHp(charKey, slots, summons, heroRank, heroMasterBonusHpPct){
+  const def = CHAR_REGISTRY[charKey];
+  if(!def || typeof WEAPON_MASTER==='undefined') return 0;
+  const fav = def.favWeapon||[], charElem = ELEM[charKey];
+  let weaponHp=0;
+  for(let i=0;i<slots.length;i++){
+    const w=WEAPON_MASTER[slots[i]]; if(!w) continue;
+    weaponHp += Math.floor((w.hp||0)*(fav.includes(w.type)?1.2:1.0));
+  }
+  let summonHp=0;
+  for(const s of summons){
+    if(!s?.hp) continue;
+    summonHp += Math.floor(s.hp*((s.elem&&s.elem===charElem)?1.1:1.0));
+  }
+  if(def.type==='hero'){
+    const r=heroRank, lvUpHp=def.lvUpHp||0;
+    const rankBonus=Math.min(r,100)*8+Math.max(0,Math.min(r,200)-100)*2+Math.max(0,r-200)*1;
+    return Math.round((600+lvUpHp+rankBonus+weaponHp+summonHp)*(1+heroMasterBonusHpPct/100));
+  }
+  return (def.baseHp||0)+weaponHp+summonHp;
+}
+
 function recalcGearK(){ GEAR_K = DMG.base_atk*DMG.affinity*(1+GEAR.dmgup)*(1+GEAR.other)*DMG.misc/DMG.enemy_def; }
 recalcGearK();
 
@@ -441,6 +492,7 @@ const CHAR_REGISTRY = {
   edison: {
     type: 'hero',
     jp: 'エジソン', gcls: 'ge', elem: null,
+    favWeapon: ['銃','魔導具'], lvUpAtk: 400,
     state: { droid: 0, banoshik_robot: 0, ycount: 0 },  // droid: 攻撃ロボ残T / banoshik_robot: 補助ロボ残T / ycount: 黄アビ累計
     abilities: {
       banoshik: ['y', 8, 0],
@@ -475,6 +527,7 @@ const CHAR_REGISTRY = {
   yamato: {
     type: 'kamihime',
     jp: 'ヤマト', gcls: 'gy', elem: 'light',
+    favWeapon: ['剣','槍'], baseAtk: 10000, baseHp: 0,
     state: { inori_p: null },  // 現神の祈りのテトラ4アビ短縮タイマー（null=未発動, 0〜1=カウント中）
     abilities: {
       inori: ['y', 14, 0],
@@ -515,6 +568,7 @@ const CHAR_REGISTRY = {
   hecate: {
     type: 'kamihime',
     jp: 'ヘカテー', gcls: 'gh', elem: 'light',
+    favWeapon: ['杖','魔導具'], baseAtk: 7800, baseHp: 0,
     abilities: {
       puvoir: ['y', 2, 0],
       effond: ['r', 3, 0],
@@ -540,6 +594,7 @@ const CHAR_REGISTRY = {
   tetra: {
     type: 'kamihime',
     jp: 'テトラ', gcls: 'gt', elem: 'light',
+    favWeapon: ['杖','魔導具'], baseAtk: 10110, baseHp: 0,
     state: { helix_done: false, helix_abil_used: false },  // HELIX解禁済み / 使用済み
     abilities: {
       judg:     ['r', 10, 0],
@@ -588,6 +643,7 @@ const CHAR_REGISTRY = {
   elaine: {
     type: 'kamihime',
     jp: 'エレイン', gcls: 'gl', elem: 'light',
+    favWeapon: ['剣','特殊剣'], baseAtk: 10500, baseHp: 0,
     abilities: {
       alone:    ['r', 0, 4],
       legend:   ['y', 0, 0],
@@ -625,6 +681,7 @@ const CHAR_REGISTRY = {
   napoleon: {
     type: 'hero',
     jp: 'ナポレオン', gcls: 'ge', elem: null,
+    favWeapon: ['剣','銃'], lvUpAtk: 400,
     // aura: 英雄の闘気(エキープ・ベニフィッシで蓄積、ベタイアがターン終了時に消費)
     // betaia2: ファクター・ディシジフによるベタイア2回発動状態の残ターン
     state: { aura: 0, betaia2: 0, roy_tier: 0 },
@@ -647,7 +704,7 @@ const CHAR_REGISTRY = {
                    if(buffCount(sim)>=15) (sim.buf.pike_crit??=[]).push(DMG.dur_pike);
                    sim.use('pike',T,ord); }},
       // アーティオリ: (2+0.5×バフ数)倍のダメージ(上限250万)。防御DOWN(6T累積可)。バフ20以上で2回。
-      consort: { exec:(sim,T,ord)=>{ const bc=buffCount(sim); const hits=bc>=20?2:1;
+      consort: { exec:(sim,T,ord)=>{ sim._naOwner=ownerOf('consort'); const bc=buffCount(sim); const hits=bc>=20?2:1;
                    const mult=2+0.5*bc;
                    // アビダメ枠: ×(1+abi_dmg)、減衰 基準consort_cap(超過は1/25で逓減)
                    for(let i=0;i<hits;i++) sim.dmg+=sim._decay('abi', sim._na()*mult*(1+GEAR.abi_dmg), DMG.consort_cap);
@@ -1065,8 +1122,9 @@ class Sim {
                 + nPikeCrit*D.acute_pike_crit + G.acute;
     // 特殊攻撃枠: leg_spec(光) + ama_link(火) + 装備
     const spec = (b.leg_spec?D.spec_legend:0)+(b.ama_link?.length>0?D.spec_ama_link:0)+G.spec;
-    // GEAR_K = base_atk×(1+与ダメUP)(1+その他/テクニカ)×misc/敵防御
-    const base = GEAR_K*(1+aslt)*(1+elem)*(1+vigor)*(1+crit)*(1+acute)*(1+spec);
+    // GEAR_K or per-character GEAR_K_C[owner] (武器マスタ設定時)
+    const gk = (this._naOwner && GEAR_K_C[this._naOwner]) || GEAR_K;
+    const base = gk*(1+aslt)*(1+elem)*(1+vigor)*(1+crit)*(1+acute)*(1+spec);
     // ロワ・クモンド: 独立枠フラット(tierはbuf使用時に確定・base比率で近似)
     const royFlat = (b.roy?.length||0)*base*D.roy_na_frac[this.roy_tier??0];
     // 防御DOWN: 敵防御/耐性DOWN各ソース合算 → 独立乗算(ダメージ × (1+defdown))
@@ -1079,6 +1137,7 @@ class Sim {
   }
 
   burst(owner, bset, T, atk=false) {
+    this._naOwner = owner; // バーストダメージはオーナーのGEAR_K_Cを参照
     this.addG(CHARS.filter(c=>c!==owner), BG.cascade, atk?bset:null);
     this.grif(owner); T.burst++;
     // 概算バーストダメージ: absolute(バーストダメUP) + lami_power(バースト威力UP)
@@ -1106,6 +1165,7 @@ class Sim {
   }
 
   use(name, T, ord, note='') {
+    this._naOwner = ownerOf(name); // _na()がアビ所有者のGEAR_K_Cを参照するよう設定
     const [,color,cd,cost]=ABIL[name];
     this.cd[name]=cd; if(cost) this.keigyo-=cost; T.ability++;
     // ロボ作動カウント: 攻撃ロボ(droid)=赤アビ反応 / 補助ロボ(banoshik_robot)=黄アビ反応
@@ -1463,8 +1523,9 @@ function _buildWorkerCode(){
 ${engineCode}
 // ===== Worker エントリポイント =====
 self.onmessage=function(e){
-  const {heroKey,kamihimeKeys,gearState,dmgBase,n}=e.data;
+  const {heroKey,kamihimeKeys,gearState,gearKC,dmgBase,n}=e.data;
   for(const [k,v] of Object.entries(gearState)) GEAR[k]=v;
+  if(gearKC) for(const [k,v] of Object.entries(gearKC)) GEAR_K_C[k]=v;
   if(dmgBase){ DMG.base_atk=dmgBase.base_atk; DMG.affinity=dmgBase.affinity; }
   recalcGearK();
   buildFormation(heroKey,kamihimeKeys);
@@ -1538,7 +1599,7 @@ function runSim(){
   };
   _simWorker.onerror=function(){ _simWorker=null; _fallbackRunSim(heroKey,kamihimeKeys,n); };
   _simWorker.postMessage({heroKey,kamihimeKeys,gearState:{...GEAR},
-    dmgBase:{base_atk:DMG.base_atk,affinity:DMG.affinity},n});
+    gearKC:{...GEAR_K_C},dmgBase:{base_atk:DMG.base_atk,affinity:DMG.affinity},n});
 }
 
 // Workerが使えない環境向けフォールバック(メインスレッド同期実行)
@@ -1681,6 +1742,15 @@ function renderGearPanel(){
       <span class="slot-num">幻獣${i+1}</span>
       <select id="summon-${i}">${sumOpts}</select>
     </div>`).join('');
+  const wOpts = '<option value="">-- 未装備 --</option>'+
+    (typeof WEAPON_MASTER!=='undefined'
+      ? Object.entries(WEAPON_MASTER).map(([k,v])=>`<option value="${k}">${v.jp}</option>`).join('')
+      : '');
+  const weaponRows = Array.from({length:10},(_,i)=>`
+    <div class="gear-row">
+      <span class="slot-num" style="min-width:40px">${i===0?'メイン':'サブ'+i}</span>
+      <select id="wslot-${i}">${wOpts}</select>
+    </div>`).join('');
   const wpnRows = GEAR_BOXES.map(([k,jp])=>`
     <div class="gear-row">
       <span class="wpn-lbl">${jp}</span>
@@ -1688,51 +1758,91 @@ function renderGearPanel(){
     </div>`).join('');
   document.getElementById('gear-panel').innerHTML=`
     <div class="gear-card">
-      <div class="cfg-title">⚙️ 幻獣・ウェポン設定（全0でベース倍率）</div>
+      <div class="cfg-title">⚙️ 幻獣・ウェポン設定</div>
       <div class="gear-row" style="margin-bottom:8px;gap:12px;flex-wrap:wrap;">
-        <span class="wpn-lbl">表示攻撃力</span>
-        <input type="number" id="dmg-base-atk" value="${DMG.base_atk}" min="1" step="100" style="width:90px">
-        <span class="wpn-lbl" style="margin-left:8px;">属性相性</span>
+        <span class="wpn-lbl">属性相性</span>
         <select id="dmg-affinity">
           <option value="neu"${DMG.affinity===1.0?' selected':''}>中立（×1.0）</option>
           <option value="adv"${DMG.affinity===1.5?' selected':''}>有利（×1.5）</option>
         </select>
+        <span class="wpn-lbl" style="margin-left:8px;">英霊ランク</span>
+        <input type="number" id="hero-rank" value="100" min="1" max="300" step="1" style="width:65px">
+        <span class="wpn-lbl" style="margin-left:8px;">マスターATK%</span>
+        <input type="number" id="hero-master-bonus" value="0" min="0" step="0.1" style="width:55px">
       </div>
       <div class="gear-grid">
-        <div><div class="gear-sub">幻獣（${SUMMON_SLOTS}枠・重複可）</div>${summonRows}</div>
-        <div><div class="gear-sub">ウェポンスキル合計（各ボックス%）</div>${wpnRows}
+        <div>
+          <div class="gear-sub">幻獣（${SUMMON_SLOTS}枠・重複可）</div>${summonRows}
+          <div class="gear-sub" style="margin-top:10px;">ウェポン（メイン1＋サブ9）</div>${weaponRows}
+        </div>
+        <div>
+          <div class="gear-sub">追加補正（ウェポンマスタ外・各ボックス%）</div>${wpnRows}
           <div style="font-size:10px;color:var(--muted);margin-top:6px;">
-            ※上限UP系は第一上限を増加（実機の区分線形減衰モデル実装済・実ダメージ単位）。<br>
-            　表示攻撃力・敵防御を実値入力で絶対ダメージ精度が向上し減衰も有効化。</div></div>
+            ※ウェポン選択でスキルを自動加算。未登録ウェポンは上欄に手動入力。<br>
+            　上限UP系は第一上限を増加（区分線形減衰モデル実装済）。</div>
+        </div>
       </div>
     </div>`;
 }
 
 function applyGear(){
-  // 基本パラメータ(表示攻撃力・属性相性)。敵防御はDMG.enemy_def固定値を使用。
-  const ba=parseFloat(document.getElementById('dmg-base-atk')?.value)||DMG.base_atk;
-  const af=document.getElementById('dmg-affinity')?.value==='adv'?1.5:1.0;
-  DMG.base_atk=ba; DMG.affinity=af;
+  // 属性相性
+  DMG.affinity = document.getElementById('dmg-affinity')?.value==='adv'?1.5:1.0;
   for(const [box] of GEAR_BOXES) GEAR[box]=0;
-  // 採用幻獣のweapon_amp合計(ウェポンスキル倍率)と直接ボックス補正を収集
+
+  // 幻獣のweapon_amp合計と直接ボックス補正を収集
   let weaponAmp=0;
-  const summonBoxes=[];
+  const summonBoxes=[], activeSummons=[];
   for(let i=0;i<SUMMON_SLOTS;i++){
-    const s=SUMMON_REGISTRY[document.getElementById('summon-'+i)?.value];
-    if(!s) continue;
-    weaponAmp+=s.weapon_amp||0;
-    summonBoxes.push(s.box);
+    const key=document.getElementById('summon-'+i)?.value;
+    const s=SUMMON_REGISTRY[key]; if(!s) continue;
+    weaponAmp+=s.weapon_amp||0; summonBoxes.push(s.box); activeSummons.push(s);
   }
-  // ウェポンスキル合計(幻獣のウェポンスキル効果量UPを乗算して加算)
+
+  // ウェポンスキルからGEAR_BOXESを自動計算
+  const heroKey=document.querySelector('input[name="hero-sel"]:checked')?.value||LEADER;
+  const slots=Array.from({length:10},(_,i)=>document.getElementById('wslot-'+i)?.value||'');
+  if(typeof WEAPON_MASTER!=='undefined'){
+    for(let i=0;i<slots.length;i++){
+      const w=WEAPON_MASTER[slots[i]]; if(!w) continue;
+      const isMain=(i===0);
+      for(const sk of (w.skills||[])){
+        if(sk.condition?.mainOf&&!(isMain&&sk.condition.mainOf===heroKey)) continue;
+        if(sk.box==='defender') continue; // HP専用・ダメージGEAR外
+        if(sk.stinger){
+          GEAR.acute += (sk.rate/100)*(1+weaponAmp)*0.20; // 発動率×weapon_amp×固定+20%
+        } else if(GEAR[sk.box]!==undefined){
+          GEAR[sk.box] += (sk.pct/100)*(1+weaponAmp);
+        }
+      }
+    }
+  }
+
+  // 追加補正(手動入力・ウェポンマスタ外の補完用)
   for(const [box] of GEAR_BOXES){
     const v=parseFloat(document.getElementById('wpn-'+box)?.value)||0;
     GEAR[box]+=v/100*(1+weaponAmp);
   }
-  // 幻獣直接ボックス補正(キャラUP/特殊攻撃UP等)
+  // 幻獣直接ボックス補正
   for(const sb of summonBoxes)
     for(const [box,amt] of Object.entries(sb))
       if(GEAR[box]!==undefined) GEAR[box]+=amt;
+
   recalcGearK();
+
+  // per-character 表示攻撃力 & GEAR_K_C
+  GEAR_K_C={}; DISPLAY_ATK_C={};
+  if(typeof WEAPON_MASTER!=='undefined'&&CHARS.length>0&&Object.keys(ELEM).length>0){
+    const heroRank=parseInt(document.getElementById('hero-rank')?.value)||100;
+    const heroMasterBonusAtkPct=parseFloat(document.getElementById('hero-master-bonus')?.value)||0;
+    for(const charKey of CHARS){
+      const dispAtk=calcDisplayAtk(charKey,slots,activeSummons,heroRank,heroMasterBonusAtkPct);
+      if(dispAtk>0){
+        DISPLAY_ATK_C[charKey]=dispAtk;
+        GEAR_K_C[charKey]=dispAtk*DMG.affinity*(1+GEAR.dmgup)*(1+GEAR.other)*DMG.misc/DMG.enemy_def;
+      }
+    }
+  }
   // シミュは重い(ビームサーチ・数秒〜10秒)ため自動再実行しない。▶ボタンで明示実行する。
 }
 
@@ -1740,7 +1850,9 @@ function applyGear(){
 function renderParty(){
   const chips=CHARS.map(c=>{
     const role=c===LEADER?'<span class="pc-role">英霊</span>':'';
-    return `<span class="party-chip">${role}${JP[c]}</span>`;
+    const atkVal=DISPLAY_ATK_C[c];
+    const atkBadge=atkVal?`<span class="pc-atk">${atkVal.toLocaleString()}</span>`:'';
+    return `<span class="party-chip">${role}${JP[c]}${atkBadge}</span>`;
   }).join('');
   document.getElementById('party-bar').innerHTML=
     `<span class="pb-label">編成</span>${chips}`;
