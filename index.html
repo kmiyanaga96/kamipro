@@ -422,51 +422,45 @@ const SUMMON_SLOTS = 2; // シミュ時に採用する幻獣枠数(重複可)
 let GEAR_K = 0;
 let GEAR_K_C = {};      // per-character GEAR_K: {charKey: 表示攻撃力ベースのスケール係数}
 let DISPLAY_ATK_C = {}; // per-character 表示攻撃力(UI表示用)
-// 表示攻撃力算出: 武器ATK×得意補正 + 幻獣ATK×同属性補正 + キャラ基本ATK(神姫) or 英霊基本値
+let DISPLAY_HP_C = {};  // per-character 表示HP(UI表示用)
+// 表示攻撃力算出: 武器ATK×得意補正 + 幻獣ATK合計 + キャラ基本ATK(神姫) or 英霊基本値
 // slots: 長さ10の武器キー配列(slot0=メイン, 1-9=サブ。空文字=未装備)
-// summons: SUMMON_REGISTRYエントリの配列 / heroRank: ランク値 / heroMasterBonusAtkPct: マスターATK%
-function calcDisplayAtk(charKey, slots, summons, heroRank, heroMasterBonusAtkPct){
+// summonAtkTotal: 編成画面のメイン+サブ幻獣ATK合計(表示寄与分・手動入力)
+// heroRank: ランク値 / heroMasterAtkPct: マスターボーナスATK%(英霊のみ・全枠に乗算)
+// 神姫/英霊で武器・幻獣は共通だが、得意補正は各キャラのfavWeaponで個別に効く。
+function calcDisplayAtk(charKey, slots, summonAtkTotal, heroRank, heroMasterAtkPct){
   const def = CHAR_REGISTRY[charKey];
   if(!def || typeof WEAPON_MASTER==='undefined') return 0;
-  const fav = def.favWeapon||[], charElem = ELEM[charKey], heroKey = CHARS[0];
+  const fav = def.favWeapon||[];
   let weaponAtk=0;
   for(let i=0;i<slots.length;i++){
     const w=WEAPON_MASTER[slots[i]]; if(!w) continue;
     weaponAtk += Math.floor(w.atk*(fav.includes(w.type)?1.2:1.0));
   }
-  let summonAtk=0;
-  for(const s of summons){
-    if(!s?.atk) continue;
-    summonAtk += Math.floor(s.atk*((s.elem&&s.elem===charElem)?1.1:1.0));
-  }
   if(def.type==='hero'){
     const r=heroRank, lvUp=def.lvUpAtk||0;
     const rankBonus=Math.min(r,100)*40+Math.max(0,Math.min(r,200)-100)*20+Math.max(0,r-200)*10;
-    return Math.round((1000+lvUp+rankBonus+weaponAtk+summonAtk)*(1+heroMasterBonusAtkPct/100));
+    return Math.round((1000+lvUp+rankBonus+weaponAtk+summonAtkTotal)*(1+heroMasterAtkPct/100));
   }
-  return (def.baseAtk||0)+weaponAtk+summonAtk;
+  return (def.baseAtk||0)+weaponAtk+summonAtkTotal; // 神姫はマスターボーナス非適用
 }
-// 表示HPスキャフォールド(旺壮実装時にhp値を埋める予定。現状は全武器/幻獣hp=0のため全て0返却)
-function calcDisplayHp(charKey, slots, summons, heroRank, heroMasterBonusHpPct){
+// 表示HP算出: 武器HP×得意補正 + 幻獣HP合計 + キャラ基本HP(神姫) or 英霊基本値
+// summonHpTotal: 幻獣HP合計(表示寄与分・手動入力) / heroMasterHpPct: マスターボーナスHP%
+function calcDisplayHp(charKey, slots, summonHpTotal, heroRank, heroMasterHpPct){
   const def = CHAR_REGISTRY[charKey];
   if(!def || typeof WEAPON_MASTER==='undefined') return 0;
-  const fav = def.favWeapon||[], charElem = ELEM[charKey];
+  const fav = def.favWeapon||[];
   let weaponHp=0;
   for(let i=0;i<slots.length;i++){
     const w=WEAPON_MASTER[slots[i]]; if(!w) continue;
     weaponHp += Math.floor((w.hp||0)*(fav.includes(w.type)?1.2:1.0));
   }
-  let summonHp=0;
-  for(const s of summons){
-    if(!s?.hp) continue;
-    summonHp += Math.floor(s.hp*((s.elem&&s.elem===charElem)?1.1:1.0));
-  }
   if(def.type==='hero'){
     const r=heroRank, lvUpHp=def.lvUpHp||0;
     const rankBonus=Math.min(r,100)*8+Math.max(0,Math.min(r,200)-100)*2+Math.max(0,r-200)*1;
-    return Math.round((600+lvUpHp+rankBonus+weaponHp+summonHp)*(1+heroMasterBonusHpPct/100));
+    return Math.round((600+lvUpHp+rankBonus+weaponHp+summonHpTotal)*(1+heroMasterHpPct/100));
   }
-  return (def.baseHp||0)+weaponHp+summonHp;
+  return (def.baseHp||0)+weaponHp+summonHpTotal;
 }
 
 function recalcGearK(){ GEAR_K = DMG.base_atk*DMG.affinity*(1+GEAR.dmgup)*(1+GEAR.other)*DMG.misc/DMG.enemy_def; }
@@ -1766,13 +1760,22 @@ function renderGearPanel(){
           <option value="adv"${DMG.affinity===1.5?' selected':''}>有利（×1.5）</option>
         </select>
         <span class="wpn-lbl" style="margin-left:8px;">英霊ランク</span>
-        <input type="number" id="hero-rank" value="100" min="1" max="300" step="1" style="width:65px">
+        <input type="number" id="hero-rank" value="165" min="1" max="300" step="1" style="width:65px">
         <span class="wpn-lbl" style="margin-left:8px;">マスターATK%</span>
-        <input type="number" id="hero-master-bonus" value="0" min="0" step="0.1" style="width:55px">
+        <input type="number" id="hero-master-atk" value="0" min="0" step="0.1" style="width:55px">
+        <span class="wpn-lbl" style="margin-left:8px;">マスターHP%</span>
+        <input type="number" id="hero-master-hp" value="0" min="0" step="0.1" style="width:55px">
+      </div>
+      <div class="gear-row" style="margin-bottom:8px;gap:12px;flex-wrap:wrap;">
+        <span class="wpn-lbl">幻獣ATK合計</span>
+        <input type="number" id="summon-atk-total" value="0" min="0" step="1" style="width:80px">
+        <span class="wpn-lbl" style="margin-left:8px;">幻獣HP合計</span>
+        <input type="number" id="summon-hp-total" value="0" min="0" step="1" style="width:80px">
+        <span style="font-size:10px;color:var(--muted);">※編成画面のメイン+サブ幻獣の表示寄与合計</span>
       </div>
       <div class="gear-grid">
         <div>
-          <div class="gear-sub">幻獣（${SUMMON_SLOTS}枠・重複可）</div>${summonRows}
+          <div class="gear-sub">幻獣（${SUMMON_SLOTS}枠・重複可／ダメージ用）</div>${summonRows}
           <div class="gear-sub" style="margin-top:10px;">ウェポン（メイン1＋サブ9）</div>${weaponRows}
         </div>
         <div>
@@ -1790,13 +1793,13 @@ function applyGear(){
   DMG.affinity = document.getElementById('dmg-affinity')?.value==='adv'?1.5:1.0;
   for(const [box] of GEAR_BOXES) GEAR[box]=0;
 
-  // 幻獣のweapon_amp合計と直接ボックス補正を収集
+  // 幻獣のweapon_amp合計と直接ボックス補正を収集(ダメージ用。表示攻撃力の幻獣寄与は手動合計入力)
   let weaponAmp=0;
-  const summonBoxes=[], activeSummons=[];
+  const summonBoxes=[];
   for(let i=0;i<SUMMON_SLOTS;i++){
     const key=document.getElementById('summon-'+i)?.value;
     const s=SUMMON_REGISTRY[key]; if(!s) continue;
-    weaponAmp+=s.weapon_amp||0; summonBoxes.push(s.box); activeSummons.push(s);
+    weaponAmp+=s.weapon_amp||0; summonBoxes.push(s.box);
   }
 
   // ウェポンスキルからGEAR_BOXESを自動計算
@@ -1830,15 +1833,20 @@ function applyGear(){
 
   recalcGearK();
 
-  // per-character 表示攻撃力 & GEAR_K_C
-  GEAR_K_C={}; DISPLAY_ATK_C={};
+  // per-character 表示攻撃力/HP & GEAR_K_C
+  GEAR_K_C={}; DISPLAY_ATK_C={}; DISPLAY_HP_C={};
   if(typeof WEAPON_MASTER!=='undefined'&&CHARS.length>0&&Object.keys(ELEM).length>0){
-    const heroRank=parseInt(document.getElementById('hero-rank')?.value)||100;
-    const heroMasterBonusAtkPct=parseFloat(document.getElementById('hero-master-bonus')?.value)||0;
+    const heroRank=parseInt(document.getElementById('hero-rank')?.value)||165;
+    const mAtk=parseFloat(document.getElementById('hero-master-atk')?.value)||0;
+    const mHp=parseFloat(document.getElementById('hero-master-hp')?.value)||0;
+    const sumAtkTotal=parseFloat(document.getElementById('summon-atk-total')?.value)||0;
+    const sumHpTotal=parseFloat(document.getElementById('summon-hp-total')?.value)||0;
     for(const charKey of CHARS){
-      const dispAtk=calcDisplayAtk(charKey,slots,activeSummons,heroRank,heroMasterBonusAtkPct);
+      const dispAtk=calcDisplayAtk(charKey,slots,sumAtkTotal,heroRank,mAtk);
+      const dispHp=calcDisplayHp(charKey,slots,sumHpTotal,heroRank,mHp);
       if(dispAtk>0){
         DISPLAY_ATK_C[charKey]=dispAtk;
+        DISPLAY_HP_C[charKey]=dispHp;
         GEAR_K_C[charKey]=dispAtk*DMG.affinity*(1+GEAR.dmgup)*(1+GEAR.other)*DMG.misc/DMG.enemy_def;
       }
     }
