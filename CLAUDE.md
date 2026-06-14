@@ -166,11 +166,18 @@ CHAR_REGISTRY[charKey] = {
 - **ウェポンスキル**: 各ボックスの合計%を1欄ずつ入力(スキル個数は問わず合算値のみ・%→/100でfraction)。
 - UI: `renderGearPanel()`/`applyGear()`。全0で倍率1.0=ベースライン不変。
   シミュは重い(ビームサーチ・数秒〜10秒)ため入力変更での自動再実行はせず、`runSim()` 冒頭で
-  `applyGear()` を呼んで実行時に同期する(▶ボタンで明示実行)。
+  `applyGear()` を呼んで実行時に同期する(▶ボタンで明示実行)。Worker へは `gearState:{...GEAR}` で全キー転送。
 - **`GEAR_K`**: `_na()` ホットパス用の事前畳み込み係数 = `base_atk×(1+dmgup)(1+other)×misc/enemy_def`。
   `recalcGearK()` で GEAR 変更時に再計算。`_na()` は乗算ボックスにこれを掛けるだけ。
-- バースト = `_na() × (burst_coef_a + absolute本数×burst_dmg_absolute)`、フルバースト5人時は攻撃フェイズ合計に `×(1+burst_streak)`
-- ジャッジ循環: ph0=10ヒット(`min(_na()×3, judg_cap)`＋アンプリファ作動中は`amplifa_flat`) / ph1=バースト / ph2=通常攻撃
+- **フレーム別ダメージUP枠**(実機の通常/アビ/バーストダメージUPは該当フレーム限定・`_na()`のbaseに含めない):
+  `na_dmg`(通常=judge ph2に`×(1+na_dmg)`) / `abi_dmg`(アビ=judge ph0・コンソートに`×(1+abi_dmg)`) /
+  `burst_dmg`(バースト=`burst()`係数に加算 `a+...+burst_dmg`)。`dmgup`(白虎/与ダメ)は全フレーム共通でGEAR_K側。
+- **上限UP枠**(基盤のみ): `na_cap`/`abi_cap`/`burst_cap`。`_capFrame(frame,d,base)` が `min(d, 基準上限×(1+上限UP))`。
+  通常/バーストの基準上限 `DMG.cap_na`/`cap_burst` は実測待ちで `Infinity`=休眠(有限値を入れた瞬間に発火する基盤)。
+  アビは既存 `judg_cap`/`consort_cap` を基準上限として `abi_cap` が倍率補正。
+- バースト = `_capFrame('burst', _na()×(burst_coef_a + absolute本数×burst_dmg_absolute + burst_dmg)) + royBurst独自枠`、
+  フルバースト5人時は攻撃フェイズ合計に `×(1+burst_streak)`。
+- ジャッジ循環: ph0=10ヒット(`_capFrame('abi', _na()×3×(1+abi_dmg), judg_cap)`＋amplifa＋royAbi独自枠) / ph1=バースト / ph2=通常(`_capFrame('na', _na()×(1+na_dmg))`)
 - `dmg`(総ダメージ累計)は burst()/judg exec/通常攻撃で加算。反逆は無視。急所は本来有利属性のみだが期待値で一律計上。
 
 ### 値の所在と原則

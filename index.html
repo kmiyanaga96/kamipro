@@ -302,6 +302,11 @@ const DMG = {
   judg_mult:  3,             // ジャッジメント: 通常攻撃比3倍
   judg_cap:   200000,        // ジャッジ1ヒットの減衰上限(20万)
   amplifa_flat: 100000,      // アンプリファ: アビダメプラス +10万(ジャッジ発動時に加算)
+  // ─── フレーム別ダメージ上限(基盤) ─────────────────────────────────────
+  // 実機の「通常/アビ/バーストダメージ上限」。上限UP(GEAR.*_cap)は 基準×(1+上限UP) で効く。
+  // 通常/バーストの基準上限は実測待ちのため ∞ で休眠(有限値を入れた瞬間に上限UPが発火する基盤)。
+  // アビは既存の judg_cap/consort_cap を基準上限として流用(abi_capがそれらを倍率補正)。
+  cap_na: Infinity, cap_burst: Infinity,
   // ═══ 火属性編成(data2.xlsx) ═══════════════════════════════════════════
   // 効果ターンは確定値。効果量(%)は実測待ちのため仮値(要実測)。
   // バフ系buf키はスタック追跡のみ実装済みで、効果量確定後に _na() へ配線する。
@@ -385,6 +390,14 @@ const GEAR_BOXES = [
   ['acute',    '急所'],          // 急所枠: 急所スキル(期待寄与を直接入力)
   ['crit_rate','会心発動率'],    // 会心発動率枠(min1.0でクランプ)
   ['other',    'その他/テクニカ'],// その他バフ補正+テクニカ枠
+  // ─── フレーム別ダメージUP枠(該当フレームのみ加算・_na()のbaseには含めない) ───
+  ['na_dmg',   '通常攻撃ダメUP'], // 通常攻撃のみ: judge ph2(通常)に ×(1+na_dmg)
+  ['abi_dmg',  'アビダメUP'],     // アビダメのみ: judge ph0/コンソートに ×(1+abi_dmg)
+  ['burst_dmg','バーストダメUP'], // バーストのみ: burst()係数に加算(a+...+burst_dmg)
+  // ─── 上限UP枠(基盤のみ・基準上限×(1+上限UP)。通常/バーストの基準上限はInfinity=休眠) ───
+  ['na_cap',   '通常ダメ上限UP'], // 基準上限 DMG.cap_na(=∞・休眠)
+  ['abi_cap',  'アビダメ上限UP'], // 基準上限 judg_cap/consort_cap を ×(1+abi_cap)
+  ['burst_cap','バーストダメ上限UP'], // 基準上限 DMG.cap_burst(=∞・休眠)
 ];
 const GEAR = Object.fromEntries(GEAR_BOXES.map(([k])=>[k,0]));
 
@@ -537,9 +550,11 @@ const CHAR_REGISTRY = {
                     // ジャッジ循環: ph0=敵全体10回ダメージ / ph1=バースト発動 / ph2=通常攻撃
                     if(ph===0){ const amp=sim.cd.amplifa>0?DMG.amplifa_flat:0;
                       const royAbi=sim.buf.roy?.length ? 10*sim._na()*DMG.roy_abi_frac[sim.roy_tier??0] : 0;
-                      sim.dmg += 10*Math.min(sim._na()*DMG.judg_mult,DMG.judg_cap) + amp + royAbi; }
+                      // アビダメ枠: ×(1+abi_dmg)、1ヒット上限 judg_cap×(1+abi_cap)
+                      const hit=sim._capFrame('abi', sim._na()*DMG.judg_mult*(1+GEAR.abi_dmg), DMG.judg_cap);
+                      sim.dmg += 10*hit + amp + royAbi; }
                     else if(ph===1) sim.burst(ownerOf('judg'),bset,T);
-                    else sim.dmg += sim._na(); }},
+                    else sim.dmg += sim._capFrame('na', sim._na()*(1+GEAR.na_dmg)); }},
       absolute: { s:130, atkBuf:true, partyBG:true, exec:(sim,T,ord)=>{ if(!sim.buf.absolute)sim.buf.absolute=[]; sim.buf.absolute.push(DMG.dur_absolute); sim.addG(CHARS,BG.absolute); sim.use('absolute',T,ord); }},
       divinus:  { s:90 },
       // ゴッド・オムニポンテス: 全体BG+100。連理魔力30以上かつ戦闘中1回のみ。
@@ -629,7 +644,8 @@ const CHAR_REGISTRY = {
       // アーティオリ: (2+0.5×バフ数)倍のダメージ(上限250万)。防御DOWN(6T累積可)。バフ20以上で2回。
       consort: { exec:(sim,T,ord)=>{ const bc=buffCount(sim); const hits=bc>=20?2:1;
                    const mult=2+0.5*bc;
-                   for(let i=0;i<hits;i++) sim.dmg+=Math.min(sim._na()*mult,DMG.consort_cap);
+                   // アビダメ枠: ×(1+abi_dmg)、上限 consort_cap×(1+abi_cap)
+                   for(let i=0;i<hits;i++) sim.dmg+=sim._capFrame('abi', sim._na()*mult*(1+GEAR.abi_dmg), DMG.consort_cap);
                    for(let i=0;i<hits;i++) (sim.buf.consort_def??=[]).push(DMG.dur_consort_def);
                    sim.use('consort',T,ord,hits===2?'(×2)':''); }},
       // ディシジフ: ベタイア2回発動化(2T)。バフ10以上で全体アビCD-1・BG+30追加。
@@ -989,8 +1005,16 @@ class Sim {
     if(ABIL.effond && channel==='a'&&T.ability>0&&T.ability%12===0) this.mooncode=2;
   }
 
+  // フレーム別ダメージ上限クランプ(基盤): 基準上限 × (1+上限UP)。
+  // base省略時はDMG.cap_<frame>(通常/バースト=∞で休眠)、明示時はその基準上限(アビのjudg_cap等)を倍率補正。
+  _capFrame(frame, d, base){
+    const cap=(base??DMG['cap_'+frame])*(1+(GEAR[frame+'_cap']||0));
+    return Math.min(d, cap);
+  }
+
   // 概算通常攻撃ダメージ(中央値): バフ期間管理辞書(buf)から動的に枠を計算する。
   // 各バフキーのスタック数が実効枠値を決定し、失効スタックは tick() で除去済み。
+  // ※ フレーム別ダメージUP(na_dmg/abi_dmg/burst_dmg)は base に含めず、各フレームの加算点で乗じる。
   _na(){
     const D=DMG, b=this.buf, G=GEAR;
     const nAbs=b.absolute?.length||0, nPuv=b.puvoir?.length||0;
@@ -1037,9 +1061,11 @@ class Sim {
     // 概算バーストダメージ: absolute(バーストダメUP) + lami_power(バースト威力UP)
     const bdmg = (this.buf.absolute?.length||0)*DMG.burst_dmg_absolute
                + (this.buf.lami_power?.length||0)*DMG.lami_power_val;
-    // ロワ・クモンド: バーストプラス(独自枠・味方全体付与のため全員のバーストに加算)
+    // ロワ・クモンド: バーストプラス(独自枠・味方全体付与のため全員のバーストに加算・上限の外)
     const royBurst = this.buf.roy?.length ? this._na()*DMG.roy_burst_frac[this.roy_tier??0] : 0;
-    this.dmg += this._na()*(DMG.burst_coef_a + bdmg) + royBurst;
+    // バーストダメージ式: 通常攻撃ダメ × (a + バーストダメUP効果) ＋ 独自枠。ウェポンburst_dmgは係数に加算。
+    const core = this._capFrame('burst', this._na()*(DMG.burst_coef_a + bdmg + GEAR.burst_dmg));
+    this.dmg += core + royBurst;
     if(atk) bset.add(owner);
     // 連理魔力(コヴァレント): バースト2回毎に+1＆ジャッジ即使用可。攻撃フェーズのバーストも対象
     this.procR(T,'b');
@@ -1640,7 +1666,9 @@ function renderGearPanel(){
       <div class="cfg-title">⚙️ 幻獣・ウェポン設定（全0でベース倍率）</div>
       <div class="gear-grid">
         <div><div class="gear-sub">幻獣（${SUMMON_SLOTS}枠・重複可）</div>${summonRows}</div>
-        <div><div class="gear-sub">ウェポンスキル合計（各ボックス%）</div>${wpnRows}</div>
+        <div><div class="gear-sub">ウェポンスキル合計（各ボックス%）</div>${wpnRows}
+          <div style="font-size:10px;color:var(--muted);margin-top:6px;">
+            ※上限UP系は基盤のみ（通常/バーストの基準上限が未設定のため現状は休眠）</div></div>
       </div>
     </div>`;
 }
