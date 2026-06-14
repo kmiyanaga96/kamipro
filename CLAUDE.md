@@ -125,7 +125,7 @@ CHAR_REGISTRY[charKey] = {
 | `leg_aslt` | アサルト | `assault_legend=0.20`(レジェンドアシ・契晶cum≥10) | 3 | refresh |
 | `leg_vigor` | 旺盛 | `vigor_legend=0.3552`(契晶cum≥70) | 3 | refresh |
 | `leg_spec` | 特殊攻撃 | `spec_legend=0.20`(契晶cum≥80) | 3 | refresh |
-| `roy` | 独立フラット | `roy_na_frac[tier]`×`_na()`(tier=buffCount 0-5/6-10/11-15/16+) | 2 | 累積 |
+| `roy` | 独立フラット(全攻撃) | 通常`roy_na_frac`/アビ`roy_abi_frac`/バースト`roy_burst_frac`×`_na()`(原文効果量表÷100万・tier=強化効果数 0-5/6-10/11-15/16+) | 2 | 累積 |
 | `pike` | 旺盛 | `vigor_pike=0.3552`(基礎値42・フルHP) | 2 | 累積 |
 | `pike_def` | 防壁 | buffCount精度用(ダメージ無寄与) | 2 | 累積 |
 | `pike_crit` | 急所+会心 | `acute_pike_crit=0.30`(確実100%×倍率1.3) | 2 | 累積 |
@@ -206,6 +206,11 @@ CHAR_REGISTRY[charKey] = {
 - **天矢乱舞**: ゲージ不足キャラが存在するターン(T2以降)のみ使用可。
 - **proc機会損失の最小化**: alone・judg が攻撃バフより先に発動するのは意図的最適化。
   alone→judg→攻撃バフ の順でburst-2 procとabi-12 procの両方を同一ターンで取得できる。
+- **ロワ・クモンドの3枠**: 「全攻撃ダメージプラス」は通常/アビダメ/バーストで別効果量(原文表)。
+  `roy_na_frac`(通常=`_na()`内)・`roy_abi_frac`(アビダメ=ジャッジph0)・`roy_burst_frac`(バースト=`burst()`)の
+  3枠を独自枠加算する。ロワは味方全体付与のため全員のバーストに乗る(burst内で`buf.roy`判定)。
+- **buffCount=強化効果数のみ**: tier判定の「(英霊/自分の)強化効果の数」は味方バフのみ。
+  敵デバフ系(`DEBUFF_KEYS`=consort_def/hobby_def/hydro_def/universa/universa_b/logos)は除外する。
 - **ロボ独立追跡**: ドロイド(2アビ)＝攻撃ロボ(`sim.droid`)、バノーシク(1アビ)＝補助ロボ(`sim.banoshik_robot`)。
   両者は独立した3T変数で管理し、互いに干渉しない。
   BG増加(T.ra)は攻撃ロボ=赤アビ反応・補助ロボ=黄アビ反応（同一アビに両ロボが反応することはない）。

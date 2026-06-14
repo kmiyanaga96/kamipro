@@ -306,10 +306,12 @@ const DMG = {
   // 効果ターンは確定値。効果量(%)は実測待ちのため仮値(要実測)。
   // バフ系buf키はスタック追跡のみ実装済みで、効果量確定後に _na() へ配線する。
   // ─── ナポレオン ───
-  dur_roy: 2,                // ロワ・クモンド: 全攻撃ダメージプラス(バフ数tier依存・2T)
-  // 通常攻撃への加算値をsim_na比率で定義(tier=0-3: buffCount 0-5/6-10/11-15/16+)
-  // 実ゲーム通攻プラス 6万/7万/10万/20万 ÷ 典型総攻撃1M ≈ 0.06/0.07/0.10/0.20
-  roy_na_frac: [0.06, 0.07, 0.10, 0.20],
+  dur_roy: 2,                // ロワ・クモンド: 全攻撃ダメージプラス(独自枠・バフ数tier依存・2T)
+  // 原文の効果量表(万)を÷100万でfrac化し実数比を厳密保存(tier=0-3: 強化効果数 0-5/6-10/11-15/16+)
+  // 「全攻撃ダメージプラス」は通常/アビダメ/バーストで別値。3枠とも _na() を基準に独自枠加算する。
+  roy_na_frac:    [0.06, 0.07, 0.10, 0.20],  // 通常攻撃プラス  6万/7万/10万/20万
+  roy_abi_frac:   [0.05, 0.06, 0.08, 0.10],  // アビダメプラス  5万/6万/8万/10万
+  roy_burst_frac: [0.10, 0.30, 0.50, 1.00],  // バーストプラス  10万/30万/50万/100万
   dur_pike: 2,               // オーンフォッセモ・パイク: 旺盛・防壁(バフ15+で急所会心追加)
   dur_consort_def: 6,        // コンソート・アーティオリ: 防御DOWN(累積可)
   consort_cap: 2500000,      // コンソート: 1発あたり減衰上限250万
@@ -406,7 +408,10 @@ recalcGearK();
 // type:'hero'|'kamihime' / abilities: {key:[color,cd,keigyo_cost]} / def: CHAR_DEF エントリ
 
 // 強化効果数の概算: buf辞書の総スタック数(ナポレオンのバフ数比例効果の参照用)
-const buffCount = sim => Object.values(sim.buf).reduce((a,v)=>a+v.length,0);
+// 敵デバフ系buf키(防御/耐性DOWN・敵デバフ)は味方の「強化効果」ではないため buffCount から除外する。
+// ナポレオンの roy/pike/consort/factor のtier判定は原文「(英霊/自分の)強化効果の数」に従う。
+const DEBUFF_KEYS = new Set(['consort_def','hobby_def','hydro_def','universa','universa_b','logos']);
+const buffCount = sim => Object.entries(sim.buf).reduce((a,[k,v])=>a+(DEBUFF_KEYS.has(k)?0:v.length),0);
 
 const CHAR_REGISTRY = {
   // ─── state フィールドの規約 ──────────────────────────────────────────
@@ -530,7 +535,9 @@ const CHAR_REGISTRY = {
       judg:     { s:80, guard:(sim,T)=>T.ju<T.judgCap,
                   exec:(sim,T,ord,bset)=>{ const ph=T.ju%3; sim.use('judg',T,ord); T.ju++;
                     // ジャッジ循環: ph0=敵全体10回ダメージ / ph1=バースト発動 / ph2=通常攻撃
-                    if(ph===0){ const amp=sim.cd.amplifa>0?DMG.amplifa_flat:0; sim.dmg += 10*Math.min(sim._na()*DMG.judg_mult,DMG.judg_cap) + amp; }
+                    if(ph===0){ const amp=sim.cd.amplifa>0?DMG.amplifa_flat:0;
+                      const royAbi=sim.buf.roy?.length ? 10*sim._na()*DMG.roy_abi_frac[sim.roy_tier??0] : 0;
+                      sim.dmg += 10*Math.min(sim._na()*DMG.judg_mult,DMG.judg_cap) + amp + royAbi; }
                     else if(ph===1) sim.burst(ownerOf('judg'),bset,T);
                     else sim.dmg += sim._na(); }},
       absolute: { s:130, atkBuf:true, partyBG:true, exec:(sim,T,ord)=>{ if(!sim.buf.absolute)sim.buf.absolute=[]; sim.buf.absolute.push(DMG.dur_absolute); sim.addG(CHARS,BG.absolute); sim.use('absolute',T,ord); }},
@@ -1030,7 +1037,9 @@ class Sim {
     // 概算バーストダメージ: absolute(バーストダメUP) + lami_power(バースト威力UP)
     const bdmg = (this.buf.absolute?.length||0)*DMG.burst_dmg_absolute
                + (this.buf.lami_power?.length||0)*DMG.lami_power_val;
-    this.dmg += this._na()*(DMG.burst_coef_a + bdmg);
+    // ロワ・クモンド: バーストプラス(独自枠・味方全体付与のため全員のバーストに加算)
+    const royBurst = this.buf.roy?.length ? this._na()*DMG.roy_burst_frac[this.roy_tier??0] : 0;
+    this.dmg += this._na()*(DMG.burst_coef_a + bdmg) + royBurst;
     if(atk) bset.add(owner);
     // 連理魔力(コヴァレント): バースト2回毎に+1＆ジャッジ即使用可。攻撃フェーズのバーストも対象
     this.procR(T,'b');
