@@ -412,7 +412,7 @@ const GEAR = Object.fromEntries(GEAR_BOXES.map(([k])=>[k,0]));
 // weapon_amp: ウェポンスキル効果量UP(採用枠分を加算) / box: {ボックスキー: 直接加算fraction}。
 // ※ box は GEAR_BOXES のキー(assault/elem/vigor/spec/dmgup/acute/crit_rate/other)で記述する。
 const SUMMON_REGISTRY = {
-  shugo: { jp:'守護(ハギト)', weapon_amp:0.40, atk:3375, hp:0, elem:'light', box:{} },
+  shugo: { jp:'守護(ハギト)', weapon_amp:0.40, atk:3375, hp:990, elem:'light', box:{} },
   catas: { jp:'カタス',       weapon_amp:0.50, atk:0,    hp:0, elem:'light', box:{assault:1.0} },
   oni:   { jp:'鬼',           weapon_amp:0.50, atk:0,    hp:0, elem:'dark',  box:{assault:1.0, spec:0.10} },
 };
@@ -527,7 +527,7 @@ const CHAR_REGISTRY = {
   yamato: {
     type: 'kamihime',
     jp: 'ヤマト', gcls: 'gy', elem: 'light',
-    favWeapon: ['剣','槍'], baseAtk: 10000, baseHp: 0,
+    favWeapon: ['剣','槍'], baseAtk: 10000, baseHp: 1100,
     state: { inori_p: null },  // 現神の祈りのテトラ4アビ短縮タイマー（null=未発動, 0〜1=カウント中）
     abilities: {
       inori: ['y', 14, 0],
@@ -568,7 +568,7 @@ const CHAR_REGISTRY = {
   hecate: {
     type: 'kamihime',
     jp: 'ヘカテー', gcls: 'gh', elem: 'light',
-    favWeapon: ['杖','魔導具'], baseAtk: 7800, baseHp: 0,
+    favWeapon: ['杖','魔導具'], baseAtk: 7800, baseHp: 1850,
     abilities: {
       puvoir: ['y', 2, 0],
       effond: ['r', 3, 0],
@@ -594,7 +594,7 @@ const CHAR_REGISTRY = {
   tetra: {
     type: 'kamihime',
     jp: 'テトラ', gcls: 'gt', elem: 'light',
-    favWeapon: ['杖','魔導具'], baseAtk: 10110, baseHp: 0,
+    favWeapon: ['杖','魔導具'], baseAtk: 10110, baseHp: 1100,
     state: { helix_done: false, helix_abil_used: false },  // HELIX解禁済み / 使用済み
     abilities: {
       judg:     ['r', 10, 0],
@@ -643,7 +643,7 @@ const CHAR_REGISTRY = {
   elaine: {
     type: 'kamihime',
     jp: 'エレイン', gcls: 'gl', elem: 'light',
-    favWeapon: ['剣','特殊剣'], baseAtk: 10500, baseHp: 0,
+    favWeapon: ['剣','特殊剣'], baseAtk: 10500, baseHp: 1820,
     abilities: {
       alone:    ['r', 0, 4],
       legend:   ['y', 0, 0],

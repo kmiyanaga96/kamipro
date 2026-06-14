@@ -4,10 +4,10 @@
 // defender: HP専用。ダメージGEAR計算では無視し、calcDisplayHp()で使用する。
 // stinger:true → 急所固定+20%・weapon_ampは発動率(rate)にのみ適用。
 // condition:{mainOf:'heroKey'} → そのキャラのメイン装備(slot0)時のみ有効。
-// hp: 0 はプレースホルダ（HP値確定後に更新）。
+// atk/hp は最大Lv想定の最大値。育成途中の実機表示は理論値より低くなる。
 const WEAPON_MASTER = {
   directorel: {
-    jp: '六欲天デレクターレ', atk: 4934, hp: 0, type: '杖', elem: 'light',
+    jp: '六欲天デレクターレ', atk: 4934, hp: 302, type: '杖', elem: 'light',
     skills: [
       { box: 'burst_dmg', pct: 65 },      // エクシード性能65%
       { box: 'burst_cap', pct: 50 },      // エクシード上限50%
@@ -21,7 +21,7 @@ const WEAPON_MASTER = {
     ],
   },
   zodiac_cannon: {
-    jp: '煌獅砲ゾディアックカノン', atk: 4496, hp: 0, type: '銃', elem: 'light',
+    jp: '煌獅砲ゾディアックカノン', atk: 4496, hp: 230, type: '銃', elem: 'light',
     skills: [
       { box: 'vigor',   pct: 19.1 },      // ヴィゴラス19.1%
       { box: 'assault', pct: 20 },        // アサルト20%
@@ -29,7 +29,7 @@ const WEAPON_MASTER = {
     ],
   },
   sheol_blade: {
-    jp: '純傲光剣シェオルブレード', atk: 4110, hp: 0, type: '剣', elem: 'light',
+    jp: '純傲光剣シェオルブレード', atk: 4110, hp: 204, type: '剣', elem: 'light',
     skills: [
       { box: 'burst_dmg', pct: 80 },      // エクシード性能80%
       { box: 'burst_cap', pct: 40 },      // エクシード上限40%
@@ -37,7 +37,7 @@ const WEAPON_MASTER = {
     ],
   },
   corel_snipe: {
-    jp: '機光銃コレールスナイプ', atk: 4641, hp: 0, type: '銃', elem: 'light',
+    jp: '機光銃コレールスナイプ', atk: 4641, hp: 217, type: '銃', elem: 'light',
     skills: [
       { box: 'defender', pct: 26 },       // ディフェンダー26%（HP専用）
       { box: 'other',    pct: 18 },       // テクニカ18%（通常ダメUP）
@@ -45,7 +45,7 @@ const WEAPON_MASTER = {
     ],
   },
   ishtar: {
-    jp: '天意剣イシュタル', atk: 4881, hp: 0, type: '剣', elem: 'light',
+    jp: '天意剣イシュタル', atk: 4881, hp: 230, type: '剣', elem: 'light',
     skills: [
       { box: 'defender',  pct: 23 },      // ディフェンダー23%（HP専用）
       { box: 'acute', stinger: true, rate: 40 }, // スティンガー発動率40%（+20%固定・rateにのみweapon_amp）
@@ -54,7 +54,7 @@ const WEAPON_MASTER = {
     ],
   },
   launcher_tank: {
-    jp: '自走ランチャータンク', atk: 4543, hp: 0, type: '銃', elem: 'light',
+    jp: '自走ランチャータンク', atk: 4543, hp: 272, type: '銃', elem: 'light',
     skills: [
       // 発明王の覇気+: 属性攻撃UP(%未確定・TODO) + 最終ダメUP5% — メインエジソン限定
       { box: 'dmgup', pct: 5, condition: { mainOf: 'edison' } },
