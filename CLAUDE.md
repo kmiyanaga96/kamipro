@@ -172,12 +172,17 @@ CHAR_REGISTRY[charKey] = {
 - **フレーム別ダメージUP枠**(実機の通常/アビ/バーストダメージUPは該当フレーム限定・`_na()`のbaseに含めない):
   `na_dmg`(通常=judge ph2に`×(1+na_dmg)`) / `abi_dmg`(アビ=judge ph0・コンソートに`×(1+abi_dmg)`) /
   `burst_dmg`(バースト=`burst()`係数に加算 `a+...+burst_dmg`)。`dmgup`(白虎/与ダメ)は全フレーム共通でGEAR_K側。
-- **上限UP枠**(基盤のみ): `na_cap`/`abi_cap`/`burst_cap`。`_capFrame(frame,d,base)` が `min(d, 基準上限×(1+上限UP))`。
-  通常/バーストの基準上限 `DMG.cap_na`/`cap_burst` は実測待ちで `Infinity`=休眠(有限値を入れた瞬間に発火する基盤)。
-  アビは既存 `judg_cap`/`consort_cap` を基準上限として `abi_cap` が倍率補正。
-- バースト = `_capFrame('burst', _na()×(burst_coef_a + absolute本数×burst_dmg_absolute + burst_dmg)) + royBurst独自枠`、
+- **減衰(上限)モデル `_decay(frame,raw,base)`**(有志実測): 公称「上限」だが超過分も寄与率(slope)で
+  減衰しつつ伸びる区分線形。計算ダメージ raw → 実ダメージ。上限UP枠 `na_cap`/`abi_cap`/`burst_cap` は
+  第一上限を `×(1+up)`(第二以降の差分は固定オフセット)。
+  - `na`: 第一35万/第二45万/第三55万(実ダメ)・寄与率 1→1/2→1/4→1/8(raw閾値35/55/95万)
+  - `burst`: 100万・寄与率 1→1/10  /  `abi`: 基準=キャラ毎(`judg_cap`/`consort_cap`)・超過 1/25
+  - `hard`(追撃/城塞): 寄与率0=完全頭打ち(betaiaは `betaia_cap` のmin)
+  - 値は**実ダメージ単位**。本シムは抽象スケール(`_na()`~数百)で raw≪上限のため**恒等(休眠)**。
+    `base_atk` 等を実ダメ較正した時点で自動的に減衰が効く基盤。バーストストリーク上限750万は寄与率不明で未実装。
+- バースト = `_decay('burst', _na()×(burst_coef_a + absolute本数×burst_dmg_absolute + burst_dmg)) + royBurst独自枠`、
   フルバースト5人時は攻撃フェイズ合計に `×(1+burst_streak)`。
-- ジャッジ循環: ph0=10ヒット(`_capFrame('abi', _na()×3×(1+abi_dmg), judg_cap)`＋amplifa＋royAbi独自枠) / ph1=バースト / ph2=通常(`_capFrame('na', _na()×(1+na_dmg))`)
+- ジャッジ循環: ph0=10ヒット(`_decay('abi', _na()×3×(1+abi_dmg), judg_cap)`＋amplifa＋royAbi独自枠) / ph1=バースト / ph2=通常(`_decay('na', _na()×(1+na_dmg))`)
 - `dmg`(総ダメージ累計)は burst()/judg exec/通常攻撃で加算。反逆は無視。急所は本来有利属性のみだが期待値で一律計上。
 
 ### 値の所在と原則
