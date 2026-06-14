@@ -268,7 +268,7 @@ const BG = {inori:100,funki:10,absolute:20,sleur:15,legend:10,
 // 値は実測ベース。火力は「プランのランキング(相対比較)」に用いるため絶対値の厳密性は問わない。
 const DMG = {
   base_atk: 1500,            // 表示攻撃力（UIから上書き可）
-  enemy_def: 10,             // 敵防御（UIから上書き可）
+  enemy_def: 10,             // 敵防御（固定値・押し順非依存のため一定）
   affinity: 1.0,             // 属性相性: 有利=1.5 / 中立=1.0（UIから上書き可）
   misc: 1.0,                 // 特殊攻撃/各種ダメージ上限等の押し順非依存枠の一括概算
   // ─── アサルト枠(1スタックあたり) ────────────────────────────────────
@@ -1465,7 +1465,7 @@ ${engineCode}
 self.onmessage=function(e){
   const {heroKey,kamihimeKeys,gearState,dmgBase,n}=e.data;
   for(const [k,v] of Object.entries(gearState)) GEAR[k]=v;
-  if(dmgBase){ DMG.base_atk=dmgBase.base_atk; DMG.enemy_def=dmgBase.enemy_def; DMG.affinity=dmgBase.affinity; }
+  if(dmgBase){ DMG.base_atk=dmgBase.base_atk; DMG.affinity=dmgBase.affinity; }
   recalcGearK();
   buildFormation(heroKey,kamihimeKeys);
   // 最適シム(ビームサーチ): ターン毎に進捗と結果行を送信
@@ -1538,7 +1538,7 @@ function runSim(){
   };
   _simWorker.onerror=function(){ _simWorker=null; _fallbackRunSim(heroKey,kamihimeKeys,n); };
   _simWorker.postMessage({heroKey,kamihimeKeys,gearState:{...GEAR},
-    dmgBase:{base_atk:DMG.base_atk,enemy_def:DMG.enemy_def,affinity:DMG.affinity},n});
+    dmgBase:{base_atk:DMG.base_atk,affinity:DMG.affinity},n});
 }
 
 // Workerが使えない環境向けフォールバック(メインスレッド同期実行)
@@ -1692,8 +1692,6 @@ function renderGearPanel(){
       <div class="gear-row" style="margin-bottom:8px;gap:12px;flex-wrap:wrap;">
         <span class="wpn-lbl">表示攻撃力</span>
         <input type="number" id="dmg-base-atk" value="${DMG.base_atk}" min="1" step="100" style="width:90px">
-        <span class="wpn-lbl" style="margin-left:8px;">敵防御</span>
-        <input type="number" id="dmg-enemy-def" value="${DMG.enemy_def}" min="1" step="100" style="width:90px">
         <span class="wpn-lbl" style="margin-left:8px;">属性相性</span>
         <select id="dmg-affinity">
           <option value="neu"${DMG.affinity===1.0?' selected':''}>中立（×1.0）</option>
@@ -1711,11 +1709,10 @@ function renderGearPanel(){
 }
 
 function applyGear(){
-  // 基本パラメータ(表示攻撃力・敵防御・属性相性)
+  // 基本パラメータ(表示攻撃力・属性相性)。敵防御はDMG.enemy_def固定値を使用。
   const ba=parseFloat(document.getElementById('dmg-base-atk')?.value)||DMG.base_atk;
-  const ed=parseFloat(document.getElementById('dmg-enemy-def')?.value)||DMG.enemy_def;
   const af=document.getElementById('dmg-affinity')?.value==='adv'?1.5:1.0;
-  DMG.base_atk=ba; DMG.enemy_def=ed; DMG.affinity=af;
+  DMG.base_atk=ba; DMG.affinity=af;
   for(const [box] of GEAR_BOXES) GEAR[box]=0;
   // 採用幻獣のweapon_amp合計(ウェポンスキル倍率)と直接ボックス補正を収集
   let weaponAmp=0;
