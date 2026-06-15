@@ -1,7 +1,9 @@
 # 神姫PROJECT R — バーストトラッカー
 
-単一ファイル(`index.html`)で完結する、バースト編成のシミュレーター＆最適押し順トラッカー。
-ビルド不要・外部依存なし（HTML+CSS+vanilla JS）。ブラウザで直接開いて動作する。
+`index.html` 本体 ＋ 手持ちウェポンマスタ `data/weapons.js` の2ファイルで完結する、
+バースト編成のシミュレーター＆最適押し順トラッカー。ビルド不要・外部依存なし（HTML+CSS+vanilla JS）。
+ブラウザで直接開いて動作する。ロジック・UI・CSSは全て `index.html` に集約し、装備マスタ実データ
+（`WEAPON_MASTER`）のみ `data/weapons.js` に分離（`<script src>` で読込）する。
 
 編成は4パターン（属性混在は不可・runSimがバリデーション）:
 - 英霊: エジソン / ナポレオン（elem:null=神姫の最多属性に追従）
@@ -10,26 +12,26 @@
 基準編成（検証用ベースライン）: エジソン + 光4人。
 火属性キャラ(data2.xlsx)は機構・効果量ともに実装済み。passion/victory のみ効果量が未確定で未配線。
 
-## コード地図（index.html / 約1576行）
+## コード地図（index.html / 約1910行）
 
 セクション編集時は該当範囲だけを Read すればトークンを節約できる。
 
 | 範囲(行) | 内容 |
 |---|---|
-| 7–184 | CSS（`<style>`、Material白基調UI・スピナー） |
-| 186–235 | HTML構造（ヘッダ/サイドバー/メイン/ローディング） |
-| 238–249 | ゲーム定数（確定仕様・後述） |
-| 250–334 | **`DMG`**（概算火力モデル定数・末尾に火属性セクション） |
-| 335–365 | **`GEAR`/`SUMMON_REGISTRY`**（装備設定・幻獣プリセット・`GEAR_K`） |
-| 366–805 | **`CHAR_REGISTRY`**（全キャラ定義の唯一の集約先。光5キャラ→火5キャラの順） |
-| 806–874 | 編成グローバル構築（`buildFormation`/`ELEM`/`CHAR_SIM_STATES`/`MILESTONES`/`computeBaseScore`） |
-| 875–1192 | `class Sim` エンジン（tick/procR/burst/use/`_na`/beam等） |
-| 1193–1270 | UI helpers（`uiFeats`/loopsHTML/gaugesHTML/cdBadgesHTML等） |
-| 1252–1302 | カード描画（cardHTML/toggleCard） |
-| 1303–1452 | **Web Worker**（`_buildWorkerCode`/`runSim`/`_fallbackRunSim`/`renderSim`） |
-| 1453–1510 | 編成選択UI（編成・装備とも▶実行時にrunSimが読み取り反映） |
-| 1511–1558 | 装備設定UI（renderGearPanel/applyGear） |
-| 1559–末尾 | INIT |
+| 7–200 | CSS（`<style>`、Material白基調UI・スピナー） |
+| 202–248 | HTML構造（ヘッダ/サイドバー/メイン/ローディング）＋ `data/weapons.js` 読込 |
+| 251–262 | ゲーム定数（確定仕様・後述） |
+| 263–386 | **`DMG`**（概算火力モデル定数・末尾に火属性セクション） |
+| 387–488 | **`GEAR`/`SUMMON_REGISTRY`/`GEAR_K`**（装備設定・幻獣プリセット）＋**表示攻撃力**（`SSR_LV_RELEASE`/`DISPLAY_ATK_OVERRIDE`/`calcDisplayAtk`/`calcDisplayHp`） |
+| 489–953 | **`CHAR_REGISTRY`**（全キャラ定義の唯一の集約先。光5キャラ→火5キャラの順） |
+| 954–1022 | 編成グローバル構築（`buildFormation`/`ELEM`/`CHAR_SIM_STATES`/`MILESTONES`/`computeBaseScore`） |
+| 1023–1397 | `class Sim` エンジン（tick/procR/burst/use/`_na`/beam等） |
+| 1398–1469 | UI helpers（`uiFeats`/loopsHTML/gaugesHTML/cdBadgesHTML等） |
+| 1470–1524 | カード描画（cardHTML/toggleCard） |
+| 1525–1691 | **Web Worker**（`_buildWorkerCode`/`runSim`/`_fallbackRunSim`/`renderSim`） |
+| 1692–1749 | 編成選択UI（編成・装備とも▶実行時にrunSimが読み取り反映） |
+| 1750–1877 | 装備設定UI（renderGearPanel/applyGear・per-char `GEAR_K_C` 構築） |
+| 1878–末尾 | INIT（renderParty等） |
 
 最適化の最上位目標は**概算総ダメージ**（`DMG` モデル）。FB回数/総バースト/総ジャッジ/連理魔力
 は補助指標として目的関数の下位次元に残る。詳細は「概算火力モデル」節を参照。
@@ -169,6 +171,22 @@ CHAR_REGISTRY[charKey] = {
   `applyGear()` を呼んで実行時に同期する(▶ボタンで明示実行)。Worker へは `gearState:{...GEAR}` で全キー転送。
 - **`GEAR_K`**: `_na()` ホットパス用の事前畳み込み係数 = `base_atk×(1+dmgup)(1+other)×misc/enemy_def`。
   `recalcGearK()` で GEAR 変更時に再計算。`_na()` は乗算ボックスにこれを掛けるだけ。
+  per-char版 `GEAR_K_C[charKey]` は各キャラの表示攻撃力ベースで `applyGear()` が構築し、`_na()` が
+  オーナー別に参照する（武器マスタ設定時。未設定なら共通 `GEAR_K`）。
+
+#### 表示攻撃力（per-char ATK）の算出
+
+`calcDisplayAtk(charKey, slots, summonAtkTotal, heroRank, heroMasterAtkPct)` が
+**武器ATK×得意補正(1.2) ＋ 幻獣ATK合計 ＋ キャラ基本ATK** で満凸 target build の表示攻撃力を推定する
+（`calcDisplayHp` も同型）。武器実データは `data/weapons.js` の `WEAPON_MASTER`（最大Lv値）。
+- **`SSR_LV_RELEASE`**: レベル上限解放の累積ステータス増分（型非依存・公式有志検証）。
+  Lv80=±0 / Lv85=ATK+1950,HP+375 / Lv90=ATK+3900,HP+750。神姫 `baseAtk`/`baseHp` はLv80基準値とし、
+  `def.lvCap`(80/85/90) の解放分を `calcDisplayAtk`/`calcDisplayHp` が上乗せする。
+  （例: テトラ `lvCap:90` がヘカテーとの実機表示差6210＝base差2310+解放3900を厳密再現。）
+- **`DISPLAY_ATK_OVERRIDE`**: ゲーム画面の確定表示ATKをキャラ毎に直接指定する0-fudge較正。
+  +99/育成途中/placeholder/Lv解放を全て内包した実測値で `calcDisplayAtk`(満凸推定) を上書きする。
+  `applyGear()` のper-charループで override優先・無指定キャラは満凸推定へフォールバック（現状維持）。
+  満凸decompose(target build)と実機現状(override)は別状態のため両立せず、現状合わせはoverrideが担う。
 - **フレーム別ダメージUP枠**(実機の通常/アビ/バーストダメージUPは該当フレーム限定・`_na()`のbaseに含めない):
   `na_dmg`(通常=judge ph2に`×(1+na_dmg)`) / `abi_dmg`(アビ=judge ph0・コンソートに`×(1+abi_dmg)`) /
   `burst_dmg`(バースト=`burst()`係数に加算 `a+...+burst_dmg`)。`dmgup`(白虎/与ダメ)は全フレーム共通でGEAR_K側。
@@ -250,13 +268,13 @@ console.log("FullBurst:",fb+"/10","TotalDmg:",Math.round(sim.dmg));
 
 期待値（基準・DMG定数が現行値の場合）:
 ```
-T1  FB:5 J:1 renri:4  dmg:151,521     T6  FB:5 J:4 renri:29 dmg:2,114,255
-T2  FB:5 J:4 renri:9  dmg:500,496     T7  FB:5 J:4 renri:34 dmg:2,829,432
-T3  FB:5 J:4 renri:14 dmg:841,589     T8  FB:5 J:4 renri:39 dmg:3,888,020
-T4  FB:5 J:4 renri:19 dmg:1,161,124   T9  FB:5 J:3 renri:44 dmg:4,594,546
-T5  FB:5 J:2 renri:24 dmg:1,480,466   T10 FB:5 J:4 renri:49 dmg:5,356,314
+T1  FB:5 J:1 renri:4  dmg:152,321     T6  FB:5 J:3 renri:29 dmg:2,025,131
+T2  FB:5 J:4 renri:9  dmg:501,296     T7  FB:5 J:4 renri:34 dmg:3,064,597
+T3  FB:5 J:4 renri:14 dmg:842,389     T8  FB:5 J:6 renri:39 dmg:4,173,194
+T4  FB:5 J:4 renri:19 dmg:1,208,648   T9  FB:5 J:2 renri:44 dmg:4,655,377
+T5  FB:5 J:5 renri:24 dmg:1,729,075   T10 FB:5 J:6 renri:49 dmg:5,801,386
 ```
-（FullBurst:10/10、TotalDmg:5,356,314。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
+（FullBurst:10/10、TotalDmg:5,801,386。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
 バフは上限なしで独立累積し持続ターンで失効(buf辞書管理)。
 エンジン: BEAM_W=24/BEAM_W_INNER=4、目的関数最上位=概算総ダメージ。）
 
