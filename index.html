@@ -423,6 +423,17 @@ let GEAR_K = 0;
 let GEAR_K_C = {};      // per-character GEAR_K: {charKey: 表示攻撃力ベースのスケール係数}
 let DISPLAY_ATK_C = {}; // per-character 表示攻撃力(UI表示用)
 let DISPLAY_HP_C = {};  // per-character 表示HP(UI表示用)
+
+// 実機表示ATKの直接指定(0-fudge較正)。覆魂/高Lv/+99/育成途中/placeholderを全て内包した
+// ゲーム画面の確定表示値をキャラ毎に上書きする。指定があれば calcDisplayAtk(満凸推定) より優先する。
+// decompose(満凸WEAPON_MASTER + 得意補正)は target build 用途として温存し、ここは現状の実機合わせ。
+// {} なら従来どおり全キャラ calcDisplayAtk へフォールバック(現状維持)。
+const DISPLAY_ATK_OVERRIDE = {
+  // 検証編成・育成途中スクショ実測(エジソン + 光4・覆魂進行のテトラ含む)。
+  // 別編成に差し替える際はその編成の実機表示ATKに更新するか、行を消せば満凸推定へ戻る。
+  edison: 78306, yamato: 62999, hecate: 59226, tetra: 65436, elaine: 63537,
+};
+
 // 表示攻撃力算出: 武器ATK×得意補正 + 幻獣ATK合計 + キャラ基本ATK(神姫) or 英霊基本値
 // slots: 長さ10の武器キー配列(slot0=メイン, 1-9=サブ。空文字=未装備)
 // summonAtkTotal: 編成画面のメイン+サブ幻獣ATK合計(表示寄与分・手動入力)
@@ -1842,7 +1853,8 @@ function applyGear(){
     const sumAtkTotal=parseFloat(document.getElementById('summon-atk-total')?.value)||0;
     const sumHpTotal=parseFloat(document.getElementById('summon-hp-total')?.value)||0;
     for(const charKey of CHARS){
-      const dispAtk=calcDisplayAtk(charKey,slots,sumAtkTotal,heroRank,mAtk);
+      // 実機表示の直接指定があれば最優先(覆魂/高Lv/+99等を0-fudgeで内包)。無ければ満凸decompose推定。
+      const dispAtk=DISPLAY_ATK_OVERRIDE[charKey]||calcDisplayAtk(charKey,slots,sumAtkTotal,heroRank,mAtk);
       const dispHp=calcDisplayHp(charKey,slots,sumHpTotal,heroRank,mHp);
       if(dispAtk>0){
         DISPLAY_ATK_C[charKey]=dispAtk;
