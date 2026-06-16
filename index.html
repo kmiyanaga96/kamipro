@@ -1219,7 +1219,9 @@ function cmpVec(a,b){
 // (例: 補助ロボ起動→直後に黄アビ連打、のような複数手のシナジー)を early に切り落とすため、
 // 候補ごとに開幕を強制した独立ビームを並列に走らせ、最終ダメージ最大のものを採用する。
 // CHAR_REGISTRYの`deploysRobot`タグ(キャラ名リテラル不使用)を持つ候補同士は2手の順序組も列挙し、
-// 同ターン複数ギミックの起動順シナジーも拾う。
+// 同ターン複数ギミックの起動順シナジーも拾う。列挙は意図的に「単独 ＋ deploysRobot同士の2手順列」
+// までに留める(3手以上・異種タグ間シナジーは列挙数=計算量が急増するため非対象。将来必要なら
+// タグ種別・組み合わせ長を引数化して一般化する)。
 function enumerateRootPrefixes(){
   const probe=new Sim(); probe.totalTurns=10;
   probe._beginTurn(1); probe._primeLookaheads(1);
@@ -1229,6 +1231,23 @@ function enumerateRootPrefixes(){
   const robotKeys=cands.filter(c=>c.deploysRobot).map(c=>c.key);
   for(const a of robotKeys) for(const b of robotKeys) if(a!==b) prefixes.push([a,b]);
   return prefixes;
+}
+
+// ルート分散の1ルート実行: 開幕prefixを強制してnターン完遂し {prefix,dmg,rows} を返す。
+// Worker側(タスク処理)とメインスレッドのフォールバック双方から呼ぶ唯一の実装(prefix強制の
+// 手順をここに集約し二重管理を防ぐ)。rowsはgreedyTakeTurnの戻り値配列=構造化複製可能。
+function _runRootPlan(prefix, n){
+  const sim=new Sim(); sim.totalTurns=n;
+  if(prefix.length){ sim._forcePrefix=prefix; sim._forceTurn=1; }
+  const rows=[]; for(let t=1;t<=n;t++) rows.push(sim.greedyTakeTurn(t));
+  return {prefix, dmg:sim.dmg, rows};
+}
+
+// 基準シム(静的greedyのみ・planDepth=2で強制): 対基準比の分母に使う総ダメージを返す。
+function _runBaselinePlan(n){
+  const base=new Sim(); base.totalTurns=n; base.planDepth=2;
+  for(let t=1;t<=n;t++) base.greedyTakeTurn(t);
+  return base.dmg;
 }
 
 // ===== UI HELPERS =====
@@ -1362,18 +1381,30 @@ function cardHTML(r,first=false){
 // P並列なら ceil((K+1)/P)×15s 程度のライブ再計算時間で済む。
 // Workerは {type:'init',...} で1回初期化後、{type:'root',...}/{type:'baseline',...} タスクを
 // 受け取り次第処理して結果を返す(タスクキューはメインスレッドが管理)。
-let _workerPool=null;
+let _workerPool=null, _workerCodeCache=null;
 
 function _terminateWorkerPool(){
   if(_workerPool){ for(const w of _workerPool) w.terminate(); _workerPool=null; }
 }
 
+// 採用ルート確定後の共通仕上げ: SIM_ROWS反映→カード描画→サマリー(renderSim)。
+// プール完了(onAllDone)とフォールバックの双方から呼ぶ。
+function _finishSim(best, baseDmg){
+  document.getElementById('sim-loading').classList.remove('active');
+  SIM_ROWS = best ? best.rows : [];
+  document.getElementById('sim-results').innerHTML =
+    SIM_ROWS.map((r,i)=>cardHTML(r,i===0)).join('');
+  renderSim(baseDmg, best ? best.prefix : []);
+}
+
 function _buildWorkerCode(){
   // index.html全体から // ===== ゲーム定数 〜 // ===== UI HELPERS 直前までのエンジンコードを抽出。
-  // greedyTakeTurn の戻り値・rows配列は構造化複製可能なplainオブジェクトなのでそのまま転送できる。
+  // エンジン本文はページ生存中不変なので初回のみ抽出してキャッシュ(innerHTML全文字列化を毎回避ける)。
+  // root/baseline実行は _runRootPlan/_runBaselinePlan(エンジン領域=抽出範囲内)に集約しWorker/フォールバックで共用。
+  if(_workerCodeCache) return _workerCodeCache;
   const src=document.documentElement.innerHTML;
   const engineCode=src.slice(src.indexOf('// ===== ゲーム定数'), src.indexOf('// ===== UI HELPERS'));
-  return `
+  _workerCodeCache=`
 ${engineCode}
 // ===== Worker エントリポイント =====
 self.onmessage=function(e){
@@ -1385,23 +1416,14 @@ self.onmessage=function(e){
     recalcGearK();
     buildFormation(d.heroKey,d.kamihimeKeys);
     self.postMessage({type:'ready'});
-    return;
-  }
-  if(d.type==='root'){
-    const sim=new Sim(); sim.totalTurns=d.n;
-    if(d.prefix.length){ sim._forcePrefix=d.prefix; sim._forceTurn=1; }
-    const rows=[]; for(let t=1;t<=d.n;t++) rows.push(sim.greedyTakeTurn(t));
-    self.postMessage({type:'rootResult',rootId:d.rootId,prefix:d.prefix,dmg:sim.dmg,rows});
-    return;
-  }
-  if(d.type==='baseline'){
-    // 基準シム(静的greedyのみ・planDepth=2で強制): 相対比率算出用
-    const base=new Sim(); base.totalTurns=d.n; base.planDepth=2;
-    for(let t=1;t<=d.n;t++) base.greedyTakeTurn(t);
-    self.postMessage({type:'baselineResult',baseDmg:base.dmg});
+  } else if(d.type==='root'){
+    self.postMessage({type:'rootResult', rootId:d.rootId, ..._runRootPlan(d.prefix,d.n)});
+  } else if(d.type==='baseline'){
+    self.postMessage({type:'baselineResult', baseDmg:_runBaselinePlan(d.n)});
   }
 };
 `;
+  return _workerCodeCache;
 }
 
 function runSim(){
@@ -1457,14 +1479,9 @@ function runSim(){
 
   function onAllDone(){
     if(failed) return;
-    ld.classList.remove('active');
     _workerPool=null;
     rootResults.sort((a,b)=>b.dmg-a.dmg);
-    const best=rootResults[0];
-    SIM_ROWS=best?best.rows:[];
-    const sr=document.getElementById('sim-results');
-    sr.innerHTML=SIM_ROWS.map((r,i)=>cardHTML(r,i===0)).join('');
-    renderSim(baseDmg, best?best.prefix:[]);
+    _finishSim(rootResults[0], baseDmg);
   }
 
   for(const w of workers){
@@ -1489,26 +1506,18 @@ function runSim(){
 
 // Workerが使えない環境向けフォールバック(メインスレッド同期実行・ルート分散も逐次で再現)
 function _fallbackRunSim(heroKey,kamihimeKeys,n){
-  const ld=document.getElementById('sim-loading');
   const prog=document.getElementById('spin-progress');
-  ld.classList.add('active');
+  document.getElementById('sim-loading').classList.add('active');
   setTimeout(()=>{
     buildFormation(heroKey,kamihimeKeys); applyGear();
     const prefixes=enumerateRootPrefixes();
     let best=null;
     prefixes.forEach((prefix,i)=>{
       prog.textContent=`ルート ${i+1}/${prefixes.length} 計算中(非並列フォールバック)…`;
-      const sim=new Sim(); sim.totalTurns=n;
-      if(prefix.length){ sim._forcePrefix=prefix; sim._forceTurn=1; }
-      const rows=[]; for(let t=1;t<=n;t++) rows.push(sim.greedyTakeTurn(t));
-      if(!best||sim.dmg>best.dmg) best={prefix,dmg:sim.dmg,rows};
+      const r=_runRootPlan(prefix,n);
+      if(!best||r.dmg>best.dmg) best=r;
     });
-    const base=new Sim(); base.totalTurns=n; base.planDepth=2;
-    for(let t=1;t<=n;t++) base.greedyTakeTurn(t);
-    SIM_ROWS=best.rows;
-    document.getElementById('sim-results').innerHTML=SIM_ROWS.map((r,i)=>cardHTML(r,i===0)).join('');
-    ld.classList.remove('active');
-    renderSim(base.dmg, best.prefix);
+    _finishSim(best, _runBaselinePlan(n));
   },0);
 }
 
