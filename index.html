@@ -314,9 +314,6 @@ const DMG = {
   decay_abi_slope: 0.04,                       // アビ超過寄与率 1/25(基準上限はキャラ毎=judg_cap等)
   // 追撃/城塞は寄与率0(完全頭打ち=ハードキャップ)。betaiaは betaia_cap でこれに該当。
   // バーストストリーク上限750万は第二以降の寄与率不明のため未実装(streakは無減衰のまま)。
-  // ═══ 火属性編成(data2.xlsx) ═══════════════════════════════════════════
-  // 効果ターンは確定値。効果量(%)は実測待ちのため仮値(要実測)。
-  // バフ系buf키はスタック追跡のみ実装済みで、効果量確定後に _na() へ配線する。
   // ─── ナポレオン ───
   dur_roy: 2,                // ロワ・クモンド: 全攻撃ダメージプラス(独自枠・バフ数tier依存・2T)
   // 原文の効果量表(万)を÷100万でfrac化し実数比を厳密保存(tier=0-3: 強化効果数 0-5/6-10/11-15/16+)
@@ -332,56 +329,10 @@ const DMG = {
   betaia_bg_per_aura: 3,     // ベタイア: 闘気1個あたりBG+3(確定)
   factor_bg: 30,             // ファクター・ディシジフ: バフ10+時の全体BG+30(確定)
   dur_factor: 2,             // ファクター: ベタイア2回発動状態
-  // ─── アマテラス[神想真化] ───
-  hobby_bg: 30,              // 充実した趣味: BG+30(確定)。奇数回=自分のみ/偶数回=全体化
-  dur_hobby_def: 4,          // 充実した趣味: 敵防御DOWN(累積可)
-  dur_enten: 4,              // 炎天ノ加護: 火属性攻撃・急所UP(累積可)。偶数回で全体化
-  dur_ama_link: 1,           // LinkSkill: 火特殊攻撃UP・ストリーク大幅UP(戦闘中1回)
-  nichirin_bg_cost: 40,      // 日輪ノ炎: 再発動のBG消費(確定)
-  // ─── ミネルヴァ ───
-  dur_passion: 1,            // パッションティアー+: 火属性攻撃・急所UP・旺盛(奇数回で旺壮追加)
-  dur_logos: 6,              // ロゴス・ソフィアス: 敵火耐性DOWN(累積可・最大40%)
-  dur_logos_def: 3,          // ロゴス: 被回復上限・防御UP(累積可)
-  sapico_mult: 1.0,          // サピコンシリウム: 火ダメージ×1倍×5回(確定)
-  sapico_red_every: 5,       // サピコ: 赤アビ5回毎に発動(確定)
-  // ─── [HELIX]ニケ ───
-  dur_hydro_def: 3,          // ヒュドールバースト+: 敵防御DOWN(特大)
-  dur_divine: 3,             // ディヴァインウィング+: 攻防急所・BG上昇量UP(累積可)
-  divine_bg: 10,             // ディヴァイン: 全体BG+10(確定)
-  nike_helix_bg: 200,        // [HELIX]ニケ: BG+200(確定・連理魔力20で1回)
-  nike_renri_per: 3,         // セイクリッド・アルカナ: 火キャラバースト3回毎に連理+1(確定)
-  nike_renri_cap_t: 3,       // セイクリッド: 同一ターン3回まで(確定)
-  nike_infern_thr: 6,        // インフェルノビット: T内バースト6回以上で自アビ即使用可(確定)
-  // ─── ラミエル ───
-  dur_fastes: 4,             // ファステスコール+: 火属性攻撃UP(累積可)・祝福消費で急所追加
-  dur_universa: 2,           // ユニバーサー: 敵デバフ(祝福消費でバースト耐性DOWN追加)
-  bless_bg: 10,              // ブレッシングチャージ: 祝福消費毎の全体BG+10(確定)
-  bless_y_every: 6,          // ブレッシングチャージ: 黄アビ6回毎に祝福+1(確定)
-  flame_per_bless: 2,        // フレームチェッカー: 2回祝福される毎に1チャージ(確定)
-  lami_power_per: 3,         // ラミラミパワー: 火キャラバースト3回毎にバースト性能UP(累積可・確定)
-  // ─── 効果量確定値(全キャラ配線済み) ───────────────────────────────────
-  // ナポレオン
+  // ─── 効果量確定値 ───────────────────────────────────────────────────
   vigor_pike:       0.3552,  // パイク旺盛: 基礎値42 → ×1.3552(vigor_legendと同値)
   acute_pike_crit:  0.30,    // パイク急所(確実100%) × (1.3−1)=0.30
   defdown_consort:  0.10,    // コンソート防御DOWN: 10%/stack
-  // アマテラス
-  elem_enten:       0.10,    // 炎天ノ加護: 火属性攻撃+10%/stack
-  acute_enten:      0.03,    // 炎天ノ加護: 急所確率30% × (1.1−1)
-  spec_ama_link:    0.30,    // LinkSkill: 特殊攻撃+30%
-  defdown_hobby:    0.10,    // 充実した趣味: 敵防御DOWN10%/stack
-  // ミネルヴァ
-  defdown_logos:    0.40,    // ロゴス: 敵火耐性DOWN(最大40%・有効化で一括計上)
-  // ニケ
-  assault_divine:   0.05,    // ディヴァインウィング: 攻撃+5%/stack
-  acute_divine:     0.03,    // ディヴァイン: 急所確率30% × (1.1−1)
-  defdown_hydro:    0.30,    // ヒュドール: 敵防御DOWN30%(推定)
-  // ラミエル
-  elem_fastes:      0.20,    // ファステスコール: 火属性攻撃+20%/stack
-  acute_fastes:     0.02,    // ファステス急所(祝福消費時): 発動率20% × (1.1−1)
-  lami_power_val:   0.10,    // ラミラミパワー: バースト威力+10%/stack
-  dur_lami_power:   6,       // ラミラミパワー効果ターン
-  defdown_universa:   0.20,  // ユニバーサー: 敵デバフ20%/stack
-  defdown_universa_b: 0.15,  // ユニバーサー(祝福消費時): バースト耐性DOWN15%/stack
 };
 
 // ===== 装備設定(幻獣・ウェポン) =====
@@ -493,7 +444,7 @@ recalcGearK();
 // 強化効果数の概算: buf辞書の総スタック数(ナポレオンのバフ数比例効果の参照用)
 // 敵デバフ系buf키(防御/耐性DOWN・敵デバフ)は味方の「強化効果」ではないため buffCount から除外する。
 // ナポレオンの roy/pike/consort/factor のtier判定は原文「(英霊/自分の)強化効果の数」に従う。
-const DEBUFF_KEYS = new Set(['consort_def','hobby_def','hydro_def','universa','universa_b','logos']);
+const DEBUFF_KEYS = new Set(['consort_def']);
 const buffCount = sim => Object.entries(sim.buf).reduce((a,[k,v])=>a+(DEBUFF_KEYS.has(k)?0:v.length),0);
 
 const CHAR_REGISTRY = {
@@ -689,9 +640,6 @@ const CHAR_REGISTRY = {
     },
   },
 
-  // ═══════════ 火属性編成(data2.xlsx) ═══════════
-  // 効果量(%)は実測待ち。バフはbufスタック追跡のみで火力配線は値確定後に行う。
-
   napoleon: {
     type: 'hero',
     jp: 'ナポレオン', gcls: 'ge', elem: null,
@@ -751,204 +699,6 @@ const CHAR_REGISTRY = {
       },
     },
   },
-
-  amaterasu: {
-    type: 'kamihime',
-    jp: 'アマテラス', gcls: 'gy', elem: 'fire',
-    // hobby_n/enten_n: 発動回数(偶数回目で全体化) / ama_link_used: LinkSkill戦闘中1回
-    state: { hobby_n: 0, enten_n: 0, ama_link_used: false },
-    abilities: {
-      hobby:    ['y', 2, 0],
-      enten:    ['y', 2, 0],
-      nichirin: ['r', 18, 0],
-      amalink:  ['y', 1, 0],
-    },
-    labelSuffix: { hobby:'(+30)' },
-    cdShow: { hobby:"充実した趣味", enten:"炎天ノ加護", nichirin:"日輪ノ炎", amalink:"LinkSkill" },
-    cands: {
-      // 充実した趣味: BG+30(奇数回=自分/偶数回=全体化)・耐性UP(2T)・敵防御DOWN(4T累積可)
-      hobby:    { atkBuf:true, partyBG:true, exec:(sim,T,ord)=>{ sim.hobby_n++;
-                    sim.addG(sim.hobby_n%2===0?CHARS:[ownerOf('hobby')], DMG.hobby_bg);
-                    (sim.buf.hobby_def??=[]).push(DMG.dur_hobby_def);
-                    sim.use('hobby',T,ord,sim.hobby_n%2===0?'(全体)':''); }},
-      // 炎天ノ加護: 火属性攻撃・急所UP(4T累積可)。偶数回目で全体化(buf近似は共通)。
-      enten:    { atkBuf:true, exec:(sim,T,ord)=>{ sim.enten_n++;
-                    (sim.buf.enten??=[]).push(DMG.dur_enten); sim.use('enten',T,ord); }},
-      // 日輪ノ炎: ゲージ消費なしバースト+バーストダメプラス(1回)。BG40消費で1回再発動可。
-      nichirin: { burstTrigger:true, exec:(sim,T,ord,bset)=>{ const me=ownerOf('nichirin');
-                    sim.use('nichirin',T,ord); sim.burst(me,bset,T);
-                    if(sim.g[me]>=DMG.nichirin_bg_cost){ sim.g[me]-=DMG.nichirin_bg_cost; sim.burst(me,bset,T); }}},
-      // LinkSkill: 火特殊攻撃UP・ストリーク大幅UP(1T)。戦闘中1回のみ。
-      amalink:  { atkBuf:true, guard:(sim)=>!sim.ama_link_used,
-                  exec:(sim,T,ord)=>{ sim.ama_link_used=true;
-                    (sim.buf.ama_link??=[]).push(DMG.dur_ama_link); sim.use('amalink',T,ord); }},
-    },
-    def: {
-      gmax: BG.other_max,
-      keigyoGain: 1,
-      // バースト効果: 自分のアビ再使用間隔2T短縮
-      onBurst: (sim, atk, owner) => {
-        for(const k of Object.keys(sim.cd))
-          if(ABIL[k]?.[0]===owner && sim.cd[k]>0) sim.cd[k]=Math.max(0,sim.cd[k]-2);
-      },
-    },
-  },
-
-  minerva: {
-    type: 'kamihime',
-    jp: 'ミネルヴァ', gcls: 'gh', elem: 'fire',
-    // passion_n: 発動回数(奇数回で旺壮追加) / red_n: 味方の赤アビ累計(サピコンシリウム用)
-    state: { passion_n: 0, red_n: 0 },
-    abilities: {
-      passion: ['y', 2, 0],
-      ferbe:   ['y', 2, 0],
-      logos:   ['r', 2, 0],
-    },
-    labelSuffix: {},
-    cdShow: { passion:"パッションティアー", ferbe:"フェルベネディクト", logos:"ロゴス・ソフィアス" },
-    cands: {
-      // パッションティアー+: 火属性攻撃UP・急所UP・旺盛(1T)。奇数回目で旺壮追加。
-      passion: { atkBuf:true, exec:(sim,T,ord)=>{ sim.passion_n++;
-                   (sim.buf.passion??=[]).push(DMG.dur_passion); sim.use('passion',T,ord); }},
-      // ロゴス・ソフィアス: 敵火耐性DOWN(6T累積可・最大40%)・防御UP(3T)。
-      // 同一ターン複数回使用は被ダメージ量依存のためフルHPシミュでは1回/Tに制限。
-      logos:   { guard:(sim,T)=>(T.logos||0)<1,
-                 exec:(sim,T,ord)=>{ T.logos=(T.logos||0)+1;
-                   (sim.buf.logos??=[]).push(DMG.dur_logos); sim.use('logos',T,ord); }},
-      // フェルベネディクト+は回復・防御系のみのため押し順候補から除外(火力寄与なし)
-    },
-    def: {
-      gmax: BG.other_max,
-      keigyoGain: 1,
-      // サピコンシリウム: 味方全体の赤アビ5回毎に敵全体5回火ダメージ+アビダメプラス(累積可)
-      onAbility: (sim, name, color) => {
-        if(color!=='r') return;
-        sim.red_n++;
-        if(sim.red_n%DMG.sapico_red_every===0) sim.dmg += 5*sim._na()*DMG.sapico_mult;
-      },
-      // バースト効果: 自分のアビ再使用間隔1T短縮
-      onBurst: (sim, atk, owner) => {
-        for(const k of Object.keys(sim.cd))
-          if(ABIL[k]?.[0]===owner && sim.cd[k]>0) sim.cd[k]--;
-      },
-    },
-  },
-
-  nike: {
-    type: 'kamihime',
-    jp: 'ニケ', gcls: 'gt', elem: 'fire',
-    // nike_renri: ニケ専用連理魔力(テトラのrenriとは別カウンタ・閾値20)
-    // hydro_n: ヒュドール発動回数(3の倍数でCT減少) / victory_done: ヴィクトリー発動済み
-    state: { nike_renri: 0, hydro_n: 0, nike_helix_used: false, nike_helix_done: false, victory_done: false },
-    abilities: {
-      hydro:     ['r', 6, 0],
-      divine:    ['y', 7, 0],
-      nikehelix: ['y', 10, 0],
-    },
-    labelSuffix: { divine:'(+10)' },
-    cdShow: { hydro:"ヒュドールバースト", divine:"ディヴァインウィング", nikehelix:"[HELIX]ニケ" },
-    cands: {
-      // ヒュドールバースト+: ゲージ消費なしバースト+敵防御DOWN(3T特大)。3の倍数回目でCT-1。
-      hydro:     { burstTrigger:true, exec:(sim,T,ord,bset)=>{ sim.hydro_n++;
-                     sim.use('hydro',T,ord); sim.burst(ownerOf('hydro'),bset,T);
-                     (sim.buf.hydro_def??=[]).push(DMG.dur_hydro_def);
-                     if(sim.hydro_n%3===0) sim.cd.hydro=Math.max(0,sim.cd.hydro-1); }},
-      // ディヴァインウィング+: 攻防急所UP・BG上昇量UP(3T累積可)・全体BG+10。
-      divine:    { atkBuf:true, partyBG:true, exec:(sim,T,ord)=>{
-                     (sim.buf.divine??=[]).push(DMG.dur_divine);
-                     sim.addG(CHARS,DMG.divine_bg); sim.use('divine',T,ord); }},
-      // [HELIX]ニケ: 連理魔力20で戦闘中1回のみ。火特殊UP・全体BG+200。
-      nikehelix: { atkBuf:true, partyBG:true,
-                   guard:(sim)=>sim.nike_renri>=20&&!sim.nike_helix_used,
-                   exec:(sim,T,ord)=>{ sim.nike_helix_used=true;
-                     sim.addG(CHARS,DMG.nike_helix_bg); sim.use('nikehelix',T,ord,'(全+200)'); }},
-      // ベネディクションフェザーは回復のみのため押し順候補から除外
-    },
-    def: {
-      gmax: BG.other_max,
-      keigyoGain: 1,
-      // ニケ専用連理は閾値20([HELIX]ニケ解禁・ヴィクトリー)まで目的関数で評価
-      // (テトラのrenri同様、milestonesが目的関数の連理次元に合算され最速解禁へ重みづけされる)
-      milestones: { nike_renri: 20 },
-      // [HELIX]ニケ解禁検出(初回到達ターン表示用)
-      helix: { reached: s=>s.nike_renri>=20, doneKey: 'nike_helix_done' },
-      // セイクリッド・アルカナ: ターン中火キャラバースト3回毎に連理+1＆ヒュドール/ディヴァイン即使用可(同T3回まで)
-      onPartyBurst: (sim, owner, T) => {
-        if(ELEM[owner]!=='fire') return;
-        T.fireB=(T.fireB||0)+1;
-        if(T.fireB%DMG.nike_renri_per===0 && (T.sacr||0)<DMG.nike_renri_cap_t){
-          T.sacr=(T.sacr||0)+1; sim.nike_renri++;
-          sim.cd.hydro=0; sim.cd.divine=0;
-          // ヴィクトリー・ゴッデス: 連理20到達時に1回(バーストダメプラス等・効果量実測待ち)
-          if(sim.nike_renri>=20 && !sim.victory_done) sim.victory_done=true;
-        }
-      },
-      // インフェルノビット: ターン終了時、T内バースト6回以上で自分のアビ即使用可
-      turnEnd: (sim, T) => {
-        if((T?.burst||0)>=DMG.nike_infern_thr)
-          for(const k of Object.keys(sim.cd))
-            if(ABIL[k]?.[0]===ownerOf('hydro') && sim.cd[k]>0) sim.cd[k]=0;
-      },
-    },
-  },
-
-  lamiel: {
-    type: 'kamihime',
-    jp: 'ラミエル', gcls: 'gl', elem: 'fire',
-    // bless: 祝福所持数(開始時1) / bless_recv: 祝福累計(フレームチェッカー充填用)
-    // lami_y: 味方黄アビ累計 / flame_n: フレームチェッカー累計使用 / lami_fb: 火キャラバースト累計
-    state: { bless: 1, bless_recv: 1, lami_y: 0, flame_n: 0, lami_fb: 0 },
-    abilities: {
-      fastes:   ['y', 3, 0],
-      blessrise:['y', 3, 0],
-      universa: ['r', 5, 0],
-      flame:    ['w', 0, 0],
-    },
-    labelSuffix: {},
-    cdShow: { fastes:"ファステスコール", blessrise:"ブレッシンライズ", universa:"ユニバーサー" },
-    cands: {
-      // ファステスコール+: 火属性攻撃UP(4T累積可)。祝福消費で急所UP追加(+全体BG+10)。
-      fastes:   { atkBuf:true, exec:(sim,T,ord)=>{ (sim.buf.fastes??=[]).push(DMG.dur_fastes);
-                    if(sim.bless>0){ sim.bless--; sim.addG(CHARS,DMG.bless_bg);
-                      (sim.buf.fastes_acute??=[]).push(DMG.dur_fastes); }
-                    sim.use('fastes',T,ord); }},
-      // ブレッシンライズ+: 回復系だが祝福消費の全体BG+10があるため候補に残す。
-      blessrise:{ exec:(sim,T,ord)=>{ if(sim.bless>0){ sim.bless--; sim.addG(CHARS,DMG.bless_bg); }
-                    sim.use('blessrise',T,ord); }},
-      // ユニバーサー: 敵デバフ(2T)。祝福消費でバースト耐性DOWN追加(+全体BG+10)。
-      universa: { exec:(sim,T,ord)=>{ (sim.buf.universa??=[]).push(DMG.dur_universa);
-                    if(sim.bless>0){ sim.bless--; sim.addG(CHARS,DMG.bless_bg);
-                      (sim.buf.universa_b??=[]).push(DMG.dur_universa); }
-                    sim.use('universa',T,ord); }},
-      // フレームチェッカー: 2回祝福される毎に1チャージ・同T2回まで。ゲージ消費なしバースト。
-      flame:    { burstTrigger:true,
-                  guard:(sim,T)=>(T.flame||0)<2 && Math.floor(sim.bless_recv/DMG.flame_per_bless)>sim.flame_n,
-                  exec:(sim,T,ord,bset)=>{ T.flame=(T.flame||0)+1; sim.flame_n++;
-                    sim.use('flame',T,ord); sim.burst(ownerOf('flame'),bset,T); }},
-    },
-    def: {
-      gmax: BG.other_max,
-      keigyoGain: 1,
-      // ブレッシングチャージ: 味方の黄アビ6回毎に祝福+1
-      onAbility: (sim, name, color) => {
-        if(color!=='y') return;
-        sim.lami_y++;
-        if(sim.lami_y%DMG.bless_y_every===0){ sim.bless++; sim.bless_recv++; }
-      },
-      // ラミラミパワー: 火キャラバースト3回毎にバースト性能UP(累積可・効果量実測待ち)
-      onPartyBurst: (sim, owner) => {
-        if(ELEM[owner]!=='fire') return;
-        sim.lami_fb++;
-        if(sim.lami_fb%DMG.lami_power_per===0) (sim.buf.lami_power??=[]).push(DMG.dur_lami_power);
-      },
-      // バースト効果: 祝福消費(全体BG+10)・自分のアビCD2短縮
-      onBurst: (sim, atk, owner) => {
-        if(sim.bless>0){ sim.bless--; sim.addG(CHARS,DMG.bless_bg); }
-        for(const k of Object.keys(sim.cd))
-          if(ABIL[k]?.[0]===owner && sim.cd[k]>0) sim.cd[k]=Math.max(0,sim.cd[k]-2);
-      },
-    },
-  },
 };
 
 // ===== 編成グローバル（buildFormationで構築） =====
@@ -961,7 +711,7 @@ let CHAR_SIM_STATES = {};
 // def.milestones の同一キーは最大値で集約（例: renri はHELIX解禁閾値30）。
 // 目的関数はこの値で頭打ち評価し、解禁後の超過分を無駄に追わない。
 let MILESTONES = {};
-// ELEM: 各キャラの実効属性 {charKey: 'light'|'fire'|...}。
+// ELEM: 各キャラの実効属性 {charKey: 'light'|null}。
 // 英霊(elem:null)はウェポン依存のため編成の主属性(神姫の最多属性)を採用する。
 // elemCount(e)が「編成内のe属性キャラ数」(英霊込み)を返す共通ヘルパ。
 let ELEM = {};
@@ -1113,40 +863,31 @@ class Sim {
     const D=DMG, b=this.buf, G=GEAR;
     const nAbs=b.absolute?.length||0, nPuv=b.puvoir?.length||0;
     const nBan=b.banoshik?.length||0, nLeg=b.legend?.length||0;
-    // 火属性バフ(スタック数)
-    const nEnt=b.enten?.length||0, nFas=b.fastes?.length||0;
-    const nFasA=b.fastes_acute?.length||0, nDiv=b.divine?.length||0;
     const nPikeCrit=b.pike_crit?.length||0;
-    // アサルト枠: banoshik/absolute + legend(契晶) + divine + 装備
+    // アサルト枠: banoshik/absolute + legend(契晶) + 装備
     const aslt = nBan*D.assault_banoshik + nAbs*D.assault_absolute
-               + (b.leg_aslt?D.assault_legend:0) + nDiv*D.assault_divine + G.assault;
-    // 属性値枠: puvoir(光) + enten/fastes(火属性攻撃) + logos(耐性DOWN→elem近似) + 装備
-    const elem = nPuv*D.elem_puvoir + nEnt*D.elem_enten + nFas*D.elem_fastes
-               + (b.logos?.length>0?D.defdown_logos:0) + G.elem;
-    // 旺盛枠: absolute/leg_vigor(光) + pike(火) + 装備。+100%上限(フルHP前提)
+               + (b.leg_aslt?D.assault_legend:0) + G.assault;
+    // 属性値枠: puvoir(光) + 装備
+    const elem = nPuv*D.elem_puvoir + G.elem;
+    // 旺盛枠: absolute/leg_vigor/pike(光) + 装備。+100%上限(フルHP前提)
     const vigor = Math.min(
       (nAbs>0?D.vigor_absolute:0)+(b.leg_vigor?D.vigor_legend:0)
       +(b.pike?.length>0?D.vigor_pike:0)+G.vigor, 1.0);
     // 会心枠: ARRIVE永続 + absolute + 装備
     const critRate = Math.min(D.crit_rate_arrive + nAbs*D.crit_rate_absolute + G.crit_rate, 1.0);
     const crit = critRate*D.crit_mult;
-    // 急所枠: 光(puvoir/absolute/legend) + 火(enten/fastes_acute/divine/pike_crit) + 装備
+    // 急所枠: 光(puvoir/absolute/legend/pike_crit) + 装備
     const acute = nPuv*D.acute_puvoir + nAbs*D.acute_absolute + nLeg*D.acute_legend
-                + nEnt*D.acute_enten + nFasA*D.acute_fastes + nDiv*D.acute_divine
                 + nPikeCrit*D.acute_pike_crit + G.acute;
-    // 特殊攻撃枠: leg_spec(光) + ama_link(火) + 装備
-    const spec = (b.leg_spec?D.spec_legend:0)+(b.ama_link?.length>0?D.spec_ama_link:0)+G.spec;
+    // 特殊攻撃枠: leg_spec(光) + 装備
+    const spec = (b.leg_spec?D.spec_legend:0)+G.spec;
     // GEAR_K or per-character GEAR_K_C[owner] (武器マスタ設定時)
     const gk = (this._naOwner && GEAR_K_C[this._naOwner]) || GEAR_K;
     const base = gk*(1+aslt)*(1+elem)*(1+vigor)*(1+crit)*(1+acute)*(1+spec);
     // ロワ・クモンド: 独立枠フラット(tierはbuf使用時に確定・base比率で近似)
     const royFlat = (b.roy?.length||0)*base*D.roy_na_frac[this.roy_tier??0];
     // 防御DOWN: 敵防御/耐性DOWN各ソース合算 → 独立乗算(ダメージ × (1+defdown))
-    const defdown = (b.hydro_def?.length||0)*D.defdown_hydro
-                  + (b.consort_def?.length||0)*D.defdown_consort
-                  + (b.hobby_def?.length||0)*D.defdown_hobby
-                  + (b.universa?.length||0)*D.defdown_universa
-                  + (b.universa_b?.length||0)*D.defdown_universa_b;
+    const defdown = (b.consort_def?.length||0)*D.defdown_consort;
     return (base + royFlat) * (1 + defdown);
   }
 
@@ -1154,9 +895,8 @@ class Sim {
     this._naOwner = owner; // バーストダメージはオーナーのGEAR_K_Cを参照
     this.addG(CHARS.filter(c=>c!==owner), BG.cascade, atk?bset:null);
     this.grif(owner); T.burst++;
-    // 概算バーストダメージ: absolute(バーストダメUP) + lami_power(バースト威力UP)
-    const bdmg = (this.buf.absolute?.length||0)*DMG.burst_dmg_absolute
-               + (this.buf.lami_power?.length||0)*DMG.lami_power_val;
+    // 概算バーストダメージ: absolute(バーストダメUP)
+    const bdmg = (this.buf.absolute?.length||0)*DMG.burst_dmg_absolute;
     // ロワ・クモンド: バーストプラス(独自枠・味方全体付与のため全員のバーストに加算・上限の外)
     const royBurst = this.buf.roy?.length ? this._na()*DMG.roy_burst_frac[this.roy_tier??0] : 0;
     // バーストダメージ式: 通常攻撃ダメ × (a + バーストダメUP効果) ＋ 独自枠。ウェポンburst_dmgは係数に加算。
@@ -1167,7 +907,7 @@ class Sim {
     this.procR(T,'b');
     // キャラ固有のバースト時処理（CHAR_DEF記述子に集約）
     CHAR_DEF[owner].onBurst?.(this, atk, owner);
-    // パーティ全体のバースト監視フック（他キャラのバーストにも反応する機構用・ニケ/ラミエル等）
+    // パーティ全体のバースト監視フック（他キャラのバーストにも反応する機構用）
     for(const c of CHARS) CHAR_DEF[c].onPartyBurst?.(this, owner, T, atk);
     // モビウスムーンズ: party burst 5回毎にヘカテー(=黄ドレイン所有者)のアビCD全リセット
     this.mburst++;
@@ -1192,7 +932,7 @@ class Sim {
       if(T.yellow%4===0&&T.fr<3){ this.cd.funki=0; T.fr++; }
     }
     this.procR(T,'a');
-    // パーティ全体のアビ使用監視フック（ナポレオン闘気/ミネルヴァ赤カウント/ラミエル祝福等）
+    // パーティ全体のアビ使用監視フック（ナポレオン闘気等）
     for(const c of CHARS) CHAR_DEF[c].onAbility?.(this, name, color, T);
     ord.push({text:LABEL[name]+(note||''), color});
   }
@@ -1283,7 +1023,7 @@ class Sim {
       totalJudg+=r.ju;
     }
     // マイルストーン汎用評価: 編成キャラが宣言した {状態変数キー: 上限} を合算。
-    // 各変数は上限まで評価し超過分は追わない(例: renri30=テトラHELIX / nike_renri20=ニケ)。
+    // 各変数は上限まで評価し超過分は追わない(例: renri30=テトラHELIX)。
     const renriObj = Object.entries(MILESTONES)
       .reduce((a,[k,cap])=>a+Math.min(this[k]??0,cap), 0);
     // 最上位目標は概算総ダメージ(ロールアウト終了時点の this.dmg 累積値)。
@@ -1403,7 +1143,6 @@ function uiFeats(){
     robot:  'droid' in CHAR_SIM_STATES,             // エジソン: マシーンタクトゥ
     moon:   !!ABIL.effond,                         // ヘカテー: ムーンコード
     renri:  !!ABIL.judg,                           // テトラ: 連理魔力(/30)・ジャッジ・HELIX
-    nikeRenri: 'nike_renri' in CHAR_SIM_STATES,    // ニケ: 専用連理魔力(/20)・[HELIX]ニケ
     keigyo: Object.values(ABIL).some(a=>a[3]>0),   // 契晶コスト持ちアビの有無
   };
 }
@@ -1454,8 +1193,6 @@ function loopsHTML(r){
   }
   if(f.moon)  b.push(`<div class="loop-badge ${r.mooncode>0?'la':'lw'}"><span class="ln">🌙ムーン</span><span class="lv">${r.mooncode}T</span></div>`);
   if(f.renri) b.push(`<div class="loop-badge ${r.renri>=30?'la':(r.renri>=20?'lw':'li')}"><span class="ln">⚡連理</span><span class="lv">${r.renri}/30</span></div>`);
-  if(f.nikeRenri){ const nr=r.state.nike_renri;
-    b.push(`<div class="loop-badge ${nr>=20?'la':(nr>=12?'lw':'li')}"><span class="ln">⚡ニケ連理</span><span class="lv">${nr}/20</span></div>`); }
   if(f.keigyo)b.push(`<div class="loop-badge lp"><span class="ln">💎契晶</span><span class="lv">${r.keigyo}/15</span></div>`);
   return b.length?`<div class="loops">${b.join('')}</div>`:'';
 }
@@ -1494,7 +1231,6 @@ function cardHTML(r,first=false){
         <span class="badge bp">アビ×${r.ability}</span>
         ${f.renri?`<span class="badge ${r.ju>0?'br':'bm'}">J×${r.ju}</span>
         <span class="badge bp">連理${r.renri}/30</span>`:''}
-        ${f.nikeRenri?`<span class="badge bp">連理${r.state.nike_renri}/20</span>`:''}
         <span class="badge br" title="概算累計ダメージ">💥${Math.round(r.dmg).toLocaleString()}</span>
       </div>
       <div style="display:flex;align-items:center;gap:7px;">
@@ -1512,9 +1248,7 @@ function cardHTML(r,first=false){
         <div>
           ${f.renri?`<div style="font-size:10px;color:var(--muted);margin-bottom:5px;">連理魔力 累計${r.renri}/30</div>
           ${renriHTML(r.renri)}`:''}
-          ${f.nikeRenri?`<div style="font-size:10px;color:var(--muted);margin-bottom:5px;">ニケ連理魔力 累計${r.state.nike_renri}/20</div>
-          ${renriHTML(r.state.nike_renri,20,[10])}`:''}
-          <div style="margin-top:${(f.renri||f.nikeRenri)?9:0}px;font-size:10px;color:var(--muted);margin-bottom:5px;">アビCT（再使用まで残りT・0=使用可）</div>
+          <div style="margin-top:${f.renri?9:0}px;font-size:10px;color:var(--muted);margin-bottom:5px;">アビCT（再使用まで残りT・0=使用可）</div>
           <div style="display:flex;flex-wrap:wrap;gap:3px;">${cdBadgesHTML(r.state.cd)}</div>
         </div>
       </div>
@@ -1562,9 +1296,6 @@ function runSim(){
   if(!heroEl){ alert('英霊を選択してください'); return; }
   const kamihimeKeys=[0,1,2,3].map(i=>document.getElementById(`kslot-${i}`)?.value||'');
   if(kamihimeKeys.some(k=>!k)){ alert('神姫を4人選択してください'); return; }
-  // 属性混在禁止: 神姫4人は同一属性であること(英霊は編成属性に追従するため対象外)
-  const elems=new Set(kamihimeKeys.map(k=>CHAR_REGISTRY[k].elem));
-  if(elems.size>1){ alert('神姫は同一属性で揃えてください(光・火の混在は不可)'); return; }
 
   const n=Math.max(1,Math.min(30,parseInt(document.getElementById('turns-n').value)||10));
   const heroKey=heroEl.value;
@@ -1659,20 +1390,19 @@ function renderSim(baseDmg){
     <div class="summary-bar">
       ${fiHtml}
       <div class="summary-stat"><span class="val" style="color:var(--green)">${fb}/${rows.length}</span><span class="lbl">フルバースト</span></div>
-      ${(f.renri||f.nikeRenri)?`<div class="summary-stat"><span class="val">${ht?`T${ht.t}`:'未達'}</span><span class="lbl">HELIX解禁</span></div>`:''}
+      ${f.renri?`<div class="summary-stat"><span class="val">${ht?`T${ht.t}`:'未達'}</span><span class="lbl">HELIX解禁</span></div>`:''}
       ${f.renri?`<div class="summary-stat"><span class="val">${fin.renri}/30</span><span class="lbl">最終連理魔力</span></div>`:''}
-      ${f.nikeRenri?`<div class="summary-stat"><span class="val">${fin.state.nike_renri}/20</span><span class="lbl">最終ニケ連理</span></div>`:''}
       ${f.keigyo?`<div class="summary-stat"><span class="val">${fin.keigyo}/15</span><span class="lbl">最終契晶</span></div>
       <div class="summary-stat"><span class="val">${fin.cum}</span><span class="lbl">累計契晶</span></div>`:''}
       <div class="summary-stat"><span class="val">${rows.reduce((s,r)=>s+r.burst,0)}</span><span class="lbl">総バースト</span></div>
       <div class="summary-stat"><span class="val">${rows.reduce((s,r)=>s+r.ability,0)}</span><span class="lbl">総アビ</span></div>
     </div>
     <table class="summary-table">
-      <tr><th>T</th><th>FB</th><th>火力推移</th><th>バースト</th><th>アビ</th>${f.robot?'<th>ロボ作動</th>':''}${f.renri?'<th>ジャッジ</th><th>連理累計</th>':''}${f.nikeRenri?'<th>ニケ連理</th>':''}${f.keigyo?'<th>契晶(現/累)</th>':''}${f.moon?'<th>🌙ムーン</th>':''}</tr>
+      <tr><th>T</th><th>FB</th><th>火力推移</th><th>バースト</th><th>アビ</th>${f.robot?'<th>ロボ作動</th>':''}${f.renri?'<th>ジャッジ</th><th>連理累計</th>':''}${f.keigyo?'<th>契晶(現/累)</th>':''}${f.moon?'<th>🌙ムーン</th>':''}</tr>
       ${rows.map(r=>{
         const fb2=r.full?`<span class="tg">✅5人</span>`:`<span class="to">${r.atk.length}人</span>`;
         const dmgDisp=baseDmg>0?(r.dmg/baseDmg*100).toFixed(1):`${Math.round(r.dmg).toLocaleString()}`;
-        return `<tr><td><b>T${r.t}</b></td><td>${fb2}</td><td>${dmgDisp}</td><td>${r.burst}</td><td>${r.ability}</td>${f.robot?`<td>${r.ra}</td>`:''}${f.renri?`<td>${r.ju}</td><td>${r.renri}/30</td>`:''}${f.nikeRenri?`<td>${r.state.nike_renri}/20</td>`:''}${f.keigyo?`<td>${r.keigyo}/${r.cum}</td>`:''}${f.moon?`<td>${r.mooncode}T</td>`:''}</tr>`;
+        return `<tr><td><b>T${r.t}</b></td><td>${fb2}</td><td>${dmgDisp}</td><td>${r.burst}</td><td>${r.ability}</td>${f.robot?`<td>${r.ra}</td>`:''}${f.renri?`<td>${r.ju}</td><td>${r.renri}/30</td>`:''}${f.keigyo?`<td>${r.keigyo}/${r.cum}</td>`:''}${f.moon?`<td>${r.mooncode}T</td>`:''}</tr>`;
       }).join('')}
     </table>`;
   // ターンカードはWorkerのtype:'turn'で逐次描画済み。フォールバック時のみここで描画。
@@ -1891,11 +1621,10 @@ function renderParty(){
 // 凡例のキャラ固有項目(ロボ/ムーン/連理/契晶)を編成に合わせて出し分ける
 function renderLegend(){
   const f=uiFeats(), b=[];
-  if(f.renri||f.nikeRenri) b.push(`<div><span style="color:var(--red)">★</span> HELIX解禁ターン</div>`);
+  if(f.renri) b.push(`<div><span style="color:var(--red)">★</span> HELIX解禁ターン</div>`);
   if(f.robot) b.push(`<div style="margin-top:6px;"><b style="color:var(--accent2)">ロボ</b> 展開残T</div>`);
   if(f.moon)  b.push(`<div><b style="color:var(--accent2)">🌙</b> ムーンコード残T</div>`);
   if(f.renri) b.push(`<div><b style="color:var(--accent2)">⚡</b> 連理魔力/30</div>`);
-  if(f.nikeRenri) b.push(`<div><b style="color:var(--accent2)">⚡</b> ニケ連理魔力/20</div>`);
   if(f.keigyo)b.push(`<div><b style="color:var(--accent2)">💎</b> 契晶現在/累計</div>`);
   document.getElementById('legend-dyn').innerHTML=b.join('');
 }

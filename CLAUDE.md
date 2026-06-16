@@ -5,33 +5,34 @@
 ブラウザで直接開いて動作する。ロジック・UI・CSSは全て `index.html` に集約し、装備マスタ実データ
 （`WEAPON_MASTER`）のみ `data/weapons.js` に分離（`<script src>` で読込）する。
 
-編成は4パターン（属性混在は不可・runSimがバリデーション）:
-- 英霊: エジソン / ナポレオン（elem:null=神姫の最多属性に追従）
-- 神姫: 光4人（ヤマト/ヘカテー/テトラ/エレイン）or 火4人（アマテラス/ミネルヴァ/ニケ/ラミエル）
+編成は2パターン（英霊×神姫4人。神姫は光属性のみ実装）:
+- 英霊: エジソン / ナポレオン（elem:null=神姫の最多属性に追従。実質常に光）
+- 神姫: 光4人（ヤマト/ヘカテー/テトラ/エレイン）固定
 
 基準編成（検証用ベースライン）: エジソン + 光4人。
-火属性キャラ(data2.xlsx)は機構・効果量ともに実装済み。passion/victory のみ効果量が未確定で未配線。
+火属性神姫（アマテラス/ミネルヴァ/ニケ/ラミエル）は今後シミュ対象としない方針のため削除済み
+（英霊ナポレオンは引き続き使用可。elem:nullのため編成上は光属性として動作する）。
 
-## コード地図（index.html / 約1910行）
+## コード地図（index.html / 約1639行）
 
 セクション編集時は該当範囲だけを Read すればトークンを節約できる。
 
 | 範囲(行) | 内容 |
 |---|---|
 | 7–200 | CSS（`<style>`、Material白基調UI・スピナー） |
-| 202–248 | HTML構造（ヘッダ/サイドバー/メイン/ローディング）＋ `data/weapons.js` 読込 |
+| 202–249 | HTML構造（ヘッダ/サイドバー/メイン/ローディング）＋ `data/weapons.js` 読込 |
 | 251–262 | ゲーム定数（確定仕様・後述） |
-| 263–386 | **`DMG`**（概算火力モデル定数・末尾に火属性セクション） |
-| 387–488 | **`GEAR`/`SUMMON_REGISTRY`/`GEAR_K`**（装備設定・幻獣プリセット）＋**表示攻撃力**（`SSR_LV_RELEASE`/`DISPLAY_ATK_OVERRIDE`/`calcDisplayAtk`/`calcDisplayHp`） |
-| 489–953 | **`CHAR_REGISTRY`**（全キャラ定義の唯一の集約先。光5キャラ→火5キャラの順） |
-| 954–1022 | 編成グローバル構築（`buildFormation`/`ELEM`/`CHAR_SIM_STATES`/`MILESTONES`/`computeBaseScore`） |
-| 1023–1397 | `class Sim` エンジン（tick/procR/burst/use/`_na`/beam等） |
-| 1398–1469 | UI helpers（`uiFeats`/loopsHTML/gaugesHTML/cdBadgesHTML等） |
-| 1470–1524 | カード描画（cardHTML/toggleCard） |
-| 1525–1691 | **Web Worker**（`_buildWorkerCode`/`runSim`/`_fallbackRunSim`/`renderSim`） |
-| 1692–1749 | 編成選択UI（編成・装備とも▶実行時にrunSimが読み取り反映） |
-| 1750–1877 | 装備設定UI（renderGearPanel/applyGear・per-char `GEAR_K_C` 構築） |
-| 1878–末尾 | INIT（renderParty等） |
+| 263–337 | **`DMG`**（概算火力モデル定数） |
+| 338–449 | **`GEAR`/`SUMMON_REGISTRY`/`GEAR_K`**（装備設定・幻獣プリセット）＋**表示攻撃力**（`SSR_LV_RELEASE`/`DISPLAY_ATK_OVERRIDE`/`calcDisplayAtk`/`calcDisplayHp`） |
+| 440–703 | **`CHAR_REGISTRY`**（全キャラ定義の唯一の集約先。エジソン/ヤマト/ヘカテー/テトラ/エレイン/ナポレオン） |
+| 704–772 | 編成グローバル構築（`buildFormation`/`ELEM`/`CHAR_SIM_STATES`/`MILESTONES`/`computeBaseScore`） |
+| 773–1137 | `class Sim` エンジン（tick/procR/burst/use/`_na`/beam等） |
+| 1138–1206 | UI helpers（`uiFeats`/loopsHTML/gaugesHTML/cdBadgesHTML等） |
+| 1207–1258 | カード描画（cardHTML/toggleCard） |
+| 1259–1421 | **Web Worker**（`_buildWorkerCode`/`runSim`/`_fallbackRunSim`/`renderSim`） |
+| 1422–1479 | 編成選択UI（編成・装備とも▶実行時にrunSimが読み取り反映） |
+| 1480–1607 | 装備設定UI（renderGearPanel/applyGear・per-char `GEAR_K_C` 構築） |
+| 1608–末尾 | INIT（renderParty等） |
 
 最適化の最上位目標は**概算総ダメージ**（`DMG` モデル）。FB回数/総バースト/総ジャッジ/連理魔力
 は補助指標として目的関数の下位次元に残る。詳細は「概算火力モデル」節を参照。
@@ -48,11 +49,10 @@ plainオブジェクト）をそのまま転送する。Worker 非対応環境�
 `renderSim(baseDmg)` がサマリーに「対基準比」として表示する（押し順最適化の効きを相対値で可視化）。
 
 **編成依存UI（`uiFeats()`）**: ロボ（エジソン`state.droid`）・🌙ムーン（ヘカテー`ABIL.effond`）・
-⚡連理/HELIX/ジャッジ（テトラ`ABIL.judg`）・⚡ニケ連理/20（`state.nike_renri`）・💎契晶（kc>0アビ＝エレイン）
+⚡連理/HELIX/ジャッジ（テトラ`ABIL.judg`）・💎契晶（kc>0アビ＝エレイン）
 の表示は編成から導出したフラグで出し分ける（凡例/ターンカード/サマリーバー/サマリー表）。
 新キャラのループ系UIを追加する場合も `uiFeats()` にフラグを足し、固定表示にしない。
 HELIX解禁ターン検出は `def.helix` 宣言（reached/doneKey）から汎用判定（エンジンにキャラ名リテラルなし）。
-ニケのHELIX最速解禁は `milestones:{nike_renri:20}` がテトラ`renri:30`と同じ連理次元で目的関数に効く。
 
 ## アーキテクチャ原則
 
@@ -84,9 +84,9 @@ CHAR_REGISTRY[charKey] = {
     gmax: 数値,                    // BG上限（省略時 other_max=100）
     keigyoGain: 数値,
     milestones?: { 状態変数キー: 上限 },   // 目的関数が min(sim[key],上限) を合算評価
-    helix?: { reached:(sim)=>bool, doneKey:'stateキー' }, // HELIX解禁検出(初回到達ターン表示・テトラrenri30/ニケnike_renri20)
+    helix?: { reached:(sim)=>bool, doneKey:'stateキー' }, // HELIX解禁検出(初回到達ターン表示・テトラrenri30)
     onBurst?: (sim, atk, owner)=>void,     // 自分のバースト時
-    onPartyBurst?: (sim, owner, T, atk)=>void, // 誰かのバースト時(ニケ連理/ラミエル等)
+    onPartyBurst?: (sim, owner, T, atk)=>void, // 誰かのバースト時
     onAbility?: (sim, name, color, T)=>void,   // 誰かのアビ使用時(闘気/赤カウント/祝福等)
     turnEnd?: (sim, T)=>void,              // ターン終了時(全キャラ呼出)
   },
@@ -105,7 +105,7 @@ CHAR_REGISTRY[charKey] = {
 `buildFormation()` が全キャラの state を集約し、Sim が自動管理する。
 エンジン共通変数（renri/mooncode/mburst/keigyo/cum/dmg/buf）はここに含めない。
 
-## 概算火力モデル（`DMG` 定数・231行付近）
+## 概算火力モデル（`DMG` 定数・263行付近）
 
 `damageCalculator.txt` の実機ダメージ式は乗算ボックスが多数あり、全変数の厳密追跡は非現実的。
 そこで**押し順で動く加算枠のみ追跡し、押し順非依存の枠は概算定数 `DMG.misc` に一括で畳む**。
@@ -132,30 +132,18 @@ CHAR_REGISTRY[charKey] = {
 | `pike_def` | 防壁 | buffCount精度用(ダメージ無寄与) | 2 | 累積 |
 | `pike_crit` | 急所+会心 | `acute_pike_crit=0.30`(確実100%×倍率1.3) | 2 | 累積 |
 | `consort_def` | 防御DOWN→`defdown` | `defdown_consort=0.10`/stack | 6 | 累積 |
-| `enten` | 属性値+急所 | `elem_enten=0.10`/`acute_enten=0.03` | 4 | 累積 |
-| `fastes` | 属性値 | `elem_fastes=0.20`/stack | 4 | 累積 |
-| `fastes_acute` | 急所(祝福消費時) | `acute_fastes=0.02`/stack | 4 | 累積 |
-| `logos` | 属性値(耐性DOWN→elem近似) | `defdown_logos=0.40`(有効化で一括elem加算) | 6 | 累積 |
-| `divine` | アサルト+急所 | `assault_divine=0.05`/`acute_divine=0.03` | 3 | 累積 |
-| `hobby_def` | 防御DOWN→`defdown` | `defdown_hobby=0.10`/stack | 4 | 累積 |
-| `hydro_def` | 防御DOWN→`defdown` | `defdown_hydro=0.30`(推定) | 3 | 累積 |
-| `universa` | 敵デバフ→`defdown` | `defdown_universa=0.20`/stack | 2 | 累積 |
-| `universa_b` | バースト耐性DOWN→`defdown` | `defdown_universa_b=0.15`/stack | 2 | 累積 |
-| `ama_link` | 特殊攻撃 | `spec_ama_link=0.30` | 1 | 累積 |
-| `lami_power` | バースト威力 | `lami_power_val=0.10`/stack(burst係数に加算) | 6 | 累積 |
 
 - 通常攻撃概算 `_na()` = `(base + royFlat) × (1+defdown)`
   - `base` = `GEAR_K × (1+aslt)(1+elem)(1+vigor)(1+crit)(1+acute)(1+spec)`
   - `royFlat` = `(roy本数) × base × roy_na_frac[roy_tier]`（ロワ・クモンド独立枠）
   - `defdown` = 防御/耐性DOWN各ソースの合算（独立乗算枠）
-  - `aslt` = banoshik×0.10 + absolute×0.30 + (leg_aslt?0.20:0) + divine×0.05 + GEAR
-  - `elem` = puvoir×0.15 + enten×0.10 + fastes×0.20 + (logos?0.40:0) + GEAR
+  - `aslt` = banoshik×0.10 + absolute×0.30 + (leg_aslt?0.20:0) + GEAR
+  - `elem` = puvoir×0.15 + GEAR
   - `vigor` = min(absolute→0.30 + leg_vigor→0.3552 + pike→0.3552 + GEAR, 1.0)
   - `crit` = min(0.20 + absolute×0.25 + GEAR, 1.0) × 0.5
-  - `acute` = puvoir×0.010 + absolute×0.030 + legend×0.005 + enten×0.03 + fastes_acute×0.02 + divine×0.03 + pike_crit×0.30 + GEAR
-  - `spec` = (leg_spec?0.20:0) + (ama_link?0.30:0) + GEAR
-  - `defdown` = hydro_def×0.30 + consort_def×0.10 + hobby_def×0.10 + universa×0.20 + universa_b×0.15
-    ※ 敵火耐性DOWN(logos)はゲームでは独立ボックスだが、近似として elem に0.40加算している
+  - `acute` = puvoir×0.010 + absolute×0.030 + legend×0.005 + pike_crit×0.30 + GEAR
+  - `spec` = (leg_spec?0.20:0) + GEAR
+  - `defdown` = consort_def×0.10
 
 ### 装備設定（`GEAR` 定数・幻獣/ウェポン）
 
@@ -215,7 +203,7 @@ CHAR_REGISTRY[charKey] = {
 
 ## 変更禁止スペック（確定ゲーム定数）
 
-`index.html` 219行付近の定数。値の変更は実機仕様と乖離するため不可。
+`index.html` 252行付近の定数。値の変更は実機仕様と乖離するため不可。
 
 - `RENRI_CAP=5`（コヴァレントproc 同ターン発動上限＝連理魔力獲得＆ジャッジ再発動の共通カウンタ）
 - `JUDG_REACT=RENRI_CAP`（ジャッジ再発動はprocと同一カウンタ。初回自然分を含め最大6回）
@@ -240,7 +228,7 @@ CHAR_REGISTRY[charKey] = {
   `roy_na_frac`(通常=`_na()`内)・`roy_abi_frac`(アビダメ=ジャッジph0)・`roy_burst_frac`(バースト=`burst()`)の
   3枠を独自枠加算する。ロワは味方全体付与のため全員のバーストに乗る(burst内で`buf.roy`判定)。
 - **buffCount=強化効果数のみ**: tier判定の「(英霊/自分の)強化効果の数」は味方バフのみ。
-  敵デバフ系(`DEBUFF_KEYS`=consort_def/hobby_def/hydro_def/universa/universa_b/logos)は除外する。
+  敵デバフ系(`DEBUFF_KEYS`=consort_def)は除外する。
 - **ロボ独立追跡**: ドロイド(2アビ)＝攻撃ロボ(`sim.droid`)、バノーシク(1アビ)＝補助ロボ(`sim.banoshik_robot`)。
   両者は独立した3T変数で管理し、互いに干渉しない。
   BG増加(T.ra)は攻撃ロボ=赤アビ反応・補助ロボ=黄アビ反応（同一アビに両ロボが反応することはない）。
