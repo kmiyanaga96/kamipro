@@ -58,6 +58,14 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
 .fi-bar-wrap{width:100%;height:7px;background:var(--border);border-radius:4px;margin-top:7px;overflow:hidden;}
 .fi-bar-fill{height:100%;border-radius:4px;transition:width .4s;}
 .fi-sub{font-size:9px;color:var(--muted);margin-top:4px;letter-spacing:.4px;}
+/* 編成保存スロット */
+.slot-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:10px;}
+.slot-card{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;}
+.slot-card .slot-name{font-size:13px;font-weight:700;margin-bottom:4px;}
+.slot-card .slot-members{font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:8px;}
+.slot-card .slot-btns{display:flex;gap:6px;flex-wrap:wrap;}
+.slot-empty{font-size:11px;color:var(--muted);padding:6px 0;}
+.slot-status{font-size:10px;color:var(--muted);margin-top:6px;}
 .turn-card{background:var(--card);border:1px solid var(--border);border-radius:12px;
   margin-bottom:12px;overflow:hidden;box-shadow:var(--shadow);}
 .turn-card.full-burst{border-left:4px solid var(--green);}
@@ -229,6 +237,7 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
   <div class="main">
     <div id="formation-panel"></div>
     <div id="gear-panel"></div>
+    <div id="slots-panel"></div>
     <!-- シミュレーション対象パーティ（動的描画） -->
     <div id="party-bar" class="party-bar"></div>
     <div class="controls">
@@ -1663,6 +1672,188 @@ function applyGear(){
   // シミュは重い(ビームサーチ・数秒〜10秒)ため自動再実行しない。▶ボタンで明示実行する。
 }
 
+// ===== 編成保存スロット(GitHub Gist同期) =====
+// 単一ユーザー前提・ブラウザ間共有用。トークンは各ブラウザのlocalStorageに保持し、
+// 編成データ本体(スロット配列)はSecret Gist 1個に集約してGET/PATCHで同期する。
+const GIST_FILE = 'kamipro_slots.json';
+let SLOTS = [];
+let SLOTS_LOADED = false;
+
+function ghToken(){ return localStorage.getItem('kp_gh_token')||''; }
+function ghGistId(){ return localStorage.getItem('kp_gist_id')||''; }
+
+async function ghRequest(path, opts={}){
+  const res = await fetch('https://api.github.com'+path, {
+    ...opts,
+    headers: { 'Authorization':'token '+ghToken(), 'Accept':'application/vnd.github+json', ...(opts.headers||{}) },
+  });
+  if(!res.ok) throw new Error('GitHub API '+res.status+': '+(await res.text()).slice(0,200));
+  return res.json();
+}
+
+async function loadSlotsFromGist(){
+  const id = ghGistId();
+  if(!id){ SLOTS=[]; SLOTS_LOADED=true; return; }
+  const data = await ghRequest('/gists/'+id);
+  const content = data.files?.[GIST_FILE]?.content;
+  SLOTS = content ? JSON.parse(content) : [];
+  SLOTS_LOADED = true;
+}
+
+async function persistSlots(){
+  const body = { description:'神姫PROJECT R 編成保存スロット', public:false,
+    files:{ [GIST_FILE]:{ content: JSON.stringify(SLOTS, null, 1) } } };
+  if(ghGistId()){
+    await ghRequest('/gists/'+ghGistId(), { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  } else {
+    const data = await ghRequest('/gists', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    localStorage.setItem('kp_gist_id', data.id);
+  }
+}
+
+// 現在のUI入力(編成・幻獣・ウェポン・補正値)を1スロット分のプレーンオブジェクトに集約
+function captureFormation(){
+  const heroKey = document.querySelector('input[name="hero-sel"]:checked')?.value||LEADER;
+  const kamihimeKeys = [0,1,2,3].map(i=>document.getElementById(`kslot-${i}`)?.value||'');
+  const summon = Array.from({length:SUMMON_SLOTS},(_,i)=>document.getElementById('summon-'+i)?.value||'none');
+  const weapons = Array.from({length:10},(_,i)=>document.getElementById('wslot-'+i)?.value||'');
+  const wpnBoxes = {};
+  for(const [k] of GEAR_BOXES) wpnBoxes[k]=document.getElementById('wpn-'+k)?.value||'0';
+  return {
+    hero: heroKey, kamihime: kamihimeKeys, summon, weapons, wpnBoxes,
+    affinity: document.getElementById('dmg-affinity')?.value||'neu',
+    heroRank: document.getElementById('hero-rank')?.value||'165',
+    summonAtkTotal: document.getElementById('summon-atk-total')?.value||'0',
+    summonHpTotal: document.getElementById('summon-hp-total')?.value||'0',
+  };
+}
+
+// 保存済みスロットの内容をUIへ反映し、編成・シムを再構築する
+function applyFormation(slot){
+  document.getElementById('hr-'+slot.hero).checked = true;
+  for(let i=0;i<4;i++) document.getElementById(`kslot-${i}`).value = slot.kamihime[i]||'';
+  syncSlots();
+  renderGearPanel();
+  for(let i=0;i<SUMMON_SLOTS;i++){ const el=document.getElementById('summon-'+i); if(el) el.value = slot.summon?.[i]||'none'; }
+  for(let i=0;i<10;i++){ const el=document.getElementById('wslot-'+i); if(el) el.value = slot.weapons?.[i]||''; }
+  for(const [k] of GEAR_BOXES){ const el=document.getElementById('wpn-'+k); if(el) el.value = slot.wpnBoxes?.[k]||'0'; }
+  document.getElementById('dmg-affinity').value = slot.affinity||'neu';
+  document.getElementById('hero-rank').value = slot.heroRank||'165';
+  document.getElementById('summon-atk-total').value = slot.summonAtkTotal||'0';
+  document.getElementById('summon-hp-total').value = slot.summonHpTotal||'0';
+  buildFormation(slot.hero, slot.kamihime);
+  applyGear();
+  renderParty();
+  clearSim();
+}
+
+function slotSummaryText(slot){
+  const heroJp = CHAR_REGISTRY[slot.hero]?.jp||slot.hero;
+  const kamJp = slot.kamihime.map(k=>CHAR_REGISTRY[k]?.jp||'?').join('/');
+  return `${heroJp} ＋ ${kamJp}`;
+}
+
+function renderSlotsPanel(){
+  const panel = document.getElementById('slots-panel');
+  if(!ghToken()){
+    panel.innerHTML = `
+      <div class="gear-card">
+        <div class="cfg-title">💾 編成保存スロット（GitHub Gist同期）</div>
+        <div class="gear-row" style="gap:8px;">
+          <input type="password" id="gh-token-input" placeholder="GitHub Personal Access Token (gist権限)" style="flex:1;min-width:240px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;">
+          <button class="btn btn-primary btn-sm" onclick="saveTokenAndInit()">連携</button>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-top:6px;">
+          このブラウザのlocalStorageにのみ保存されます。トークンはGitHub設定→Developer settings→
+          Personal access tokens で「gist」権限のみ付与して発行してください。
+        </div>
+      </div>`;
+    return;
+  }
+  if(!SLOTS_LOADED){
+    panel.innerHTML = `<div class="gear-card"><div class="cfg-title">💾 編成保存スロット</div><div class="slot-status">読込中…</div></div>`;
+    return;
+  }
+  const cards = SLOTS.map(s=>`
+    <div class="slot-card">
+      <div class="slot-name">${s.name}</div>
+      <div class="slot-members">${slotSummaryText(s)}</div>
+      <div class="slot-btns">
+        <button class="btn btn-secondary btn-sm" onclick="loadSlotById('${s.id}')">呼出</button>
+        <button class="btn btn-secondary btn-sm" onclick="overwriteSlotById('${s.id}')">上書き</button>
+        <button class="btn btn-secondary btn-sm" onclick="deleteSlotById('${s.id}')">削除</button>
+      </div>
+    </div>`).join('') || `<div class="slot-empty">保存済みの編成はありません</div>`;
+  panel.innerHTML = `
+    <div class="gear-card">
+      <div class="cfg-title">💾 編成保存スロット（GitHub Gist同期）</div>
+      <div class="gear-row" style="gap:8px;">
+        <input type="text" id="slot-name-input" placeholder="新しいスロット名（例: 光エジソン基準）" style="flex:1;min-width:200px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;">
+        <button class="btn btn-primary btn-sm" onclick="saveNewSlot()">＋ 現在の編成を保存</button>
+      </div>
+      <div class="slot-grid">${cards}</div>
+      <div id="slot-status" class="slot-status"></div>
+    </div>`;
+}
+
+function slotStatus(msg){ const el=document.getElementById('slot-status'); if(el) el.textContent=msg; }
+
+async function saveTokenAndInit(){
+  const v = document.getElementById('gh-token-input')?.value.trim();
+  if(!v) return;
+  localStorage.setItem('kp_gh_token', v);
+  await refreshSlotsPanel();
+}
+
+async function refreshSlotsPanel(){
+  renderSlotsPanel();
+  try{
+    await loadSlotsFromGist();
+    renderSlotsPanel();
+  } catch(err){
+    SLOTS_LOADED = true;
+    renderSlotsPanel();
+    slotStatus('読込エラー: '+err.message);
+  }
+}
+
+async function saveNewSlot(){
+  const name = document.getElementById('slot-name-input')?.value.trim();
+  if(!name){ alert('スロット名を入力してください'); return; }
+  const slot = { id: String(Date.now()), name, savedAt: new Date().toISOString(), ...captureFormation() };
+  SLOTS.push(slot);
+  slotStatus('保存中…');
+  try{ await persistSlots(); renderSlotsPanel(); }
+  catch(err){ SLOTS.pop(); slotStatus('保存エラー: '+err.message); }
+}
+
+async function overwriteSlotById(id){
+  const idx = SLOTS.findIndex(s=>s.id===id);
+  if(idx<0) return;
+  if(!confirm(`「${SLOTS[idx].name}」を現在の編成で上書きしますか？`)) return;
+  const prev = SLOTS[idx];
+  SLOTS[idx] = { ...prev, ...captureFormation(), savedAt: new Date().toISOString() };
+  slotStatus('上書き中…');
+  try{ await persistSlots(); renderSlotsPanel(); }
+  catch(err){ SLOTS[idx]=prev; slotStatus('上書きエラー: '+err.message); }
+}
+
+async function deleteSlotById(id){
+  const idx = SLOTS.findIndex(s=>s.id===id);
+  if(idx<0) return;
+  if(!confirm(`「${SLOTS[idx].name}」を削除しますか？`)) return;
+  const removed = SLOTS.splice(idx,1)[0];
+  slotStatus('削除中…');
+  try{ await persistSlots(); renderSlotsPanel(); }
+  catch(err){ SLOTS.splice(idx,0,removed); slotStatus('削除エラー: '+err.message); }
+}
+
+function loadSlotById(id){
+  const slot = SLOTS.find(s=>s.id===id);
+  if(!slot) return;
+  applyFormation(slot);
+}
+
 // ===== INIT =====
 function renderParty(){
   const chips=CHARS.map(c=>{
@@ -1694,6 +1885,7 @@ renderFormationPanel();
 renderGearPanel();
 renderParty();
 clearSim(); // 初期表示はプレースホルダ（▶ボタンで実行）
+refreshSlotsPanel();
 </script>
 </body>
 </html>
