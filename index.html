@@ -279,6 +279,11 @@ const DMG = {
   // ─── アサルト枠(1スタックあたり) ────────────────────────────────────
   assault_banoshik: 0.10,    // バノーシク: 補助ロボ作動中の黄アビ毎にアサルト+10%
   assault_absolute: 0.30,    // アブソ: アサルト+30%
+  // ─── 攻撃ロボ(ドロイドアナバシス・赤アビ反応)枠 ──────────────────────
+  droid_react_mult: 3.0,     // 攻撃ロボ反応ダメージ: 通常攻撃比3倍(ランチャータンク装備時3.5倍は未配線)
+  droid_react_cap:  500000,  // 反応ダメージ減衰上限(50万・ランチャータンク装備時65万は未配線)
+  abi_dmg_droid:    0.03,    // 攻撃ロボ反応毎: 味方全体アビダメ+3%(累積可)
+  abi_cap_droid:    0.02,    // 攻撃ロボ反応毎: 味方全体アビダメ上限+2%(累積可)
   // ─── 属性値枠(1スタックあたり) ──────────────────────────────────────
   elem_puvoir:      0.15,    // プヴワール: 光属性攻撃+15%
   // ─── バーストダメージUP枠(1スタックあたり) ──────────────────────────
@@ -311,7 +316,8 @@ const DMG = {
   // ─── バフ効果ターン(失効管理用) ────────────────────────────────────
   dur_absolute: 2,           // アブソ効果ターン
   dur_puvoir:   6,           // プヴワール効果ターン
-  dur_banoshik: 3,           // バノーシク黄アビ付与バフ効果ターン(ロボと同期)
+  dur_banoshik: 5,           // バノーシク黄アビ付与アサルトバフ効果ターン(実機5T)
+  dur_droid_buf: 5,          // 攻撃ロボ赤アビ反応付与アビダメバフ効果ターン(実機5T)
   dur_legend:   3,           // レジェンドトラベラー効果ターン
   // ─── バーストダメージ式 ────────────────────────────────────────────────
   burst_coef_a: 4.5,         // バーストダメージ式の係数 a
@@ -494,8 +500,8 @@ const CHAR_REGISTRY = {
     favWeapon: ['銃','魔導具'], lvUpAtk: 400,
     state: { droid: 0, banoshik_robot: 0, ycount: 0 },  // droid: 攻撃ロボ残T / banoshik_robot: 補助ロボ残T / ycount: 黄アビ累計
     abilities: {
-      banoshik: ['y', 8, 0],
       droid:    ['y', 8, 0],
+      banoshik: ['y', 8, 0],
       ifishant: ['y', 5, 0],
       amplifa:  ['y', 7, 0],
     },
@@ -612,8 +618,9 @@ const CHAR_REGISTRY = {
                     // ジャッジ循環: ph0=敵全体10回ダメージ / ph1=バースト発動 / ph2=通常攻撃
                     if(ph===0){ const amp=sim.cd.amplifa>0?DMG.amplifa_flat:0;
                       const royAbi=sim.buf.roy?.length ? 10*sim._na()*DMG.roy_abi_frac[sim.roy_tier??0] : 0;
-                      // アビダメ枠: ×(1+abi_dmg)、1ヒット減衰 基準judg_cap(超過は1/25で逓減)
-                      const hit=sim._decay('abi', sim._na()*DMG.judg_mult*(1+GEAR.abi_dmg), DMG.judg_cap);
+                      // アビダメ枠: ×(1+abi_dmg+droid)、1ヒット減衰 基準judg_cap×(1+droid)(超過は1/25で逓減)
+                      const db0=sim._droidAbiBuf();
+                      const hit=sim._decay('abi', sim._na()*DMG.judg_mult*(1+GEAR.abi_dmg+db0.dmg), DMG.judg_cap*(1+db0.cap));
                       sim.dmg += 10*hit + amp + royAbi; }
                     else if(ph===1) sim.burst(ownerOf('judg'),bset,T);
                     else sim.dmg += sim._decay('na', sim._na()*(1+GEAR.na_dmg)); }},
@@ -712,8 +719,9 @@ const CHAR_REGISTRY = {
       // アーティオリ: (2+0.5×バフ数)倍のダメージ(上限250万)。防御DOWN(6T累積可)。バフ20以上で2回。
       consort: { exec:(sim,T,ord)=>{ sim._naOwner=ownerOf('consort'); const bc=buffCount(sim); const hits=bc>=20?2:1;
                    const mult=2+0.5*bc;
-                   // アビダメ枠: ×(1+abi_dmg)、減衰 基準consort_cap(超過は1/25で逓減)
-                   for(let i=0;i<hits;i++) sim.dmg+=sim._decay('abi', sim._na()*mult*(1+GEAR.abi_dmg), DMG.consort_cap);
+                   // アビダメ枠: ×(1+abi_dmg+droid)、減衰 基準consort_cap×(1+droid)(超過は1/25で逓減)
+                   const dbc=sim._droidAbiBuf();
+                   for(let i=0;i<hits;i++) sim.dmg+=sim._decay('abi', sim._na()*mult*(1+GEAR.abi_dmg+dbc.dmg), DMG.consort_cap*(1+dbc.cap));
                    for(let i=0;i<hits;i++) (sim.buf.consort_def??=[]).push(DMG.dur_consort_def);
                    sim.use('consort',T,ord,hits===2?'(×2)':''); }},
       // ディシジフ: ベタイア2回発動化(2T)。バフ10以上で全体アビCD-1・BG+30追加。
@@ -880,6 +888,9 @@ class Sim {
   // frame: 'na'(35/45/55万・1→½→¼→⅛) / 'burst'(100万・1→1/10) / 'abi'(base=キャラ毎・1→1/25)
   //        / 'hard'(追撃/城塞・寄与率0=完全頭打ち)。上限UP(GEAR.<frame>_cap)は第一上限を×(1+up)。
   // 抽象スケールでは raw≪上限のため恒等(休眠)。base_atk等を実ダメ較正すると自動で減衰が効く基盤。
+  // 攻撃ロボ(droid_buf): 赤アビ反応毎のアビダメ枠加算(累積可・各スタック dur_droid_buf 持続)
+  _droidAbiBuf(){ const n=this.buf.droid_buf?.length||0; return {dmg:n*DMG.abi_dmg_droid, cap:n*DMG.abi_cap_droid}; }
+
   _decay(frame, raw, base){
     const up = GEAR[frame+'_cap']||0;
     if(frame==='na'){
@@ -970,7 +981,12 @@ class Sim {
     const [,color,cd,cost]=ABIL[name];
     this.cd[name]=cd; if(cost) this.keigyo-=cost; T.ability++;
     // ロボ作動カウント: 攻撃ロボ(droid)=赤アビ反応 / 補助ロボ(banoshik_robot)=黄アビ反応
-    if(color==='r'&&this.droid>0) T.ra++;
+    if(color==='r'&&this.droid>0){
+      T.ra++;
+      // 攻撃ロボ反応: 赤アビ発動毎に敵全体へ反応ダメージ＋味方全体アビダメバフ付与(累積可)
+      this.dmg += this._decay('abi', this._na()*DMG.droid_react_mult, DMG.droid_react_cap);
+      (this.buf.droid_buf??=[]).push(DMG.dur_droid_buf);
+    }
     if(color==='y'&&this.banoshik_robot>0) T.ra++;
     // バノーシク: 補助ロボ作動中の黄アビ毎にアサルトバフを独立付与(上限なし累積・各 dur_banoshik 持続)
     if(color==='y'&&this.banoshik_robot>0) (this.buf.banoshik??=[]).push(DMG.dur_banoshik);

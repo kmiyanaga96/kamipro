@@ -120,7 +120,8 @@ CHAR_REGISTRY[charKey] = {
 
 | buf キー | 枠 | 効果量 | 持続 | 累積 |
 |---|---|---|---|---|
-| `banoshik` | アサルト | `assault_banoshik=0.10`(ロボ作動中の黄アビ毎・use内付与) | 3 | 累積 |
+| `banoshik` | アサルト | `assault_banoshik=0.10`(補助ロボ作動中の黄アビ毎・use内付与) | 5 | 累積 |
+| `droid_buf` | アビダメ+アビダメ上限 | `abi_dmg_droid=0.03`/`abi_cap_droid=0.02`(攻撃ロボ作動中の赤アビ毎・use内付与) | 5 | 累積 |
 | `absolute` | アサルト+バーストダメUP+旺盛+会心+急所 | `assault_absolute=0.30`/`burst_dmg_absolute=0.30` | 2 | 累積 |
 | `puvoir` | 属性値+急所 | `elem_puvoir=0.15` | 6 | 累積 |
 | `legend` | 急所 | `acute_legend=0.005` | 3 | 累積 |
@@ -249,10 +250,12 @@ CHAR_REGISTRY[charKey] = {
   3枠を独自枠加算する。ロワは味方全体付与のため全員のバーストに乗る(burst内で`buf.roy`判定)。
 - **buffCount=強化効果数のみ**: tier判定の「(英霊/自分の)強化効果の数」は味方バフのみ。
   敵デバフ系(`DEBUFF_KEYS`=consort_def)は除外する。
-- **ロボ独立追跡**: ドロイド(2アビ)＝攻撃ロボ(`sim.droid`)、バノーシク(1アビ)＝補助ロボ(`sim.banoshik_robot`)。
-  両者は独立した3T変数で管理し、互いに干渉しない。
+- **ロボ独立追跡**: ドロイド(1アビ・ドロイドアナバシス)＝攻撃ロボ(`sim.droid`)、バノーシク(2アビ・バノーシクベネフィット)＝補助ロボ(`sim.banoshik_robot`)。
+  両者は独立した3T変数で管理し、互いに干渉しない（表示ラベル番号は`abilities`宣言順=droid→banoshikで実機と一致させる）。
   BG増加(T.ra)は攻撃ロボ=赤アビ反応・補助ロボ=黄アビ反応（同一アビに両ロボが反応することはない）。
-  バノーシクアサルトバフ(`buf.banoshik`)は補助ロボ作動中の黄アビ限定。
+  攻撃ロボの赤アビ反応(`use()`内)は敵全体へ反応ダメージ(`droid_react_mult=3.0`・減衰`droid_react_cap=50万`)＋
+  味方全体アビダメバフ(`buf.droid_buf`)を付与。バノーシクアサルトバフ(`buf.banoshik`)は補助ロボ作動中の黄アビ限定。
+  ランチャータンク装備時の倍率3.5倍/減衰65万は英霊武器システム未実装のため未配線。
 
 ## 検証方法
 
@@ -276,17 +279,19 @@ console.log("FullBurst:",fb+"/10","TotalDmg:",Math.round(sim.dmg));
 
 期待値（基準・DMG定数が現行値の場合）:
 ```
-T1  FB:5 J:2 renri:5  dmg:570,920     T6  FB:5 J:4 renri:30 dmg:4,131,689
-T2  FB:5 J:5 renri:10 dmg:1,428,304   T7  FB:5 J:6 renri:35 dmg:5,838,357
-T3  FB:5 J:2 renri:15 dmg:1,656,634   T8  FB:5 J:2 renri:40 dmg:7,202,150
-T4  FB:5 J:4 renri:20 dmg:2,583,918   T9  FB:5 J:3 renri:45 dmg:7,716,323
-T5  FB:5 J:5 renri:25 dmg:3,602,407   T10 FB:5 J:6 renri:50 dmg:9,518,245
+T1  FB:5 J:2 renri:5  dmg:579,830     T6  FB:5 J:4 renri:28 dmg:5,040,720
+T2  FB:5 J:5 renri:10 dmg:1,519,202   T7  FB:5 J:4 renri:30 dmg:7,596,956
+T3  FB:5 J:0 renri:13 dmg:1,571,680   T8  FB:5 J:4 renri:30 dmg:10,132,493
+T4  FB:5 J:4 renri:18 dmg:2,709,690   T9  FB:5 J:4 renri:30 dmg:11,402,833
+T5  FB:5 J:4 renri:23 dmg:4,172,942   T10 FB:5 J:6 renri:30 dmg:14,629,218
 ```
-（FullBurst:10/10、TotalDmg:9,518,245。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
+（FullBurst:10/10、TotalDmg:14,629,218。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
 バフは上限なしで独立累積し持続ターンで失効(buf辞書管理)。
 エンジン: BEAM_W=24/BEAM_W_INNER=4、目的関数最上位=概算総ダメージ。
 イフィシャント早撃ち抑止: `IFISHANT_MIN_CD=3`（CD中アビ3個未満は使用不可・空打ち=機会損失防止）。
-青アビ(ナイツサプレス/ディウィヌス)実効果配線により基準値が5.80M→9.52Mへ更新済み。）
+renriは`RENRI_MAX=30`で頭打ち（実機検証）。エジソン攻撃ロボ(ドロイドアナバシス・赤アビ反応)の
+反応ダメージ＋アビダメバフ配線、バノーシク/ドロイドバフ持続を実機5Tへ補正したことで
+基準値が9.52M→14.63Mへ更新済み。）
 
 ## 開発ルール
 
