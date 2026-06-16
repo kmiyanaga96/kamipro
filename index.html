@@ -186,6 +186,7 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
   animation:spin .8s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
 .pc-atk{font-size:10px;color:var(--muted);margin-left:4px;}
+.pc-hp{font-size:10px;color:var(--accent2);margin-left:3px;}
 .spin-msg{font-size:13px;color:var(--muted);}
 .spin-sub{font-size:11px;color:var(--muted);opacity:0.7;}
 
@@ -391,6 +392,14 @@ const DISPLAY_ATK_OVERRIDE = {
   // 検証編成・育成途中スクショ実測(エジソン + 光4・テトラのみLv90解放)。
   // 別編成に差し替える際はその編成の実機表示ATKに更新するか、行を消せば満凸推定へ戻る。
   edison: 78306, yamato: 62999, hecate: 59226, tetra: 65436, elaine: 63537,
+};
+
+// ゲーム画面の確定表示HPをキャラ毎に上書きする(ATK overrideと完全対称・0-fudge)。
+// 将来「旺盛(ヴィゴラス)」のHP量参照を実装する際、最大HPの基準値として参照する土台。
+// +99/育成途中/placeholder武器/Lv上限解放を全て内包した実測値で calcDisplayHp(満凸推定) を上書きする。
+// 空 {} なら従来どおり全キャラ calcDisplayHp へフォールバック(現状維持・挙動不変)。
+const DISPLAY_HP_OVERRIDE = {
+  // 実機スクショのHP実測値を edison/yamato/hecate/tetra/elaine の順で登録する(未登録時は満凸推定)。
 };
 
 // 表示攻撃力算出: 武器ATK×得意補正 + 幻獣ATK合計 + キャラ基本ATK(神姫) or 英霊基本値
@@ -1594,7 +1603,8 @@ function applyGear(){
     for(const charKey of CHARS){
       // 実機表示の直接指定があれば最優先(Lv上限解放/+99等を0-fudgeで内包)。無ければ満凸decompose推定。
       const dispAtk=DISPLAY_ATK_OVERRIDE[charKey]||calcDisplayAtk(charKey,slots,sumAtkTotal,heroRank,mAtk);
-      const dispHp=calcDisplayHp(charKey,slots,sumHpTotal,heroRank,mHp);
+      // 実機表示HPの直接指定があれば最優先(ATKと対称)。無ければ満凸decompose推定。
+      const dispHp=DISPLAY_HP_OVERRIDE[charKey]||calcDisplayHp(charKey,slots,sumHpTotal,heroRank,mHp);
       if(dispAtk>0){
         DISPLAY_ATK_C[charKey]=dispAtk;
         DISPLAY_HP_C[charKey]=dispHp;
@@ -1610,8 +1620,10 @@ function renderParty(){
   const chips=CHARS.map(c=>{
     const role=c===LEADER?'<span class="pc-role">英霊</span>':'';
     const atkVal=DISPLAY_ATK_C[c];
-    const atkBadge=atkVal?`<span class="pc-atk">${atkVal.toLocaleString()}</span>`:'';
-    return `<span class="party-chip">${role}${JP[c]}${atkBadge}</span>`;
+    const atkBadge=atkVal?`<span class="pc-atk">⚔${atkVal.toLocaleString()}</span>`:'';
+    const hpVal=DISPLAY_HP_C[c];
+    const hpBadge=hpVal?`<span class="pc-hp">❤${hpVal.toLocaleString()}</span>`:'';
+    return `<span class="party-chip">${role}${JP[c]}${atkBadge}${hpBadge}</span>`;
   }).join('');
   document.getElementById('party-bar').innerHTML=
     `<span class="pb-label">編成</span>${chips}`;
