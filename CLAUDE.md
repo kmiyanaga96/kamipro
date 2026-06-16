@@ -171,8 +171,9 @@ CHAR_REGISTRY[charKey] = {
 
 #### 表示攻撃力（per-char ATK）の算出
 
-`calcDisplayAtk(charKey, slots, summonAtkTotal, heroRank, heroMasterAtkPct)` が
+`calcDisplayAtk(charKey, slots, summonAtkTotal, heroRank)` が
 **武器ATK×得意補正(1.2) ＋ 幻獣ATK合計 ＋ キャラ基本ATK** で満凸 target build の表示攻撃力を推定する
+（英霊のマスターATK%/HP%ボーナスは対象英霊をシミュ対象外としたため削除済み・非適用）
 （`calcDisplayHp` も同型）。武器実データは `data/weapons.js` の `WEAPON_MASTER`（最大Lv値）。
 - **`SSR_LV_RELEASE`**: レベル上限解放の累積ステータス増分（型非依存・公式有志検証）。
   Lv80=±0 / Lv85=ATK+1950,HP+375 / Lv90=ATK+3900,HP+750。神姫 `baseAtk`/`baseHp` はLv80基準値とし、
@@ -225,6 +226,7 @@ CHAR_REGISTRY[charKey] = {
 
 - `RENRI_CAP=5`（コヴァレントproc 同ターン発動上限＝連理魔力獲得＆ジャッジ再発動の共通カウンタ）
 - `JUDG_REACT=RENRI_CAP`（ジャッジ再発動はprocと同一カウンタ。初回自然分を含め最大6回）
+- `RENRI_MAX=30`（連理魔力の総上限。実機検証で30頭打ち＝以降加算なし。JDリキャストは上限後も継続処理）
 - `TENYA_FROM=2`（天矢乱舞 使用可能開始ターン）
 - `FB_THR=100`（フルバースト閾値。カスケード+10で90/80…でも連鎖発火）
 - `MACH_BG=5`（マシーンタクトゥ ロボ作動1回あたりBG増加）
