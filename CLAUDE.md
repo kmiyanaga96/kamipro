@@ -132,6 +132,9 @@ CHAR_REGISTRY[charKey] = {
 | `pike_def` | 防壁 | buffCount精度用(ダメージ無寄与) | 2 | 累積 |
 | `pike_crit` | 急所+会心 | `acute_pike_crit=0.30`(確実100%×倍率1.3) | 2 | 累積 |
 | `consort_def` | 防御DOWN→`defdown` | `defdown_consort=0.10`/stack | 6 | 累積 |
+| `nights` | バーストダメUP | `burst_dmg_nights=0.20`(ナイツサプレス・敵バースト耐性-20%の等価近似・全バースト) | 2 | 累積 |
+| `divinus_def` | 防御DOWN→`defdown` | `defdown_divinus=0.30`/stack(ディウィヌス・敵防御-30%) | 2 | 累積 |
+| `divinus_dot` | DOT(独立・順序非依存) | 4種×min(敵最大HP×10%,上限10万)をtetra `turnEnd`で毎ターン加算 | 2 | 累積 |
 
 - 通常攻撃概算 `_na()` = `(base + royFlat) × (1+defdown)`
   - `base` = `GEAR_K × (1+aslt)(1+elem)(1+vigor)(1+crit)(1+acute)(1+spec)`
@@ -143,7 +146,11 @@ CHAR_REGISTRY[charKey] = {
   - `crit` = min(0.20 + absolute×0.25 + GEAR, 1.0) × 0.5
   - `acute` = puvoir×0.010 + absolute×0.030 + legend×0.005 + pike_crit×0.30 + GEAR
   - `spec` = (leg_spec?0.20:0) + GEAR
-  - `defdown` = consort_def×0.10
+  - `defdown` = consort_def×0.10 + divinus_def×0.30
+  - バースト = `_decay('burst', _na()×(burst_coef_a + absolute×burst_dmg_absolute + nights×burst_dmg_nights + burst_dmg))`
+  - 青アビ実効果(`data.xlsx`確定): ナイツサプレス=敵バースト耐性-20°≒バーストダメUP / ディウィヌス=敵防御-30%(defdown)＋DOT4種。
+    両アビの「与ダメージDOWN/敵攻撃DOWN」等は被ダメ側＝自出力モデルのスコープ外。
+  - ディウィヌスDOTは敵最大HP依存(`DMG.enemy_max_hp`placeholder)・順序非依存。押し順最適化には`defdown`/`nights`のみ効く。
 
 ### 装備設定（`GEAR` 定数・幻獣/ウェポン）
 
@@ -267,15 +274,17 @@ console.log("FullBurst:",fb+"/10","TotalDmg:",Math.round(sim.dmg));
 
 期待値（基準・DMG定数が現行値の場合）:
 ```
-T1  FB:5 J:1 renri:4  dmg:152,321     T6  FB:5 J:3 renri:29 dmg:2,025,131
-T2  FB:5 J:4 renri:9  dmg:501,296     T7  FB:5 J:4 renri:34 dmg:3,064,597
-T3  FB:5 J:4 renri:14 dmg:842,389     T8  FB:5 J:6 renri:39 dmg:4,173,194
-T4  FB:5 J:4 renri:19 dmg:1,208,648   T9  FB:5 J:2 renri:44 dmg:4,655,377
-T5  FB:5 J:5 renri:24 dmg:1,729,075   T10 FB:5 J:6 renri:49 dmg:5,801,386
+T1  FB:5 J:2 renri:5  dmg:570,920     T6  FB:5 J:4 renri:30 dmg:4,131,689
+T2  FB:5 J:5 renri:10 dmg:1,428,304   T7  FB:5 J:6 renri:35 dmg:5,838,357
+T3  FB:5 J:2 renri:15 dmg:1,656,634   T8  FB:5 J:2 renri:40 dmg:7,202,150
+T4  FB:5 J:4 renri:20 dmg:2,583,918   T9  FB:5 J:3 renri:45 dmg:7,716,323
+T5  FB:5 J:5 renri:25 dmg:3,602,407   T10 FB:5 J:6 renri:50 dmg:9,518,245
 ```
-（FullBurst:10/10、TotalDmg:5,801,386。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
+（FullBurst:10/10、TotalDmg:9,518,245。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
 バフは上限なしで独立累積し持続ターンで失効(buf辞書管理)。
-エンジン: BEAM_W=24/BEAM_W_INNER=4、目的関数最上位=概算総ダメージ。）
+エンジン: BEAM_W=24/BEAM_W_INNER=4、目的関数最上位=概算総ダメージ。
+イフィシャント早撃ち抑止: `IFISHANT_MIN_CD=3`（CD中アビ3個未満は使用不可・空打ち=機会損失防止）。
+青アビ(ナイツサプレス/ディウィヌス)実効果配線により基準値が5.80M→9.52Mへ更新済み。）
 
 ## 開発ルール
 

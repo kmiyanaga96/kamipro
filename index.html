@@ -258,6 +258,7 @@ const MACH_BG   = 5;   // マシーンタクトゥ: ロボ作動1回あたりBG�
 const KEIGYO_MAX= 15;  // 契晶最大値
 const BEAM_W      = 24;  // ビームサーチ幅（本ターン）: 各ステップで保持する候補数
 const BEAM_W_INNER= 4;   // ビームサーチ幅（ロールアウト内）: 深度1クローンで使用
+const IFISHANT_MIN_CD = 3; // イフィシャント使用可の最小CD中アビ数（早撃ち=機会損失の抑止下限）
 const BG = {inori:100,funki:10,absolute:20,sleur:15,legend:10,
             pactcore:100,cascade:10,yamato_max:200,other_max:100};
 
@@ -345,6 +346,16 @@ const DMG = {
   vigor_pike:       0.3552,  // パイク旺盛: 基礎値42 → ×1.3552(vigor_legendと同値)
   acute_pike_crit:  0.30,    // パイク急所(確実100%) × (1.3−1)=0.30
   defdown_consort:  0.10,    // コンソート防御DOWN: 10%/stack
+  // ─── 青アビ実効果(エレイン3 / テトラ3) ──────────────────────────────
+  burst_dmg_nights: 0.20,    // ナイツサプレス: 敵バースト攻撃耐性-20% ≒ バーストダメージ+20%/stack
+  dur_nights:       2,       // ナイツサプレス効果ターン(累積可)
+  defdown_divinus:  0.30,    // ディウィヌス: 敵防御-30%(defdown枠・consortと同種・累積可)
+  dur_divinus_def:  2,       // ディウィヌス防御DOWN効果ターン
+  // ディウィヌスDOT: 猛毒/重炎獄/深溺水/過腐敗の4種・各「敵最大HP×10%・上限10万」。順序非依存。
+  enemy_max_hp:     100000000, // 敵最大HP概算(高難易度ではDOTは常に上限張り付き・要較正placeholder)
+  divinus_dot_cap:  100000,  // DOT1種あたり上限(10万)
+  divinus_dot_types: 4,      // DOT種類数(猛毒/重炎獄/深溺水/過腐敗)
+  dur_divinus_dot:  2,       // DOT持続(2Tティック)
 };
 
 // ===== 装備設定(幻獣・ウェポン) =====
@@ -496,9 +507,12 @@ const CHAR_REGISTRY = {
       banoshik: { s:200, atkBuf:true, deploysRobot:true, exec:(sim,T,ord)=>{ sim.banoshik_robot=3; sim.use('banoshik',T,ord); }},
       amplifa:  { s:180, atkBuf:true },
       // スコアは(CD中アビ数)²: count=4→16(低),count=8→64(effond直前),count=10→100(高)
-      // 多くのアビがCD中のターンで自然に高優先度になり、T1序盤の空打ちを回避する
+      // 多くのアビがCD中のターンで自然に高優先度になり、T1序盤の空打ちを回避する。
+      // guard: CD中アビが IFISHANT_MIN_CD 個未満の間は使用不可(空打ち=機会損失を防ぐハード下限)。
+      // ビーム目的関数は総ダメージ駆動でスコアより優先するため、早撃ち抑止にはガードが必須。
+      // 検証(edison+光4): 下限1→総8.77M / 下限2〜4→総9.52M(最適plateau)。中央値3を採用。
       ifishant: { s:(sim)=>{ const ct=Object.keys(sim.cd).filter(k=>k!=='ifishant'&&sim.cd[k]>0).length; return ct*ct; },
-                  guard:(sim)=>Object.keys(sim.cd).some(k=>k!=='ifishant'&&sim.cd[k]>0),
+                  guard:(sim)=>Object.keys(sim.cd).filter(k=>k!=='ifishant'&&sim.cd[k]>0).length>=IFISHANT_MIN_CD,
                   exec:(sim,T,ord)=>{ for(const k of Object.keys(sim.cd)) if(k!=='ifishant'&&sim.cd[k]>0) sim.cd[k]--; sim.use('ifishant',T,ord); }},
     },
     def: {
@@ -603,7 +617,10 @@ const CHAR_REGISTRY = {
                     else if(ph===1) sim.burst(ownerOf('judg'),bset,T);
                     else sim.dmg += sim._decay('na', sim._na()*(1+GEAR.na_dmg)); }},
       absolute: { s:130, atkBuf:true, partyBG:true, exec:(sim,T,ord)=>{ if(!sim.buf.absolute)sim.buf.absolute=[]; sim.buf.absolute.push(DMG.dur_absolute); sim.addG(CHARS,BG.absolute); sim.use('absolute',T,ord); }},
-      divinus:  { s:90 },
+      // ディウィヌス: 敵防御-30%(defdown・後続全攻撃を底上げ)＋DOT4種(順序非依存・turnEndでtick)。
+      divinus:  { s:90, atkBuf:true, exec:(sim,T,ord)=>{
+                  (sim.buf.divinus_def??=[]).push(DMG.dur_divinus_def);
+                  (sim.buf.divinus_dot??=[]).push(DMG.dur_divinus_dot); sim.use('divinus',T,ord); }},
       // ゴッド・オムニポンテス: 全体BG+100。連理魔力30以上かつ戦闘中1回のみ。
       helix:    { s:400, atkBuf:true, partyBG:true,
                   guard:(sim)=>sim.renri>=30&&!sim.helix_abil_used,
@@ -624,6 +641,9 @@ const CHAR_REGISTRY = {
           if(sim.cd[k]>0) sim.cd[k]--;
         }
       },
+      // ディウィヌスDOT: 有効ターン毎に4種×min(敵最大HP×10%, 上限10万)を概算加算(順序非依存)。
+      turnEnd: (sim) => { if(sim.buf.divinus_dot?.length)
+        sim.dmg += DMG.divinus_dot_types*Math.min(DMG.enemy_max_hp*0.10, DMG.divinus_dot_cap); },
     },
   },
 
@@ -650,8 +670,9 @@ const CHAR_REGISTRY = {
                     if(sim.cum>=70) sim.buf.leg_vigor=[DMG.dur_legend];
                     if(sim.cum>=80) sim.buf.leg_spec=[DMG.dur_legend];
                     const lead100=sim.g[LEADER]>=100; sim.addG(lead100?CHARS:[LEADER,ownerOf('legend')],BG.legend); sim.use('legend',T,ord); }},
-      knights:  { s:85, guard:(sim,T)=>!T.knightsUsed,
-                  exec:(sim,T,ord)=>{ T.knightsUsed=true; sim.use('knights',T,ord); }},
+      // ナイツサプレス: 敵バースト攻撃耐性-20% ≒ 全バースト(誘発含む)+20%(2T累積)。契晶3消費。
+      knights:  { s:85, atkBuf:true, guard:(sim,T)=>!T.knightsUsed,
+                  exec:(sim,T,ord)=>{ T.knightsUsed=true; (sim.buf.nights??=[]).push(DMG.dur_nights); sim.use('knights',T,ord); }},
       pactcore: { s:(sim)=>{ const lk=Object.keys(ABIL).filter(k=>ownerOf(k)===LEADER); const n=lk.filter(k=>sim.cd[k]>0).length; return n>=3?150:n===2?110:n===1?70:20; }, atkBuf:true, partyBG:true,
                   guard:(sim,T)=>{ if(T.pactcoreUsed||sim.g[LEADER]<100) return false; return Object.keys(ABIL).filter(k=>ownerOf(k)===LEADER).some(k=>sim.cd[k]>0); },
                   exec:(sim,T,ord)=>{ T.pactcoreUsed=true; const lk=Object.keys(ABIL).filter(k=>ownerOf(k)===LEADER); for(const k of lk) if(sim.cd[k]>0) sim.cd[k]=Math.max(0,sim.cd[k]-1); sim.addG(CHARS,BG.pactcore); sim.use('pactcore',T,ord,'(全+100)'); }},
@@ -909,7 +930,8 @@ class Sim {
     // ロワ・クモンド: 独立枠フラット(tierはbuf使用時に確定・base比率で近似)
     const royFlat = (b.roy?.length||0)*base*D.roy_na_frac[this.roy_tier??0];
     // 防御DOWN: 敵防御/耐性DOWN各ソース合算 → 独立乗算(ダメージ × (1+defdown))
-    const defdown = (b.consort_def?.length||0)*D.defdown_consort;
+    const defdown = (b.consort_def?.length||0)*D.defdown_consort
+                  + (b.divinus_def?.length||0)*D.defdown_divinus;
     return (base + royFlat) * (1 + defdown);
   }
 
@@ -917,8 +939,9 @@ class Sim {
     this._naOwner = owner; // バーストダメージはオーナーのGEAR_K_Cを参照
     this.addG(CHARS.filter(c=>c!==owner), BG.cascade, atk?bset:null);
     this.grif(owner); T.burst++;
-    // 概算バーストダメージ: absolute(バーストダメUP)
-    const bdmg = (this.buf.absolute?.length||0)*DMG.burst_dmg_absolute;
+    // 概算バーストダメージ: absolute(バーストダメUP) + nights(敵バースト耐性DOWN≒バーストダメUP)
+    const bdmg = (this.buf.absolute?.length||0)*DMG.burst_dmg_absolute
+               + (this.buf.nights?.length||0)*DMG.burst_dmg_nights;
     // ロワ・クモンド: バーストプラス(独自枠・味方全体付与のため全員のバーストに加算・上限の外)
     const royBurst = this.buf.roy?.length ? this._na()*DMG.roy_burst_frac[this.roy_tier??0] : 0;
     // バーストダメージ式: 通常攻撃ダメ × (a + バーストダメUP効果) ＋ 独自枠。ウェポンburst_dmgは係数に加算。
