@@ -402,7 +402,7 @@ const GEAR = Object.fromEntries(GEAR_BOXES.map(([k])=>[k,0]));
 // weapon_amp: ウェポンスキル効果量UP(採用枠分を加算) / box: {ボックスキー: 直接加算fraction}。
 // ※ box は GEAR_BOXES のキー(assault/elem/vigor/spec/dmgup/acute/crit_rate/other)で記述する。
 const SUMMON_REGISTRY = {
-  shugo: { jp:'守護(ハギト)', weapon_amp:0.40, atk:3375, hp:990, elem:'light', box:{} },
+  shugo: { jp:'守護', weapon_amp:0.40, atk:3375, hp:990, elem:'light', box:{} },
   catas: { jp:'カタス',       weapon_amp:0.50, atk:0,    hp:0, elem:'light', box:{assault:1.0} },
   oni:   { jp:'鬼',           weapon_amp:0.50, atk:0,    hp:0, elem:'dark',  box:{assault:1.0, spec:0.10} },
 };
@@ -543,7 +543,7 @@ const CHAR_REGISTRY = {
 
   yamato: {
     type: 'kamihime',
-    jp: 'ヤマト', gcls: 'gy', elem: 'light',
+    jp: '[光醒の現神]ヤマトタケル', shortJp: 'ヤマト', gcls: 'gy', elem: 'light',
     favWeapon: ['剣','槍'], baseAtk: 10000, baseHp: 1100,
     state: { inori_p: null },  // 現神の祈りのテトラ4アビ短縮タイマー（null=未発動, 0〜1=カウント中）
     abilities: {
@@ -584,7 +584,7 @@ const CHAR_REGISTRY = {
 
   hecate: {
     type: 'kamihime',
-    jp: 'ヘカテー', gcls: 'gh', elem: 'light',
+    jp: '[愛情と友情]ヘカテー', shortJp: 'ヘカテー', gcls: 'gh', elem: 'light',
     favWeapon: ['杖','魔導具'], baseAtk: 7800, baseHp: 1850,
     abilities: {
       puvoir: ['y', 2, 0],
@@ -610,7 +610,7 @@ const CHAR_REGISTRY = {
 
   tetra: {
     type: 'kamihime',
-    jp: 'テトラ', gcls: 'gt', elem: 'light',
+    jp: '[HELX]テトラ', shortJp: 'テトラ', gcls: 'gt', elem: 'light',
     favWeapon: ['杖','魔導具'], baseAtk: 10110, baseHp: 1100, lvCap: 90, // Lv90解放(+3900 ATK)
     state: { helix_done: false, helix_abil_used: false },  // HELIX解禁済み / 使用済み
     abilities: {
@@ -666,7 +666,7 @@ const CHAR_REGISTRY = {
 
   elaine: {
     type: 'kamihime',
-    jp: 'エレイン', gcls: 'gl', elem: 'light',
+    jp: 'エレイン[契晶]', shortJp: 'エレイン', gcls: 'gl', elem: 'light',
     favWeapon: ['剣','特殊剣'], baseAtk: 10500, baseHp: 1820,
     abilities: {
       alone:    ['r', 0, 4],
@@ -764,7 +764,7 @@ const CHAR_REGISTRY = {
 
 // ===== 編成グローバル（buildFormationで構築） =====
 // ABIL形式: [owner, color, cd, keigyo_cost]
-let CHARS, LEADER, JP, GCLS, ABIL, CHAR_DEF, LABEL_SUFFIX, LABEL, CD_SHOW;
+let CHARS, LEADER, JP, JP_SHORT, GCLS, ABIL, CHAR_DEF, LABEL_SUFFIX, LABEL, CD_SHOW;
 // CHAR_SIM_STATES: 編成キャラの state フィールドを合流させたマスター初期値。
 // Sim の constructor/snap/clone がこれを参照して自動管理する。
 let CHAR_SIM_STATES = {};
@@ -782,8 +782,9 @@ const elemCount = e => CHARS.filter(c=>ELEM[c]===e).length;
 function buildFormation(heroKey, kamihimeKeys) {
   LEADER = heroKey;
   CHARS  = [heroKey, ...kamihimeKeys];
-  JP = {}; GCLS = {};
-  for(const c of CHARS){ JP[c]=CHAR_REGISTRY[c].jp; GCLS[c]=CHAR_REGISTRY[c].gcls; }
+  JP = {}; JP_SHORT = {}; GCLS = {};
+  // jp=正式名称(編成identity表示用) / shortJp=略称(アビチップ・ゲージ等の密な表示用・省略時jp)
+  for(const c of CHARS){ JP[c]=CHAR_REGISTRY[c].jp; JP_SHORT[c]=CHAR_REGISTRY[c].shortJp||CHAR_REGISTRY[c].jp; GCLS[c]=CHAR_REGISTRY[c].gcls; }
   // 実効属性: 神姫はelem宣言値、英霊(null)は神姫の最多属性に追従
   const tally = {};
   for(const c of kamihimeKeys) tally[CHAR_REGISTRY[c].elem]=(tally[CHAR_REGISTRY[c].elem]||0)+1;
@@ -798,7 +799,7 @@ function buildFormation(heroKey, kamihimeKeys) {
   const cnt={};
   LABEL = Object.fromEntries(Object.entries(ABIL).map(([k,[owner]])=>{
     cnt[owner]=(cnt[owner]||0)+1;
-    return [k, `${JP[owner]}${cnt[owner]}${LABEL_SUFFIX[k]||''}`];
+    return [k, `${JP_SHORT[owner]}${cnt[owner]}${LABEL_SUFFIX[k]||''}`];
   }));
   CHAR_DEF = {};
   for(const c of CHARS) CHAR_DEF[c]=CHAR_REGISTRY[c].def;
@@ -1223,7 +1224,7 @@ function gaugesHTML(g){
   return `<div class="gauges">${CHARS.map(c=>{
     const max=CHAR_DEF[c].gmax, pct=Math.min(100,(g[c]/max)*100);
     return `<div class="gauge-row">
-      <div class="gauge-name">${JP[c]}</div>
+      <div class="gauge-name">${JP_SHORT[c]}</div>
       <div class="gauge-wrap"><div class="gauge-fill ${GCLS[c]}" style="width:${pct}%"></div></div>
       <div class="gauge-val">${g[c]}</div>
     </div>`;
@@ -1292,7 +1293,7 @@ function cardHTML(r,first=false){
   const cls=r.helix?'helix-turn':(r.full?'full-burst':'partial');
   const fb=r.full
     ?`<span class="badge bg">✅ 5人FB</span>`
-    :`<span class="badge bo">⚠ ${r.atk.length}人 (${r.atk.map(c=>JP[c]).join(',')})</span>`;
+    :`<span class="badge bo">⚠ ${r.atk.length}人 (${r.atk.map(c=>JP_SHORT[c]).join(',')})</span>`;
   const hx=r.helix?`<span class="badge br">★ HELIX!</span>`:'';
   const ordHtml=ordChipsHTML(r.ord);
   return `<div class="turn-card ${cls}">

@@ -63,7 +63,7 @@ HELIX解禁ターン検出は `def.helix` 宣言（reached/doneKey）から汎�
 ```
 CHAR_REGISTRY[charKey] = {
   type: 'hero'|'kamihime',
-  jp, gcls,                        // 表示名・ゲージCSSクラス
+  jp, shortJp, gcls,               // jp=正式名称(編成identity表示) / shortJp=略称(アビチップ・ゲージ等の密表示用・省略時jp) / ゲージCSSクラス
   elem: 'light'|'fire'|null,       // 属性。英霊はnull=編成の主属性(神姫の最多属性)に追従
                                    // buildFormationがELEM(実効属性マップ)とelemCount(e)を構築
   state: { key: initVal, ... },    // キャラ固有sim状態変数（自動管理）
