@@ -411,7 +411,8 @@ const DISPLAY_ATK_OVERRIDE = {
 // +99/育成途中/placeholder武器/Lv上限解放を全て内包した実測値で calcDisplayHp(満凸推定) を上書きする。
 // 空 {} なら従来どおり全キャラ calcDisplayHp へフォールバック(現状維持・挙動不変)。
 const DISPLAY_HP_OVERRIDE = {
-  // 実機スクショのHP実測値を edison/yamato/hecate/tetra/elaine の順で登録する(未登録時は満凸推定)。
+  // 検証編成・育成途中スクショ実測(DISPLAY_ATK_OVERRIDEと同一編成・同一出典)。
+  edison: 9689, yamato: 7628, hecate: 8332, tetra: 8332, elaine: 8345,
 };
 
 // 表示攻撃力算出: 武器ATK×得意補正 + 幻獣ATK合計 + キャラ基本ATK(神姫) or 英霊基本値
