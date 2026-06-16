@@ -26,24 +26,46 @@
 | 338–449 | **`GEAR`/`SUMMON_REGISTRY`/`GEAR_K`**（装備設定・幻獣プリセット）＋**表示攻撃力**（`SSR_LV_RELEASE`/`DISPLAY_ATK_OVERRIDE`/`calcDisplayAtk`/`calcDisplayHp`） |
 | 440–703 | **`CHAR_REGISTRY`**（全キャラ定義の唯一の集約先。エジソン/ヤマト/ヘカテー/テトラ/エレイン/ナポレオン） |
 | 704–772 | 編成グローバル構築（`buildFormation`/`ELEM`/`CHAR_SIM_STATES`/`MILESTONES`/`computeBaseScore`） |
-| 773–1137 | `class Sim` エンジン（tick/procR/burst/use/`_na`/beam等） |
-| 1138–1206 | UI helpers（`uiFeats`/loopsHTML/gaugesHTML/cdBadgesHTML等） |
-| 1207–1258 | カード描画（cardHTML/toggleCard） |
-| 1259–1421 | **Web Worker**（`_buildWorkerCode`/`runSim`/`_fallbackRunSim`/`renderSim`） |
-| 1422–1479 | 編成選択UI（編成・装備とも▶実行時にrunSimが読み取り反映） |
-| 1480–1607 | 装備設定UI（renderGearPanel/applyGear・per-char `GEAR_K_C` 構築） |
-| 1608–末尾 | INIT（renderParty等） |
+| 836–1209 | `class Sim` エンジン（tick/procR/burst/use/`_na`/beam等。`_beamSearch`は`forcedPrefix`引数でルート分散に対応） |
+| 1223–1232 | **`enumerateRootPrefixes`**（ルート分散用の開幕候補を汎用列挙。`class Sim`の外・Worker抽出範囲内） |
+| 1234–1306 | UI helpers（`uiFeats`/loopsHTML/gaugesHTML/cdBadgesHTML等） |
+| 1307–1354 | カード描画（cardHTML/toggleCard） |
+| 1355–1575 | **Web Worker プール・ルート分散**（`_buildWorkerCode`/`runSim`/`_fallbackRunSim`/`renderSim`） |
+| 1576–1632 | 編成選択UI（編成・装備とも▶実行時にrunSimが読み取り反映） |
+| 1633–1936 | 装備設定UI（renderGearPanel/applyGear・per-char `GEAR_K_C` 構築） |
+| 1937–末尾 | INIT（renderParty等） |
 
 最適化の最上位目標は**概算総ダメージ**（`DMG` モデル）。FB回数/総バースト/総ジャッジ/連理魔力
 は補助指標として目的関数の下位次元に残る。詳細は「概算火力モデル」節を参照。
 
-### 実行アーキテクチャ（Web Worker）
+### 実行アーキテクチャ（Web Worker プール・ルート分散）
 
-ビームサーチは重い（数秒〜10秒）ため、シムエンジン（`// ===== ゲーム定数` 〜 `// ===== UI HELPERS`
-直前）を `_buildWorkerCode()` が文字列抽出 → Blob URL で Worker 化し、メインスレッドをブロックしない。
-Worker はターン毎に `{type:'progress'}`（スピナー進捗）と `{type:'turn',row}`（カード逐次追記）を送り、
-最後に `{type:'done',baseDmg}` を送る。`row` は `greedyTakeTurn` の戻り値（構造化複製可能な
-plainオブジェクト）をそのまま転送する。Worker 非対応環境は `_fallbackRunSim()`（`setTimeout(0)`同期実行）へ。
+ビームサーチ単体（`_beamSearch`）は本ターンの候補をBEAM_W幅でカットするため、「今すぐの価値は
+低いが後続の押し順次第で大きく伸びる」候補（例: エジソンの補助ロボ起動→直後に黄アビ連打、の
+ような複数手のシナジー）を `_objective` の静的greedyロールアウト採点が過小評価し、ビーム生存
+から早期に脱落させる場合がある（詳細は「概算火力モデル」節末尾）。これをアルゴリズム単体で
+解くには将来ターンの採点深度を上げる必要があるが、ロールアウト内ビーム(`planDepth=1`)を
+全将来ターンに適用すると計算量が爆発し非現実的（T1だけでも単一スレッド30分超）と実測確認済み。
+
+そこで**ルート分散**を採用: T1開幕の候補ごとに開幕を強制した独立ビームサーチ（=ルート）を
+`enumerateRootPrefixes()` が汎用列挙し（空プレフィックス＝従来のビーム単体＋各T1候補単独＋
+`deploysRobot` タグを持つ候補同士の2手順列、をエンジン側でキャラ名リテラル無しに列挙）、
+`navigator.hardwareConcurrency` 分のWorkerプールに分散して並列実行、最終ダメージ最大のルートを
+採用する。各ルートの実コストは従来の単体ビームと同等（~15s）なので、P並列なら
+`ceil((K+1)/P)×15s` 程度のライブ再計算時間で済む（K=ルート数）。
+
+シムエンジン（`// ===== ゲーム定数` 〜 `// ===== UI HELPERS` 直前）を `_buildWorkerCode()` が
+文字列抽出 → Blob URL で Worker 化（ファイル分割・ビルドなしで`file://`動作を維持）。
+各Workerは起動後 `{type:'init',...}` で編成/装備を1回反映してから `{type:'ready'}` を返し、
+メインスレッドのタスクキュー（`{type:'root',rootId,prefix,n}` × K ＋ `{type:'baseline',n}` ×1）
+から手の空いたWorkerに順次タスクを割り当てる。全タスク完了後、`rootResult` をダメージ降順で
+比較し最良ルートの `rows`（`greedyTakeTurn` の戻り値配列・構造化複製可能なplainオブジェクト）
+でカードを描画してから `renderSim(baseDmg, winningPrefix)` を呼ぶ（採用ルートの開幕を
+`CD_SHOW` 表示名でサマリーに表示）。Worker 非対応環境は `_fallbackRunSim()` がルート分散を
+逐次（非並列・`setTimeout(0)`起点）で再現するため結果は同一だが大幅に遅い。
+
+**検証済み数値**（光エジソン基準編成・`BEAM_W=32`）: ルート分散なし=14,678,521 →
+ルート分散あり（最良ルート`banoshik→droid`）=15,442,290（+5.20%）。FB10/10は両者で維持。
 
 **相対比率評価**: 最適シム（ビーム）と基準シム（`planDepth=2` 強制＝静的greedy）の総ダメージ比を
 `renderSim(baseDmg)` がサマリーに「対基準比」として表示する（押し順最適化の効きを相対値で可視化）。
@@ -292,10 +314,14 @@ T5  FB:5 J:5 renri:25 dmg:4,474,930   T10 FB:5 J:6 renri:30 dmg:14,678,521
 renriは`RENRI_MAX=30`で頭打ち（実機検証）。エジソン攻撃ロボ(ドロイドアナバシス・赤アビ反応)の
 反応ダメージ＋アビダメバフ配線、バノーシク/ドロイドバフ持続を実機5Tへ補正したことで
 基準値が9.52M→14.63Mへ、ビーム幅をBEAM_W=24→32へ拡げたことで14.68Mへ更新済み。
-ビームのランキング(`_objective`)は将来ターンを静的greedyで概算するため、「即効性は薄いが
+この検証ハーネスは`enumerateRootPrefixes`によるルート分散を経由しない単体`new Sim()`を
+直接使うため、意図的にルート分散なし(=空プレフィックス1本のみ)の値を表す。実際のアプリ
+（`runSim`経由・Web Workerプール）はルート分散により最良ルート`banoshik→droid`で
+TotalDmg:15,442,290(+5.20%)に達する（「実行アーキテクチャ」節参照）。
+ビーム単体のランキング(`_objective`)は将来ターンを静的greedyで概算するため、「即効性は薄いが
 押し順次第で後続が伸びる」候補(例: バノーシク→ドロイドの黄アビ二重誘発)を過小評価し
-早期にビームから脱落させる場合がある。この評価精度の改善（内部ビームでの将来ターン採点等）は
-計算コストが急増するため見送り、ビーム幅拡大で実用上の改善幅を確保した。）
+早期にビームから脱落させる問題があったが、ロールアウト内ビームでの将来ターン採点強化は
+計算コストが急増するため不採用、ルート分散（並列Workerプール）で解決した。）
 
 ## 開発ルール
 
