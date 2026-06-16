@@ -395,7 +395,8 @@ const DISPLAY_ATK_OVERRIDE = {
 };
 
 // ゲーム画面の確定表示HPをキャラ毎に上書きする(ATK overrideと完全対称・0-fudge)。
-// 将来「旺盛(ヴィゴラス)」のHP量参照を実装する際、最大HPの基準値として参照する土台。
+// 将来「旺壮」(最大HPを参照して特殊攻撃力UPを付与する仕様)を実装する際、その最大HP基準値となる土台。
+// (※「旺盛/ヴィゴラス」は現在HP参照の別スキルで、シムは最大HP前提に簡略化し vigor 枠で実装済み)
 // +99/育成途中/placeholder武器/Lv上限解放を全て内包した実測値で calcDisplayHp(満凸推定) を上書きする。
 // 空 {} なら従来どおり全キャラ calcDisplayHp へフォールバック(現状維持・挙動不変)。
 const DISPLAY_HP_OVERRIDE = {
