@@ -191,6 +191,17 @@ CHAR_REGISTRY[charKey] = {
 - ジャッジ循環: ph0=10ヒット(`_decay('abi', _na()×3×(1+abi_dmg), judg_cap)`＋amplifa＋royAbi独自枠) / ph1=バースト / ph2=通常(`_decay('na', _na()×(1+na_dmg))`)
 - `dmg`(総ダメージ累計)は burst()/judg exec/通常攻撃で加算。反逆は無視。急所は本来有利属性のみだが期待値で一律計上。
 
+### 将来課題（未実装・情報待ち）
+
+- **旺壮ライズ（ウェポンスキル・最大HP参照→特殊攻撃力UP）**: 効果量式は `DMG.rise_*`（`rise_per_slv`/`rise_hp_div`/`rise_floor`）に検証済みで確定保存済み。
+  式 = `min(rise_floor + 最大HP/rise_hp_div, SLv×rise_per_slv) × (1+効果量UP)`。最大HPは `DISPLAY_HP_OVERRIDE` で実機較正済み。
+  **未配線**: 旺壮を持つ武器・SLvの実データが未取得（高難易度報酬のため入手待ち）。入手後は他ウェポンスキル同様
+  `WEAPON_MASTER` で管理し、最大HP依存＝per-char値のため `_na()` の `spec` 枠へ**キャラ別**に加算する機構が要る
+  （グローバル `G.spec` ではなく per-char spec 項。`GEAR_K_C` と同型のper-char管理を追加）。
+- **サブ幻獣の効果合算**: 効果量UPの実測 ×2.25 はメイン幻獣のみでは再現せず、サブ幻獣編成中も発揮される一部効果の合算と推定。
+  現状の `weapon_amp`/`SUMMON_REGISTRY` はメイン幻獣相当のみ参照。サブ幻獣をシミュ対象に含めるかは**未定**のため保留。
+  旺壮を先行配線する場合は「メイン幻獣相当の効果量UPのみ」で実装し、サブ幻獣分は本項の課題として残す。
+
 ### 値の所在と原則
 
 値は**全て `DMG` 定数に集約**し、各キャラの加算ロジックは `CHAR_REGISTRY[*].cands[*].exec` 内で
