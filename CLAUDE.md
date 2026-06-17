@@ -163,6 +163,7 @@ CHAR_REGISTRY[charKey] = {
 | `inori_burst` | 自バースト係数(ヤマト限定) | `burst_inori=4.5`(現神の祈り中バースト倍率5→10≒本体2倍・`burstBonus`で自バーストのみ加算) | 3 | refresh相当 |
 | `funki_burst` | 自バースト係数(ヤマト限定) | `burst_funki=0.15`/stack(大和の奮起・自バーストダメ+15%/上限+10%・`burstBonus`) | 3 | 累積 |
 | `yamato_elem` | 属性値 | `elem_yamato=0.05`/stack(ヤマトバースト効果・味方全体光属性攻撃+5%・`onBurst`で付与) | 3 | 累積 |
+| `yamato_bplus` | バーストダメプラス(ヤマト限定) | `bplus_yamato=150000`(1アシ・ヤマトアビ使用毎に+15万/stack・自バースト時に`onBurst`で加算) | 3 | 累積 |
 
 - 通常攻撃概算 `_na()` = `(base + royFlat) × (1+defdown)`
   - `base` = `GEAR_K × (1+aslt)(1+elem)(1+vigor)(1+crit)(1+acute)(1+spec)`
@@ -308,15 +309,16 @@ console.log("FullBurst:",fb+"/10","TotalDmg:",Math.round(sim.dmg));
 
 期待値（基準・DMG定数が現行値の場合）:
 ```
-T1  FB:5 J:3 renri:4  dmg:566,941     T6  FB:5 J:4 renri:29 dmg:6,276,083
-T2  FB:5 J:4 renri:9  dmg:1,470,544   T7  FB:5 J:4 renri:30 dmg:9,698,460
-T3  FB:5 J:4 renri:14 dmg:1,976,797   T8  FB:5 J:4 renri:30 dmg:13,338,593
-T4  FB:5 J:4 renri:19 dmg:3,394,245   T9  FB:5 J:4 renri:30 dmg:15,510,051
-T5  FB:5 J:4 renri:24 dmg:5,272,523   T10 FB:5 J:4 renri:30 dmg:19,713,520
+T1  FB:5 J:3 renri:5  dmg:1,711,954   T6  FB:5 J:3 renri:29 dmg:25,441,032
+T2  FB:5 J:5 renri:10 dmg:7,706,815   T7  FB:5 J:4 renri:30 dmg:31,050,661
+T3  FB:5 J:4 renri:15 dmg:15,308,935  T8  FB:5 J:4 renri:30 dmg:36,583,095
+T4  FB:5 J:3 renri:20 dmg:18,651,414  T9  FB:5 J:4 renri:30 dmg:46,045,371
+T5  FB:5 J:4 renri:25 dmg:22,892,412  T10 FB:5 J:4 renri:30 dmg:52,178,117
 ```
-（FullBurst:10/10、TotalDmg:19,713,520。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
-ヤマトの現神の祈り(現神倍率5→10)・天矢乱舞(無償3連バースト)のガードバグ修正と
-自バースト/光属性バフのモデル化により基準値が14.68M→19.71Mへ更新済み(+34.3%)。
+（FullBurst:10/10、TotalDmg:52,178,117。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
+1アシ(集いし願い)のバーストダメージプラス(+15万/stack・3T累積可)実装により19.71M→52.18Mへ更新済み(+164%)。
+ヤマト1アシ(集いし願い)のバーストダメージプラス(+15万/stack・3T累積可)は`yamato_bplus`バフで管理し、
+アビ使用毎(`onAbility`)にスタック、自バースト時(`onBurst`)に`stacks×150000`を直接`sim.dmg`へ加算。
 バフは上限なしで独立累積し持続ターンで失効(buf辞書管理)。
 エンジン: BEAM_W=32/BEAM_W_INNER=4、目的関数最上位=概算総ダメージ。
 イフィシャント早撃ち抑止: `IFISHANT_MIN_CD=3`（CD中アビ3個未満は使用不可・空打ち=機会損失防止）。

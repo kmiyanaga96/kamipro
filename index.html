@@ -338,6 +338,8 @@ const DMG = {
   dur_funki_burst: 3,        // 大和の奮起 自バースト性能UP効果ターン(累積可)
   elem_yamato:  0.05,        // ヤマトバースト: 味方全体の光属性攻撃+5%/stack(3T累積可)
   dur_yamato_elem: 3,        // ヤマトバースト 光属性攻撃UP効果ターン
+  bplus_yamato: 150000,      // 1アシ(集いし願い): ヤマト自バースト時のダメージプラス+15万/stack
+  dur_bplus_yamato: 3,       // 1アシ バーストダメージプラス効果ターン(累積可)
   judg_mult:  3,             // ジャッジメント: 通常攻撃比3倍
   judg_cap:   200000,        // ジャッジ1ヒットの減衰上限(20万)
   amplifa_flat: 100000,      // アンプリファ: アビダメプラス +10万(ジャッジ発動時に加算)
@@ -588,10 +590,18 @@ const CHAR_REGISTRY = {
       gmax: BG.yamato_max,
       keigyoGain: 1,
       // バースト効果: 味方全体の光属性攻撃+5%(3T累積可)。自バースト毎にスタック(天矢乱舞の複数発動も各々付与)。
-      onBurst: (sim) => { (sim.buf.yamato_elem??=[]).push(DMG.dur_yamato_elem); },
+      // 1アシ: バーストダメージプラス(+15万/stack)を自バースト時に加算。
+      onBurst: (sim) => {
+        (sim.buf.yamato_elem??=[]).push(DMG.dur_yamato_elem);
+        sim.dmg += (sim.buf.yamato_bplus?.length||0) * DMG.bplus_yamato;
+      },
       // 自バースト性能バフ(現神の祈り倍率UP＋大和の奮起累積)をオーナー限定で burst係数に加算。
       burstBonus: (sim) => (sim.buf.inori_burst?.length?DMG.burst_inori:0)
                          + (sim.buf.funki_burst?.length||0)*DMG.burst_funki,
+      // 1アシ(集いし願い): ヤマトがアビリティを使用した時にバーストダメージプラスバフを付与(3T累積可)。
+      onAbility: (sim, name) => {
+        if(ABIL[name]?.[0]==='yamato') (sim.buf.yamato_bplus??=[]).push(DMG.dur_bplus_yamato);
+      },
     },
   },
 
