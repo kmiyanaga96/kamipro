@@ -314,13 +314,13 @@ console.log("FullBurst:",fb+"/10","TotalDmg:",Math.round(sim.dmg));
 
 期待値（基準・DMG定数が現行値の場合）:
 ```
-T1  FB:5 J:3 renri:4  dmg:1,921,640   T6  FB:5 J:3 renri:29 dmg:21,518,703
-T2  FB:5 J:4 renri:9  dmg:7,316,264   T7  FB:5 J:4 renri:30 dmg:26,252,487
-T3  FB:5 J:4 renri:14 dmg:14,090,623  T8  FB:5 J:3 renri:30 dmg:30,654,465
-T4  FB:5 J:4 renri:19 dmg:16,478,337  T9  FB:5 J:6 renri:30 dmg:35,193,526
-T5  FB:5 J:3 renri:24 dmg:19,479,874  T10 FB:5 J:4 renri:30 dmg:48,958,605
+T1  FB:5 J:3 renri:4  dmg:1,925,466   T6  FB:5 J:3 renri:29 dmg:21,620,367
+T2  FB:5 J:4 renri:9  dmg:7,337,566   T7  FB:5 J:4 renri:30 dmg:26,441,484
+T3  FB:5 J:4 renri:14 dmg:14,111,925  T8  FB:5 J:3 renri:30 dmg:30,938,922
+T4  FB:5 J:4 renri:19 dmg:16,543,646  T9  FB:5 J:6 renri:30 dmg:35,477,982
+T5  FB:5 J:3 renri:24 dmg:19,581,539  T10 FB:5 J:4 renri:30 dmg:49,423,961
 ```
-（FullBurst:10/10、TotalDmg:48,958,605。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
+（FullBurst:10/10、TotalDmg:49,423,961。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
 1アシ(集いし願い)のバーストダメージプラス(+15万/stack・3T累積可)実装で19.71M→52.18M、
 大和の奮起再発動をクロスターン集計の正しい仕様(per-turn実装を撤去)へ修正し52.18M→46.35M、
 yellow_accをリセットしない正しい仕様へさらに修正し46.35M→45.92Mへ更新済み。
