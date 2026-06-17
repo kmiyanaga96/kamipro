@@ -309,17 +309,23 @@ console.log("FullBurst:",fb+"/10","TotalDmg:",Math.round(sim.dmg));
 
 期待値（基準・DMG定数が現行値の場合）:
 ```
-T1  FB:5 J:3 renri:5  dmg:1,711,954   T6  FB:5 J:3 renri:29 dmg:25,441,032
-T2  FB:5 J:5 renri:10 dmg:7,706,815   T7  FB:5 J:4 renri:30 dmg:31,050,661
-T3  FB:5 J:4 renri:15 dmg:15,308,935  T8  FB:5 J:4 renri:30 dmg:36,583,095
-T4  FB:5 J:3 renri:20 dmg:18,651,414  T9  FB:5 J:4 renri:30 dmg:46,045,371
-T5  FB:5 J:4 renri:25 dmg:22,892,412  T10 FB:5 J:4 renri:30 dmg:52,178,117
+T1  FB:5 J:1 renri:4  dmg:1,705,950   T6  FB:5 J:4 renri:27 dmg:21,235,193
+T2  FB:5 J:4 renri:9  dmg:6,748,410   T7  FB:5 J:4 renri:30 dmg:24,539,746
+T3  FB:5 J:5 renri:14 dmg:13,889,118  T8  FB:5 J:4 renri:30 dmg:29,862,599
+T4  FB:5 J:1 renri:18 dmg:16,343,623  T9  FB:5 J:3 renri:30 dmg:34,721,891
+T5  FB:5 J:1 renri:22 dmg:19,333,669  T10 FB:5 J:4 renri:30 dmg:46,347,775
 ```
-（FullBurst:10/10、TotalDmg:52,178,117。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
-1アシ(集いし願い)のバーストダメージプラス(+15万/stack・3T累積可)実装により19.71M→52.18Mへ更新済み(+164%)。
+（FullBurst:10/10、TotalDmg:46,347,775。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
+1アシ(集いし願い)のバーストダメージプラス(+15万/stack・3T累積可)実装で19.71M→52.18M、
+大和の奮起再発動をクロスターン集計の正しい仕様(per-turn実装を撤去)へ修正し52.18M→46.35Mへ更新済み。
 ヤマト1アシ(集いし願い)のバーストダメージプラス(+15万/stack・3T累積可)は`yamato_bplus`バフで管理し、
 アビ使用毎(`onAbility`)にスタック、自バースト時(`onBurst`)に`stacks×150000`を直接`sim.dmg`へ加算。
 バフは上限なしで独立累積し持続ターンで失効(buf辞書管理)。
+ヤマト1アシの大和の奮起(funki)再発動は**ターンを跨いで集計**する黄アビ累計(`yellow_acc`)で管理:
+4回毎に大和の奮起を使用可能(`cd.funki=0`)にし、1〜3回目(累計4/8/12)は即時(同ターン再使用可)、
+3回使用可能にした後さらに4回(累計16)使用すると`funki_recharge`を予約し**ターン終了時**(`turnEnd`)に
+集計を初期化して再使用可にする(翌ターン解禁・ループ)。エンジンの`use()`にあった旧per-turn実装
+(`T.yellow%4`・`T.fr<3`・キャラ名リテラル`cd.funki`)を撤去し、ヤマトの`onAbility`/`turnEnd`へ集約。
 エンジン: BEAM_W=32/BEAM_W_INNER=4、目的関数最上位=概算総ダメージ。
 イフィシャント早撃ち抑止: `IFISHANT_MIN_CD=3`（CD中アビ3個未満は使用不可・空打ち=機会損失防止）。
 renriは`RENRI_MAX=30`で頭打ち（実機検証）。エジソン攻撃ロボ(ドロイドアナバシス・赤アビ反応)の

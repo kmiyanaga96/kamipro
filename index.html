@@ -554,7 +554,8 @@ const CHAR_REGISTRY = {
     type: 'kamihime',
     jp: '[光醒の現神]ヤマトタケル', shortJp: 'ヤマト', gcls: 'gy', elem: 'light',
     favWeapon: ['剣','槍'], baseAtk: 10000, baseHp: 1100,
-    state: { inori_p: null },  // 現神の祈りのテトラ4アビ短縮タイマー（null=未発動, 0〜1=カウント中）
+    // inori_p=現神の祈りの天矢乱舞解禁タイマー / yellow_acc=1アシ用 黄アビ累計(ターン跨ぎ) / funki_recharge=ターン終了時の再発動予約
+    state: { inori_p: null, yellow_acc: 0, funki_recharge: false },
     abilities: {
       inori: ['y', 14, 0],
       tenya: ['r', 12, 0],
@@ -598,9 +599,23 @@ const CHAR_REGISTRY = {
       // 自バースト性能バフ(現神の祈り倍率UP＋大和の奮起累積)をオーナー限定で burst係数に加算。
       burstBonus: (sim) => (sim.buf.inori_burst?.length?DMG.burst_inori:0)
                          + (sim.buf.funki_burst?.length||0)*DMG.burst_funki,
-      // 1アシ(集いし願い): ヤマトがアビリティを使用した時にバーストダメージプラスバフを付与(3T累積可)。
-      onAbility: (sim, name) => {
+      // 1アシ(集いし願い): ① ヤマトがアビリティを使用した時にバーストダメージプラスバフを付与(3T累積可)。
+      // ② 黄色アビの使用回数をターンを跨いで集計し、4回毎に大和の奮起を「使用可能」にする(最大3回=12回時点)。
+      //    3回使用可能にした後さらに4回(計16)使用すると、ターン終了時に集計を初期化し再度使用可能になる(ループ)。
+      //    1〜3回目は即時(同ターン再使用可)、4回目はターン終了時(funki_recharge予約→turnEndで反映=翌ターン)。
+      onAbility: (sim, name, color) => {
         if(ABIL[name]?.[0]==='yamato') (sim.buf.yamato_bplus??=[]).push(DMG.dur_bplus_yamato);
+        if(color==='y'){
+          sim.yellow_acc++;
+          if(sim.yellow_acc % 4 === 0){
+            if(sim.yellow_acc <= 12) sim.cd.funki = 0;   // 1〜3回目: 即時使用可
+            else sim.funki_recharge = true;              // 4回目(16): ターン終了時リセット予約
+          }
+        }
+      },
+      // 1アシ再発動: 4回目到達ターンの終了時に黄アビ集計を初期化し大和の奮起を再使用可にする。
+      turnEnd: (sim) => {
+        if(sim.funki_recharge){ sim.yellow_acc = 0; sim.funki_recharge = false; sim.cd.funki = 0; }
       },
     },
   },
@@ -1026,10 +1041,6 @@ class Sim {
     if(color==='y'&&this.banoshik_robot>0) T.ra++;
     // バノーシク: 補助ロボ作動中の黄アビ毎にアサルトバフを独立付与(上限なし累積・各 dur_banoshik 持続)
     if(color==='y'&&this.banoshik_robot>0) (this.buf.banoshik??=[]).push(DMG.dur_banoshik);
-    if(color==='y'){
-      T.yellow++;
-      if(T.yellow%4===0&&T.fr<3){ this.cd.funki=0; T.fr++; }
-    }
     this.procR(T,'a');
     // パーティ全体のアビ使用監視フック（ナポレオン闘気等）
     for(const c of CHARS) CHAR_DEF[c].onAbility?.(this, name, color, T);
@@ -1200,7 +1211,7 @@ class Sim {
 
   _beginTurn(t){
     this.tick();
-    this.T={ability:0,yellow:0,burst:0,proc:0,fr:0,ra:0,tenya:0,
+    this.T={ability:0,burst:0,proc:0,ra:0,tenya:0,
             ju:0,mobius:0,legend:0,pactcoreUsed:false,alone:0,knightsUsed:false};
     // lookaheadフックを持つアビのキャッシュスロットをnullで初期化（_primeLookaheadsで埋める）
     for(const [key,[owner]] of Object.entries(ABIL)){
