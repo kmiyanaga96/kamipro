@@ -1,6 +1,7 @@
 // data/weapons.js — 手持ちウェポンマスタ（<script src="data/weapons.js"> でindex.htmlから読み込み）
 // skills の box キーは GEAR_BOXES キーに対応（assault/elem/vigor/spec/dmgup/acute/crit_rate/
-//   other/na_dmg/abi_dmg/burst_dmg/na_cap/abi_cap/burst_cap）。
+//   other/technica/na_dmg/abi_dmg/burst_dmg/na_cap/abi_cap/burst_cap）。
+//   technica: 通常攻撃/アビには乗るがバーストからは除外される枠（実機: バースト=通常ダメ(テクニカ除く)基準）。
 // defender: HP専用。ダメージGEAR計算では無視し、calcDisplayHp()で使用する。
 // stinger:true → 急所固定+20%・weapon_ampは発動率(rate)にのみ適用。
 // condition:{mainOf:'heroKey'} → そのキャラのメイン装備(slot0)時のみ有効。
@@ -13,7 +14,7 @@ const WEAPON_MASTER = {
       { box: 'burst_cap', pct: 50 },      // エクシード上限50%
       { box: 'abi_dmg',   pct: 50 },      // エラボレイト性能50%
       { box: 'abi_cap',   pct: 25 },      // エラボレイト上限25%
-      { box: 'other',     pct: 22 },      // テクニカ22%（暴走枠・通常ダメUP）
+      { box: 'technica',  pct: 22 },      // テクニカ22%（暴走枠・通常ダメUP・バースト除外）
       { box: 'na_cap',    pct: 7.5 },     // テクニカ上限UP(中)7.5%
       { box: 'crit_rate', pct: 15 },      // クリティカ15%（会心発動率）
       { box: 'defender',  pct: 26 },      // ディフェンダー26%（HP専用）
@@ -40,7 +41,7 @@ const WEAPON_MASTER = {
     jp: '機光銃コレールスナイプ', atk: 4641, hp: 217, type: '銃', elem: 'light',
     skills: [
       { box: 'defender', pct: 26 },       // ディフェンダー26%（HP専用）
-      { box: 'other',    pct: 18 },       // テクニカ18%（通常ダメUP）
+      { box: 'technica', pct: 18 },       // テクニカ18%（通常ダメUP・バースト除外）
       { box: 'na_cap',   pct: 5 },        // テクニカ上限UP(小)5%
     ],
   },
@@ -58,7 +59,9 @@ const WEAPON_MASTER = {
     skills: [
       // 発明王の覇気+: 属性攻撃UP(%未確定・TODO) + 最終ダメUP5% — メインエジソン限定
       { box: 'dmgup', pct: 5, condition: { mainOf: 'edison' } },
-      // プログラムアプティマイズ+: ドロイドアナパシス上限UP — 未実装
+      // プログラムアプティマイズ+: ドロイドアナバシス(攻撃ロボ反応)の倍率3.0→3.5・減衰50万→65万へ強化。
+      // メインエジソン装備時のみ。applyGearがdroidUpgradeを検出しDMG.droid_react_mult/capを上書きする。
+      { droidUpgrade: { mult: 3.5, cap: 650000 }, condition: { mainOf: 'edison' } },
     ],
   },
 };

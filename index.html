@@ -401,7 +401,10 @@ const GEAR_BOXES = [
   ['dmgup',    '与ダメージ'],    // 与ダメージUP枠(白虎等)
   ['acute',    '急所'],          // 急所枠: 急所スキル(期待寄与を直接入力)
   ['crit_rate','会心発動率'],    // 会心発動率枠(min1.0でクランプ)
-  ['other',    'その他/テクニカ'],// その他バフ補正+テクニカ枠
+  ['other',    'その他バフ補正'],// その他バフ補正枠(テクニカは別枠technicaへ分離)
+  // テクニカ枠: 実機式では other と同枠(通常攻撃に乗る)だが、バーストは「通常攻撃ダメ(テクニカ除く)」
+  // を基準にするため burst() で割り戻せるよう分離管理する。通常攻撃/アビには other と同様に乗る。
+  ['technica', 'テクニカ'],
   // ─── フレーム別ダメージUP枠(該当フレームのみ加算・_na()のbaseには含めない) ───
   ['na_dmg',   '通常攻撃ダメUP'], // 通常攻撃のみ: judge ph2(通常)に ×(1+na_dmg)
   ['abi_dmg',  'アビダメUP'],     // アビダメのみ: judge ph0/コンソートに ×(1+abi_dmg)
@@ -500,7 +503,7 @@ function calcDisplayHp(charKey, slots, summonHpTotal, heroRank){
 
 // 属性相性(affinity)は属性枠の中に加算で入る(実機式: 属性枠=属性相性+属性値…)ため、
 // GEAR_Kには畳み込まず _na() の属性枠で (affinity + elem) として加算する。
-function recalcGearK(){ GEAR_K = DMG.base_atk*(1+GEAR.dmgup)*(1+GEAR.other)*DMG.misc/DMG.enemy_def; }
+function recalcGearK(){ GEAR_K = DMG.base_atk*(1+GEAR.dmgup)*(1+GEAR.other)*(1+GEAR.technica)*DMG.misc/DMG.enemy_def; }
 recalcGearK();
 
 // ===== キャラクタ登録簿 =====
@@ -988,7 +991,9 @@ class Sim {
   // 概算通常攻撃ダメージ(中央値): バフ期間管理辞書(buf)から動的に枠を計算する。
   // 各バフキーのスタック数が実効枠値を決定し、失効スタックは tick() で除去済み。
   // ※ フレーム別ダメージUP(na_dmg/abi_dmg/burst_dmg)は base に含めず、各フレームの加算点で乗じる。
-  _na(){
+  // exclTech=true: テクニカ枠を割り戻した通常攻撃ダメージ(バースト基準=「通常攻撃ダメ(テクニカ除く)」)。
+  // technicaはgkに(1+technica)で畳まれ base/royFlat 双方へ線形比例するため、戻り値の除算で厳密に除外できる。
+  _na(exclTech=false){
     const D=DMG, b=this.buf, G=GEAR;
     const nAbs=b.absolute?.length||0, nPuv=b.puvoir?.length||0;
     const nBan=b.banoshik?.length||0, nLeg=b.legend?.length||0;
@@ -1022,7 +1027,8 @@ class Sim {
     const defdown = Math.min(
       (b.consort_def?.length||0)*D.defdown_consort
     + (b.divinus_def?.length||0)*D.defdown_divinus, 0.50);
-    return (base + royFlat) * (1 + defdown);
+    const res = (base + royFlat) * (1 + defdown);
+    return exclTech ? res/(1+G.technica) : res;
   }
 
   burst(owner, bset, T, atk=false) {
@@ -1032,13 +1038,15 @@ class Sim {
     // 概算バーストダメージ: absolute(バーストダメUP) + nights(敵バースト耐性DOWN≒バーストダメUP)
     const bdmg = (this.buf.absolute?.length||0)*DMG.burst_dmg_absolute
                + (this.buf.nights?.length||0)*DMG.burst_dmg_nights;
+    // バースト基準は「通常攻撃ダメ(テクニカ除く)」。_na(true)でテクニカ枠を割り戻す。
+    const naB = this._na(true);
     // ロワ・クモンド: バーストプラス(独自枠・味方全体付与のため全員のバーストに加算・上限の外)
-    const royBurst = this.buf.roy?.length ? this._na()*DMG.roy_burst_frac[this.roy_tier??0] : 0;
+    const royBurst = this.buf.roy?.length ? naB*DMG.roy_burst_frac[this.roy_tier??0] : 0;
     // オーナー固有のバースト性能ボーナス(自バフ・CHAR_DEF.burstBonusに集約。例: ヤマト現神/奮起)
     const selfBonus = CHAR_DEF[owner].burstBonus?.(this) || 0;
-    // バーストダメージ式: 通常攻撃ダメ × (a + バーストダメUP効果 + 自バフ) + b(定数フラット)。
+    // バーストダメージ式: 通常攻撃ダメ(テクニカ除く) × (a + バーストダメUP効果 + 自バフ) + b(定数フラット)。
     // b は乗算枠の外のフラット加算(SSR固定=2500)。ウェポンburst_dmgは係数aスロットに加算。
-    const core = this._decay('burst', this._na()*(DMG.burst_coef_a + bdmg + GEAR.burst_dmg + selfBonus) + DMG.burst_coef_b);
+    const core = this._decay('burst', naB*(DMG.burst_coef_a + bdmg + GEAR.burst_dmg + selfBonus) + DMG.burst_coef_b);
     this.dmg += core + royBurst;
     if(atk) bset.add(owner);
     // 連理魔力(コヴァレント): バースト2回毎に+1＆ジャッジ即使用可。攻撃フェーズのバーストも対象
@@ -1488,7 +1496,10 @@ self.onmessage=function(e){
   if(d.type==='init'){
     for(const [k,v] of Object.entries(d.gearState)) GEAR[k]=v;
     if(d.gearKC) for(const [k,v] of Object.entries(d.gearKC)) GEAR_K_C[k]=v;
-    if(d.dmgBase){ DMG.base_atk=d.dmgBase.base_atk; DMG.affinity=d.dmgBase.affinity; }
+    if(d.dmgBase){ DMG.base_atk=d.dmgBase.base_atk; DMG.affinity=d.dmgBase.affinity;
+      // ドロイド反応の倍率/減衰(ランチャータンク装備でメイン側が上書き済の実効値)を反映
+      if(d.dmgBase.droid_react_mult!=null) DMG.droid_react_mult=d.dmgBase.droid_react_mult;
+      if(d.dmgBase.droid_react_cap!=null)  DMG.droid_react_cap =d.dmgBase.droid_react_cap; }
     recalcGearK();
     buildFormation(d.heroKey,d.kamihimeKeys);
     self.postMessage({type:'ready'});
@@ -1544,7 +1555,8 @@ function runSim(){
   _workerPool=workers;
 
   const initMsg={type:'init',heroKey,kamihimeKeys,gearState:{...GEAR},
-    gearKC:{...GEAR_K_C},dmgBase:{base_atk:DMG.base_atk,affinity:DMG.affinity}};
+    gearKC:{...GEAR_K_C},dmgBase:{base_atk:DMG.base_atk,affinity:DMG.affinity,
+      droid_react_mult:DMG.droid_react_mult,droid_react_cap:DMG.droid_react_cap}};
   const tasks=prefixes.map((prefix,rootId)=>({type:'root',rootId,prefix,n}));
   tasks.push({type:'baseline',n});
 
@@ -1771,10 +1783,16 @@ function renderGearPanel(){
     </div>`;
 }
 
+// ドロイド反応の基準値(英霊武器未装備時)。ランチャータンク装備で applyGear が上書きするため保持。
+const DROID_REACT_BASE = { mult: DMG.droid_react_mult, cap: DMG.droid_react_cap };
+
 function applyGear(){
   // 属性相性
   DMG.affinity = document.getElementById('dmg-affinity')?.value==='adv'?1.5:1.0;
   for(const [box] of GEAR_BOXES) GEAR[box]=0;
+  // ドロイド反応倍率/減衰を基準値にリセット(ランチャータンク検出時に下のループで上書き)
+  DMG.droid_react_mult = DROID_REACT_BASE.mult;
+  DMG.droid_react_cap  = DROID_REACT_BASE.cap;
 
   // 幻獣のweapon_amp合計と直接ボックス補正を収集(ダメージ用。表示攻撃力の幻獣寄与は手動合計入力)
   let weaponAmp=0;
@@ -1794,6 +1812,11 @@ function applyGear(){
       const isMain=(i===0);
       for(const sk of (w.skills||[])){
         if(sk.condition?.mainOf&&!(isMain&&sk.condition.mainOf===heroKey)) continue;
+        if(sk.droidUpgrade){ // ランチャータンク: 攻撃ロボ反応の倍率/減衰を強化(メインエジソン限定)
+          DMG.droid_react_mult = sk.droidUpgrade.mult;
+          DMG.droid_react_cap  = sk.droidUpgrade.cap;
+          continue;
+        }
         if(sk.box==='defender') continue; // HP専用・ダメージGEAR外
         if(sk.stinger){
           GEAR.acute += (sk.rate/100)*(1+weaponAmp)*0.20; // 発動率×weapon_amp×固定+20%
@@ -1830,7 +1853,7 @@ function applyGear(){
       if(dispAtk>0){
         DISPLAY_ATK_C[charKey]=dispAtk;
         DISPLAY_HP_C[charKey]=dispHp;
-        GEAR_K_C[charKey]=dispAtk*(1+GEAR.dmgup)*(1+GEAR.other)*DMG.misc/DMG.enemy_def; // affinityは_na()の属性枠で加算
+        GEAR_K_C[charKey]=dispAtk*(1+GEAR.dmgup)*(1+GEAR.other)*(1+GEAR.technica)*DMG.misc/DMG.enemy_def; // affinityは_na()属性枠/technicaはburst割戻し対象
       }
     }
   }
