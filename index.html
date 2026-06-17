@@ -331,6 +331,13 @@ const DMG = {
   // ─── バーストダメージ式 ────────────────────────────────────────────────
   burst_coef_a: 4.5,         // バーストダメージ式の係数 a
   burst_streak: 0.5,         // フルバースト(5人)時のバーストストリーク補正
+  // ─── ヤマトタケル(自バースト性能UP・光属性付与) ───
+  burst_inori: 4.5,          // 現神の祈り中: ヤマト自身のバースト倍率5→10(本体≒2倍・burst_coef_a相当を追加・自分のみ)
+  burst_funki: 0.15,         // 大和の奮起: ヤマト自身のバーストダメージ+15%/stack(自分のみ・累積可)
+  dur_inori_burst: 3,        // 現神の祈り バースト性能大幅UP効果ターン(現神の祈り3Tと同窓)
+  dur_funki_burst: 3,        // 大和の奮起 自バースト性能UP効果ターン(累積可)
+  elem_yamato:  0.05,        // ヤマトバースト: 味方全体の光属性攻撃+5%/stack(3T累積可)
+  dur_yamato_elem: 3,        // ヤマトバースト 光属性攻撃UP効果ターン
   judg_mult:  3,             // ジャッジメント: 通常攻撃比3倍
   judg_cap:   200000,        // ジャッジ1ヒットの減衰上限(20万)
   amplifa_flat: 100000,      // アンプリファ: アビダメプラス +10万(ジャッジ発動時に加算)
@@ -554,19 +561,20 @@ const CHAR_REGISTRY = {
     labelSuffix: { inori:'(ヤ+100)', funki:'(+10)' },
     cdShow: { inori:"現神の祈り", tenya:"天矢乱舞", funki:"大和の奮起" },
     cands: {
-      funki: { s:150, atkBuf:true, partyBG:true, exec:(sim,T,ord)=>{ sim.ycount++; sim.addG(CHARS,BG.funki); if(sim.ycount%3===0) sim.cd.inori=Math.max(0,sim.cd.inori-1); sim.use('funki',T,ord); }},
-      inori: { s:95, atkBuf:true,
-        // lookahead: _primeLookaheads() がターン開始前に1回だけ計算してT['_la_inori']にキャッシュ。
-        // ビームクローンはTをコピーするため再計算不要。planDepth>=2の静的クローンも安全。
-        lookahead:(sim,t)=>{
-          for(let k=1;k<=sim.totalTurns-t;k++)
-            if(sim.greedyTakeTurn(t+k).atk.length<5) return true;
-          return false;
-        },
-        guard:(sim,T)=>T['_la_inori']===true,
-        exec:(sim,T,ord)=>{ sim.addG([ownerOf('inori')],BG.inori); sim.inori_p=0; sim.use('inori',T,ord); }},
-      tenya: { s:55, burstTrigger:true,
-        guard:(sim,T,t)=>t>=TENYA_FROM&&CHARS.filter(c=>sim.g[c]<FB_THR).length>0,
+      funki: { s:150, atkBuf:true, partyBG:true, exec:(sim,T,ord)=>{ sim.ycount++; sim.addG(CHARS,BG.funki);
+        // 大和の奮起: ヤマト自身のバースト性能UP(+15%/上限+10%・3T累積可) → burstBonusで参照
+        (sim.buf.funki_burst??=[]).push(DMG.dur_funki_burst);
+        if(sim.ycount%3===0) sim.cd.inori=Math.max(0,sim.cd.inori-1); sim.use('funki',T,ord); }},
+      // 現神の祈り: 自分ゲージ+100 ＋ バースト性能大幅UP(倍率5→10・3T・burstBonusで参照) ＋ 2T後に天矢乱舞解禁。
+      // 旧版はFB可否のlookaheadガードで実質発火しなかったが、本体は純火力(バースト倍率2倍)のためガード撤廃。
+      // CD14で実質1回・最適化器(ビーム/ルート分散)に開幕タイミングを委ねる。
+      inori: { s:160, atkBuf:true,
+        exec:(sim,T,ord)=>{ sim.addG([ownerOf('inori')],BG.inori); sim.inori_p=0;
+          (sim.buf.inori_burst??=[]).push(DMG.dur_inori_burst); sim.use('inori',T,ord); }},
+      // 天矢乱舞: ゲージ消費なしでバースト＋40消費で2回まで再発動(最大3回)。inoriが2T後にCDリセットして解禁する。
+      // 旧版はg<100ガードで実質発火しなかった(全員毎ターン100開始)。inoriのCDリセット待ちで自然にゲートされる。
+      tenya: { s:90, burstTrigger:true,
+        guard:(sim,T,t)=>t>=TENYA_FROM,
         exec:(sim,T,ord,bset)=>{
           const me=ownerOf('tenya'), tidx=ord.length;
           sim.use('tenya',T,ord); sim.burst(me,bset,T); T.tenya=1;
@@ -579,6 +587,11 @@ const CHAR_REGISTRY = {
     def: {
       gmax: BG.yamato_max,
       keigyoGain: 1,
+      // バースト効果: 味方全体の光属性攻撃+5%(3T累積可)。自バースト毎にスタック(天矢乱舞の複数発動も各々付与)。
+      onBurst: (sim) => { (sim.buf.yamato_elem??=[]).push(DMG.dur_yamato_elem); },
+      // 自バースト性能バフ(現神の祈り倍率UP＋大和の奮起累積)をオーナー限定で burst係数に加算。
+      burstBonus: (sim) => (sim.buf.inori_burst?.length?DMG.burst_inori:0)
+                         + (sim.buf.funki_burst?.length||0)*DMG.burst_funki,
     },
   },
 
@@ -933,8 +946,9 @@ class Sim {
     // アサルト枠: banoshik/absolute + legend(契晶) + 装備
     const aslt = nBan*D.assault_banoshik + nAbs*D.assault_absolute
                + (b.leg_aslt?D.assault_legend:0) + G.assault;
-    // 属性値枠: puvoir(光) + 装備
-    const elem = nPuv*D.elem_puvoir + G.elem;
+    // 属性値枠: puvoir(光) + ヤマトバースト(光属性攻撃UP) + 装備
+    const nYel=b.yamato_elem?.length||0;
+    const elem = nPuv*D.elem_puvoir + nYel*D.elem_yamato + G.elem;
     // 旺盛枠: absolute/leg_vigor/pike(光) + 装備。+100%上限(フルHP前提)
     const vigor = Math.min(
       (nAbs>0?D.vigor_absolute:0)+(b.leg_vigor?D.vigor_legend:0)
@@ -967,8 +981,10 @@ class Sim {
                + (this.buf.nights?.length||0)*DMG.burst_dmg_nights;
     // ロワ・クモンド: バーストプラス(独自枠・味方全体付与のため全員のバーストに加算・上限の外)
     const royBurst = this.buf.roy?.length ? this._na()*DMG.roy_burst_frac[this.roy_tier??0] : 0;
-    // バーストダメージ式: 通常攻撃ダメ × (a + バーストダメUP効果) ＋ 独自枠。ウェポンburst_dmgは係数に加算。
-    const core = this._decay('burst', this._na()*(DMG.burst_coef_a + bdmg + GEAR.burst_dmg));
+    // オーナー固有のバースト性能ボーナス(自バフ・CHAR_DEF.burstBonusに集約。例: ヤマト現神/奮起)
+    const selfBonus = CHAR_DEF[owner].burstBonus?.(this) || 0;
+    // バーストダメージ式: 通常攻撃ダメ × (a + バーストダメUP効果 + 自バフ) ＋ 独自枠。ウェポンburst_dmgは係数に加算。
+    const core = this._decay('burst', this._na()*(DMG.burst_coef_a + bdmg + GEAR.burst_dmg + selfBonus));
     this.dmg += core + royBurst;
     if(atk) bset.add(owner);
     // 連理魔力(コヴァレント): バースト2回毎に+1＆ジャッジ即使用可。攻撃フェーズのバーストも対象
