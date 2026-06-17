@@ -304,6 +304,7 @@ const DMG = {
   crit_mult:          0.5,   // 会心倍率1.5倍 → +0.5
   crit_rate_arrive:   0.20,  // ARRIVE(エレイン3アシ): 会心発動率+20%(永続)
   crit_rate_absolute: 0.25,  // アブソ(テトラ2): 会心発動率+25%(有効時・本数比例)
+  crit_rate_pike:     1.00,  // パイク(ナポ2・バフ15+): 確実会心=発動率100%(critRateを1.0に飽和)
   // ─── 急所枠(1スタックあたりの期待寄与 = 発動率×(倍率-1)) ────────────
   acute_puvoir:   0.010,     // ヘカテー1: 発動率10% × (1.10-1)
   acute_absolute: 0.090,     // テトラ2(アブソ): 急所攻撃確率+30% × (倍率1.30-1) = 0.30×0.30
@@ -1027,8 +1028,9 @@ class Sim {
     const vigor = Math.min(
       (nAbs>0?D.vigor_absolute:0)+(b.leg_vigor?D.vigor_legend:0)
       +(b.pike?.length>0?D.vigor_pike:0)+G.vigor, 1.0);
-    // 会心枠: ARRIVE永続 + absolute + 装備
-    const critRate = Math.min(D.crit_rate_arrive + nAbs*D.crit_rate_absolute + G.crit_rate, 1.0);
+    // 会心枠: ARRIVE永続 + absolute + パイク確実会心(100%) + 装備
+    const critRate = Math.min(D.crit_rate_arrive + nAbs*D.crit_rate_absolute
+                            + (nPikeCrit>0?D.crit_rate_pike:0) + G.crit_rate, 1.0);
     const crit = critRate*D.crit_mult;
     // 急所枠: 光(puvoir/absolute/legend/pike_crit) + 装備
     const acute = nPuv*D.acute_puvoir + nAbs*D.acute_absolute + nLeg*D.acute_legend

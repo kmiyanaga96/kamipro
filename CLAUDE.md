@@ -156,7 +156,7 @@ CHAR_REGISTRY[charKey] = {
 | `roy` | 独立フラット(全攻撃) | 通常`roy_na_frac`/アビ`roy_abi_frac`/バースト`roy_burst_frac`×`_na()`(原文効果量表÷100万・tier=強化効果数 0-5/6-10/11-15/16+) | 2 | 累積 |
 | `pike` | 旺盛 | `vigor_pike=0.3552`(基礎値42・フルHP) | 2 | 累積 |
 | `pike_def` | 防壁 | buffCount精度用(ダメージ無寄与) | 2 | 累積 |
-| `pike_crit` | 急所+会心 | `acute_pike_crit=0.30`(確実100%×倍率1.3) | 2 | 累積 |
+| `pike_crit` | 急所+会心 | 急所`acute_pike_crit=0.30`(確実100%×倍率1.3)＋会心`crit_rate_pike=1.0`(確実100%・critRate飽和) | 2 | 累積 |
 | `consort_def` | 防御DOWN→`defdown` | `defdown_consort=0.10`/stack | 6 | 累積 |
 | `nights` | バーストダメUP | `burst_dmg_nights=0.20`(ナイツサプレス・敵バースト耐性-20%の等価近似・全バースト) | 2 | 累積 |
 | `divinus_def` | 防御DOWN→`defdown` | `defdown_divinus=0.30`/stack(ディウィヌス・敵防御-30%) | 2 | 累積 |
@@ -173,7 +173,7 @@ CHAR_REGISTRY[charKey] = {
   - `aslt` = banoshik×0.10 + absolute×0.30 + (leg_aslt?0.20:0) + GEAR
   - `elem` = puvoir×0.15 + yamato_elem×0.05 + GEAR
   - `vigor` = min(absolute→0.30 + leg_vigor→0.3552 + pike→0.3552 + GEAR, 1.0)
-  - `crit` = min(0.20 + absolute×0.25 + GEAR, 1.0) × 0.5
+  - `crit` = min(0.20 + absolute×0.25 + (pike_crit?1.0:0) + GEAR, 1.0) × 0.5
   - `acute` = puvoir×0.010 + absolute×0.030 + legend×0.005 + pike_crit×0.30 + GEAR
   - `spec` = (leg_spec?0.20:0) + GEAR
   - `defdown` = consort_def×0.10 + divinus_def×0.30
