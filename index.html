@@ -329,8 +329,9 @@ const DMG = {
   dur_droid_buf: 5,          // 攻撃ロボ赤アビ反応付与アビダメバフ効果ターン(実機5T)
   dur_legend:   3,           // レジェンドトラベラー効果ターン
   // ─── バーストダメージ式 ────────────────────────────────────────────────
-  burst_coef_a: 4.5,         // バーストダメージ式の係数 a
-  burst_streak: 0.5,         // フルバースト(5人)時のバーストストリーク補正
+  burst_coef_a: 4.5,         // バーストダメージ式の係数 a (SSR固定)
+  burst_coef_b: 2500,        // バーストダメージ式の定数 b (SSR固定・フラット加算・乗算枠の外)
+  burst_streak: 0.5,         // バーストストリーク: フルバースト(5人)の参加人数補正(×0.5)
   // ─── ヤマトタケル(自バースト性能UP・光属性付与) ───
   burst_inori: 4.5,          // 現神の祈り中: ヤマト自身のバースト倍率5→10(本体≒2倍・burst_coef_a相当を追加・自分のみ)
   burst_funki: 0.15,         // 大和の奮起: ヤマト自身のバーストダメージ+15%/stack(自分のみ・累積可)
@@ -342,7 +343,10 @@ const DMG = {
   dur_bplus_yamato: 3,       // 1アシ バーストダメージプラス効果ターン(累積可)
   judg_mult:  3,             // ジャッジメント: 通常攻撃比3倍
   judg_cap:   200000,        // ジャッジ1ヒットの減衰上限(20万)
-  amplifa_flat: 100000,      // アンプリファ: アビダメプラス +10万(ジャッジ発動時に加算)
+  // アンプリファ: 効果3T・エジソンの攻撃ロボ反応ダメージに固定+10万(減衰外フラット加算)。
+  // 対象は攻撃ロボ(エジソン1アビ)の赤アビ反応ダメージのみ。ジャッジ等の他アビダメは対象外。
+  amplifa_flat: 100000,      // アンプリファ: ロボ反応ダメ+10万 (3T・ロボ反応毎に加算)
+  dur_amplifa: 3,            // アンプリファ効果ターン
   // ─── 減衰(上限)モデル: 計算ダメージ raw → 実ダメージ の区分線形逓減(有志実測) ──────
   // 公称「上限」だが超過分も寄与率(slope)で減衰しつつ伸びる(俗称・減衰値)。実ダメージ表記。
   // 上限UP(GEAR.<frame>_cap)は第一上限を ×(1+up)。第二以降の差分(実ダメ)は固定オフセット。
@@ -350,6 +354,8 @@ const DMG = {
   decay_na:    { cap1:350000, off:[0,100000,200000], slope:[1,0.5,0.25,0.125] }, // 35/45/55万・1→½→¼→⅛
   decay_burst: { cap1:1000000, slope:0.10 },  // 100万・寄与率 1/10
   decay_abi_slope: 0.04,                       // アビ超過寄与率 1/25(基準上限はキャラ毎=judg_cap等)
+  // バーストストリーク減衰(5人時): 第一750万/第二1000万(実ダメ)・第一超は×0.25・第二超は×0.4(有志検証)
+  decay_streak: { cap1:7500000, cap2:10000000, slope1:0.25, slope2:0.40 },
   // 追撃/城塞は寄与率0(完全頭打ち=ハードキャップ)。betaiaは betaia_cap でこれに該当。
   // バーストストリーク上限750万は第二以降の寄与率不明のため未実装(streakは無減衰のまま)。
   // ─── ナポレオン ───
@@ -532,8 +538,9 @@ const CHAR_REGISTRY = {
     cands: {
       droid:    { s:201, atkBuf:true, deploysRobot:true, exec:(sim,T,ord)=>{ sim.droid=3; sim.use('droid',T,ord); }},
       banoshik: { s:200, atkBuf:true, deploysRobot:true, exec:(sim,T,ord)=>{ sim.banoshik_robot=3; sim.use('banoshik',T,ord); }},
-      // prelude:true = バースト誘発前に打つと後続火力を底上げするアビ(ルート分散でdeploysRobotとのペアを列挙する)
-      amplifa:  { s:180, atkBuf:true, prelude:true },
+      // アンプリファ: 効果3T・エジソンの攻撃ロボ反応ダメージに固定+10万(use()のロボ反応点で加算)。
+      // prelude:true = ロボ起動後に打つと攻撃ロボ反応の全ヒットを底上げするためルート列挙対象。
+      amplifa:  { s:180, atkBuf:true, prelude:true, exec:(sim,T,ord)=>{ (sim.buf.amplifa_buf??=[]).push(DMG.dur_amplifa); sim.use('amplifa',T,ord); }},
       // スコアは(CD中アビ数)²: count=4→16(低),count=8→64(effond直前),count=10→100(高)
       // 多くのアビがCD中のターンで自然に高優先度になり、T1序盤の空打ちを回避する。
       // guard: CD中アビが IFISHANT_MIN_CD 個未満の間は使用不可(空打ち=機会損失を防ぐハード下限)。
@@ -672,12 +679,12 @@ const CHAR_REGISTRY = {
         return robotReady ? 30 : 80; }, guard:(sim,T)=>T.ju<T.judgCap,
                   exec:(sim,T,ord,bset)=>{ const ph=T.ju%3; sim.use('judg',T,ord); T.ju++;
                     // ジャッジ循環: ph0=敵全体10回ダメージ / ph1=バースト発動 / ph2=通常攻撃
-                    if(ph===0){ const amp=sim.cd.amplifa>0?DMG.amplifa_flat:0;
-                      const royAbi=sim.buf.roy?.length ? 10*sim._na()*DMG.roy_abi_frac[sim.roy_tier??0] : 0;
+                    if(ph===0){ const royAbi=sim.buf.roy?.length ? 10*sim._na()*DMG.roy_abi_frac[sim.roy_tier??0] : 0;
                       // アビダメ枠: ×(1+abi_dmg+droid)、1ヒット減衰 基準judg_cap×(1+droid)(超過は1/25で逓減)
+                      // amplifa(+10万)はロボ反応ダメージ専用のためジャッジには加算しない。
                       const db0=sim._droidAbiBuf();
                       const hit=sim._decay('abi', sim._na()*DMG.judg_mult*(1+GEAR.abi_dmg+db0.dmg), DMG.judg_cap*(1+db0.cap));
-                      sim.dmg += 10*hit + amp + royAbi; }
+                      sim.dmg += 10*hit + royAbi; }
                     else if(ph===1) sim.burst(ownerOf('judg'),bset,T);
                     else sim.dmg += sim._decay('na', sim._na()*(1+GEAR.na_dmg)); }},
       absolute: { s:130, atkBuf:true, partyBG:true, exec:(sim,T,ord)=>{ if(!sim.buf.absolute)sim.buf.absolute=[]; sim.buf.absolute.push(DMG.dur_absolute); sim.addG(CHARS,BG.absolute); sim.use('absolute',T,ord); }},
@@ -962,6 +969,15 @@ class Sim {
       const c1=DMG.decay_burst.cap1*(1+up);
       return raw<=c1 ? raw : c1+(raw-c1)*DMG.decay_burst.slope;
     }
+    if(frame==='streak'){
+      // バーストストリーク専用減衰(5人時): cap1=750万/cap2=1000万(実ダメ)・slope1=0.25/slope2=0.40
+      const d=DMG.decay_streak, c1=d.cap1, c2=d.cap2;
+      // zone2のraw上限: cap1 + (cap2-cap1)/slope1(=実ダメがc2になるときのraw)
+      const T2=c1+(c2-c1)/d.slope1;
+      if(raw<=c1) return raw;
+      if(raw<=T2) return c1+(raw-c1)*d.slope1;
+      return c2+(raw-T2)*d.slope2;
+    }
     if(frame==='abi'){
       const c1=(base??Infinity)*(1+up);
       return raw<=c1 ? raw : c1+(raw-c1)*DMG.decay_abi_slope;
@@ -1020,8 +1036,9 @@ class Sim {
     const royBurst = this.buf.roy?.length ? this._na()*DMG.roy_burst_frac[this.roy_tier??0] : 0;
     // オーナー固有のバースト性能ボーナス(自バフ・CHAR_DEF.burstBonusに集約。例: ヤマト現神/奮起)
     const selfBonus = CHAR_DEF[owner].burstBonus?.(this) || 0;
-    // バーストダメージ式: 通常攻撃ダメ × (a + バーストダメUP効果 + 自バフ) ＋ 独自枠。ウェポンburst_dmgは係数に加算。
-    const core = this._decay('burst', this._na()*(DMG.burst_coef_a + bdmg + GEAR.burst_dmg + selfBonus));
+    // バーストダメージ式: 通常攻撃ダメ × (a + バーストダメUP効果 + 自バフ) + b(定数フラット)。
+    // b は乗算枠の外のフラット加算(SSR固定=2500)。ウェポンburst_dmgは係数aスロットに加算。
+    const core = this._decay('burst', this._na()*(DMG.burst_coef_a + bdmg + GEAR.burst_dmg + selfBonus) + DMG.burst_coef_b);
     this.dmg += core + royBurst;
     if(atk) bset.add(owner);
     // 連理魔力(コヴァレント): バースト2回毎に+1＆ジャッジ即使用可。攻撃フェーズのバーストも対象
@@ -1046,8 +1063,10 @@ class Sim {
     // ロボ作動カウント: 攻撃ロボ(droid)=赤アビ反応 / 補助ロボ(banoshik_robot)=黄アビ反応
     if(color==='r'&&this.droid>0){
       T.ra++;
-      // 攻撃ロボ反応: 赤アビ発動毎に敵全体へ反応ダメージ＋味方全体アビダメバフ付与(累積可)
-      this.dmg += this._decay('abi', this._na()*DMG.droid_react_mult, DMG.droid_react_cap);
+      // 攻撃ロボ反応: 赤アビ発動毎に敵全体へ反応ダメージ＋味方全体アビダメバフ付与(累積可)。
+      // アンプリファ(3T): ロボ反応ダメージに固定+10万フラット加算(減衰外・ロボ反応のみ対象)。
+      const ampFlat = this.buf.amplifa_buf?.length ? DMG.amplifa_flat : 0;
+      this.dmg += this._decay('abi', this._na()*DMG.droid_react_mult, DMG.droid_react_cap) + ampFlat;
       (this.buf.droid_buf??=[]).push(DMG.dur_droid_buf);
     }
     if(color==='y'&&this.banoshik_robot>0) T.ra++;
@@ -1107,8 +1126,9 @@ class Sim {
     for(const c of CHARS){
       if(this.g[c]>=FB_THR){ this.g[c]-=100; this.burst(c,this.bset,this.T,true); atk.push(c); }
     }
-    // バーストストリーク: フルバースト(5人)時、攻撃フェイズのバースト合計に補正を上乗せ
-    if(atk.length===5) this.dmg += (this.dmg-before)*DMG.burst_streak;
+    // バーストストリーク: フルバースト(5人)時。raw=バースト合計×参加人数補正(0.5)→2段減衰。
+    // 減衰値: 第一750万/第二1000万(実ダメ)・第一超×0.25・第二超×0.40(有志検証)。
+    if(atk.length===5) this.dmg += this._decay('streak', (this.dmg-before)*DMG.burst_streak);
     return atk;
   }
 

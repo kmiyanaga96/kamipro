@@ -66,8 +66,8 @@
 `CD_SHOW` 表示名でサマリーに表示）。Worker 非対応環境は `_fallbackRunSim()` がルート分散を
 逐次（非並列・`setTimeout(0)`起点）で再現するため結果は同一だが大幅に遅い。
 
-**検証済み数値**（光エジソン基準編成・`BEAM_W=32`）: ルート分散なし=45,920,337 →
-ルート分散あり（最良ルート`banoshik→droid→amplifa`）=46,040,951（+0.26%）。FB10/10は両者で維持。
+**検証済み数値**（光エジソン基準編成・`BEAM_W=32`）: ルート分散なし=48,958,605 →
+ルート分散あり（最良ルート`banoshik→droid→amplifa`）は別途計測要。FB10/10は両者で維持。
 
 **相対比率評価**: 最適シム（ビーム）と基準シム（`planDepth=2` 強制＝静的greedy）の総ダメージ比を
 `renderSim(baseDmg)` がサマリーに「対基準比」として表示する（押し順最適化の効きを相対値で可視化）。
@@ -314,13 +314,13 @@ console.log("FullBurst:",fb+"/10","TotalDmg:",Math.round(sim.dmg));
 
 期待値（基準・DMG定数が現行値の場合）:
 ```
-T1  FB:5 J:3 renri:4  dmg:1,691,941   T6  FB:5 J:3 renri:29 dmg:19,448,006
-T2  FB:5 J:4 renri:9  dmg:6,636,854   T7  FB:5 J:4 renri:30 dmg:23,550,541
-T3  FB:5 J:4 renri:14 dmg:12,759,472  T8  FB:5 J:3 renri:30 dmg:28,021,269
-T4  FB:5 J:4 renri:19 dmg:15,287,772  T9  FB:5 J:6 renri:30 dmg:32,726,579
-T5  FB:5 J:3 renri:24 dmg:18,040,428  T10 FB:5 J:4 renri:30 dmg:45,920,337
+T1  FB:5 J:3 renri:4  dmg:1,921,640   T6  FB:5 J:3 renri:29 dmg:21,518,703
+T2  FB:5 J:4 renri:9  dmg:7,316,264   T7  FB:5 J:4 renri:30 dmg:26,252,487
+T3  FB:5 J:4 renri:14 dmg:14,090,623  T8  FB:5 J:3 renri:30 dmg:30,654,465
+T4  FB:5 J:4 renri:19 dmg:16,478,337  T9  FB:5 J:6 renri:30 dmg:35,193,526
+T5  FB:5 J:3 renri:24 dmg:19,479,874  T10 FB:5 J:4 renri:30 dmg:48,958,605
 ```
-（FullBurst:10/10、TotalDmg:45,920,337。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
+（FullBurst:10/10、TotalDmg:48,958,605。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
 1アシ(集いし願い)のバーストダメージプラス(+15万/stack・3T累積可)実装で19.71M→52.18M、
 大和の奮起再発動をクロスターン集計の正しい仕様(per-turn実装を撤去)へ修正し52.18M→46.35M、
 yellow_accをリセットしない正しい仕様へさらに修正し46.35M→45.92Mへ更新済み。
