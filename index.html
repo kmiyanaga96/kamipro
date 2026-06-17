@@ -530,7 +530,8 @@ const CHAR_REGISTRY = {
     cands: {
       droid:    { s:201, atkBuf:true, deploysRobot:true, exec:(sim,T,ord)=>{ sim.droid=3; sim.use('droid',T,ord); }},
       banoshik: { s:200, atkBuf:true, deploysRobot:true, exec:(sim,T,ord)=>{ sim.banoshik_robot=3; sim.use('banoshik',T,ord); }},
-      amplifa:  { s:180, atkBuf:true },
+      // prelude:true = バースト誘発前に打つと後続火力を底上げするアビ(ルート分散でdeploysRobotとのペアを列挙する)
+      amplifa:  { s:180, atkBuf:true, prelude:true },
       // スコアは(CD中アビ数)²: count=4→16(低),count=8→64(effond直前),count=10→100(高)
       // 多くのアビがCD中のターンで自然に高優先度になり、T1序盤の空打ちを回避する。
       // guard: CD中アビが IFISHANT_MIN_CD 個未満の間は使用不可(空打ち=機会損失を防ぐハード下限)。
@@ -662,7 +663,11 @@ const CHAR_REGISTRY = {
     labelSuffix: { absolute:'(+20)' },
     cdShow: { judg:"ジャッジメント", absolute:"アブソ", divinus:"ディウィヌス", helix:"HELIX" },
     cands: {
-      judg:     { s:80, guard:(sim,T)=>T.ju<T.judgCap,
+      // judg動的スコア: deploysRobot候補がCD=0で未起動なら低スコア(ロボ先行を_stepStaticで優先)。
+      // ロボ起動後はdroid_buf/banoshikがjudg ph0ダメージに乗るため起動順に依存する(use()内でbuf積後に即参照)。
+      judg:     { s:(sim,T)=>{ if(T.ju>=T.judgCap) return 0;
+        const robotReady=Object.entries(ABIL).some(([k])=>CHAR_REGISTRY[ABIL[k][0]]?.cands?.[k]?.deploysRobot&&sim.cd[k]===0);
+        return robotReady ? 30 : 80; }, guard:(sim,T)=>T.ju<T.judgCap,
                   exec:(sim,T,ord,bset)=>{ const ph=T.ju%3; sim.use('judg',T,ord); T.ju++;
                     // ジャッジ循環: ph0=敵全体10回ダメージ / ph1=バースト発動 / ph2=通常攻撃
                     if(ph===0){ const amp=sim.cd.amplifa>0?DMG.amplifa_flat:0;
@@ -1076,7 +1081,7 @@ class Sim {
       if(cand.guard&&!cand.guard(sim,T,t)) continue;
       const s=typeof cand.s==='function'?cand.s(sim,T,t):(cand.s??computeBaseScore(key,cand));
       const exec=cand.exec?()=>cand.exec(sim,T,ord,bset,t):()=>sim.use(key,T,ord);
-      c.push({s,key,col,exec,deploysRobot:!!cand.deploysRobot});
+      c.push({s,key,col,exec,deploysRobot:!!cand.deploysRobot,prelude:!!cand.prelude});
     }
     return c;
   }
@@ -1258,9 +1263,10 @@ function cmpVec(a,b){
 // (例: 補助ロボ起動→直後に黄アビ連打、のような複数手のシナジー)を early に切り落とすため、
 // 候補ごとに開幕を強制した独立ビームを並列に走らせ、最終ダメージ最大のものを採用する。
 // CHAR_REGISTRYの`deploysRobot`タグ(キャラ名リテラル不使用)を持つ候補同士は2手の順序組も列挙し、
-// 同ターン複数ギミックの起動順シナジーも拾う。列挙は意図的に「単独 ＋ deploysRobot同士の2手順列」
-// までに留める(3手以上・異種タグ間シナジーは列挙数=計算量が急増するため非対象。将来必要なら
-// タグ種別・組み合わせ長を引数化して一般化する)。
+// 同ターン複数ギミックの起動順シナジーも拾う。
+// さらに`prelude`タグ(deploysRobot後に使うと火力を底上げするアビ)とのペア/3手順列も列挙する:
+//   robot×prelude / prelude×robot / robot×robot×prelude
+// タグは CHAR_REGISTRY cands に宣言するだけでエンジンにキャラ名リテラルなし。
 function enumerateRootPrefixes(){
   const probe=new Sim(); probe.totalTurns=10;
   probe._beginTurn(1); probe._primeLookaheads(1);
@@ -1268,7 +1274,13 @@ function enumerateRootPrefixes(){
   const prefixes=[[]]; // 空プレフィックス=現行のビーム単体(回帰確認用に必ず含める)
   for(const c of cands) prefixes.push([c.key]);
   const robotKeys=cands.filter(c=>c.deploysRobot).map(c=>c.key);
+  const preludeKeys=cands.filter(c=>c.prelude).map(c=>c.key);
+  // deploysRobot × deploysRobot (2手順列)
   for(const a of robotKeys) for(const b of robotKeys) if(a!==b) prefixes.push([a,b]);
+  // deploysRobot × prelude / prelude × deploysRobot (異種ペア)
+  for(const r of robotKeys) for(const p of preludeKeys){ prefixes.push([r,p]); prefixes.push([p,r]); }
+  // deploysRobot × deploysRobot × prelude (3手順列: ロボ2台起動→バフ)
+  for(const a of robotKeys) for(const b of robotKeys) if(a!==b) for(const p of preludeKeys) prefixes.push([a,b,p]);
   return prefixes;
 }
 
