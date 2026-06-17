@@ -314,16 +314,16 @@ console.log("FullBurst:",fb+"/10","TotalDmg:",Math.round(sim.dmg));
 
 期待値（基準・DMG定数が現行値の場合）:
 ```
-T1  FB:5 J:3 renri:5  dmg:7,283,571    T6  FB:5 J:4 renri:30 dmg:62,747,070
-T2  FB:5 J:5 renri:10 dmg:22,022,424   T7  FB:5 J:6 renri:30 dmg:74,683,190
-T3  FB:5 J:3 renri:15 dmg:35,233,792   T8  FB:5 J:3 renri:30 dmg:85,208,084
-T4  FB:5 J:4 renri:20 dmg:44,049,970   T9  FB:5 J:4 renri:30 dmg:95,426,600
-T5  FB:5 J:3 renri:25 dmg:53,022,444   T10 FB:5 J:5 renri:30 dmg:118,267,349
+T1  FB:5 J:3 renri:5  dmg:6,928,287    T6  FB:5 J:4 renri:30 dmg:57,663,600
+T2  FB:5 J:5 renri:10 dmg:20,361,854   T7  FB:5 J:6 renri:30 dmg:69,211,236
+T3  FB:5 J:3 renri:15 dmg:31,725,054   T8  FB:5 J:3 renri:30 dmg:79,293,037
+T4  FB:5 J:4 renri:20 dmg:40,138,867   T9  FB:5 J:5 renri:30 dmg:89,604,765
+T5  FB:5 J:3 renri:25 dmg:48,494,983   T10 FB:5 J:4 renri:30 dmg:109,924,038
 ```
-（FullBurst:10/10、TotalDmg:118,267,349。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
+（FullBurst:10/10、TotalDmg:109,924,038。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
 ※注: この基準は base_atk=1500 フォールバック(applyGear非経由)の抽象スケール値。ARRIVE(エレイン3アシ)の
 +50万フラット等の実ダメージ単位の枠が乗算コア(~150)を圧倒するため、絶対値は実機と乖離する(misc未較正)。
-1アシ(集いし願い)のバーストダメージプラス(+15万/stack・3T累積可)実装で19.71M→52.18M、
+1アシ(集いし願い)のバーストダメージプラス(+10万/stack・3T累積可)実装で19.71M→52.18M、
 大和の奮起再発動をクロスターン集計の正しい仕様(per-turn実装を撤去)へ修正し52.18M→46.35M、
 yellow_accをリセットしない正しい仕様へさらに修正し46.35M→45.92Mへ更新済み。
 ヤマト1アシ(集いし願い)のバーストダメージプラス(+15万/stack・3T累積可)は`yamato_bplus`バフで管理し、

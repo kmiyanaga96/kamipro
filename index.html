@@ -329,18 +329,23 @@ const DMG = {
   dur_droid_buf: 5,          // 攻撃ロボ赤アビ反応付与アビダメバフ効果ターン(実機5T)
   dur_legend:   3,           // レジェンドトラベラー効果ターン
   // ─── バーストダメージ式 ────────────────────────────────────────────────
-  burst_coef_a: 4.5,         // バーストダメージ式の係数 a (SSR固定)
+  burst_coef_a: 5,           // バーストダメージ式の係数 a (SSR固定)
   burst_coef_b: 2500,        // バーストダメージ式の定数 b (SSR固定・フラット加算・乗算枠の外)
   burst_streak: 0.5,         // バーストストリーク: フルバースト(5人)の参加人数補正(×0.5)
   // ─── ヤマトタケル(自バースト性能UP・光属性付与) ───
-  burst_inori: 4.5,          // 現神の祈り中: ヤマト自身のバースト倍率5→10(本体≒2倍・burst_coef_a相当を追加・自分のみ)
+  burst_inori: 5,            // 現神の祈り中: ヤマト自身のバースト倍率5→10(増分=5・自分のみ)
   burst_funki: 0.15,         // 大和の奮起: ヤマト自身のバーストダメージ+15%/stack(自分のみ・累積可)
+  burst_cap_funki: 0.10,     // 大和の奮起: ヤマト自身のバースト上限+10%/stack(自分のみ・累積可)
   dur_inori_burst: 3,        // 現神の祈り バースト性能大幅UP効果ターン(現神の祈り3Tと同窓)
   dur_funki_burst: 3,        // 大和の奮起 自バースト性能UP効果ターン(累積可)
   elem_yamato:  0.05,        // ヤマトバースト: 味方全体の光属性攻撃+5%/stack(3T累積可)
   dur_yamato_elem: 3,        // ヤマトバースト 光属性攻撃UP効果ターン
-  bplus_yamato: 150000,      // 1アシ(集いし願い): ヤマト自バースト時のダメージプラス+15万/stack
+  bplus_yamato: 100000,      // 1アシ(集いし願い): ヤマト自バースト時のダメージプラス+10万/stack
   dur_bplus_yamato: 3,       // 1アシ バーストダメージプラス効果ターン(累積可)
+  // ヤマトバースト追加ダメージ(バースト効果として毎回発動・現神の祈り中は上限変化)
+  yamato_extra_mult: 3,      // 追加ダメージ倍率(通常攻撃比3倍)
+  yamato_extra_cap: 500000,  // 追加ダメージ減衰上限(通常時50万)
+  yamato_extra_cap_inori: 1000000, // 追加ダメージ減衰上限(現神の祈り中100万)
   judg_mult:  3,             // ジャッジメント: 通常攻撃比3倍
   judg_cap:   200000,        // ジャッジ1ヒットの減衰上限(20万)
   // アンプリファ: 効果3T・エジソンの攻撃ロボ反応ダメージに固定+10万(減衰外フラット加算)。
@@ -611,10 +616,15 @@ const CHAR_REGISTRY = {
       onBurst: (sim) => {
         (sim.buf.yamato_elem??=[]).push(DMG.dur_yamato_elem);
         sim.dmg += (sim.buf.yamato_bplus?.length||0) * DMG.bplus_yamato;
+        // バースト追加ダメージ(毎回発動): 倍率3倍・減衰50万(現神の祈り中100万)
+        const inoriOn = (sim.buf.inori_burst?.length||0) > 0;
+        sim.dmg += sim._decay('burst', sim._na(true)*DMG.yamato_extra_mult, inoriOn ? DMG.yamato_extra_cap_inori : DMG.yamato_extra_cap);
       },
       // 自バースト性能バフ(現神の祈り倍率UP＋大和の奮起累積)をオーナー限定で burst係数に加算。
       burstBonus: (sim) => (sim.buf.inori_burst?.length?DMG.burst_inori:0)
                          + (sim.buf.funki_burst?.length||0)*DMG.burst_funki,
+      // 大和の奮起: バースト上限+10%/stack(自分のみ・burstCapBonusフック)
+      burstCapBonus: (sim) => (sim.buf.funki_burst?.length||0)*DMG.burst_cap_funki,
       // 1アシ(集いし願い): ① ヤマトがアビリティを使用した時にバーストダメージプラスバフを付与(3T累積可)。
       // ② 黄色アビの使用回数をターンを跨いで集計し、4回毎に大和の奮起を「使用可能」にする(最大3回=12回時点)。
       //    3回使用可能にした後さらに4回(計16)使用すると、ターン終了時に集計を初期化し再度使用可能になる(ループ)。
@@ -977,7 +987,7 @@ class Sim {
       return c1+o[2]+(raw-T2)*s[3];
     }
     if(frame==='burst'){
-      const c1=DMG.decay_burst.cap1*(1+up);
+      const c1=(base??DMG.decay_burst.cap1)*(1+up);
       return raw<=c1 ? raw : c1+(raw-c1)*DMG.decay_burst.slope;
     }
     if(frame==='streak'){
@@ -1059,7 +1069,8 @@ class Sim {
     const selfBonus = CHAR_DEF[owner].burstBonus?.(this) || 0;
     // バーストダメージ式: 通常攻撃ダメ(テクニカ除く) × (a + バーストダメUP効果 + 自バフ) + b(定数フラット)。
     // b は乗算枠の外のフラット加算(SSR固定=2500)。ウェポンburst_dmgは係数aスロットに加算。
-    const core = this._decay('burst', naB*(DMG.burst_coef_a + bdmg + GEAR.burst_dmg + selfBonus) + DMG.burst_coef_b);
+    const capBonus = CHAR_DEF[owner].burstCapBonus?.(this) ?? 0;
+    const core = this._decay('burst', naB*(DMG.burst_coef_a + bdmg + GEAR.burst_dmg + selfBonus) + DMG.burst_coef_b, DMG.decay_burst.cap1*(1+capBonus));
     this.dmg += core + royBurst + passiveFlat;
     if(atk) bset.add(owner);
     // 連理魔力(コヴァレント): バースト2回毎に+1＆ジャッジ即使用可。攻撃フェーズのバーストも対象
