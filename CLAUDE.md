@@ -109,6 +109,7 @@ CHAR_REGISTRY[charKey] = {
     milestones?: { 状態変数キー: 上限 },   // 目的関数が min(sim[key],上限) を合算評価
     helix?: { reached:(sim)=>bool, doneKey:'stateキー' }, // HELIX解禁検出(初回到達ターン表示・テトラrenri30)
     onBurst?: (sim, atk, owner)=>void,     // 自分のバースト時
+    burstBonus?: (sim)=>number,            // 自バースト係数の加算(オーナー限定・例: ヤマト現神/奮起)
     onPartyBurst?: (sim, owner, T, atk)=>void, // 誰かのバースト時
     onAbility?: (sim, name, color, T)=>void,   // 誰かのアビ使用時(闘気/赤カウント/祝福等)
     turnEnd?: (sim, T)=>void,              // ターン終了時(全キャラ呼出)
@@ -159,19 +160,24 @@ CHAR_REGISTRY[charKey] = {
 | `nights` | バーストダメUP | `burst_dmg_nights=0.20`(ナイツサプレス・敵バースト耐性-20%の等価近似・全バースト) | 2 | 累積 |
 | `divinus_def` | 防御DOWN→`defdown` | `defdown_divinus=0.30`/stack(ディウィヌス・敵防御-30%) | 2 | 累積 |
 | `divinus_dot` | DOT(独立・順序非依存) | 4種×min(敵最大HP×10%,上限10万)をtetra `turnEnd`で毎ターン加算 | 2 | 累積 |
+| `inori_burst` | 自バースト係数(ヤマト限定) | `burst_inori=4.5`(現神の祈り中バースト倍率5→10≒本体2倍・`burstBonus`で自バーストのみ加算) | 3 | refresh相当 |
+| `funki_burst` | 自バースト係数(ヤマト限定) | `burst_funki=0.15`/stack(大和の奮起・自バーストダメ+15%/上限+10%・`burstBonus`) | 3 | 累積 |
+| `yamato_elem` | 属性値 | `elem_yamato=0.05`/stack(ヤマトバースト効果・味方全体光属性攻撃+5%・`onBurst`で付与) | 3 | 累積 |
 
 - 通常攻撃概算 `_na()` = `(base + royFlat) × (1+defdown)`
   - `base` = `GEAR_K × (1+aslt)(1+elem)(1+vigor)(1+crit)(1+acute)(1+spec)`
   - `royFlat` = `(roy本数) × base × roy_na_frac[roy_tier]`（ロワ・クモンド独立枠）
   - `defdown` = 防御/耐性DOWN各ソースの合算（独立乗算枠）
   - `aslt` = banoshik×0.10 + absolute×0.30 + (leg_aslt?0.20:0) + GEAR
-  - `elem` = puvoir×0.15 + GEAR
+  - `elem` = puvoir×0.15 + yamato_elem×0.05 + GEAR
   - `vigor` = min(absolute→0.30 + leg_vigor→0.3552 + pike→0.3552 + GEAR, 1.0)
   - `crit` = min(0.20 + absolute×0.25 + GEAR, 1.0) × 0.5
   - `acute` = puvoir×0.010 + absolute×0.030 + legend×0.005 + pike_crit×0.30 + GEAR
   - `spec` = (leg_spec?0.20:0) + GEAR
   - `defdown` = consort_def×0.10 + divinus_def×0.30
-  - バースト = `_decay('burst', _na()×(burst_coef_a + absolute×burst_dmg_absolute + nights×burst_dmg_nights + burst_dmg))`
+  - バースト = `_decay('burst', _na()×(burst_coef_a + absolute×burst_dmg_absolute + nights×burst_dmg_nights + burst_dmg + selfBonus))`
+  - `selfBonus` = `CHAR_DEF[owner].burstBonus?.(sim)` オーナー固有の自バースト係数加算(汎用フック)。
+    ヤマト: `inori_burst?DMG.burst_inori:0 + funki_burst本数×DMG.burst_funki`(現神の祈り倍率UP＋大和の奮起累積・自バーストのみ)。
   - 青アビ実効果(`data.xlsx`確定): ナイツサプレス=敵バースト耐性-20°≒バーストダメUP / ディウィヌス=敵防御-30%(defdown)＋DOT4種。
     両アビの「与ダメージDOWN/敵攻撃DOWN」等は被ダメ側＝自出力モデルのスコープ外。
   - ディウィヌスDOTは敵最大HP依存(`DMG.enemy_max_hp`placeholder)・順序非依存。押し順最適化には`defdown`/`nights`のみ効く。
@@ -302,13 +308,15 @@ console.log("FullBurst:",fb+"/10","TotalDmg:",Math.round(sim.dmg));
 
 期待値（基準・DMG定数が現行値の場合）:
 ```
-T1  FB:5 J:2 renri:5  dmg:580,066     T6  FB:5 J:4 renri:30 dmg:5,454,160
-T2  FB:5 J:5 renri:10 dmg:1,519,438   T7  FB:5 J:6 renri:30 dmg:7,994,947
-T3  FB:5 J:3 renri:15 dmg:1,780,021   T8  FB:5 J:3 renri:30 dmg:10,066,678
-T4  FB:5 J:4 renri:20 dmg:2,910,921   T9  FB:5 J:3 renri:30 dmg:11,116,988
-T5  FB:5 J:5 renri:25 dmg:4,474,930   T10 FB:5 J:6 renri:30 dmg:14,678,521
+T1  FB:5 J:3 renri:4  dmg:566,941     T6  FB:5 J:4 renri:29 dmg:6,276,083
+T2  FB:5 J:4 renri:9  dmg:1,470,544   T7  FB:5 J:4 renri:30 dmg:9,698,460
+T3  FB:5 J:4 renri:14 dmg:1,976,797   T8  FB:5 J:4 renri:30 dmg:13,338,593
+T4  FB:5 J:4 renri:19 dmg:3,394,245   T9  FB:5 J:4 renri:30 dmg:15,510,051
+T5  FB:5 J:4 renri:24 dmg:5,272,523   T10 FB:5 J:4 renri:30 dmg:19,713,520
 ```
-（FullBurst:10/10、TotalDmg:14,678,521。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
+（FullBurst:10/10、TotalDmg:19,713,520。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
+ヤマトの現神の祈り(現神倍率5→10)・天矢乱舞(無償3連バースト)のガードバグ修正と
+自バースト/光属性バフのモデル化により基準値が14.68M→19.71Mへ更新済み(+34.3%)。
 バフは上限なしで独立累積し持続ターンで失効(buf辞書管理)。
 エンジン: BEAM_W=32/BEAM_W_INNER=4、目的関数最上位=概算総ダメージ。
 イフィシャント早撃ち抑止: `IFISHANT_MIN_CD=3`（CD中アビ3個未満は使用不可・空打ち=機会損失防止）。
