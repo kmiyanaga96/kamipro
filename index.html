@@ -554,8 +554,8 @@ const CHAR_REGISTRY = {
     type: 'kamihime',
     jp: '[光醒の現神]ヤマトタケル', shortJp: 'ヤマト', gcls: 'gy', elem: 'light',
     favWeapon: ['剣','槍'], baseAtk: 10000, baseHp: 1100,
-    // inori_p=現神の祈りの天矢乱舞解禁タイマー / yellow_acc=1アシ用 黄アビ累計(ターン跨ぎ) / funki_recharge=ターン終了時の再発動予約
-    state: { inori_p: null, yellow_acc: 0, funki_recharge: false },
+    // inori_p=現神の祈りの天矢乱舞解禁タイマー / yellow_acc=黄アビ累計(ターン跨ぎ・永続) / funki_cycle=大和の奮起の使用可能化カウント(0〜3) / funki_recharge=ターン終了時の再発動予約
+    state: { inori_p: null, yellow_acc: 0, funki_cycle: 0, funki_recharge: false },
     abilities: {
       inori: ['y', 14, 0],
       tenya: ['r', 12, 0],
@@ -602,20 +602,22 @@ const CHAR_REGISTRY = {
       // 1アシ(集いし願い): ① ヤマトがアビリティを使用した時にバーストダメージプラスバフを付与(3T累積可)。
       // ② 黄色アビの使用回数をターンを跨いで集計し、4回毎に大和の奮起を「使用可能」にする(最大3回=12回時点)。
       //    3回使用可能にした後さらに4回(計16)使用すると、ターン終了時に集計を初期化し再度使用可能になる(ループ)。
-      //    1〜3回目は即時(同ターン再使用可)、4回目はターン終了時(funki_recharge予約→turnEndで反映=翌ターン)。
+      //    1〜3回目は即時(同ターン再使用可)、4回目はターン終了時(funki_recharge予約→turnEndで反映=翌ターン解禁)。
+      //    yellow_accはリセットせず永続集計。turnEndでリセットするのはfunki_cycle(使用可能化カウント)のみ。
       onAbility: (sim, name, color) => {
         if(ABIL[name]?.[0]==='yamato') (sim.buf.yamato_bplus??=[]).push(DMG.dur_bplus_yamato);
         if(color==='y'){
           sim.yellow_acc++;
           if(sim.yellow_acc % 4 === 0){
-            if(sim.yellow_acc <= 12) sim.cd.funki = 0;   // 1〜3回目: 即時使用可
-            else sim.funki_recharge = true;              // 4回目(16): ターン終了時リセット予約
+            if(sim.funki_cycle < 3){ sim.funki_cycle++; sim.cd.funki = 0; }  // 1〜3回目: 即時
+            else sim.funki_recharge = true;                                   // 4回目: ターン終了時予約
           }
         }
       },
-      // 1アシ再発動: 4回目到達ターンの終了時に黄アビ集計を初期化し大和の奮起を再使用可にする。
+      // 1アシ再発動: 3回使用可能後の4回目到達ターン終了時にfunki_cycle(使用可能化カウント)のみリセットし再使用可。
+      // yellow_acc(黄アビ累計)はリセットしない。
       turnEnd: (sim) => {
-        if(sim.funki_recharge){ sim.yellow_acc = 0; sim.funki_recharge = false; sim.cd.funki = 0; }
+        if(sim.funki_recharge){ sim.funki_cycle = 0; sim.funki_recharge = false; sim.cd.funki = 0; }
       },
     },
   },
