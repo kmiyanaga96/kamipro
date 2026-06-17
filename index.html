@@ -492,7 +492,9 @@ function calcDisplayHp(charKey, slots, summonHpTotal, heroRank){
   return (def.baseHp||0)+(SSR_LV_RELEASE[def.lvCap||80]?.hp||0)+weaponHp+summonHpTotal;
 }
 
-function recalcGearK(){ GEAR_K = DMG.base_atk*DMG.affinity*(1+GEAR.dmgup)*(1+GEAR.other)*DMG.misc/DMG.enemy_def; }
+// 属性相性(affinity)は属性枠の中に加算で入る(実機式: 属性枠=属性相性+属性値…)ため、
+// GEAR_Kには畳み込まず _na() の属性枠で (affinity + elem) として加算する。
+function recalcGearK(){ GEAR_K = DMG.base_atk*(1+GEAR.dmgup)*(1+GEAR.other)*DMG.misc/DMG.enemy_def; }
 recalcGearK();
 
 // ===== キャラクタ登録簿 =====
@@ -978,9 +980,10 @@ class Sim {
     // アサルト枠: banoshik/absolute + legend(契晶) + 装備
     const aslt = nBan*D.assault_banoshik + nAbs*D.assault_absolute
                + (b.leg_aslt?D.assault_legend:0) + G.assault;
-    // 属性値枠: puvoir(光) + ヤマトバースト(光属性攻撃UP) + 装備
+    // 属性値枠: 属性相性(affinity・実機式では枠内に加算) + puvoir(光) + ヤマトバースト + 装備。
+    // 実機式の属性枠 = (属性相性 + 属性値UP幻獣 + 属性値 + 属性バフ + アシスト)。先頭1+ではなくaffinityが基底。
     const nYel=b.yamato_elem?.length||0;
-    const elem = nPuv*D.elem_puvoir + nYel*D.elem_yamato + G.elem;
+    const elemBox = D.affinity + nPuv*D.elem_puvoir + nYel*D.elem_yamato + G.elem;
     // 旺盛枠: absolute/leg_vigor/pike(光) + 装備。+100%上限(フルHP前提)
     const vigor = Math.min(
       (nAbs>0?D.vigor_absolute:0)+(b.leg_vigor?D.vigor_legend:0)
@@ -995,12 +998,14 @@ class Sim {
     const spec = (b.leg_spec?D.spec_legend:0)+G.spec;
     // GEAR_K or per-character GEAR_K_C[owner] (武器マスタ設定時)
     const gk = (this._naOwner && GEAR_K_C[this._naOwner]) || GEAR_K;
-    const base = gk*(1+aslt)*(1+elem)*(1+vigor)*(1+crit)*(1+acute)*(1+spec);
+    const base = gk*(1+aslt)*elemBox*(1+vigor)*(1+crit)*(1+acute)*(1+spec);
     // ロワ・クモンド: 独立枠フラット(tierはbuf使用時に確定・base比率で近似)
     const royFlat = (b.roy?.length||0)*base*D.roy_na_frac[this.roy_tier??0];
-    // 防御DOWN: 敵防御/耐性DOWN各ソース合算 → 独立乗算(ダメージ × (1+defdown))
-    const defdown = (b.consort_def?.length||0)*D.defdown_consort
-                  + (b.divinus_def?.length||0)*D.defdown_divinus;
+    // 防御DOWN: 敵防御/耐性DOWN各ソース合算 → 上限50%(実機: 防御down合計50%で下限・以降切捨)。
+    // 実機は敵防御の除数補正だが、枠の概念は追わず暫定的に上限50%の加算近似とする。
+    const defdown = Math.min(
+      (b.consort_def?.length||0)*D.defdown_consort
+    + (b.divinus_def?.length||0)*D.defdown_divinus, 0.50);
     return (base + royFlat) * (1 + defdown);
   }
 
@@ -1805,7 +1810,7 @@ function applyGear(){
       if(dispAtk>0){
         DISPLAY_ATK_C[charKey]=dispAtk;
         DISPLAY_HP_C[charKey]=dispHp;
-        GEAR_K_C[charKey]=dispAtk*DMG.affinity*(1+GEAR.dmgup)*(1+GEAR.other)*DMG.misc/DMG.enemy_def;
+        GEAR_K_C[charKey]=dispAtk*(1+GEAR.dmgup)*(1+GEAR.other)*DMG.misc/DMG.enemy_def; // affinityは_na()の属性枠で加算
       }
     }
   }
