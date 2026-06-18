@@ -360,7 +360,7 @@ const DMG = {
   // ─── バーストダメージ式 ────────────────────────────────────────────────
   burst_coef_a: 5,           // バーストダメージ式の係数 a (SSR固定)
   burst_coef_b: 2500,        // バーストダメージ式の定数 b (SSR固定・フラット加算・乗算枠の外)
-  burst_streak: 0.5,         // バーストストリーク: フルバースト(5人)の参加人数補正(×0.5)
+  burst_streak: 0.72,        // バーストストリーク: フルバースト(5人)のボーナス係数。実機較正(2026-06): T1全バフ36.8Mから逆算(無減衰前提)。旧0.5は誤ってdecay経由で計算されていた。
   // ─── ヤマトタケル(自バースト性能UP・光属性付与) ───
   burst_inori: 5,            // 現神の祈り中: ヤマト自身のバースト倍率5→10(増分=5・自分のみ)
   burst_funki: 0.15,         // 大和の奮起: ヤマト自身のバーストダメージ+15%/stack(自分のみ・累積可)
@@ -1242,9 +1242,10 @@ class Sim {
     for(const c of CHARS){
       if(this.g[c]>=FB_THR){ this.g[c]-=100; this.burst(c,this.bset,this.T,true); atk.push(c); }
     }
-    // バーストストリーク: フルバースト(5人)時。raw=バースト合計×参加人数補正(0.5)→2段減衰。
-    // 減衰値: 第一750万/第二1000万(実ダメ)・第一超×0.25・第二超×0.40(有志検証)。
-    if(atk.length===5) this.dmg += this._decay('streak', (this.dmg-before)*DMG.burst_streak);
+    // バーストストリーク: フルバースト(5人)時。バースト合計×burst_streak(無減衰)。
+    // 実機較正(2026-06): T1全バフ実測36.8Mからburst_streak=0.72を逆算。
+    // 注: decay_streak定数は基盤として残すが適用しない(コメント「未実装・無減衰」通り)。
+    if(atk.length===5) this.dmg += (this.dmg-before)*DMG.burst_streak;
     return atk;
   }
 

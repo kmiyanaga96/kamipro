@@ -347,13 +347,15 @@ console.log("FullBurst:",fb+"/10","TotalDmg:",Math.round(sim.dmg));
 
 期待値（基準・DMG定数が現行値の場合）:
 ```
-T1  FB:5 J:3 renri:5  moon:2T dmg:6,987,682    T6  FB:5 J:3 renri:30 dmg:57,879,487
-T2  FB:5 J:4 renri:10 moon:2T dmg:19,574,768   T7  FB:5 J:6 renri:30 dmg:70,113,196
-T3  FB:5 J:1 renri:15 moon:2T dmg:32,767,701   T8  FB:5 J:4 renri:30 dmg:83,120,261
-T4  FB:5 J:3 renri:20 moon:2T dmg:40,500,415   T9  FB:5 J:3 renri:30 dmg:93,611,983
-T5  FB:5 J:3 renri:25 moon:2T dmg:49,033,425   T10 FB:5 J:6 renri:30 dmg:111,777,714
+T1  FB:5 J:3 renri:5  dmg:7,663,982    T6  FB:5 J:4 renri:29 dmg:65,081,586
+T2  FB:5 J:5 renri:10 dmg:22,095,159   T7  FB:5 J:5 renri:30 dmg:78,510,627
+T3  FB:5 J:4 renri:15 dmg:36,883,338   T8  FB:5 J:6 renri:30 dmg:92,932,929
+T4  FB:5 J:3 renri:20 dmg:46,282,272   T9  FB:5 J:4 renri:30 dmg:105,739,124
+T5  FB:5 J:3 renri:24 dmg:55,039,000   T10 FB:5 J:4 renri:30 dmg:127,942,964
 ```
-（FullBurst:10/10、TotalDmg:111,777,714。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
+（FullBurst:10/10、TotalDmg:127,942,964。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
+burst_streak=0.72・ストリーク減衰なし較正(実機T1全バフ36.8Mから逆算・2026-06)で111,777,714→127,942,964。
+旧0.5はdecay経由で誤計算されており減衰が過剰だった（コメント「未実装・無減衰」が正しい仕様）。
 テトラ1アシspec+30%(omni・T1-3＋テトラ4再発動でT7-9)実装で116,829,348→111,777,714(抽象スケールはflat支配的
 でspec効果は小さくビーム再最適化のノイズ範囲・実スケールmiscでは寄与増大)。
 ※注: この基準は base_atk=1500 フォールバック(applyGear非経由)の抽象スケール値。ARRIVE(エレイン3アシ)の
