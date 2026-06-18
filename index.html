@@ -253,6 +253,31 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
       <div id="spin-progress" class="spin-sub">準備中</div>
     </div>
     <div id="sim-results"></div>
+
+    <!-- リプレイモード -->
+    <div id="replay-panel" style="margin-top:20px;">
+      <div class="gear-card">
+        <div class="cfg-title" style="cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center;" onclick="toggleReplayPanel()">
+          <span>🎬 リプレイモード（実機照合）</span>
+          <span id="replay-toggle" style="font-size:12px;">▼</span>
+        </div>
+        <div id="replay-body" style="display:none;margin-top:10px;">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.6;">
+            各ターンの押し順を1行ずつ入力（アビ表示名をスペース区切り）。<br>
+            シムの出力をそのままコピー可能（例: <code style="background:#f5f5f5;padding:2px 4px;border-radius:4px;">1.エジソン2  2.エジソン1  3.ヤマト3(+10) …</code>）
+          </div>
+          <textarea id="replay-input" style="width:100%;box-sizing:border-box;height:130px;font-family:monospace;font-size:12px;padding:8px;border:1px solid var(--border);border-radius:8px;resize:vertical;color:#333;" placeholder="T1の押し順（1行目）例: エジソン2 エジソン1 ヤマト3 エレイン1 …
+T2の押し順（2行目）
+…"></textarea>
+          <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <button class="btn btn-primary btn-sm" onclick="runReplay()">▶ リプレイ実行</button>
+            <button class="btn btn-secondary btn-sm" onclick="document.getElementById('replay-results').innerHTML=''">✕ クリア</button>
+            <span style="font-size:11px;color:var(--muted);">※ 押し順実行前に現在の装備設定を自動適用します</span>
+          </div>
+          <div id="replay-results" style="margin-top:12px;"></div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1200,6 +1225,16 @@ class Sim {
   // key一致の候補をクローン上で実行（exec内のthisはクローン）。
   _execKey(key){ const m=this._candidates().find(x=>x.key===key); if(m) m.exec(); }
 
+  // リプレイモード用: CDチェックのみ行いguardをスキップして実行。実行した場合trueを返す。
+  _execKeyNoGuard(key){
+    if(this.cd[key]!==0) return false;
+    const [owner]=ABIL[key]; const cand=CHAR_REGISTRY[owner]?.cands?.[key];
+    if(!cand) return false;
+    if(cand.exec) cand.exec(this,this.T,this.ord,this.bset,this._t);
+    else this.use(key,this.T,this.ord);
+    return true;
+  }
+
   // 攻撃フェイズ: ゲージ100以上のキャラがバーストするだけ。アビリティ発動は一切なし。
   // procによるjudg arm（cd=0）は次ターンへ持ち越し。
   _attackPhase(){
@@ -1407,6 +1442,127 @@ function _runBaselinePlan(n){
   const base=new Sim(); base.totalTurns=n; base.planDepth=2;
   for(let t=1;t<=n;t++) base.greedyTakeTurn(t);
   return base.dmg;
+}
+
+// ===== リプレイモード =====
+
+// LABEL(abilityKey→表示名)の逆引きマップを構築。labelSuffix込みの完全形と省略形の両方を登録。
+function buildReplayNameMap(){
+  const m={};
+  for(const [k,v] of Object.entries(LABEL)){
+    if(!m[v]) m[v]=k;
+    const bare=v.replace(/\([^)]*\)/g,'').trim(); if(!m[bare]) m[bare]=k;
+  }
+  return m;
+}
+
+// トークン1個をabilityKeyへ変換。N.プレフィックス・末尾()サフィックスを除去してマッチを試みる。
+function parseReplayToken(token, nameMap){
+  token=token.replace(/^\d+\./,'').trim();
+  if(nameMap[token]) return nameMap[token];
+  const bare=token.replace(/\([^)]*\)$/,'').trim();
+  return nameMap[bare]||null;
+}
+
+// 1ターン分のリプレイ実行。abilityKeysを順に強制実行(guard無視・CD有効)し攻撃フェイズへ。
+// スキップされたキー(CD中等)はskipped配列で返す。
+function replayTakeTurn(sim, t, abilityKeys){
+  sim._beginTurn(t);
+  const skipped=[];
+  for(const key of abilityKeys){
+    if(!sim._execKeyNoGuard(key)) skipped.push(LABEL[key]||key);
+  }
+  const atk=sim._attackPhase();
+  const T=sim.T, ord=sim.ord;
+  const helix=CHARS.some(c=>{const h=CHAR_DEF[c].helix;return h&&h.reached(sim)&&!sim[h.doneKey];});
+  sim._endBookkeep(t);
+  return{t,ord,atk,full:atk.length===5,burst:T.burst,ju:T.ju,ra:T.ra,
+         renri:sim.renri,keigyo:sim.keigyo,cum:sim.cum,mooncode:sim.mooncode,
+         helix,droid:sim.droid,banoshik_robot:sim.banoshik_robot,
+         dmg:sim.dmg,skipped,gauge:{...sim.g}};
+}
+
+// リプレイ結果レンダリング
+function renderReplay(rows){
+  const el=document.getElementById('replay-results');
+  if(!rows.length){el.innerHTML='<div style="color:var(--muted)">データなし</div>';return;}
+  const f=uiFeats();
+  const extraCols=(f.renri?1:0)+(f.moon?1:0)+(f.robot?1:0)+(f.keigyo?1:0);
+  const hdr=[
+    '<th>T</th>','<th>FB</th>','<th>J</th>',
+    f.renri?'<th>⚡</th>':'',
+    f.moon?'<th>🌙</th>':'',
+    f.robot?'<th>ロボ</th>':'',
+    f.keigyo?'<th>💎</th>':'',
+    '<th>累計ダメ</th>','<th>+増分</th>','<th>押し順</th>',
+  ].join('');
+  let prevDmg=0;
+  const trs=rows.map(r=>{
+    const incr=Math.round(r.dmg)-prevDmg; prevDmg=Math.round(r.dmg);
+    const ordStr=ordChipsHTML(r.ord);
+    const sk=r.skipped.length
+      ?`<span title="CDあり等でスキップ: ${r.skipped.join(', ')}" style="color:var(--muted);font-size:10px;cursor:help;"> ⚠${r.skipped.length}スキップ</span>`:'';
+    const hx=r.helix?`<span style="color:var(--red);font-weight:bold;">★</span> `:'';
+    const fbc=r.full
+      ?`<span style="color:var(--green)">●5</span>`
+      :`<span style="color:var(--orange)">●${r.atk.length}</span>`;
+    return `<tr style="border-bottom:1px solid var(--border);">
+      <td style="white-space:nowrap;">${hx}T${r.t}</td>
+      <td>${fbc}</td><td>${r.ju}</td>
+      ${f.renri?`<td>${r.renri}</td>`:''}
+      ${f.moon?`<td>${r.mooncode}</td>`:''}
+      ${f.robot?`<td>${r.droid||0}</td>`:''}
+      ${f.keigyo?`<td>${r.keigyo}/${r.cum}</td>`:''}
+      <td style="white-space:nowrap;">${Math.round(r.dmg).toLocaleString()}</td>
+      <td style="white-space:nowrap;">+${incr.toLocaleString()}</td>
+      <td style="text-align:left;padding:4px 6px;">${ordStr}${sk}</td>
+    </tr>`;
+  }).join('');
+  const totalDmg=Math.round(rows[rows.length-1].dmg);
+  el.innerHTML=`
+    <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">概算ダメージ（モデル計算値 / 実機と異なる場合があります）</div>
+    <div style="overflow-x:auto;">
+      <table style="border-collapse:collapse;width:100%;font-size:12px;">
+        <thead><tr style="border-bottom:2px solid var(--border);background:var(--surface);">${hdr}</tr></thead>
+        <tbody>${trs}</tbody>
+        <tfoot><tr style="border-top:2px solid var(--border);font-weight:bold;background:var(--surface);">
+          <td colspan="3">合計</td>
+          <td colspan="${extraCols}"></td>
+          <td style="white-space:nowrap;">${totalDmg.toLocaleString()}</td>
+          <td colspan="2"></td>
+        </tr></tfoot>
+      </table>
+    </div>`;
+}
+
+// リプレイ実行エントリポイント: テキストエリアから押し順を読み取り、固定順でシムを実行する。
+function runReplay(){
+  if(!CHARS.length){alert('先に編成を確認してください');return;}
+  applyGear();
+  const raw=document.getElementById('replay-input')?.value.trim();
+  if(!raw){alert('押し順を入力してください');return;}
+  const nameMap=buildReplayNameMap();
+  // 各行をターンとして解析。"T1:", "T1 押し順:" 等のプレフィックスを除去し空行をスキップ。
+  const lines=raw.split('\n')
+    .map(l=>l.replace(/^[Tt]\d+[\s:]*(?:押し順[\s:]*)?/,'').trim())
+    .filter(Boolean);
+  const n=lines.length;
+  const sim=new Sim(); sim.totalTurns=n;
+  const rows=[];
+  for(let i=0;i<n;i++){
+    const tokens=lines[i].split(/[\s,　]+/).filter(Boolean);
+    const keys=tokens.map(tk=>parseReplayToken(tk,nameMap)).filter(Boolean);
+    rows.push(replayTakeTurn(sim,i+1,keys));
+  }
+  renderReplay(rows);
+}
+
+function toggleReplayPanel(){
+  const body=document.getElementById('replay-body');
+  const tog=document.getElementById('replay-toggle');
+  const hidden=body.style.display==='none';
+  body.style.display=hidden?'':'none';
+  tog.textContent=hidden?'▲':'▼';
 }
 
 // ===== UI HELPERS =====
