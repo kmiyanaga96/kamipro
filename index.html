@@ -1567,7 +1567,7 @@ function runReplay(){
   const sim=new Sim(); sim.totalTurns=n;
   const rows=[];
   for(let i=0;i<n;i++){
-    const tokens=lines[i].split(/[\s,　]+/).filter(Boolean);
+    const tokens=lines[i].split(/[→\s,　]+/).filter(Boolean);
     const keys=tokens.map(tk=>parseReplayToken(tk,nameMap)).filter(Boolean);
     rows.push(replayTakeTurn(sim,i+1,keys));
   }
