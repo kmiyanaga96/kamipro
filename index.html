@@ -1470,17 +1470,35 @@ function parseReplayToken(token, nameMap){
 function replayTakeTurn(sim, t, abilityKeys){
   sim._beginTurn(t);
   const skipped=[];
+  // frame別内訳: burst/streak/judg/effond/droid_react/other_abi
+  const bdmg={burst:0,streak:0,judg:0,effond:0,droid_react:0,other_abi:0};
   for(const key of abilityKeys){
-    if(!sim._execKeyNoGuard(key)) skipped.push(LABEL[key]||key);
+    const before=sim.dmg;
+    if(!sim._execKeyNoGuard(key)){skipped.push(LABEL[key]||key);continue;}
+    const delta=sim.dmg-before;
+    if(delta<=0) continue;
+    if(key==='judg') bdmg.judg+=delta;
+    else if(key==='effond') bdmg.effond+=delta;
+    else if(key==='droid'||key==='banoshik') bdmg.droid_react+=delta;
+    else bdmg.other_abi+=delta;
   }
+  const beforeAtk=sim.dmg;
   const atk=sim._attackPhase();
+  const atkTotal=sim.dmg-beforeAtk;
+  if(atk.length===5){
+    // ストリーク = atkTotal × streak/(1+streak)
+    bdmg.streak=Math.round(atkTotal*DMG.burst_streak/(1+DMG.burst_streak));
+    bdmg.burst=atkTotal-bdmg.streak;
+  } else {
+    bdmg.burst=atkTotal;
+  }
   const T=sim.T, ord=sim.ord;
   const helix=CHARS.some(c=>{const h=CHAR_DEF[c].helix;return h&&h.reached(sim)&&!sim[h.doneKey];});
   sim._endBookkeep(t);
   return{t,ord,atk,full:atk.length===5,burst:T.burst,ju:T.ju,ra:T.ra,
          renri:sim.renri,keigyo:sim.keigyo,cum:sim.cum,mooncode:sim.mooncode,
          helix,droid:sim.droid,banoshik_robot:sim.banoshik_robot,
-         dmg:sim.dmg,skipped,gauge:{...sim.g}};
+         dmg:sim.dmg,skipped,bdmg,gauge:{...sim.g}};
 }
 
 // リプレイ結果レンダリング
@@ -1495,8 +1513,9 @@ function renderReplay(rows){
     f.moon?'<th>🌙</th>':'',
     f.robot?'<th>ロボ</th>':'',
     f.keigyo?'<th>💎</th>':'',
-    '<th>累計ダメ</th>','<th>+増分</th>','<th>押し順</th>',
+    '<th>累計ダメ</th>','<th>+増分</th>','<th>内訳</th>','<th>押し順</th>',
   ].join('');
+  const fmt=n=>Math.round(n).toLocaleString();
   let prevDmg=0;
   const trs=rows.map(r=>{
     const incr=Math.round(r.dmg)-prevDmg; prevDmg=Math.round(r.dmg);
@@ -1507,6 +1526,15 @@ function renderReplay(rows){
     const fbc=r.full
       ?`<span style="color:var(--green)">●5</span>`
       :`<span style="color:var(--orange)">●${r.atk.length}</span>`;
+    const bd=r.bdmg||{};
+    const bdParts=[];
+    if(bd.burst) bdParts.push(`B:${fmt(bd.burst)}`);
+    if(bd.streak) bdParts.push(`ST:${fmt(bd.streak)}`);
+    if(bd.judg) bdParts.push(`JD:${fmt(bd.judg)}`);
+    if(bd.effond) bdParts.push(`EF:${fmt(bd.effond)}`);
+    if(bd.droid_react) bdParts.push(`DR:${fmt(bd.droid_react)}`);
+    if(bd.other_abi) bdParts.push(`他:${fmt(bd.other_abi)}`);
+    const bdStr=`<span style="font-size:10px;color:var(--muted);white-space:nowrap;">${bdParts.join(' ')}</span>`;
     return `<tr style="border-bottom:1px solid var(--border);">
       <td style="white-space:nowrap;">${hx}T${r.t}</td>
       <td>${fbc}</td><td>${r.ju}</td>
@@ -1514,8 +1542,9 @@ function renderReplay(rows){
       ${f.moon?`<td>${r.mooncode}</td>`:''}
       ${f.robot?`<td>${r.droid||0}</td>`:''}
       ${f.keigyo?`<td>${r.keigyo}/${r.cum}</td>`:''}
-      <td style="white-space:nowrap;">${Math.round(r.dmg).toLocaleString()}</td>
+      <td style="white-space:nowrap;">${fmt(r.dmg)}</td>
       <td style="white-space:nowrap;">+${incr.toLocaleString()}</td>
+      <td style="text-align:left;padding:4px 6px;">${bdStr}</td>
       <td style="text-align:left;padding:4px 6px;">${ordStr}${sk}</td>
     </tr>`;
   }).join('');
@@ -1547,7 +1576,7 @@ function renderReplay(rows){
           <td colspan="3">合計</td>
           <td colspan="${extraCols}"></td>
           <td style="white-space:nowrap;">${totalDmg.toLocaleString()}</td>
-          <td colspan="2"></td>
+          <td colspan="3"></td>
         </tr></tfoot>
       </table>
     </div>`;
