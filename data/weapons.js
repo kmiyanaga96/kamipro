@@ -5,6 +5,9 @@
 // defender: HP専用。ダメージGEAR計算では無視し、calcDisplayHp()で使用する。
 // stinger:true → 急所固定+20%・weapon_ampは発動率(rate)にのみ適用。
 // condition:{mainOf:'heroKey'} → そのキャラのメイン装備(slot0)時のみ有効。
+// droidUpgrade:{mult,cap} → applyGearがDMG.droid_react_mult/capを上書き(メインエジソン限定)。
+// burstHeroExtra:{mult,cap} → applyGearがDMG.edison_burst_extra_mult/capをセット(英霊バースト追加ダメ)。
+// betaiaUpgrade:{mult,cap} → applyGearがDMG.betaia_mult/capを上書き(メインナポレオン限定)。
 // atk/hp は最大Lv想定の最大値。育成途中の実機表示は理論値より低くなる。
 const WEAPON_MASTER = {
   directorel: {
@@ -62,6 +65,9 @@ const WEAPON_MASTER = {
       // プログラムアプティマイズ+: ドロイドアナバシス(攻撃ロボ反応)の倍率3.0→3.5・減衰50万→65万へ強化。
       // メインエジソン装備時のみ。applyGearがdroidUpgradeを検出しDMG.droid_react_mult/capを上書きする。
       { droidUpgrade: { mult: 3.5, cap: 650000 }, condition: { mainOf: 'edison' } },
+      // 英霊の戦記(バースト追加ダメージ): メインエジソン装備時のみ。倍率2〜2.5倍・減衰80万。
+      // 倍率変動条件未確定のため現在はmax2.5を採用(TODO: 実機確認後に更新)。
+      { burstHeroExtra: { mult: 2.5, cap: 800000 }, condition: { mainOf: 'edison' } },
     ],
   },
 };

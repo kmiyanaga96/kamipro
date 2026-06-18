@@ -356,6 +356,15 @@ const DMG = {
   hecate_extra_mult: 3,      // ヘカテーバースト追加ダメージ倍率(ムーンコード発動時・通常攻撃比3倍)
   hecate_extra_cap: 500000,  // ヘカテーバースト追加ダメージ減衰上限(50万)
   dur_sleur_def: 3,          // スリール防壁効果ターン(buffCount精度用・ダメージ無寄与・3T/3T累積可)
+  // ─── 英霊武器専用強化(applyGear()でセット・非装備時=OFF基準値で無効) ─────────────────
+  // 各定数はDMG宣言時の値が「英霊武器なし」基準。applyGear()冒頭でリセット後、装備検出時に上書き。
+  // エジソン英霊武器(ランチャータンク): メイン装備時にバースト追加ダメージ(倍率2〜2.5倍・減衰80万)
+  //   倍率変動条件未確定のためmax2.5を採用(TODO: 実機確認後に更新)。
+  edison_burst_extra_mult: 0,      // OFF(0)=英霊武器なし。applyGear()でセット。
+  edison_burst_extra_cap: 800000,  // 減衰上限80万(武器固定)
+  // ナポレオン英霊武器(武器データ未取得): メイン装備時にベタイア倍率3.0→4.0・上限50万→70万
+  //   betaia_mult/cap は applyGear() がリセット基準として参照するため基準値のまま。
+  //   武器登録後は { betaiaUpgrade:{mult:4.0,cap:700000}, condition:{mainOf:'napoleon'} } で自動配線。
   judg_mult:  3,             // ジャッジメント: 通常攻撃比3倍
   judg_cap:   200000,        // ジャッジ1ヒットの減衰上限(20万)
   // アンプリファ: 効果3T・エジソンの攻撃ロボ反応ダメージに固定+10万(減衰外フラット加算)。
@@ -577,6 +586,9 @@ const CHAR_REGISTRY = {
       keigyoGain: 3,
       onBurst: (sim, atk) => {
         if(atk){ sim.cd.droid=Math.max(0,sim.cd.droid-1); sim.cd.banoshik=Math.max(0,sim.cd.banoshik-1); }
+        // 英霊武器バースト追加ダメージ(ランチャータンクメイン時のみ有効・mult=0でOFF)
+        if(DMG.edison_burst_extra_mult > 0)
+          sim.dmg += sim._decay('burst', sim._na(true)*DMG.edison_burst_extra_mult, DMG.edison_burst_extra_cap);
       },
       turnEnd: (sim) => { if(sim.cum>=80) sim.addG([LEADER],20); },
     },
@@ -1552,9 +1564,13 @@ self.onmessage=function(e){
     for(const [k,v] of Object.entries(d.gearState)) GEAR[k]=v;
     if(d.gearKC) for(const [k,v] of Object.entries(d.gearKC)) GEAR_K_C[k]=v;
     if(d.dmgBase){ DMG.base_atk=d.dmgBase.base_atk; DMG.affinity=d.dmgBase.affinity;
-      // ドロイド反応の倍率/減衰(ランチャータンク装備でメイン側が上書き済の実効値)を反映
-      if(d.dmgBase.droid_react_mult!=null) DMG.droid_react_mult=d.dmgBase.droid_react_mult;
-      if(d.dmgBase.droid_react_cap!=null)  DMG.droid_react_cap =d.dmgBase.droid_react_cap; }
+      // 英霊武器専用強化定数(applyGear()が上書き済の実効値)を反映
+      if(d.dmgBase.droid_react_mult!=null)        DMG.droid_react_mult=d.dmgBase.droid_react_mult;
+      if(d.dmgBase.droid_react_cap!=null)         DMG.droid_react_cap =d.dmgBase.droid_react_cap;
+      if(d.dmgBase.edison_burst_extra_mult!=null) DMG.edison_burst_extra_mult=d.dmgBase.edison_burst_extra_mult;
+      if(d.dmgBase.edison_burst_extra_cap!=null)  DMG.edison_burst_extra_cap =d.dmgBase.edison_burst_extra_cap;
+      if(d.dmgBase.betaia_mult!=null)             DMG.betaia_mult=d.dmgBase.betaia_mult;
+      if(d.dmgBase.betaia_cap!=null)              DMG.betaia_cap =d.dmgBase.betaia_cap; }
     recalcGearK();
     buildFormation(d.heroKey,d.kamihimeKeys);
     self.postMessage({type:'ready'});
@@ -1611,7 +1627,9 @@ function runSim(){
 
   const initMsg={type:'init',heroKey,kamihimeKeys,gearState:{...GEAR},
     gearKC:{...GEAR_K_C},dmgBase:{base_atk:DMG.base_atk,affinity:DMG.affinity,
-      droid_react_mult:DMG.droid_react_mult,droid_react_cap:DMG.droid_react_cap}};
+      droid_react_mult:DMG.droid_react_mult,droid_react_cap:DMG.droid_react_cap,
+      edison_burst_extra_mult:DMG.edison_burst_extra_mult,edison_burst_extra_cap:DMG.edison_burst_extra_cap,
+      betaia_mult:DMG.betaia_mult,betaia_cap:DMG.betaia_cap}};
   const tasks=prefixes.map((prefix,rootId)=>({type:'root',rootId,prefix,n}));
   tasks.push({type:'baseline',n});
 
@@ -1838,16 +1856,27 @@ function renderGearPanel(){
     </div>`;
 }
 
-// ドロイド反応の基準値(英霊武器未装備時)。ランチャータンク装備で applyGear が上書きするため保持。
-const DROID_REACT_BASE = { mult: DMG.droid_react_mult, cap: DMG.droid_react_cap };
+// 英霊武器専用強化の基準値(未装備時)。applyGear() 冒頭でこれにリセット後、装備検出時に上書き。
+const HERO_WEAPON_BASE = {
+  droid_react_mult:       DMG.droid_react_mult,
+  droid_react_cap:        DMG.droid_react_cap,
+  edison_burst_extra_mult: DMG.edison_burst_extra_mult,  // 0=OFF
+  betaia_mult:            DMG.betaia_mult,
+  betaia_cap:             DMG.betaia_cap,
+};
+// 後方互換エイリアス(参照箇所があるため残置)
+const DROID_REACT_BASE = { mult: HERO_WEAPON_BASE.droid_react_mult, cap: HERO_WEAPON_BASE.droid_react_cap };
 
 function applyGear(){
   // 属性相性
   DMG.affinity = document.getElementById('dmg-affinity')?.value==='adv'?1.5:1.0;
   for(const [box] of GEAR_BOXES) GEAR[box]=0;
-  // ドロイド反応倍率/減衰を基準値にリセット(ランチャータンク検出時に下のループで上書き)
-  DMG.droid_react_mult = DROID_REACT_BASE.mult;
-  DMG.droid_react_cap  = DROID_REACT_BASE.cap;
+  // 英霊武器専用強化定数を基準値にリセット(ループで武器を検出した場合に上書き)
+  DMG.droid_react_mult        = HERO_WEAPON_BASE.droid_react_mult;
+  DMG.droid_react_cap         = HERO_WEAPON_BASE.droid_react_cap;
+  DMG.edison_burst_extra_mult = HERO_WEAPON_BASE.edison_burst_extra_mult;
+  DMG.betaia_mult             = HERO_WEAPON_BASE.betaia_mult;
+  DMG.betaia_cap              = HERO_WEAPON_BASE.betaia_cap;
 
   // 幻獣のweapon_amp合計と直接ボックス補正を収集(ダメージ用。表示攻撃力の幻獣寄与は手動合計入力)
   let weaponAmp=0;
@@ -1870,6 +1899,16 @@ function applyGear(){
         if(sk.droidUpgrade){ // ランチャータンク: 攻撃ロボ反応の倍率/減衰を強化(メインエジソン限定)
           DMG.droid_react_mult = sk.droidUpgrade.mult;
           DMG.droid_react_cap  = sk.droidUpgrade.cap;
+          continue;
+        }
+        if(sk.burstHeroExtra){ // 英霊武器バースト追加ダメージ(エジソン等・メイン装備時)
+          DMG.edison_burst_extra_mult = sk.burstHeroExtra.mult;
+          DMG.edison_burst_extra_cap  = sk.burstHeroExtra.cap;
+          continue;
+        }
+        if(sk.betaiaUpgrade){ // 英霊武器ベタイア強化(ナポレオン・メイン装備時)
+          DMG.betaia_mult = sk.betaiaUpgrade.mult;
+          DMG.betaia_cap  = sk.betaiaUpgrade.cap;
           continue;
         }
         if(sk.box==='defender') continue; // HP専用・ダメージGEAR外
