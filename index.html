@@ -1454,6 +1454,17 @@ function buildReplayNameMap(){
     if(!m[v]) m[v]=k;
     const bare=v.replace(/\([^)]*\)/g,'').trim(); if(!m[bare]) m[bare]=k;
   }
+  // 「キャラ略称+番号」形式 (例: テトラ3, エジソン1) のマッピングを追加。
+  // abilities のプロパティ挿入順が 1-indexed の番号に対応する。
+  for(const charKey of CHARS){
+    const def=CHAR_DEF[charKey];
+    const short=def.shortJp||def.jp;
+    const abilKeys=Object.keys(def.abilities||{});
+    for(let i=0;i<abilKeys.length;i++){
+      const alias=short+(i+1); // 例: "テトラ3"
+      if(!m[alias]) m[alias]=abilKeys[i];
+    }
+  }
   return m;
 }
 
