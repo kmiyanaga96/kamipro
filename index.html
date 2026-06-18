@@ -1519,7 +1519,24 @@ function renderReplay(rows){
     </tr>`;
   }).join('');
   const totalDmg=Math.round(rows[rows.length-1].dmg);
+  // 診断: リプレイが per-char 実ATK(GEAR_K_C)を使えているか・抽象スケールに落ちていないかを可視化。
+  // 抽象スケールだと実機照合が無意味になるため警告を出す。
+  const kcChars=CHARS.filter(c=>GEAR_K_C[c]);
+  const usingKC=kcChars.length>0;
+  const atkStr=usingKC
+    ? CHARS.map(c=>`${JP_SHORT[c]}:${(DISPLAY_ATK_C[c]||0).toLocaleString()}`).join(' / ')
+    : `（未設定）`;
+  const scaleWarn=usingKC
+    ? `<span style="color:var(--green)">✓ per-char実ATK適用 (GEAR_K_C)</span>`
+    : `<span style="color:var(--red);font-weight:bold;">⚠ 抽象スケール (base_atk=${DMG.base_atk}) — 実機照合不可。装備設定で表示ATKを確認してください</span>`;
+  const diag=`
+    <div style="font-size:11px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 10px;margin-bottom:8px;line-height:1.7;">
+      <div>スケール: ${scaleWarn}</div>
+      <div style="color:var(--muted);">使用ATK: ${atkStr}</div>
+      <div style="color:var(--muted);">主要GEAR: アサルト+${(GEAR.assault*100).toFixed(1)}% / バーストダメ+${(GEAR.burst_dmg*100).toFixed(1)}% / テクニカ+${(GEAR.technica*100).toFixed(1)}% / 旺盛+${(GEAR.vigor*100).toFixed(1)}%</div>
+    </div>`;
   el.innerHTML=`
+    ${diag}
     <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">概算ダメージ（モデル計算値 / 実機と異なる場合があります）</div>
     <div style="overflow-x:auto;">
       <table style="border-collapse:collapse;width:100%;font-size:12px;">
