@@ -1472,16 +1472,24 @@ function replayTakeTurn(sim, t, abilityKeys){
   const skipped=[];
   // frame別内訳: burst/streak/judg/effond/droid_react/other_abi
   const bdmg={burst:0,streak:0,judg:0,effond:0,droid_react:0,other_abi:0};
+  // アビ実行中に誘発したバースト(エフォンドのムーンコード発動burst等)はburst枠へ計上する。
+  // sim.burstを一時ラップし、アビ exec 内のburst寄与をabi枠から切り離す。
+  let burstInAbi=0;
+  const origBurst=sim.burst.bind(sim);
+  sim.burst=function(o,bset,T){const b=this.dmg;const r=origBurst(o,bset,T);burstInAbi+=this.dmg-b;return r;};
   for(const key of abilityKeys){
-    const before=sim.dmg;
+    const before=sim.dmg; burstInAbi=0;
     if(!sim._execKeyNoGuard(key)){skipped.push(LABEL[key]||key);continue;}
     const delta=sim.dmg-before;
-    if(delta<=0) continue;
-    if(key==='judg') bdmg.judg+=delta;
-    else if(key==='effond') bdmg.effond+=delta;
-    else if(key==='droid'||key==='banoshik') bdmg.droid_react+=delta;
-    else bdmg.other_abi+=delta;
+    bdmg.burst+=burstInAbi;
+    const abiPart=delta-burstInAbi;
+    if(abiPart<=0) continue;
+    if(key==='judg') bdmg.judg+=abiPart;
+    else if(key==='effond') bdmg.effond+=abiPart;
+    else if(key==='droid'||key==='banoshik') bdmg.droid_react+=abiPart;
+    else bdmg.other_abi+=abiPart;
   }
+  sim.burst=origBurst; // 攻撃フェイズはatkTotalで一括計上するためラップ解除
   const beforeAtk=sim.dmg;
   const atk=sim._attackPhase();
   const atkTotal=sim.dmg-beforeAtk;
