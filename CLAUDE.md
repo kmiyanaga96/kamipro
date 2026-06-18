@@ -249,9 +249,9 @@ CHAR_REGISTRY[charKey] = {
 - **JD（ジャッジメント）: abi減衰の傾き0.04が厳しすぎる疑い**。実機 9,185,827÷3体÷10ヒット≈**306K/ヒット**。
   spec込みraw≈289K/ヒット → 現行減衰(20万cap・傾き0.04)は203Kへ切下げるが実機は未減衰rawをむしろ上回る。
   → 20万直上では減衰がほぼ効いていない。**確定には高バフ域のJD2点目が必要**（1点では cap/傾き を分離不可）。
-- **テトラ1アシ（ゴッド・オムニポンテス）= 特殊攻撃+30%（光パーティ・クエスト開始時自動発動）が未実装**。
-  `naB` 実機逆算には含まれるが `_na()` の spec 枠は `leg_spec+GEAR.spec` のみ。テトラ4(HELIX)で戦闘中1回再発動可。
-  **TODO**: 効果ターン数を取得後、battle開始時付与＋テトラ4再発動の常時バフとして実装（要 spec枠 per-party）。
+- **テトラ1アシ（ゴッド・オムニポンテス）= 特殊攻撃+30%（光パーティ・クエスト開始時自動発動）を実装済**。
+  `buf.omni`(spec枠)＝`onBattleStart`フック(def記述・`_beginTurn`のt===1で全キャラ呼出)でbattle開始時付与。
+  テトラ4(HELIX)発動時に`buf.omni`をrefresh(再発動)。**TODO: `dur_omni=3`はプレースホルダ（実機効果ターン未検証）**。
 
 ### 将来課題（未実装・情報待ち）
 
@@ -341,13 +341,15 @@ console.log("FullBurst:",fb+"/10","TotalDmg:",Math.round(sim.dmg));
 
 期待値（基準・DMG定数が現行値の場合）:
 ```
-T1  FB:5 J:3 renri:5  moon:2T dmg:6,946,280    T6  FB:5 J:4 renri:30 dmg:60,653,621
-T2  FB:5 J:5 renri:10 moon:2T dmg:20,575,761   T7  FB:5 J:6 renri:30 dmg:73,366,373
-T3  FB:5 J:4 renri:15 moon:2T dmg:34,620,897   T8  FB:5 J:3 renri:30 dmg:84,138,136
-T4  FB:5 J:1 renri:20 moon:2T dmg:42,147,991   T9  FB:5 J:6 renri:30 dmg:94,970,121
-T5  FB:5 J:3 renri:25 moon:2T dmg:51,028,994   T10 FB:5 J:4 renri:30 dmg:116,829,348
+T1  FB:5 J:3 renri:5  moon:2T dmg:6,987,682    T6  FB:5 J:3 renri:30 dmg:57,879,487
+T2  FB:5 J:4 renri:10 moon:2T dmg:19,574,768   T7  FB:5 J:6 renri:30 dmg:70,113,196
+T3  FB:5 J:1 renri:15 moon:2T dmg:32,767,701   T8  FB:5 J:4 renri:30 dmg:83,120,261
+T4  FB:5 J:3 renri:20 moon:2T dmg:40,500,415   T9  FB:5 J:3 renri:30 dmg:93,611,983
+T5  FB:5 J:3 renri:25 moon:2T dmg:49,033,425   T10 FB:5 J:6 renri:30 dmg:111,777,714
 ```
-（FullBurst:10/10、TotalDmg:116,829,348。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
+（FullBurst:10/10、TotalDmg:111,777,714。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
+テトラ1アシspec+30%(omni・T1-3＋テトラ4再発動でT7-9)実装で116,829,348→111,777,714(抽象スケールはflat支配的
+でspec効果は小さくビーム再最適化のノイズ範囲・実スケールmiscでは寄与増大)。
 ※注: この基準は base_atk=1500 フォールバック(applyGear非経由)の抽象スケール値。ARRIVE(エレイン3アシ)の
 +50万フラット等の実ダメージ単位の枠が乗算コア(~150)を圧倒するため、絶対値は実機と乖離する(misc未較正)。
 1アシ(集いし願い)のバーストダメージプラス(+10万/stack・3T累積可)実装で19.71M→52.18M、

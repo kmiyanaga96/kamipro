@@ -312,6 +312,9 @@ const DMG = {
   // ─── レジェンドアシスト閾値バフ(契晶獲得数cum依存・3T・refresh単発) ──
   assault_legend: 0.20,      // 契晶10+: アサルト+20%
   spec_legend:    0.20,      // 契晶80+: 特殊攻撃+20%
+  // ─── テトラ1アシ(ゴッド・オムニポンテス): 光パーティ特殊攻撃UP(クエスト開始時自動・テトラ4で再発動可) ───
+  spec_omni:      0.30,      // 特殊攻撃+30%(光属性キャラ・battle開始時付与)
+  dur_omni:       3,         // 効果ターン(プレースホルダ・TODO: 実機未検証。再発動はテトラ4でrefresh)
   // ─── 旺壮ライズ(ウェポンスキル・最大HP参照で特殊攻撃力UP・有志検証) ────────
   // 効果量(fraction) = min(rise_floor + 最大HP/rise_hp_div, SLv×rise_per_slv) × (1+効果量UP)
   //   ・効果量最大値[%] = SLv × 0.17 (SLv40=6.8%)。画面は小数第2位四捨五入で表示。
@@ -748,14 +751,17 @@ const CHAR_REGISTRY = {
       divinus:  { s:90, atkBuf:true, exec:(sim,T,ord)=>{
                   (sim.buf.divinus_def??=[]).push(DMG.dur_divinus_def);
                   (sim.buf.divinus_dot??=[]).push(DMG.dur_divinus_dot); sim.use('divinus',T,ord); }},
-      // ゴッド・オムニポンテス: 全体BG+100。連理魔力30以上かつ戦闘中1回のみ。
+      // HELIX(テトラ4): 全体BG+100＋1アシ(ゴッド・オムニポンテス=spec+30%)を再発動(refresh)。連理魔力30以上・戦闘中1回のみ。
       helix:    { s:400, atkBuf:true, partyBG:true,
                   guard:(sim)=>sim.renri>=30&&!sim.helix_abil_used,
-                  exec:(sim,T,ord)=>{ sim.helix_abil_used=true; sim.addG(CHARS,100); sim.use('helix',T,ord); }},
+                  exec:(sim,T,ord)=>{ sim.helix_abil_used=true; sim.addG(CHARS,100);
+                    sim.buf.omni=[DMG.dur_omni]; sim.use('helix',T,ord); }},
     },
     def: {
       gmax: BG.other_max,
       keigyoGain: 1,
+      // テトラ1アシ(ゴッド・オムニポンテス): クエスト開始時に光パーティへ特殊攻撃+30%(omni)を自動付与。
+      onBattleStart: (sim) => { (sim.buf.omni??=[]).push(DMG.dur_omni); },
       // HELIX(テトラ4)は連理魔力30で解禁。目的関数は renri をここまで評価し超過分は追わない。
       milestones: { renri: 30 },
       // HELIX解禁検出(初回到達ターン表示用)。doneKeyは自前state。
@@ -1075,8 +1081,8 @@ class Sim {
     // 急所枠: 光(puvoirはムーンコード時のみ/absolute/legend/pike_crit) + 装備
     const acute = nPuvAcute*D.acute_puvoir + nAbs*D.acute_absolute + nLeg*D.acute_legend
                 + nPikeCrit*D.acute_pike_crit + G.acute;
-    // 特殊攻撃枠: leg_spec(光) + 装備
-    const spec = (b.leg_spec?D.spec_legend:0)+G.spec;
+    // 特殊攻撃枠: leg_spec(光) + omni(テトラ1アシ・光) + 装備
+    const spec = (b.leg_spec?D.spec_legend:0)+(b.omni?.length?D.spec_omni:0)+G.spec;
     // GEAR_K or per-character GEAR_K_C[owner] (武器マスタ設定時)
     const gk = (this._naOwner && GEAR_K_C[this._naOwner]) || GEAR_K;
     const base = gk*(1+aslt)*elemBox*(1+vigor)*(1+crit)*(1+acute)*(1+spec);
@@ -1318,6 +1324,8 @@ class Sim {
 
   _beginTurn(t){
     this.tick();
+    // クエスト開始時自動発動アシスト(テトラ1アシのspec+30%等)。tick後・T1のみ付与。
+    if(t===1) for(const c of CHARS) CHAR_DEF[c].onBattleStart?.(this);
     this.T={ability:0,burst:0,proc:0,ra:0,tenya:0,
             ju:0,mobius:0,legend:0,pactcoreUsed:false,alone:0,knightsUsed:false};
     // lookaheadフックを持つアビのキャッシュスロットをnullで初期化（_primeLookaheadsで埋める）
