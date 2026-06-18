@@ -158,13 +158,16 @@ CHAR_REGISTRY[charKey] = {
 | `pike_def` | 防壁 | buffCount精度用(ダメージ無寄与) | 2 | 累積 |
 | `pike_crit` | 急所+会心 | 急所`acute_pike_crit=0.30`(確実100%×倍率1.3)＋会心`crit_rate_pike=1.0`(確実100%・critRate飽和) | 2 | 累積 |
 | `consort_def` | 防御DOWN→`defdown` | `defdown_consort=0.10`/stack | 6 | 累積 |
+| `effond_def` | 防御DOWN→`defdown` | `defdown_effond=0.10`/stack(エフォンド・敵防御-10%・自身上限`defdown_effond_max=0.40`) | 6 | 累積 |
+| `puvoir_acute` | 急所 | `acute_puvoir=0.010`(プヴワール急所はムーンコード発動時のみ追加・mooncode>0時のみpush) | 6 | 累積 |
+| `sleur_def` | 防壁 | buffCount精度用(ダメージ無寄与・スリール防壁累積可) | 3 | 累積 |
 | `nights` | バーストダメUP | `burst_dmg_nights=0.20`(ナイツサプレス・敵バースト耐性-20%の等価近似・全バースト) | 2 | 累積 |
 | `divinus_def` | 防御DOWN→`defdown` | `defdown_divinus=0.30`/stack(ディウィヌス・敵防御-30%) | 2 | 累積 |
 | `divinus_dot` | DOT(独立・順序非依存) | 4種×min(敵最大HP×10%,上限10万)をtetra `turnEnd`で毎ターン加算 | 2 | 累積 |
-| `inori_burst` | 自バースト係数(ヤマト限定) | `burst_inori=4.5`(現神の祈り中バースト倍率5→10≒本体2倍・`burstBonus`で自バーストのみ加算) | 3 | refresh相当 |
-| `funki_burst` | 自バースト係数(ヤマト限定) | `burst_funki=0.15`/stack(大和の奮起・自バーストダメ+15%/上限+10%・`burstBonus`) | 3 | 累積 |
+| `inori_burst` | 自バースト係数(ヤマト限定) | `burst_inori=5`(現神の祈り中バースト倍率5→10の増分5・`burstBonus`で自バーストのみ加算) | 3 | refresh相当 |
+| `funki_burst` | 自バースト係数+上限(ヤマト限定) | `burst_funki=0.15`/stack(自バーストダメ+15%・`burstBonus`)＋`burst_cap_funki=0.10`/stack(自バースト上限+10%・`burstCapBonus`) | 3 | 累積 |
 | `yamato_elem` | 属性値 | `elem_yamato=0.05`/stack(ヤマトバースト効果・味方全体光属性攻撃+5%・`onBurst`で付与) | 3 | 累積 |
-| `yamato_bplus` | バーストダメプラス(ヤマト限定) | `bplus_yamato=150000`(1アシ・ヤマトアビ使用毎に+15万/stack・自バースト時に`onBurst`で加算) | 3 | 累積 |
+| `yamato_bplus` | バーストダメプラス(ヤマト限定) | `bplus_yamato=100000`(1アシ・ヤマトアビ使用毎に+10万/stack・自バースト時に`onBurst`で加算) | 3 | 累積 |
 
 - 通常攻撃概算 `_na()` = `(base + royFlat) × (1+defdown)`
   - `base` = `GEAR_K × (1+aslt)(1+elem)(1+vigor)(1+crit)(1+acute)(1+spec)`
@@ -277,6 +280,11 @@ CHAR_REGISTRY[charKey] = {
 - **arm非蓄積**: proc arm は cd.judg>0 の時のみ有効（cd=0ならスキップ）。二値制御。
 - **テトラのバースト効果(onBurst)**: 自バーストのみ対象。誘発バーストではjudgを除外してCD短縮。
 - **モビウスムーンズ**: partyバースト5回毎にヘカテー(puvoir所有者)の全アビCDリセット。
+- **ヘカテー(ムーンコード依存)**: エフォンドは常時=直接ダメ(3倍/35万)＋防御DOWN(10%/stack・最大40%)、
+  ムーンコード発動時のみ即座にバースト発動(guard撤廃・burstのみ条件分岐)。プヴワール急所は
+  ムーンコード発動時のみ`puvoir_acute`にpush(光属性UPは無条件)。バースト追加ダメ(3倍/50万)もmooncode>0時のみonBurstで加算。
+- **buffCount除外(敵デバフ)**: `DEBUFF_KEYS`=consort_def/divinus_def/effond_def/nights/divinus_dot。
+  これらは敵デバフ=味方「強化効果」ではないためナポレオンのtier判定(roy/pike/consort)から除外する。
 - **天矢乱舞**: ゲージ不足キャラが存在するターン(T2以降)のみ使用可。
 - **proc機会損失の最小化**: alone・judg が攻撃バフより先に発動するのは意図的最適化。
   alone→judg→攻撃バフ の順でburst-2 procとabi-12 procの両方を同一ターンで取得できる。
@@ -314,13 +322,13 @@ console.log("FullBurst:",fb+"/10","TotalDmg:",Math.round(sim.dmg));
 
 期待値（基準・DMG定数が現行値の場合）:
 ```
-T1  FB:5 J:3 renri:5  dmg:6,928,287    T6  FB:5 J:4 renri:30 dmg:57,663,600
-T2  FB:5 J:5 renri:10 dmg:20,361,854   T7  FB:5 J:6 renri:30 dmg:69,211,236
-T3  FB:5 J:3 renri:15 dmg:31,725,054   T8  FB:5 J:3 renri:30 dmg:79,293,037
-T4  FB:5 J:4 renri:20 dmg:40,138,867   T9  FB:5 J:5 renri:30 dmg:89,604,765
-T5  FB:5 J:3 renri:25 dmg:48,494,983   T10 FB:5 J:4 renri:30 dmg:109,924,038
+T1  FB:5 J:3 renri:5  moon:2T dmg:6,946,280    T6  FB:5 J:4 renri:30 dmg:60,653,621
+T2  FB:5 J:5 renri:10 moon:2T dmg:20,575,761   T7  FB:5 J:6 renri:30 dmg:73,366,373
+T3  FB:5 J:4 renri:15 moon:2T dmg:34,620,897   T8  FB:5 J:3 renri:30 dmg:84,138,136
+T4  FB:5 J:1 renri:20 moon:2T dmg:42,147,991   T9  FB:5 J:6 renri:30 dmg:94,970,121
+T5  FB:5 J:3 renri:25 moon:2T dmg:51,028,994   T10 FB:5 J:4 renri:30 dmg:116,829,348
 ```
-（FullBurst:10/10、TotalDmg:109,924,038。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
+（FullBurst:10/10、TotalDmg:116,829,348。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
 ※注: この基準は base_atk=1500 フォールバック(applyGear非経由)の抽象スケール値。ARRIVE(エレイン3アシ)の
 +50万フラット等の実ダメージ単位の枠が乗算コア(~150)を圧倒するため、絶対値は実機と乖離する(misc未較正)。
 1アシ(集いし願い)のバーストダメージプラス(+10万/stack・3T累積可)実装で19.71M→52.18M、
