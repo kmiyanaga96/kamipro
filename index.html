@@ -360,7 +360,11 @@ const DMG = {
   // ─── バーストダメージ式 ────────────────────────────────────────────────
   burst_coef_a: 5,           // バーストダメージ式の係数 a (SSR固定)
   burst_coef_b: 2500,        // バーストダメージ式の定数 b (SSR固定・フラット加算・乗算枠の外)
-  burst_streak: 0.72,        // バーストストリーク: フルバースト(5人)のボーナス係数。実機較正(2026-06): T1全バフ36.8Mから逆算(無減衰前提)。旧0.5は誤ってdecay経由で計算されていた。
+  // バーストストリーク式(有志確定): ストリークダメージ = バースト合計 × 属性補正 × 人数補正 × ダメージUP効果量。
+  // 人数補正は参加人数依存(下表)。中立属性は属性補正=1.0。ダメージUP効果量はストリーク固有の上乗せ(現編成=1.0)。
+  // ※旧burst_streak=0.72は誤り(疑わしい36.8M測定からの逆算でdecay除去とセットの二重誤り)。正しくは人数補正0.5+減衰。
+  streak_count:  { 2:0.30, 3:0.35, 4:0.41, 5:0.50 }, // 参加人数→人数補正(倍)
+  streak_dmgup:  1.0,        // ダメージUP効果量(ストリーク固有の上乗せ・現編成は該当スキルなし=1.0)
   // ─── ヤマトタケル(自バースト性能UP・光属性付与) ───
   burst_inori: 5,            // 現神の祈り中: ヤマト自身のバースト倍率5→10(増分=5・自分のみ)
   burst_funki: 0.15,         // 大和の奮起: ヤマト自身のバーストダメージ+15%/stack(自分のみ・累積可)
@@ -406,8 +410,10 @@ const DMG = {
   decay_na:    { cap1:350000, off:[0,100000,200000], slope:[1,0.5,0.25,0.125] }, // 35/45/55万・1→½→¼→⅛
   decay_burst: { cap1:1000000, slope:0.10 },  // 100万・寄与率 1/10
   decay_abi_slope: 0.11,                       // アビ超過寄与率(基準上限はキャラ毎=judg_cap等)。実機JD比率法で較正(2026-06): 高/低バフのnaB理論比2.381に対し実測比1.211→傾き≈0.11(旧0.04は過厳)
-  // バーストストリーク減衰(5人時): 第一750万/第二1000万(実ダメ)・第一超は×0.25・第二超は×0.4(有志検証)
-  decay_streak: { cap1:7500000, cap2:10000000, slope1:0.25, slope2:0.40 },
+  // バーストストリーク減衰(有志確定): 第一/第二減衰(raw実ダメ閾値)は参加人数依存(下表)。
+  // 第一減衰超の部分は×0.25、第二減衰超の部分は×0.40(限界寄与率・人数共通)。
+  decay_streak: { slope1:0.25, slope2:0.40,
+    caps: { 2:[2100000,2800000], 3:[3300000,4400000], 4:[5100000,6800000], 5:[7500000,10000000] } },
   // 追撃/城塞は寄与率0(完全頭打ち=ハードキャップ)。betaiaは betaia_cap でこれに該当。
   // バーストストリーク上限750万は第二以降の寄与率不明のため未実装(streakは無減衰のまま)。
   // ─── ナポレオン ───
@@ -1062,13 +1068,12 @@ class Sim {
       return raw<=c1 ? raw : c1+(raw-c1)*DMG.decay_burst.slope;
     }
     if(frame==='streak'){
-      // バーストストリーク専用減衰(5人時): cap1=750万/cap2=1000万(実ダメ)・slope1=0.25/slope2=0.40
-      const d=DMG.decay_streak, c1=d.cap1, c2=d.cap2;
-      // zone2のraw上限: cap1 + (cap2-cap1)/slope1(=実ダメがc2になるときのraw)
-      const T2=c1+(c2-c1)/d.slope1;
+      // バーストストリーク専用減衰。base=参加人数(2〜5)。第一/第二減衰はraw実ダメ閾値。
+      // raw≤c1:等倍 / c1〜c2:超過分×slope1(0.25) / c2超:超過分×slope2(0.40)。限界寄与率は人数共通。
+      const d=DMG.decay_streak, cap=d.caps[base??5]||d.caps[5], c1=cap[0], c2=cap[1];
       if(raw<=c1) return raw;
-      if(raw<=T2) return c1+(raw-c1)*d.slope1;
-      return c2+(raw-T2)*d.slope2;
+      if(raw<=c2) return c1+(raw-c1)*d.slope1;
+      return c1+(c2-c1)*d.slope1+(raw-c2)*d.slope2;
     }
     if(frame==='abi'){
       const c1=(base??Infinity)*(1+up);
@@ -1242,10 +1247,14 @@ class Sim {
     for(const c of CHARS){
       if(this.g[c]>=FB_THR){ this.g[c]-=100; this.burst(c,this.bset,this.T,true); atk.push(c); }
     }
-    // バーストストリーク: フルバースト(5人)時。バースト合計×burst_streak(無減衰)。
-    // 実機較正(2026-06): T1全バフ実測36.8Mからburst_streak=0.72を逆算。
-    // 注: decay_streak定数は基盤として残すが適用しない(コメント「未実装・無減衰」通り)。
-    if(atk.length===5) this.dmg += (this.dmg-before)*DMG.burst_streak;
+    // バーストストリーク(有志確定式): ストリークダメージ = バースト合計 × 属性補正 × 人数補正 × ダメージUP効果量。
+    // バースト合計 = this.dmg-before(本フェイズのバースト総量・通常攻撃は本フェイズに無いので純バースト)。
+    // 人数補正は参加人数依存・属性補正は中立1.0(affinity)・減衰は参加人数別cap(_decay('streak',raw,n))。
+    const n=atk.length;
+    if(n>=2){
+      const raw=(this.dmg-before)*DMG.affinity*DMG.streak_count[n]*DMG.streak_dmgup;
+      this.dmg += this._decay('streak', raw, n);
+    }
     return atk;
   }
 
@@ -1500,17 +1509,15 @@ function replayTakeTurn(sim, t, abilityKeys){
     else if(key==='droid'||key==='banoshik') bdmg.droid_react+=abiPart;
     else bdmg.other_abi+=abiPart;
   }
-  sim.burst=origBurst; // 攻撃フェイズはatkTotalで一括計上するためラップ解除
+  // 攻撃フェイズ: burstラップを継続しFBバースト総量を直接計上、ストリークは残差で厳密分離。
+  let fbBurstSum=0;
+  sim.burst=function(o,bset,T,atk){const b=this.dmg;const r=origBurst(o,bset,T,atk);fbBurstSum+=this.dmg-b;return r;};
   const beforeAtk=sim.dmg;
   const atk=sim._attackPhase();
+  sim.burst=origBurst;
   const atkTotal=sim.dmg-beforeAtk;
-  if(atk.length===5){
-    // ストリーク = atkTotal × streak/(1+streak)
-    bdmg.streak=Math.round(atkTotal*DMG.burst_streak/(1+DMG.burst_streak));
-    bdmg.burst=atkTotal-bdmg.streak;
-  } else {
-    bdmg.burst=atkTotal;
-  }
+  bdmg.burst+=fbBurstSum;            // FB本体(全バースト)
+  bdmg.streak=atkTotal-fbBurstSum;   // ストリーク(減衰後・残差=式どおり)
   const T=sim.T, ord=sim.ord;
   const helix=CHARS.some(c=>{const h=CHAR_DEF[c].helix;return h&&h.reached(sim)&&!sim[h.doneKey];});
   sim._endBookkeep(t);

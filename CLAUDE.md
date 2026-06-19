@@ -228,9 +228,10 @@ CHAR_REGISTRY[charKey] = {
   - `burst`: 100万・寄与率 1→1/10  /  `abi`: 基準=キャラ毎(`judg_cap`/`consort_cap`)・超過 1/25
   - `hard`(追撃/城塞): 寄与率0=完全頭打ち(betaiaは `betaia_cap` のmin)
   - 値は**実ダメージ単位**。本シムは抽象スケール(`_na()`~数百)で raw≪上限のため**恒等(休眠)**。
-    `base_atk` 等を実ダメ較正した時点で自動的に減衰が効く基盤。バーストストリーク上限750万は寄与率不明で未実装。
+    `base_atk` 等を実ダメ較正した時点で自動的に減衰が効く基盤。バーストストリーク減衰(`decay_streak.caps`)も実装済(5人=750万/1000万・raw実ダメ閾値・第一超×0.25/第二超×0.40)。
 - バースト = `_decay('burst', _na()×(burst_coef_a + absolute本数×burst_dmg_absolute + burst_dmg)) + royBurst独自枠`、
-  フルバースト5人時は攻撃フェイズ合計に `×(1+burst_streak)`。
+  バーストストリーク(2人以上参加時)は攻撃フェイズのバースト合計に `× 属性補正 × streak_count[n] × streak_dmgup` を
+  `_decay('streak',raw,n)` 経由(参加人数別cap)で加算。中立属性affinity=1.0。
 - ジャッジ循環: ph0=10ヒット(`_decay('abi', _na()×3×(1+abi_dmg), judg_cap)`＋amplifa＋royAbi独自枠) / ph1=バースト / ph2=通常(`_decay('na', _na()×(1+na_dmg))`)
 - `dmg`(総ダメージ累計)は burst()/judg exec/通常攻撃で加算。反逆は無視。急所は本来有利属性のみだが期待値で一律計上。
 
@@ -347,15 +348,20 @@ console.log("FullBurst:",fb+"/10","TotalDmg:",Math.round(sim.dmg));
 
 期待値（基準・DMG定数が現行値の場合）:
 ```
-T1  FB:5 J:3 renri:5  dmg:7,663,982    T6  FB:5 J:4 renri:29 dmg:65,081,586
-T2  FB:5 J:5 renri:10 dmg:22,095,159   T7  FB:5 J:5 renri:30 dmg:78,510,627
-T3  FB:5 J:4 renri:15 dmg:36,883,338   T8  FB:5 J:6 renri:30 dmg:92,932,929
-T4  FB:5 J:3 renri:20 dmg:46,282,272   T9  FB:5 J:4 renri:30 dmg:105,739,124
-T5  FB:5 J:3 renri:24 dmg:55,039,000   T10 FB:5 J:4 renri:30 dmg:127,942,964
+T1  FB:5 J:3 renri:5  dmg:6,987,682    T6  FB:5 J:3 renri:30 dmg:57,879,487
+T2  FB:5 J:4 renri:10 dmg:19,574,768   T7  FB:5 J:6 renri:30 dmg:70,113,196
+T3  FB:5 J:1 renri:15 dmg:32,767,701   T8  FB:5 J:4 renri:30 dmg:83,120,261
+T4  FB:5 J:3 renri:20 dmg:40,500,415   T9  FB:5 J:3 renri:30 dmg:93,611,983
+T5  FB:5 J:3 renri:25 dmg:49,033,425   T10 FB:5 J:6 renri:30 dmg:111,777,714
 ```
-（FullBurst:10/10、TotalDmg:127,942,964。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
-burst_streak=0.72・ストリーク減衰なし較正(実機T1全バフ36.8Mから逆算・2026-06)で111,777,714→127,942,964。
-旧0.5はdecay経由で誤計算されており減衰が過剰だった（コメント「未実装・無減衰」が正しい仕様）。
+（FullBurst:10/10、TotalDmg:111,777,714。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
+**バーストストリーク式(有志確定・2026-06)**: ストリークダメージ = バースト合計 × 属性補正 × 人数補正 × ダメージUP効果量。
+人数補正は参加人数依存(`streak_count`: 2人0.30/3人0.35/4人0.41/5人0.50)、中立属性は属性補正=affinity=1.0、
+ダメージUP効果量は`streak_dmgup`(現編成=1.0)。減衰(`decay_streak.caps`)は参加人数別の第一/第二減衰(raw実ダメ閾値)で、
+第一超は×0.25・第二超は×0.40(限界寄与率・人数共通。5人=750万/1000万)。抽象スケール(base_atk=1500)では
+raw≪750万で減衰休眠。旧burst_streak=0.72は疑わしい36.8M測定からの逆算フィットで誤り(decay除去とセットの二重誤り)→
+人数補正0.5+減衰の式どおりに修正し127,942,964→111,777,714(=0.72導入前と一致)。
+実機T1(per-char実ATK)照合は30.76M vs 実機33.45M=-8.0%(0.72が隠していた真の差=burst総量orダメージUP効果量の課題)。
 テトラ1アシspec+30%(omni・T1-3＋テトラ4再発動でT7-9)実装で116,829,348→111,777,714(抽象スケールはflat支配的
 でspec効果は小さくビーム再最適化のノイズ範囲・実スケールmiscでは寄与増大)。
 ※注: この基準は base_atk=1500 フォールバック(applyGear非経由)の抽象スケール値。ARRIVE(エレイン3アシ)の
