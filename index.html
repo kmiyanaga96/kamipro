@@ -391,6 +391,10 @@ const DMG = {
   tetra_burst_cap: 500000,   // テトラバースト追加ダメージ減衰上限(50万)
   tetra_burst_mult2: 6,      // テトラバーストHELIX後の追加ダメージ倍率(効果量2倍=6倍)
   tetra_burst_cap2: 1000000, // テトラバーストHELIX後の追加ダメージ減衰上限(未実測・推定100万)
+  // 全バースト共通追撃(全キャラのバースト毎に発動・天矢乱舞実機較正で倍率3倍確定)。
+  // ヤマト/テトラの従来per-char追撃を本定数に統合。inori cap拡張とHELIX倍率増はonBurstで差分管理。
+  burst_followup_mult: 3,     // 追撃倍率(通常攻撃比3倍)
+  burst_followup_cap: 500000, // 追撃減衰上限(50万)
   dur_sleur_def: 3,          // スリール防壁効果ターン(buffCount精度用・ダメージ無寄与・3T/3T累積可)
   // ─── 英霊武器専用強化(applyGear()でセット・非装備時=OFF基準値で無効) ─────────────────
   // 各定数はDMG宣言時の値が「英霊武器なし」基準。applyGear()冒頭でリセット後、装備検出時に上書き。
@@ -679,9 +683,14 @@ const CHAR_REGISTRY = {
       onBurst: (sim) => {
         (sim.buf.yamato_elem??=[]).push(DMG.dur_yamato_elem);
         sim.dmg += (sim.buf.yamato_bplus?.length||0) * DMG.bplus_yamato;
-        // バースト追加ダメージ(毎回発動): 倍率3倍・減衰50万(現神の祈り中100万)
+        // 追撃はburst()の全バースト共通式(naB×3/50万)で付与済み。
+        // 現神の祈り中のみcap 50万→100万に拡張する差分を追加付与。
         const inoriOn = (sim.buf.inori_burst?.length||0) > 0;
-        sim.dmg += sim._decay('burst', sim._na(true)*DMG.yamato_extra_mult, inoriOn ? DMG.yamato_extra_cap_inori : DMG.yamato_extra_cap);
+        if(inoriOn) {
+          const naB_y = sim._na(true);
+          sim.dmg += sim._decay('burst', naB_y*DMG.yamato_extra_mult, DMG.yamato_extra_cap_inori)
+                   - sim._decay('burst', naB_y*DMG.yamato_extra_mult, DMG.yamato_extra_cap);
+        }
       },
       // 自バースト性能バフ(現神の祈り倍率UP＋大和の奮起累積)をオーナー限定で burst係数に加算。
       burstBonus: (sim) => (sim.buf.inori_burst?.length?DMG.burst_inori:0)
@@ -806,12 +815,14 @@ const CHAR_REGISTRY = {
       // HELIX解禁検出(初回到達ターン表示用)。doneKeyは自前state。
       helix: { reached: s=>s.renri>=30, doneKey: 'helix_done' },
       onBurst: (sim, atk, owner) => {
-        // バースト効果: 追加ダメージ(倍率3倍/減衰50万)。HELIX後(helix_done=true)は効果量2倍(倍率6倍/減衰100万)。
-        // CT2T短縮(HELIX後のみ確定)。
+        // バースト効果: 追撃はburst()の全バースト共通式(naB×3/50万)で付与済み。
+        // HELIX後(helix_done=true)は効果量2倍(倍率6倍/減衰100万)→共通追撃との差分のみ追加付与。
         const helix = !!sim.helix_done;
-        const mult = helix ? DMG.tetra_burst_mult2 : DMG.tetra_burst_mult;
-        const cap  = helix ? DMG.tetra_burst_cap2  : DMG.tetra_burst_cap;
-        sim.dmg += sim._decay('burst', sim._na(true)*mult, cap);
+        if(helix) {
+          const naB_t = sim._na(true);
+          sim.dmg += sim._decay('burst', naB_t*DMG.tetra_burst_mult2, DMG.tetra_burst_cap2)
+                   - sim._decay('burst', naB_t*DMG.tetra_burst_mult,  DMG.tetra_burst_cap);
+        }
         // CD短縮: 自バーストのみ全アビCD-1(自然分)。HELIX後はCD-2(CT短縮効果)。
         const cdDec = helix ? 2 : 1;
         const skip = atk ? [] : ['judg'];
@@ -1171,6 +1182,9 @@ class Sim {
     const capBonus = CHAR_DEF[owner].burstCapBonus?.(this) ?? 0;
     const core = this._decay('burst', naB*(coef_a + bdmg + GEAR.burst_dmg + selfBonus) + coef_b, DMG.decay_burst.cap1*(1+capBonus));
     this.dmg += core + royBurst + passiveFlat;
+    // 全バースト共通追撃: naB×3(cap 50万)。天矢乱舞実機較正で確定した全キャラ統一式。
+    // ヤマト(inori cap拡張)・テトラ(HELIX倍率増)はonBurstで差分を追加付与。
+    this.dmg += this._decay('burst', naB * DMG.burst_followup_mult, DMG.burst_followup_cap);
     if(atk) bset.add(owner);
     // 連理魔力(コヴァレント): バースト2回毎に+1＆ジャッジ即使用可。攻撃フェーズのバーストも対象
     this.procR(T,'b');

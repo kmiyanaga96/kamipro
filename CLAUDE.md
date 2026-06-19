@@ -350,13 +350,13 @@ console.log("FullBurst:",fb+"/10","TotalDmg:",Math.round(sim.dmg));
 
 期待値（基準・DMG定数が現行値の場合）:
 ```
-T1  FB:5 J:3 renri:5  dmg:6,842,401    T6  FB:5 J:4 renri:30 dmg:58,480,561
-T2  FB:5 J:4 renri:10 dmg:18,951,622   T7  FB:5 J:4 renri:30 dmg:71,702,959
-T3  FB:5 J:3 renri:15 dmg:31,255,460   T8  FB:5 J:6 renri:30 dmg:85,407,184
-T4  FB:5 J:2 renri:20 dmg:39,717,832   T9  FB:5 J:4 renri:30 dmg:99,483,439
-T5  FB:5 J:3 renri:25 dmg:49,118,106   T10 FB:5 J:5 renri:30 dmg:121,581,386
+T1  FB:5 J:3 renri:5  dmg:6,868,015    T6  FB:5 J:4 renri:30 dmg:59,098,574
+T2  FB:5 J:5 renri:10 dmg:20,322,600   T7  FB:5 J:6 renri:30 dmg:72,923,096
+T3  FB:5 J:4 renri:15 dmg:34,017,296   T8  FB:5 J:4 renri:30 dmg:86,350,673
+T4  FB:5 J:1 renri:20 dmg:41,549,601   T9  FB:5 J:5 renri:30 dmg:99,908,877
+T5  FB:5 J:3 renri:25 dmg:49,954,901   T10 FB:5 J:6 renri:30 dmg:124,404,087
 ```
-（FullBurst:10/10、TotalDmg:121,581,386。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
+（FullBurst:10/10、TotalDmg:124,404,087。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
 **バーストストリーク式(有志確定・2026-06)**: ストリークダメージ = バースト合計 × 属性補正 × 人数補正 × ダメージUP効果量。
 人数補正は参加人数依存(`streak_count`: 2人0.30/3人0.35/4人0.41/5人0.50)、中立属性は属性補正=affinity=1.0、
 ダメージUP効果量は`streak_dmgup`(現編成=1.0)。減衰(`decay_streak.caps`)は参加人数別の第一/第二減衰(raw実ダメ閾値)で、
@@ -364,6 +364,7 @@ T5  FB:5 J:3 renri:25 dmg:49,118,106   T10 FB:5 J:5 renri:30 dmg:121,581,386
 raw≪750万で減衰休眠。旧burst_streak=0.72は疑わしい36.8M測定からの逆算フィットで誤り(decay除去とセットの二重誤り)→
 人数補正0.5+減衰の式どおりに修正し127,942,964→111,777,714(=0.72導入前と一致)。
 実機T1(per-char実ATK)照合は30.76M vs 実機33.45M=-8.0%(0.72が隠していた真の差=burst総量orダメージUP効果量の課題)。
+全バースト共通追撃(naB×3/cap50万)実装でモデル34.04M/実機33.45M=+1.74%まで改善(T1 burst枠ほぼ一致)。
 テトラ1アシspec+30%(omni・T1-3＋テトラ4再発動でT7-9)実装で116,829,348→111,777,714(抽象スケールはflat支配的
 でspec効果は小さくビーム再最適化のノイズ範囲・実スケールmiscでは寄与増大)。
 ※注: この基準は base_atk=1500 フォールバック(applyGear非経由)の抽象スケール値。ARRIVE(エレイン3アシ)の
