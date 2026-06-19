@@ -358,8 +358,8 @@ const DMG = {
   dur_droid_buf: 5,          // 攻撃ロボ赤アビ反応付与アビダメバフ効果ターン(実機5T)
   dur_legend:   3,           // レジェンドトラベラー効果ターン
   // ─── バーストダメージ式 ────────────────────────────────────────────────
-  burst_coef_a: 5,           // バーストダメージ式の係数 a (SSR固定)
-  burst_coef_b: 2500,        // バーストダメージ式の定数 b (SSR固定・フラット加算・乗算枠の外)
+  // バースト係数 a・b はキャラ毎に異なるため CHAR_REGISTRY[*].def.burst_coef_a/b で管理。
+  // 省略時フォールバック(未知キャラ用): a=5.0 / b=2500。
   // バーストストリーク式(有志確定): ストリークダメージ = バースト合計 × 属性補正 × 人数補正 × ダメージUP効果量。
   // 人数補正は参加人数依存(下表)。中立属性は属性補正=1.0。ダメージUP効果量はストリーク固有の上乗せ(現編成=1.0)。
   // ※旧burst_streak=0.72は誤り(疑わしい36.8M測定からの逆算でdecay除去とセットの二重誤り)。正しくは人数補正0.5+減衰。
@@ -387,6 +387,10 @@ const DMG = {
   dur_effond_def: 6,         // エフォンド防御DOWN効果ターン(3T/6T・累積可)
   hecate_extra_mult: 3,      // ヘカテーバースト追加ダメージ倍率(ムーンコード発動時・通常攻撃比3倍)
   hecate_extra_cap: 500000,  // ヘカテーバースト追加ダメージ減衰上限(50万)
+  tetra_burst_mult: 3,       // テトラバースト追加ダメージ倍率(通常攻撃比3倍)
+  tetra_burst_cap: 500000,   // テトラバースト追加ダメージ減衰上限(50万)
+  tetra_burst_mult2: 6,      // テトラバーストHELIX後の追加ダメージ倍率(効果量2倍=6倍)
+  tetra_burst_cap2: 1000000, // テトラバーストHELIX後の追加ダメージ減衰上限(未実測・推定100万)
   dur_sleur_def: 3,          // スリール防壁効果ターン(buffCount精度用・ダメージ無寄与・3T/3T累積可)
   // ─── 英霊武器専用強化(applyGear()でセット・非装備時=OFF基準値で無効) ─────────────────
   // 各定数はDMG宣言時の値が「英霊武器なし」基準。applyGear()冒頭でリセット後、装備検出時に上書き。
@@ -616,6 +620,7 @@ const CHAR_REGISTRY = {
                   exec:(sim,T,ord)=>{ for(const k of Object.keys(sim.cd)) if(k!=='ifishant'&&sim.cd[k]>0) sim.cd[k]--; sim.use('ifishant',T,ord); }},
     },
     def: {
+      burst_coef_a: 5, burst_coef_b: 3000,  // エジソン: a=5.0 b=3000
       gmax: BG.other_max,
       keigyoGain: 3,
       onBurst: (sim, atk) => {
@@ -666,6 +671,7 @@ const CHAR_REGISTRY = {
         }},
     },
     def: {
+      burst_coef_a: 5, burst_coef_b: 2500,  // ヤマト: a=5.0 b=2500
       gmax: BG.yamato_max,
       keigyoGain: 1,
       // バースト効果: 味方全体の光属性攻撃+5%(3T累積可)。自バースト毎にスタック(天矢乱舞の複数発動も各々付与)。
@@ -738,6 +744,7 @@ const CHAR_REGISTRY = {
                   if(sim.mooncode>0) sim.burst(ownerOf('effond'),bset,T); }},
     },
     def: {
+      burst_coef_a: 5, burst_coef_b: 2500,  // ヘカテー: a=5.0 b=2500
       gmax: BG.other_max,
       keigyoGain: 1,
       // バースト効果: ムーンコード発動時、追加ダメージ(倍率3倍・減衰50万)。自バーストのみ(onBurst)。
@@ -790,6 +797,7 @@ const CHAR_REGISTRY = {
     },
     def: {
       gmax: BG.other_max,
+      burst_coef_a: 4.5, burst_coef_b: 2500,  // テトラ: a=4.5 b=2500
       keigyoGain: 1,
       // テトラ1アシ(ゴッド・オムニポンテス): クエスト開始時に光パーティへ特殊攻撃+30%(omni)を自動付与。
       onBattleStart: (sim) => { (sim.buf.omni??=[]).push(DMG.dur_omni); },
@@ -798,11 +806,19 @@ const CHAR_REGISTRY = {
       // HELIX解禁検出(初回到達ターン表示用)。doneKeyは自前state。
       helix: { reached: s=>s.renri>=30, doneKey: 'helix_done' },
       onBurst: (sim, atk, owner) => {
+        // バースト効果: 追加ダメージ(倍率3倍/減衰50万)。HELIX後(helix_done=true)は効果量2倍(倍率6倍/減衰100万)。
+        // CT2T短縮(HELIX後のみ確定)。
+        const helix = !!sim.helix_done;
+        const mult = helix ? DMG.tetra_burst_mult2 : DMG.tetra_burst_mult;
+        const cap  = helix ? DMG.tetra_burst_cap2  : DMG.tetra_burst_cap;
+        sim.dmg += sim._decay('burst', sim._na(true)*mult, cap);
+        // CD短縮: 自バーストのみ全アビCD-1(自然分)。HELIX後はCD-2(CT短縮効果)。
+        const cdDec = helix ? 2 : 1;
         const skip = atk ? [] : ['judg'];
         for(const k of Object.keys(sim.cd)){
           if(ABIL[k]?.[0] !== owner) continue;
           if(skip.includes(k)) continue;
-          if(sim.cd[k]>0) sim.cd[k]--;
+          if(sim.cd[k]>0) sim.cd[k] = Math.max(0, sim.cd[k]-cdDec);
         }
       },
       // ディウィヌスDOT: 有効ターン毎に4種×min(敵最大HP×10%, 上限10万)を概算加算(順序非依存)。
@@ -842,6 +858,7 @@ const CHAR_REGISTRY = {
                   exec:(sim,T,ord)=>{ T.pactcoreUsed=true; const lk=Object.keys(ABIL).filter(k=>ownerOf(k)===LEADER); for(const k of lk) if(sim.cd[k]>0) sim.cd[k]=Math.max(0,sim.cd[k]-1); sim.addG(CHARS,BG.pactcore); sim.use('pactcore',T,ord,'(全+100)'); }},
     },
     def: {
+      burst_coef_a: 4.5, burst_coef_b: 2500,  // エレイン: a=4.5 b=2500
       gmax: BG.other_max,
       keigyoGain: 1,
       // ARRIVE(3アシスト): パーティ全員が光属性のとき永続発動(消去不可)。
@@ -894,6 +911,7 @@ const CHAR_REGISTRY = {
                    sim.use('factor',T,ord); }},
     },
     def: {
+      burst_coef_a: 5, burst_coef_b: 3000,  // ナポレオン: a=5.0 b=3000(エジソンと同英霊クラス)
       gmax: BG.other_max,
       keigyoGain: 3,
       // エキープ・ベニフィッシ: 味方の強化系アビ(atkBufタグ)毎に闘気+1
@@ -1147,9 +1165,11 @@ class Sim {
     // オーナー固有のバースト性能ボーナス(自バフ・CHAR_DEF.burstBonusに集約。例: ヤマト現神/奮起)
     const selfBonus = CHAR_DEF[owner].burstBonus?.(this) || 0;
     // バーストダメージ式: 通常攻撃ダメ(テクニカ除く) × (a + バーストダメUP効果 + 自バフ) + b(定数フラット)。
-    // b は乗算枠の外のフラット加算(SSR固定=2500)。ウェポンburst_dmgは係数aスロットに加算。
+    // a/b はキャラ毎(CHAR_DEF[owner].def.burst_coef_a/b)。省略時 a=5 / b=2500。
+    const coef_a = CHAR_DEF[owner].burst_coef_a ?? 5;
+    const coef_b = CHAR_DEF[owner].burst_coef_b ?? 2500;
     const capBonus = CHAR_DEF[owner].burstCapBonus?.(this) ?? 0;
-    const core = this._decay('burst', naB*(DMG.burst_coef_a + bdmg + GEAR.burst_dmg + selfBonus) + DMG.burst_coef_b, DMG.decay_burst.cap1*(1+capBonus));
+    const core = this._decay('burst', naB*(coef_a + bdmg + GEAR.burst_dmg + selfBonus) + coef_b, DMG.decay_burst.cap1*(1+capBonus));
     this.dmg += core + royBurst + passiveFlat;
     if(atk) bset.add(owner);
     // 連理魔力(コヴァレント): バースト2回毎に+1＆ジャッジ即使用可。攻撃フェーズのバーストも対象

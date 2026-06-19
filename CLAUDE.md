@@ -180,7 +180,8 @@ CHAR_REGISTRY[charKey] = {
   - `acute` = puvoir×0.010 + absolute×0.030 + legend×0.005 + pike_crit×0.30 + GEAR
   - `spec` = (leg_spec?0.20:0) + GEAR
   - `defdown` = consort_def×0.10 + divinus_def×0.30
-  - バースト = `_decay('burst', _na()×(burst_coef_a + absolute×burst_dmg_absolute + nights×burst_dmg_nights + burst_dmg + selfBonus))`
+  - バースト = `_decay('burst', _na()×(coef_a + absolute×burst_dmg_absolute + nights×burst_dmg_nights + burst_dmg + selfBonus) + coef_b)`
+    - `coef_a/b` = `CHAR_DEF[owner].burst_coef_a/b`（per-char。エジソン/ナポレオン: a=5 b=3000 / ヤマト/ヘカテー: a=5 b=2500 / テトラ/エレイン: a=4.5 b=2500）
   - `selfBonus` = `CHAR_DEF[owner].burstBonus?.(sim)` オーナー固有の自バースト係数加算(汎用フック)。
     ヤマト: `inori_burst?DMG.burst_inori:0 + funki_burst本数×DMG.burst_funki`(現神の祈り倍率UP＋大和の奮起累積・自バーストのみ)。
   - 青アビ実効果(`data.xlsx`確定): ナイツサプレス=敵バースト耐性-20°≒バーストダメUP / ディウィヌス=敵防御-30%(defdown)＋DOT4種。
@@ -229,7 +230,7 @@ CHAR_REGISTRY[charKey] = {
   - `hard`(追撃/城塞): 寄与率0=完全頭打ち(betaiaは `betaia_cap` のmin)
   - 値は**実ダメージ単位**。本シムは抽象スケール(`_na()`~数百)で raw≪上限のため**恒等(休眠)**。
     `base_atk` 等を実ダメ較正した時点で自動的に減衰が効く基盤。バーストストリーク減衰(`decay_streak.caps`)も実装済(5人=750万/1000万・raw実ダメ閾値・第一超×0.25/第二超×0.40)。
-- バースト = `_decay('burst', _na()×(burst_coef_a + absolute本数×burst_dmg_absolute + burst_dmg)) + royBurst独自枠`、
+- バースト = `_decay('burst', _na()×(coef_a + absolute本数×burst_dmg_absolute + burst_dmg) + coef_b) + royBurst独自枠`（coef_a/bはper-char）、
   バーストストリーク(2人以上参加時)は攻撃フェイズのバースト合計に `× 属性補正 × streak_count[n] × streak_dmgup` を
   `_decay('streak',raw,n)` 経由(参加人数別cap)で加算。中立属性affinity=1.0。
 - ジャッジ循環: ph0=10ヒット(`_decay('abi', _na()×3×(1+abi_dmg), judg_cap)`＋amplifa＋royAbi独自枠) / ph1=バースト / ph2=通常(`_decay('na', _na()×(1+na_dmg))`)
@@ -304,7 +305,8 @@ CHAR_REGISTRY[charKey] = {
   「連理魔力+1」＆「ジャッジ即使用可(arm: cd.judg=0)」を同時付与。proc は同ターン5回上限。
   通常攻撃チャネル(9回)はフルバースト前提では未到達のため未実装。
 - **arm非蓄積**: proc arm は cd.judg>0 の時のみ有効（cd=0ならスキップ）。二値制御。
-- **テトラのバースト効果(onBurst)**: 自バーストのみ対象。誘発バーストではjudgを除外してCD短縮。
+- **テトラのバースト効果(onBurst)**: 追加ダメージ(倍率3倍・減衰50万)＋全アビCD-1。HELIX後は効果量2倍(倍率6倍・減衰100万・未実測推定)＋CT2T短縮(CD-2)。
+  自バーストのみ対象。誘発バーストではjudgを除外してCD短縮。
 - **モビウスムーンズ**: partyバースト5回毎にヘカテー(puvoir所有者)の全アビCDリセット。
 - **ヘカテー(ムーンコード依存)**: エフォンドは常時=直接ダメ(3倍/35万)＋防御DOWN(10%/stack・最大40%)、
   ムーンコード発動時のみ即座にバースト発動(guard撤廃・burstのみ条件分岐)。プヴワール急所は
@@ -348,13 +350,13 @@ console.log("FullBurst:",fb+"/10","TotalDmg:",Math.round(sim.dmg));
 
 期待値（基準・DMG定数が現行値の場合）:
 ```
-T1  FB:5 J:3 renri:5  dmg:6,987,682    T6  FB:5 J:3 renri:30 dmg:57,879,487
-T2  FB:5 J:4 renri:10 dmg:19,574,768   T7  FB:5 J:6 renri:30 dmg:70,113,196
-T3  FB:5 J:1 renri:15 dmg:32,767,701   T8  FB:5 J:4 renri:30 dmg:83,120,261
-T4  FB:5 J:3 renri:20 dmg:40,500,415   T9  FB:5 J:3 renri:30 dmg:93,611,983
-T5  FB:5 J:3 renri:25 dmg:49,033,425   T10 FB:5 J:6 renri:30 dmg:111,777,714
+T1  FB:5 J:3 renri:5  dmg:6,842,401    T6  FB:5 J:4 renri:30 dmg:58,480,561
+T2  FB:5 J:4 renri:10 dmg:18,951,622   T7  FB:5 J:4 renri:30 dmg:71,702,959
+T3  FB:5 J:3 renri:15 dmg:31,255,460   T8  FB:5 J:6 renri:30 dmg:85,407,184
+T4  FB:5 J:2 renri:20 dmg:39,717,832   T9  FB:5 J:4 renri:30 dmg:99,483,439
+T5  FB:5 J:3 renri:25 dmg:49,118,106   T10 FB:5 J:5 renri:30 dmg:121,581,386
 ```
-（FullBurst:10/10、TotalDmg:111,777,714。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
+（FullBurst:10/10、TotalDmg:121,581,386。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
 **バーストストリーク式(有志確定・2026-06)**: ストリークダメージ = バースト合計 × 属性補正 × 人数補正 × ダメージUP効果量。
 人数補正は参加人数依存(`streak_count`: 2人0.30/3人0.35/4人0.41/5人0.50)、中立属性は属性補正=affinity=1.0、
 ダメージUP効果量は`streak_dmgup`(現編成=1.0)。減衰(`decay_streak.caps`)は参加人数別の第一/第二減衰(raw実ダメ閾値)で、
