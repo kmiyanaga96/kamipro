@@ -406,7 +406,7 @@ const DMG = {
   //   betaia_mult/cap は applyGear() がリセット基準として参照するため基準値のまま。
   //   武器登録後は { betaiaUpgrade:{mult:4.0,cap:700000}, condition:{mainOf:'napoleon'} } で自動配線。
   judg_mult:  3,             // ジャッジメント: 通常攻撃比3倍
-  judg_cap:   200000,        // ジャッジ1ヒットの減衰上限(20万)
+  judg_cap:   350000,        // ジャッジ1ヒットの減衰上限(35万・slope0.04＋実測比1.211の比率法で導出)
   // アンプリファ: 効果3T・エジソンの攻撃ロボ反応ダメージに固定+10万(減衰外フラット加算)。
   // 対象は攻撃ロボ(エジソン1アビ)の赤アビ反応ダメージのみ。ジャッジ等の他アビダメは対象外。
   amplifa_flat: 100000,      // アンプリファ: ロボ反応ダメ+10万 (3T・ロボ反応毎に加算)
@@ -415,9 +415,9 @@ const DMG = {
   // 公称「上限」だが超過分も寄与率(slope)で減衰しつつ伸びる(俗称・減衰値)。実ダメージ表記。
   // 上限UP(GEAR.<frame>_cap)は第一上限を ×(1+up)。第二以降の差分(実ダメ)は固定オフセット。
   // 値は実ダメージ単位。本シムは抽象スケール(_na()~数百)のため通常は raw≪上限で休眠する基盤。
-  decay_na:    { cap1:350000, off:[0,100000,200000], slope:[1,0.5,0.25,0.125] }, // 35/45/55万・1→½→¼→⅛
+  decay_na:    { cap1:350000 }, // na第1上限35万(×cap_up)・第2=+10万固定・第3=+20万固定・全て½傾き反復適用(有志確定)
   decay_burst: { cap1:1000000, slope:0.10 },  // 100万・寄与率 1/10
-  decay_abi_slope: 0.11,                       // アビ超過寄与率(基準上限はキャラ毎=judg_cap等)。実機JD比率法で較正(2026-06): 高/低バフのnaB理論比2.381に対し実測比1.211→傾き≈0.11(旧0.04は過厳)
+  decay_abi_slope: 0.04,                       // アビ超過寄与率1/25(有志確定=0.04)。旧0.11はcap=20万仮定の逆算誤り→slope0.04+cap≈35万で実測比1.211を再現
   // バーストストリーク減衰(有志確定): 第一/第二減衰(raw実ダメ閾値)は参加人数依存(下表)。
   // 第一減衰超の部分は×0.25、第二減衰超の部分は×0.40(限界寄与率・人数共通)。
   decay_streak: { slope1:0.25, slope2:0.40,
@@ -470,12 +470,11 @@ const GEAR_BOXES = [
   ['dmgup',    '与ダメージ'],    // 与ダメージUP枠(白虎等)
   ['acute',    '急所'],          // 急所枠: 急所スキル(期待寄与を直接入力)
   ['crit_rate','会心発動率'],    // 会心発動率枠(min1.0でクランプ)
-  ['other',    'その他バフ補正'],// その他バフ補正枠(テクニカは別枠technicaへ分離)
-  // テクニカ枠: 実機式では other と同枠(通常攻撃に乗る)だが、バーストは「通常攻撃ダメ(テクニカ除く)」
-  // を基準にするため burst() で割り戻せるよう分離管理する。通常攻撃/アビには other と同様に乗る。
-  ['technica', 'テクニカ'],
+  ['other',    'その他バフ補正'],// その他バフ補正枠(全フレーム共通・与ダメ以外の常時乗算補正)
   // ─── フレーム別ダメージUP枠(該当フレームのみ加算・_na()のbaseには含めない) ───
-  ['na_dmg',   '通常攻撃ダメUP'], // 通常攻撃のみ: judge ph2(通常)に ×(1+na_dmg)
+  // テクニカ(通常攻撃ダメUP)はエラボレイト/エクシードと同じウェポンスキル枠。
+  // ダメUP%→na_dmg / 上限UP%→na_cap に入力。GEAR_Kには含まない(アビ/バーストに誤適用しない)。
+  ['na_dmg',   '通常攻撃ダメUP'], // 通常攻撃のみ: judge ph2(通常)に ×(1+na_dmg)。テクニカのダメUPはここへ
   ['abi_dmg',  'アビダメUP'],     // アビダメのみ: judge ph0/コンソートに ×(1+abi_dmg)
   ['burst_dmg','バーストダメUP'], // バーストのみ: burst()係数に加算(a+...+burst_dmg)
   // ─── 上限UP枠(基盤のみ・基準上限×(1+上限UP)。通常/バーストの基準上限はInfinity=休眠) ───
@@ -572,7 +571,7 @@ function calcDisplayHp(charKey, slots, summonHpTotal, heroRank){
 
 // 属性相性(affinity)は属性枠の中に加算で入る(実機式: 属性枠=属性相性+属性値…)ため、
 // GEAR_Kには畳み込まず _na() の属性枠で (affinity + elem) として加算する。
-function recalcGearK(){ GEAR_K = DMG.base_atk*(1+GEAR.dmgup)*(1+GEAR.other)*(1+GEAR.technica)*DMG.misc/DMG.enemy_def; }
+function recalcGearK(){ GEAR_K = DMG.base_atk*(1+GEAR.dmgup)*(1+GEAR.other)*DMG.misc/DMG.enemy_def; }
 recalcGearK();
 
 // ===== キャラクタ登録簿 =====
@@ -687,7 +686,7 @@ const CHAR_REGISTRY = {
         // 現神の祈り中のみcap 50万→100万に拡張する差分を追加付与。
         const inoriOn = (sim.buf.inori_burst?.length||0) > 0;
         if(inoriOn) {
-          const naB_y = sim._na(true);
+          const naB_y = sim._na();
           sim.dmg += sim._decay('burst', naB_y*DMG.yamato_extra_mult, DMG.yamato_extra_cap_inori)
                    - sim._decay('burst', naB_y*DMG.yamato_extra_mult, DMG.yamato_extra_cap);
         }
@@ -747,7 +746,7 @@ const CHAR_REGISTRY = {
       // ムーンコード発動時のみ即座にゲージ消費なしでバースト発動(burstはmooncode条件・ダメ/DOWNは常時)。
       effond: { s:70, burstTrigger:true,
                 exec:(sim,T,ord,bset)=>{ const db=sim._droidAbiBuf();
-                  sim.dmg += sim._decay('abi', sim._na()*DMG.effond_mult*(1+GEAR.abi_dmg+db.dmg), DMG.effond_cap*(1+db.cap));
+                  sim.dmg += sim._decay('abi', sim._naForAbi()*DMG.effond_mult*(1+GEAR.abi_dmg+db.dmg), DMG.effond_cap*(1+db.cap));
                   (sim.buf.effond_def??=[]).push(DMG.dur_effond_def);
                   sim.use('effond',T,ord);
                   if(sim.mooncode>0) sim.burst(ownerOf('effond'),bset,T); }},
@@ -759,7 +758,7 @@ const CHAR_REGISTRY = {
       // バースト効果: ムーンコード発動時、追加ダメージ(倍率3倍・減衰50万)。自バーストのみ(onBurst)。
       onBurst: (sim) => {
         if(sim.mooncode>0)
-          sim.dmg += sim._decay('burst', sim._na(true)*DMG.hecate_extra_mult, DMG.hecate_extra_cap);
+          sim.dmg += sim._decay('burst', sim._na()*DMG.hecate_extra_mult, DMG.hecate_extra_cap);
       },
     },
   },
@@ -789,7 +788,7 @@ const CHAR_REGISTRY = {
                       // アビダメ枠: ×(1+abi_dmg+droid)、1ヒット減衰 基準judg_cap×(1+droid)(超過は1/25で逓減)
                       // amplifa(+10万)はロボ反応ダメージ専用のためジャッジには加算しない。
                       const db0=sim._droidAbiBuf();
-                      const hit=sim._decay('abi', sim._na()*DMG.judg_mult*(1+GEAR.abi_dmg+db0.dmg), DMG.judg_cap*(1+db0.cap));
+                      const hit=sim._decay('abi', sim._naForAbi()*DMG.judg_mult*(1+GEAR.abi_dmg+db0.dmg), DMG.judg_cap*(1+db0.cap));
                       sim.dmg += 10*hit + royAbi; }
                     else if(ph===1) sim.burst(ownerOf('judg'),bset,T);
                     else sim.dmg += sim._decay('na', sim._na()*(1+GEAR.na_dmg)); }},
@@ -819,7 +818,7 @@ const CHAR_REGISTRY = {
         // HELIX後(helix_done=true)は効果量2倍(倍率6倍/減衰100万)→共通追撃との差分のみ追加付与。
         const helix = !!sim.helix_done;
         if(helix) {
-          const naB_t = sim._na(true);
+          const naB_t = sim._na();
           sim.dmg += sim._decay('burst', naB_t*DMG.tetra_burst_mult2, DMG.tetra_burst_cap2)
                    - sim._decay('burst', naB_t*DMG.tetra_burst_mult,  DMG.tetra_burst_cap);
         }
@@ -910,7 +909,7 @@ const CHAR_REGISTRY = {
                    const mult=2+0.5*bc;
                    // アビダメ枠: ×(1+abi_dmg+droid)、減衰 基準consort_cap×(1+droid)(超過は1/25で逓減)
                    const dbc=sim._droidAbiBuf();
-                   for(let i=0;i<hits;i++) sim.dmg+=sim._decay('abi', sim._na()*mult*(1+GEAR.abi_dmg+dbc.dmg), DMG.consort_cap*(1+dbc.cap));
+                   for(let i=0;i<hits;i++) sim.dmg+=sim._decay('abi', sim._naForAbi()*mult*(1+GEAR.abi_dmg+dbc.dmg), DMG.consort_cap*(1+dbc.cap));
                    for(let i=0;i<hits;i++) (sim.buf.consort_def??=[]).push(DMG.dur_consort_def);
                    sim.use('consort',T,ord,hits===2?'(×2)':''); }},
       // ディシジフ: ベタイア2回発動化(2T)。バフ10以上で全体アビCD-1・BG+30追加。
@@ -1076,21 +1075,24 @@ class Sim {
   }
 
   // 減衰(上限)モデル: 計算ダメージ raw → 実ダメージ。区分線形で寄与率(slope)を逓減する。
-  // frame: 'na'(35/45/55万・1→½→¼→⅛) / 'burst'(100万・1→1/10) / 'abi'(base=キャラ毎・1→1/25)
-  //        / 'hard'(追撃/城塞・寄与率0=完全頭打ち)。上限UP(GEAR.<frame>_cap)は第一上限を×(1+up)。
-  // 抽象スケールでは raw≪上限のため恒等(休眠)。base_atk等を実ダメ較正すると自動で減衰が効く基盤。
+  // frame: 'na'(35/45/55万実ダメ・第1上限のみ×cap_up・第2/第3は+10万/+20万固定・全½傾き反復) / 'burst'(100万・1→1/10)
+  //        / 'abi'(base=キャラ毎・1→0.04=1/25) / 'hard'(追撃/城塞・寄与率0=完全頭打ち)。
+  // 通常攻撃が上限到達時はアビダメ計算基準をdecay(na)に切替(_naForAbi)。抽象スケールでは全休眠。
+  // アビダメ計算基準: 通常攻撃が上限到達時は減衰後naをbase(na_dmg・テクニカ不適用)。未到達はna()そのまま。
+  _naForAbi(){ const na=this._na(); const c1=DMG.decay_na.cap1*(1+(GEAR.na_cap||0)); return na>=c1?this._decay('na',na):na; }
   // 攻撃ロボ(droid_buf): 赤アビ反応毎のアビダメ枠加算(累積可・各スタック dur_droid_buf 持続)
   _droidAbiBuf(){ const n=this.buf.droid_buf?.length||0; return {dmg:n*DMG.abi_dmg_droid, cap:n*DMG.abi_cap_droid}; }
 
   _decay(frame, raw, base){
     const up = GEAR[frame+'_cap']||0;
     if(frame==='na'){
-      const p=DMG.decay_na, c1=p.cap1*(1+up), s=p.slope, o=p.off;
-      const T0=c1, T1=T0+(o[1]-o[0])/s[1], T2=T1+(o[2]-o[1])/s[2]; // 実ダメ差分→raw閾値に換算
-      if(raw<=T0) return raw;
-      if(raw<=T1) return c1+o[0]+(raw-T0)*s[1];
-      if(raw<=T2) return c1+o[1]+(raw-T1)*s[2];
-      return c1+o[2]+(raw-T2)*s[3];
+      // 第1上限のみcap_up×。第2/第3は+10万/+20万の固定オフセット。各超過分に½を反復適用(有志確定)。
+      const c1=DMG.decay_na.cap1*(1+up), c2=c1+100000, c3=c1+200000;
+      let r=raw;
+      if(r>c1) r=c1+(r-c1)*0.5;
+      if(r>c2) r=c2+(r-c2)*0.5;
+      if(r>c3) r=c3+(r-c3)*0.5;
+      return r;
     }
     if(frame==='burst'){
       const c1=(base??DMG.decay_burst.cap1)*(1+up);
@@ -1114,9 +1116,8 @@ class Sim {
   // 概算通常攻撃ダメージ(中央値): バフ期間管理辞書(buf)から動的に枠を計算する。
   // 各バフキーのスタック数が実効枠値を決定し、失効スタックは tick() で除去済み。
   // ※ フレーム別ダメージUP(na_dmg/abi_dmg/burst_dmg)は base に含めず、各フレームの加算点で乗じる。
-  // exclTech=true: テクニカ枠を割り戻した通常攻撃ダメージ(バースト基準=「通常攻撃ダメ(テクニカ除く)」)。
-  // technicaはgkに(1+technica)で畳まれ base/royFlat 双方へ線形比例するため、戻り値の除算で厳密に除外できる。
-  _na(exclTech=false){
+  // technicaはGEAR_Kに含まれない(na_dmgへ移動済み)のでバースト基準も_na()そのまま。
+  _na(){
     const D=DMG, b=this.buf, G=GEAR;
     const nAbs=b.absolute?.length||0, nPuv=b.puvoir?.length||0;
     const nBan=b.banoshik?.length||0, nLeg=b.legend?.length||0;
@@ -1154,7 +1155,7 @@ class Sim {
     + (b.divinus_def?.length||0)*D.defdown_divinus
     + Math.min((b.effond_def?.length||0)*D.defdown_effond, D.defdown_effond_max), 0.50);
     const res = (base + royFlat) * (1 + defdown);
-    return exclTech ? res/(1+G.technica) : res;
+    return res;
   }
 
   burst(owner, bset, T, atk=false) {
@@ -1169,8 +1170,8 @@ class Sim {
     // 概算バーストダメージ: absolute(バーストダメUP) + nights(敵バースト耐性DOWN≒バーストダメUP) + 編成パッシブ
     const bdmg = (this.buf.absolute?.length||0)*DMG.burst_dmg_absolute
                + (this.buf.nights?.length||0)*DMG.burst_dmg_nights + passiveDmg;
-    // バースト基準は「通常攻撃ダメ(テクニカ除く)」。_na(true)でテクニカ枠を割り戻す。
-    const naB = this._na(true);
+    // バースト基準は通常攻撃ダメ。technicaはGEAR_K外のため_na()は自然にtechnica非含。
+    const naB = this._na();
     // ロワ・クモンド: バーストプラス(独自枠・味方全体付与のため全員のバーストに加算・上限の外)
     const royBurst = this.buf.roy?.length ? naB*DMG.roy_burst_frac[this.roy_tier??0] : 0;
     // オーナー固有のバースト性能ボーナス(自バフ・CHAR_DEF.burstBonusに集約。例: ヤマト現神/奮起)
@@ -1211,7 +1212,7 @@ class Sim {
       // 攻撃ロボ反応: 赤アビ発動毎に敵全体へ反応ダメージ＋味方全体アビダメバフ付与(累積可)。
       // アンプリファ(3T): ロボ反応ダメージに固定+10万フラット加算(減衰外・ロボ反応のみ対象)。
       const ampFlat = this.buf.amplifa_buf?.length ? DMG.amplifa_flat : 0;
-      this.dmg += this._decay('abi', this._na()*DMG.droid_react_mult, DMG.droid_react_cap) + ampFlat;
+      this.dmg += this._decay('abi', this._naForAbi()*DMG.droid_react_mult, DMG.droid_react_cap) + ampFlat;
       (this.buf.droid_buf??=[]).push(DMG.dur_droid_buf);
     }
     if(color==='y'&&this.banoshik_robot>0) T.ra++;
@@ -1623,7 +1624,7 @@ function renderReplay(rows){
     <div style="font-size:11px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 10px;margin-bottom:8px;line-height:1.7;">
       <div>スケール: ${scaleWarn}</div>
       <div style="color:var(--muted);">使用ATK: ${atkStr}</div>
-      <div style="color:var(--muted);">主要GEAR: アサルト+${(GEAR.assault*100).toFixed(1)}% / バーストダメ+${(GEAR.burst_dmg*100).toFixed(1)}% / テクニカ+${(GEAR.technica*100).toFixed(1)}% / 旺盛+${(GEAR.vigor*100).toFixed(1)}%</div>
+      <div style="color:var(--muted);">主要GEAR: アサルト+${(GEAR.assault*100).toFixed(1)}% / バーストダメ+${(GEAR.burst_dmg*100).toFixed(1)}% / 通常ダメ+${(GEAR.na_dmg*100).toFixed(1)}% / 旺盛+${(GEAR.vigor*100).toFixed(1)}%</div>
     </div>`;
   el.innerHTML=`
     ${diag}
@@ -2218,7 +2219,7 @@ function applyGear(){
       if(dispAtk>0){
         DISPLAY_ATK_C[charKey]=dispAtk;
         DISPLAY_HP_C[charKey]=dispHp;
-        GEAR_K_C[charKey]=dispAtk*(1+GEAR.dmgup)*(1+GEAR.other)*(1+GEAR.technica)*DMG.misc/DMG.enemy_def; // affinityは_na()属性枠/technicaはburst割戻し対象
+        GEAR_K_C[charKey]=dispAtk*(1+GEAR.dmgup)*(1+GEAR.other)*DMG.misc/DMG.enemy_def; // affinityは_na()属性枠で加算/technicaはna_dmg枠へ移動済み
       }
     }
   }
