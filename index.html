@@ -453,11 +453,36 @@ const DMG = {
   defdown_divinus:  0.30,    // ディウィヌス: 敵防御-30%(defdown枠・consortと同種・累積可)
   dur_divinus_def:  2,       // ディウィヌス防御DOWN効果ターン
   // ディウィヌスDOT: 猛毒/重炎獄/深溺水/過腐敗の4種・各「敵最大HP×10%・上限10万」。順序非依存。
-  enemy_max_hp:     100000000, // 敵最大HP概算(高難易度ではDOTは常に上限張り付き・要較正placeholder)
   divinus_dot_cap:  100000,  // DOT1種あたり上限(10万)
   divinus_dot_types: 4,      // DOT種類数(猛毒/重炎獄/深溺水/過腐敗)
   dur_divinus_dot:  2,       // DOT持続(2Tティック)
+  // 敵パラメータ(ENEMY_REGISTRYから applyEnemy() で上書き)
+  enemy_def:        10,      // 敵防御値(placeholder・実機較正要)
+  enemy_max_hp:     100000000, // 敵最大HP(placeholder・DOT計算に使用)
 };
+
+// ===== 敵DB =====
+// 敵ごとの防御値・最大HP・限定行動などを登録する拡張可能なレジストリ。
+// placeholder値のみ。実機較正後に各フィールドを更新する。
+// TODO: Workerへの伝搬は gearState と同様に enemyState を initMsg に追加する(現状未実装)。
+const ENEMY_REGISTRY = {
+  default: {
+    label:   '汎用(placeholder)',
+    def:     10,          // 敵防御値(placeholder)
+    max_hp:  100000000,   // 敵最大HP(placeholder)
+    // limit: [],         // 限定行動(将来拡張用)
+  },
+  // 例: ragnarok: { label:'ラグナロク', def:2000, max_hp:500000000 },
+};
+
+let CURRENT_ENEMY_KEY = 'default';
+
+function applyEnemy(key){
+  const e = ENEMY_REGISTRY[key] ?? ENEMY_REGISTRY['default'];
+  CURRENT_ENEMY_KEY = key;
+  DMG.enemy_def    = e.def;
+  DMG.enemy_max_hp = e.max_hp;
+}
 
 // ===== 装備設定(幻獣・ウェポン) =====
 // 押し順非依存の常時ボックス補正。幻獣2枠(プリセット・重複可)とウェポンスキル合計を集約し、
@@ -1835,6 +1860,7 @@ self.onmessage=function(e){
   const d=e.data;
   if(d.type==='init'){
     for(const [k,v] of Object.entries(d.gearState)) GEAR[k]=v;
+    if(d.enemyState){ DMG.enemy_def=d.enemyState.enemy_def; DMG.enemy_max_hp=d.enemyState.enemy_max_hp; }
     if(d.gearKC) for(const [k,v] of Object.entries(d.gearKC)) GEAR_K_C[k]=v;
     if(d.dmgBase){ DMG.base_atk=d.dmgBase.base_atk; DMG.affinity=d.dmgBase.affinity;
       // 英霊武器専用強化定数(applyGear()が上書き済の実効値)を反映
@@ -1899,6 +1925,7 @@ function runSim(){
   _workerPool=workers;
 
   const initMsg={type:'init',heroKey,kamihimeKeys,gearState:{...GEAR},
+    enemyState:{enemy_def:DMG.enemy_def,enemy_max_hp:DMG.enemy_max_hp},
     gearKC:{...GEAR_K_C},dmgBase:{base_atk:DMG.base_atk,affinity:DMG.affinity,
       droid_react_mult:DMG.droid_react_mult,droid_react_cap:DMG.droid_react_cap,
       edison_burst_extra_mult:DMG.edison_burst_extra_mult,edison_burst_extra_cap:DMG.edison_burst_extra_cap,
@@ -2099,6 +2126,12 @@ function renderGearPanel(){
     <div class="gear-card">
       <div class="cfg-title">⚙️ 幻獣・ウェポン設定</div>
       <div class="gear-row" style="margin-bottom:8px;gap:12px;flex-wrap:wrap;">
+        <span class="wpn-lbl">敵</span>
+        <select id="enemy-select">${
+          Object.entries(ENEMY_REGISTRY).map(([k,v])=>`<option value="${k}"${k===CURRENT_ENEMY_KEY?' selected':''}>${v.label}</option>`).join('')
+        }</select>
+      </div>
+      <div class="gear-row" style="margin-bottom:8px;gap:12px;flex-wrap:wrap;">
         <span class="wpn-lbl">属性相性</span>
         <select id="dmg-affinity">
           <option value="neu"${DMG.affinity===1.0?' selected':''}>中立（×1.0）</option>
@@ -2141,6 +2174,8 @@ const HERO_WEAPON_BASE = {
 const DROID_REACT_BASE = { mult: HERO_WEAPON_BASE.droid_react_mult, cap: HERO_WEAPON_BASE.droid_react_cap };
 
 function applyGear(){
+  // 敵パラメータを先に同期(GEAR_K_Cの enemy_def 参照より前に実行)
+  applyEnemy(document.getElementById('enemy-select')?.value||CURRENT_ENEMY_KEY);
   // 属性相性
   DMG.affinity = document.getElementById('dmg-affinity')?.value==='adv'?1.5:1.0;
   for(const [box] of GEAR_BOXES) GEAR[box]=0;
