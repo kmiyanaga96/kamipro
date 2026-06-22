@@ -160,6 +160,7 @@ CHAR_REGISTRY[charKey] = {
 | `consort_def` | 防御DOWN→`defdown` | `defdown_consort=0.10`/stack | 6 | 累積 |
 | `effond_def` | 防御DOWN→`defdown` | `defdown_effond=0.10`/stack(エフォンド・敵防御-10%・自身上限`defdown_effond_max=0.40`) | 6 | 累積 |
 | `puvoir_acute` | 急所 | `acute_puvoir=0.010`(プヴワール急所はムーンコード発動時のみ追加・mooncode>0時のみpush) | 6 | 累積 |
+| `mobius_spec` | 特殊攻撃 | `spec_mobius=0.05`/stack(モビウスムーンズ=ヘカテー1アシ・ヘカテー自身のバースト4回毎=`mobius_burst_cycle`に光属性キャラへ付与・`onBurst`でpush) | 4 | 累積 |
 | `sleur_def` | 防壁 | buffCount精度用(ダメージ無寄与・スリール防壁累積可) | 3 | 累積 |
 | `nights` | バーストダメUP | `burst_dmg_nights=0.20`(ナイツサプレス・敵バースト耐性-20%の等価近似・全バースト) | 2 | 累積 |
 | `divinus_def` | 防御DOWN→`defdown` | `defdown_divinus=0.30`/stack(ディウィヌス・敵防御-30%) | 2 | 累積 |
@@ -175,8 +176,9 @@ CHAR_REGISTRY[charKey] = {
   - `defdown` = 防御/耐性DOWN各ソースの合算（独立乗算枠）
   - `aslt` = banoshik×0.10 + absolute×0.30 + (leg_aslt?0.20:0) + GEAR
   - `elem` = puvoir×0.15 + yamato_elem×0.05 + GEAR
-  - `vigor` = min(absolute→0.30 + leg_vigor→0.3552 + pike→0.3552 + GEAR, 1.0)
-  - `crit` = min(0.20 + absolute×0.25 + (pike_crit?1.0:0) + GEAR, 1.0) × 0.5
+  - `vigor` = min(absolute→0.30 + leg_vigor→0.3552 + pike→0.3552 + mc×`vigor_mooncode`0.3552 + GEAR, 1.0)
+  - `crit` = min(0.20 + absolute×0.25 + (pike_crit?1.0:0) + mc×`crit_rate_mooncode`0.50 + GEAR, 1.0) × 0.5
+  - `mc`(ムーンコード自己バフフラグ) = `ABIL.effond && mooncode>0 && _naOwner===ownerOf('effond')`(ヘカテー自身のみ・旺盛/会心)
   - `acute` = puvoir×0.010 + absolute×0.030 + legend×0.005 + pike_crit×0.30 + GEAR
   - `spec` = (leg_spec?0.20:0) + GEAR
   - `defdown` = consort_def×0.10 + divinus_def×0.30
@@ -311,6 +313,8 @@ CHAR_REGISTRY[charKey] = {
 - **ヘカテー(ムーンコード依存)**: エフォンドは常時=直接ダメ(3倍/35万)＋防御DOWN(10%/stack・最大40%)、
   ムーンコード発動時のみ即座にバースト発動(guard撤廃・burstのみ条件分岐)。プヴワール急所は
   ムーンコード発動時のみ`puvoir_acute`にpush(光属性UPは無条件)。バースト追加ダメ(3倍/50万)もmooncode>0時のみonBurstで加算。
+  ムーンコード(2アシ メイビームーンズ)発動中は**ヘカテー自身のみ**旺盛(基礎値42=0.3552)・会心(50%)を`_na()`に加算(`mc`フラグ・自己バフ)。
+  回避率100%/注目/反撃10倍は自出力モデル外。モビウスムーンズ(1アシ)はヘカテー自身のバースト4回毎に光属性キャラ特殊攻撃+5%(`mobius_spec`/4T累積可)を付与(`onBurst`・`mobius_bcount`で集計)。
 - **buffCount除外(敵デバフ)**: `DEBUFF_KEYS`=consort_def/divinus_def/effond_def/nights/divinus_dot。
   これらは敵デバフ=味方「強化効果」ではないためナポレオンのtier判定(roy/pike/consort)から除外する。
 - **天矢乱舞**: ゲージ不足キャラが存在するターン(T2以降)のみ使用可。
@@ -350,13 +354,13 @@ console.log("FullBurst:",fb+"/10","TotalDmg:",Math.round(sim.dmg));
 
 期待値（基準・DMG定数が現行値の場合）:
 ```
-T1  FB:5 J:3 renri:5  dmg:8,285,171    T6  FB:5 J:4 renri:30 dmg:71,905,922
-T2  FB:5 J:5 renri:10 dmg:24,027,780   T7  FB:5 J:4 renri:30 dmg:88,588,657
-T3  FB:5 J:4 renri:15 dmg:39,730,824   T8  FB:5 J:6 renri:30 dmg:104,937,444
-T4  FB:5 J:1 renri:20 dmg:49,080,665   T9  FB:5 J:4 renri:30 dmg:120,011,875
-T5  FB:5 J:3 renri:25 dmg:59,641,339   T10 FB:5 J:4 renri:30 dmg:147,190,696
+T1  FB:5 J:3 renri:5  dmg:8,326,195    T6  FB:5 J:4 renri:30 dmg:74,035,460
+T2  FB:5 J:5 renri:10 dmg:24,233,287   T7  FB:5 J:4 renri:30 dmg:92,065,592
+T3  FB:5 J:4 renri:15 dmg:40,197,389   T8  FB:5 J:6 renri:30 dmg:109,545,108
+T4  FB:5 J:1 renri:20 dmg:49,889,202   T9  FB:5 J:4 renri:30 dmg:125,863,853
+T5  FB:5 J:3 renri:25 dmg:61,122,066   T10 FB:5 J:6 renri:30 dmg:156,529,850
 ```
-（FullBurst:10/10、TotalDmg:147,190,696。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
+（FullBurst:10/10、TotalDmg:156,529,850。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
 **バーストストリーク式(有志確定・2026-06)**: ストリークダメージ = バースト合計 × 属性補正 × 人数補正 × ダメージUP効果量。
 人数補正は参加人数依存(`streak_count`: 2人0.30/3人0.35/4人0.41/5人0.50)、中立属性は属性補正=affinity=1.0、
 ダメージUP効果量は`streak_dmgup`(現編成=1.0)。減衰(`decay_streak.caps`)は参加人数別の第一/第二減衰(raw実ダメ閾値)で、

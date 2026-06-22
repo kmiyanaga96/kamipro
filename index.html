@@ -387,6 +387,16 @@ const DMG = {
   dur_effond_def: 6,         // エフォンド防御DOWN効果ターン(3T/6T・累積可)
   hecate_extra_mult: 3,      // ヘカテーバースト追加ダメージ倍率(ムーンコード発動時・通常攻撃比3倍)
   hecate_extra_cap: 500000,  // ヘカテーバースト追加ダメージ減衰上限(50万)
+  // ─── メイビームーンズ(ヘカテー2アシ・ムーンコード自己バフ): 発動中ヘカテー自身のみ ───
+  // 戦闘開始時・アビ12回毎に発動(2T/消去不可)。発動中: 旺盛(基礎値42)・会心(50%)・回避100%・注目・反撃。
+  // 旺盛/会心はヘカテー自身の_na()にのみ加算(owner===ownerOf('effond')判定)。回避/注目/反撃は自出力モデル外。
+  vigor_mooncode:    0.3552,  // ムーンコード: 旺盛 基礎値42 → ×1.3552(ヘカテー自身・フルHP)
+  crit_rate_mooncode: 0.50,   // ムーンコード: 会心発動率+50%(ヘカテー自身)
+  // ─── モビウスムーンズ(ヘカテー1アシ): ヘカテー自身のバースト4回毎に光属性キャラ特殊攻撃UP ───
+  // (別クローズ「光属性キャラのバースト5回毎にアビ即使用可」はmburst%5のCDリセットで既出)。
+  spec_mobius:   0.05,        // 特殊攻撃+5%/stack(光属性キャラ・4T累積可)
+  dur_mobius:    4,           // モビウス特殊攻撃UP効果ターン(累積可)
+  mobius_burst_cycle: 4,      // ヘカテー自身のバースト何回毎に付与するか
   tetra_burst_mult: 3,       // テトラバースト追加ダメージ倍率(通常攻撃比3倍)
   tetra_burst_cap: 500000,   // テトラバースト追加ダメージ減衰上限(50万)
   tetra_burst_mult2: 6,      // テトラバーストHELIX後の追加ダメージ倍率(効果量2倍=6倍)
@@ -749,6 +759,7 @@ const CHAR_REGISTRY = {
     type: 'kamihime',
     jp: '[愛情と友情]ヘカテー', shortJp: 'ヘカテー', gcls: 'gh', elem: 'light',
     favWeapon: ['杖','魔導具'], baseAtk: 7800, baseHp: 1850,
+    state: { mobius_bcount: 0 },  // モビウスムーンズ: ヘカテー自身のバースト累計(4回毎に特殊攻撃UP付与)
     abilities: {
       puvoir: ['y', 2, 0],
       effond: ['r', 3, 0],
@@ -785,6 +796,10 @@ const CHAR_REGISTRY = {
       onBurst: (sim) => {
         if(sim.mooncode>0)
           sim.dmg += sim._decay('burst', sim._na()*DMG.hecate_extra_mult, DMG.hecate_extra_cap);
+        // モビウスムーンズ: ヘカテー自身のバースト4回毎に光属性キャラの特殊攻撃+5%(4T累積可)を付与。
+        sim.mobius_bcount = (sim.mobius_bcount||0)+1;
+        if(sim.mobius_bcount % DMG.mobius_burst_cycle === 0)
+          (sim.buf.mobius_spec??=[]).push(DMG.dur_mobius);
       },
     },
   },
@@ -1149,6 +1164,9 @@ class Sim {
     const nBan=b.banoshik?.length||0, nLeg=b.legend?.length||0;
     const nPikeCrit=b.pike_crit?.length||0;
     const nPuvAcute=b.puvoir_acute?.length||0;  // プヴワール急所(ムーンコード時のみpush)
+    // ムーンコード自己バフ(ヘカテー2アシ): 発動中かつ攻撃者がムーンコード所有者(=effond所有者)のみ。
+    // 旺盛/会心をヘカテー自身の_na()に加算する(party全体ではなく自己バフ)。
+    const mc = (ABIL.effond && this.mooncode>0 && this._naOwner===ownerOf('effond')) ? 1 : 0;
     // アサルト枠: banoshik/absolute + legend(契晶) + 装備
     const aslt = nBan*D.assault_banoshik + nAbs*D.assault_absolute
                + (b.leg_aslt?D.assault_legend:0) + G.assault;
@@ -1159,16 +1177,17 @@ class Sim {
     // 旺盛枠: absolute/leg_vigor/pike(光) + 装備。+100%上限(フルHP前提)
     const vigor = Math.min(
       (nAbs>0?D.vigor_absolute:0)+(b.leg_vigor?D.vigor_legend:0)
-      +(b.pike?.length>0?D.vigor_pike:0)+G.vigor, 1.0);
-    // 会心枠: ARRIVE永続 + absolute + パイク確実会心(100%) + 装備
+      +(b.pike?.length>0?D.vigor_pike:0)+mc*D.vigor_mooncode+G.vigor, 1.0);
+    // 会心枠: ARRIVE永続 + absolute + パイク確実会心(100%) + ムーンコード(自己) + 装備
     const critRate = Math.min(D.crit_rate_arrive + nAbs*D.crit_rate_absolute
-                            + (nPikeCrit>0?D.crit_rate_pike:0) + G.crit_rate, 1.0);
+                            + (nPikeCrit>0?D.crit_rate_pike:0) + mc*D.crit_rate_mooncode + G.crit_rate, 1.0);
     const crit = critRate*D.crit_mult;
     // 急所枠: 光(puvoirはムーンコード時のみ/absolute/legend/pike_crit) + 装備
     const acute = nPuvAcute*D.acute_puvoir + nAbs*D.acute_absolute + nLeg*D.acute_legend
                 + nPikeCrit*D.acute_pike_crit + G.acute;
     // 特殊攻撃枠: leg_spec(光) + omni(テトラ1アシ・光) + 装備
-    const spec = (b.leg_spec?D.spec_legend:0)+(b.omni?.length?D.spec_omni:0)+G.spec;
+    const spec = (b.leg_spec?D.spec_legend:0)+(b.omni?.length?D.spec_omni:0)
+               + (b.mobius_spec?.length||0)*D.spec_mobius + G.spec;
     // GEAR_K or per-character GEAR_K_C[owner] (武器マスタ設定時)
     const gk = (this._naOwner && GEAR_K_C[this._naOwner]) || GEAR_K;
     const base = gk*(1+aslt)*elemBox*(1+vigor)*(1+crit)*(1+acute)*(1+spec);
