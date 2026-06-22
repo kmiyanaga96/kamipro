@@ -165,7 +165,7 @@ CHAR_REGISTRY[charKey] = {
 | `nights` | バーストダメUP | `burst_dmg_nights=0.20`(ナイツサプレス・敵バースト耐性-20%の等価近似・全バースト) | 2 | 累積 |
 | `divinus_def` | 防御DOWN→`defdown` | `defdown_divinus=0.30`/stack(ディウィヌス・敵防御-30%) | 2 | 累積 |
 | `divinus_dot` | DOT(独立・順序非依存) | 4種×min(敵最大HP×10%,上限10万)をtetra `turnEnd`で毎ターン加算 | 2 | 累積 |
-| `inori_burst` | 自バースト係数(ヤマト限定) | `burst_inori=5`(現神の祈り中バースト倍率5→10の増分5・`burstBonus`で自バーストのみ加算) | 3 | refresh相当 |
+| `inori_burst` | 自バースト係数(ヤマト限定)＋追撃ゲート | `burst_inori=3.8`(現神の祈り中バースト係数増分・`burstBonus`で自バーストのみ加算)。**追加+味方全体の追撃(`burst_followup_mult`)をこのbufでゲート**(inori中のみ追撃発生) | 3 | refresh相当 |
 | `funki_burst` | 自バースト係数+上限(ヤマト限定) | `burst_funki=0.15`/stack(自バーストダメ+15%・`burstBonus`)＋`burst_cap_funki=0.10`/stack(自バースト上限+10%・`burstCapBonus`) | 3 | 累積 |
 | `yamato_elem` | 属性値 | `elem_yamato=0.05`/stack(ヤマトバースト効果・味方全体光属性攻撃+5%・`onBurst`で付与) | 3 | 累積 |
 | `yamato_bplus` | バーストダメプラス(ヤマト限定) | `bplus_yamato=100000`(1アシ・ヤマトアビ使用毎に+10万/stack・自バースト時に`onBurst`で加算) | 3 | 累積 |
@@ -186,6 +186,8 @@ CHAR_REGISTRY[charKey] = {
     - `coef_a/b` = `CHAR_DEF[owner].burst_coef_a/b`（per-char。エジソン/ナポレオン: a=5 b=3000 / ヤマト/ヘカテー: a=5 b=2500 / テトラ/エレイン: a=4.5 b=2500）
   - `selfBonus` = `CHAR_DEF[owner].burstBonus?.(sim)` オーナー固有の自バースト係数加算(汎用フック)。
     ヤマト: `inori_burst?DMG.burst_inori:0 + funki_burst本数×DMG.burst_funki`(現神の祈り倍率UP＋大和の奮起累積・自バーストのみ)。
+  - **追加ダメージ(追撃) = `burst()`で `buf.inori_burst` ゲート**(ヤマト現神の祈り中のみ・味方全体のバーストに `_decay('burst', naB×burst_followup_mult11, 50万)` を付与)。
+    実機確定(2026-06 試行A/B): inori無し=追撃なし(1数値)/inori中=第2数値。無条件の全バースト共通追撃は誤りで撤廃。
   - 青アビ実効果(`data.xlsx`確定): ナイツサプレス=敵バースト耐性-20°≒バーストダメUP / ディウィヌス=敵防御-30%(defdown)＋DOT4種。
     両アビの「与ダメージDOWN/敵攻撃DOWN」等は被ダメ側＝自出力モデルのスコープ外。
   - ディウィヌスDOTは敵最大HP依存(`DMG.enemy_max_hp`placeholder)・順序非依存。押し順最適化には`defdown`/`nights`のみ効く。
@@ -354,13 +356,13 @@ console.log("FullBurst:",fb+"/10","TotalDmg:",Math.round(sim.dmg));
 
 期待値（基準・DMG定数が現行値の場合）:
 ```
-T1  FB:5 J:3 renri:5  dmg:8,510,360    T6  FB:5 J:4 renri:30 dmg:75,331,678
-T2  FB:5 J:5 renri:10 dmg:24,613,319   T7  FB:5 J:4 renri:30 dmg:93,662,703
-T3  FB:5 J:4 renri:15 dmg:40,794,634   T8  FB:5 J:6 renri:30 dmg:111,437,049
-T4  FB:5 J:1 renri:20 dmg:50,706,726   T9  FB:5 J:4 renri:30 dmg:128,055,807
-T5  FB:5 J:3 renri:25 dmg:62,182,986   T10 FB:5 J:6 renri:30 dmg:159,072,030
+T1  FB:5 J:3 renri:5  dmg:5,476,121    T6  FB:5 J:4 renri:30 dmg:48,876,515
+T2  FB:5 J:4 renri:10 dmg:15,440,621   T7  FB:5 J:6 renri:30 dmg:60,738,340
+T3  FB:5 J:3 renri:15 dmg:26,323,860   T8  FB:5 J:3 renri:30 dmg:72,413,124
+T4  FB:5 J:4 renri:20 dmg:33,313,829   T9  FB:5 J:4 renri:30 dmg:85,427,506
+T5  FB:5 J:3 renri:25 dmg:41,265,315   T10 FB:5 J:4 renri:30 dmg:106,390,396
 ```
-（FullBurst:10/10、TotalDmg:159,072,030。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
+（FullBurst:10/10、TotalDmg:106,390,396。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
 **バーストストリーク式(有志確定・2026-06)**: ストリークダメージ = バースト合計 × 属性補正 × 人数補正 × ダメージUP効果量。
 人数補正は参加人数依存(`streak_count`: 2人0.30/3人0.35/4人0.41/5人0.50)、中立属性は属性補正=affinity=1.0、
 ダメージUP効果量は`streak_dmgup`(=1.1。フレイヤ[聖夜の約束]アシ2ジョイフルイルミネイト=サブメンバー時も発動・
@@ -377,6 +379,14 @@ Number1=core+ARRIVE flat(全キャラ)、Number2=追撃倍率×naB(全キャラ)
 f=A_t-naB_t×8.75-2500≈623,500(≈62.4万)。エジソン(coef_a=5)で独立検証→A_e予測=183万(実機183万)✓。
 ヘカテー(A=207万・B=172万)はmooncode=0と仮定した場合のモデル(A=208万・B=157,257×10.94=172万)で一致→hecate_extra_mult=3は更新保留。
 基準値124,404,087→152,897,059へ更新(追撃×11とbplus_arrive+12.4万で+23%)。
+**追撃のinoriゲート化＋bplus_arrive/burst_inori再較正(解X・2026-06 試行A/B・会心不発・単体敵・中立)**:
+ヤマトのバースト効果スクショ「現神の祈り中、追加ダメージ」＋試行A(inori無し=96万・追撃なし1数値)で、
+**追撃は無条件ではなくinori中のみ味方全体に発生**と判明(前回の全バースト共通追撃は誤り→`buf.inori_burst`ゲートへ修正)。
+試行A:96万(inori無)/試行B:141万+130万(inori有)から `naB=130万/11≈118,182`、
+`burst_inori=(141-96)万/naB≈3.8`(旧5)、`bplus_arrive=96万-naB×5.2-2500≈34.3万`(旧62.4万)。
+スクショ表記「3倍/50万」は試行B第2数値130万(≒naB×11)と桁が合わず、実測整合を優先し`burst_followup_mult=11`維持(解X)。
+yamato_extra(inori cap 50→100万拡張)は本構造で不要になり廃止。基準値159,072,030→106,390,396へ更新(追撃のinori限定化が支配的)。
+**残課題**: スクショ3倍 vs 実測11倍の桁差(多段ヒット/表示仕様の可能性)・追撃の味方全体スコープ(全員inori中追撃)の最終確認(no-inoriフルバーストで全員の第2数値消失を確認すれば確定)。
 テトラ1アシspec+30%(omni・T1-3＋テトラ4再発動でT7-9)実装で116,829,348→111,777,714(抽象スケールはflat支配的
 でspec効果は小さくビーム再最適化のノイズ範囲・実スケールmiscでは寄与増大)。
 ※注: この基準は base_atk=1500 フォールバック(applyGear非経由)の抽象スケール値。ARRIVE(エレイン3アシ)の

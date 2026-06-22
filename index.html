@@ -367,7 +367,7 @@ const DMG = {
   streak_dmgup:  1.0,        // ダメージUP効果量(applySubPassives()がサブメンバー選択に応じて上書き)
                              // フレイヤ[聖夜の約束]アシ2=1.1。SUB_REGISTRYとUIで管理。
   // ─── ヤマトタケル(自バースト性能UP・光属性付与) ───
-  burst_inori: 5,            // 現神の祈り中: ヤマト自身のバースト倍率5→10(増分=5・自分のみ)
+  burst_inori: 3.8,          // 現神の祈り中: ヤマト自身のバースト係数増分(実機較正2026-06 試行A/B:45万/naB118182≈3.8)
   burst_funki: 0.15,         // 大和の奮起: ヤマト自身のバーストダメージ+15%/stack(自分のみ・累積可)
   burst_cap_funki: 0.10,     // 大和の奮起: ヤマト自身のバースト上限+10%/stack(自分のみ・累積可)
   dur_inori_burst: 3,        // 現神の祈り バースト性能大幅UP効果ターン(現神の祈り3Tと同窓)
@@ -376,10 +376,11 @@ const DMG = {
   dur_yamato_elem: 3,        // ヤマトバースト 光属性攻撃UP効果ターン
   bplus_yamato: 100000,      // 1アシ(集いし願い): ヤマト自バースト時のダメージプラス+10万/stack
   dur_bplus_yamato: 3,       // 1アシ バーストダメージプラス効果ターン(累積可)
-  // ヤマトバースト追加ダメージ(バースト効果として毎回発動・現神の祈り中は上限変化)
-  yamato_extra_mult: 3,      // 追加ダメージ倍率(通常攻撃比3倍)
-  yamato_extra_cap: 500000,  // 追加ダメージ減衰上限(通常時50万)
-  yamato_extra_cap_inori: 1000000, // 追加ダメージ減衰上限(現神の祈り中100万)
+  // 【廃止】ヤマトバースト追加ダメージ(旧: per-charの3倍/cap拡張)。解X(2026-06)で追撃をinoriゲートの
+  // 全味方共通追撃(burst_followup_mult)へ統合したため未参照。将来スクショ「3倍/50万」を再検証する際の記録として残置。
+  yamato_extra_mult: 3,      // (未参照)追加ダメージ倍率(スクショ表記=通常攻撃比3倍)
+  yamato_extra_cap: 500000,  // (未参照)追加ダメージ減衰上限(50万)
+  yamato_extra_cap_inori: 1000000, // (未参照)旧: 現神の祈り中100万拡張(廃止)
   // ─── ヘカテー(エフォンド直接ダメ＋防御DOWN / バースト追加ダメ) ───
   effond_mult:  3,           // エフォンド・ロンブル: 敵全体に光属性ダメージ(通常攻撃比3倍・アビ枠)
   effond_cap:   350000,      // エフォンド直接ダメージ減衰上限(35万)
@@ -402,10 +403,10 @@ const DMG = {
   tetra_burst_cap: 500000,   // テトラバースト追加ダメージ減衰上限(50万)
   tetra_burst_mult2: 6,      // テトラバーストHELIX後の追加ダメージ倍率(効果量2倍=6倍)
   tetra_burst_cap2: 1000000, // テトラバーストHELIX後の追加ダメージ減衰上限(未実測・推定100万)
-  // 全バースト共通追撃(全キャラのバースト毎に発動)。
-  // ヤマト/テトラの従来per-char追撃を本定数に統合。inori cap拡張とHELIX倍率増はonBurstで差分管理。
-  // 実機較正(現神の祈りのみ・エジソン/エレイン/テトラ3点 2026-06): 旧3→11に改訂。
-  burst_followup_mult: 11,    // 追撃倍率(通常攻撃比11倍・実機較正)
+  // 追加ダメージ(追撃): ヤマト「現神の祈り中」のみ味方全体のバーストに付与(burst()でinoriゲート)。
+  // 実機確定(2026-06 試行A/B): inori無し=追撃なし(1数値)/inori中=第2数値出現。スクショ表記「3倍/50万」
+  // とは桁が合わず(試行B第2数値130万≒naB118182×11)、実測整合を優先し11倍を採用(解X)。
+  burst_followup_mult: 11,    // 追撃倍率(通常攻撃比11倍・実機較正・inori中のみ)
   burst_followup_cap: 500000, // 追撃減衰上限(50万)
   dur_sleur_def: 3,          // スリール防壁効果ターン(buffCount精度用・ダメージ無寄与・3T/3T累積可)
   // ─── 英霊武器専用強化(applyGear()でセット・非装備時=OFF基準値で無効) ─────────────────
@@ -459,7 +460,7 @@ const DMG = {
   burst_dmg_nights: 0.20,    // ナイツサプレス: 敵バースト攻撃耐性-20% ≒ バーストダメージ+20%/stack
   // ─── ARRIVE(エレイン3アシスト・全光属性編成で永続・消去不可・全員のバーストに乗る) ──
   burst_dmg_arrive: 0.20,    // ARRIVE: バーストダメージ+20%(永続)
-  bplus_arrive:     624000,  // ARRIVE: バーストダメージプラス+62.4万(減衰外フラット・永続・実機較正2026-06)
+  bplus_arrive:     343000,  // ARRIVE: バーストダメージプラス+34.3万(減衰外フラット・永続・実機較正2026-06 試行A:96万=naB×5.2+2500+bplus)
   dur_nights:       2,       // ナイツサプレス効果ターン(累積可)
   defdown_divinus:  0.30,    // ディウィヌス: 敵防御-30%(defdown枠・consortと同種・累積可)
   dur_divinus_def:  2,       // ディウィヌス防御DOWN効果ターン
@@ -719,14 +720,9 @@ const CHAR_REGISTRY = {
       onBurst: (sim) => {
         (sim.buf.yamato_elem??=[]).push(DMG.dur_yamato_elem);
         sim.dmg += (sim.buf.yamato_bplus?.length||0) * DMG.bplus_yamato;
-        // 追撃はburst()の全バースト共通式(naB×3/50万)で付与済み。
-        // 現神の祈り中のみcap 50万→100万に拡張する差分を追加付与。
-        const inoriOn = (sim.buf.inori_burst?.length||0) > 0;
-        if(inoriOn) {
-          const naB_y = sim._na();
-          sim.dmg += sim._decay('burst', naB_y*DMG.yamato_extra_mult, DMG.yamato_extra_cap_inori)
-                   - sim._decay('burst', naB_y*DMG.yamato_extra_mult, DMG.yamato_extra_cap);
-        }
+        // 追加ダメージ(追撃)は burst() で inori ゲートして味方全体に付与済み(naB×burst_followup_mult/50万)。
+        // スクショ表記は「3倍/50万」だが実機観測(試行B 第2数値130万≒naB×11)とは桁が合わず、
+        // 実測整合を優先して burst_followup_mult=11 を採用(解X)。yamato_extra系は廃止。
       },
       // 自バースト性能バフ(現神の祈り倍率UP＋大和の奮起累積)をオーナー限定で burst係数に加算。
       burstBonus: (sim) => (sim.buf.inori_burst?.length?DMG.burst_inori:0)
@@ -1263,9 +1259,11 @@ class Sim {
     const capBonus = CHAR_DEF[owner].burstCapBonus?.(this) ?? 0;
     const core = this._decay('burst', naB*(coef_a + bdmg + GEAR.burst_dmg + selfBonus) + coef_b, DMG.decay_burst.cap1*(1+capBonus));
     this.dmg += core + royBurst + passiveFlat;
-    // 全バースト共通追撃: naB×3(cap 50万)。天矢乱舞実機較正で確定した全キャラ統一式。
-    // ヤマト(inori cap拡張)・テトラ(HELIX倍率増)はonBurstで差分を追加付与。
-    this.dmg += this._decay('burst', naB * DMG.burst_followup_mult, DMG.burst_followup_cap);
+    // 追加ダメージ(追撃): ヤマト「現神の祈り中」のみ・味方全体のバーストに付与(naB×mult/cap)。
+    // 実機確定(2026-06 試行A/B): inori無し(試行A)は追撃が出ない=1数値のみ。inori中(試行B)は第2数値が出る。
+    // → 無条件の全バースト共通追撃ではなく inori(buf.inori_burst)ゲート。味方全体に適用(buf全体共有)。
+    if(this.buf.inori_burst?.length)
+      this.dmg += this._decay('burst', naB * DMG.burst_followup_mult, DMG.burst_followup_cap);
     if(atk) bset.add(owner);
     // 連理魔力(コヴァレント): バースト2回毎に+1＆ジャッジ即使用可。攻撃フェーズのバーストも対象
     this.procR(T,'b');
