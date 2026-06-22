@@ -364,9 +364,8 @@ const DMG = {
   // 人数補正は参加人数依存(下表)。中立属性は属性補正=1.0。ダメージUP効果量はストリーク固有の上乗せ(現編成=1.0)。
   // ※旧burst_streak=0.72は誤り(疑わしい36.8M測定からの逆算でdecay除去とセットの二重誤り)。正しくは人数補正0.5+減衰。
   streak_count:  { 2:0.30, 3:0.35, 4:0.41, 5:0.50 }, // 参加人数→人数補正(倍)
-  streak_dmgup:  1.1,        // ダメージUP効果量(ストリーク固有の上乗せ)。フレイヤ[聖夜の約束]アシ2
-                             // ジョイフルイルミネイト=サブメンバー時も発動・参加人数非依存でストリーク×1.1
-                             // (減衰は1.1倍後に計算=_decay前に乗算で構造一致)。サブ編成変更時は要更新。
+  streak_dmgup:  1.0,        // ダメージUP効果量(applySubPassives()がサブメンバー選択に応じて上書き)
+                             // フレイヤ[聖夜の約束]アシ2=1.1。SUB_REGISTRYとUIで管理。
   // ─── ヤマトタケル(自バースト性能UP・光属性付与) ───
   burst_inori: 5,            // 現神の祈り中: ヤマト自身のバースト倍率5→10(増分=5・自分のみ)
   burst_funki: 0.15,         // 大和の奮起: ヤマト自身のバーストダメージ+15%/stack(自分のみ・累積可)
@@ -984,6 +983,40 @@ const CHAR_REGISTRY = {
     },
   },
 };
+
+// ===== サブメンバーDB =====
+// サブメンバーは「メインメンバーが戦闘不能になった時に参戦」するが、
+// 一部のアシスト効果はサブ状態でも発動する（スクショ等で確認した効果のみ実装）。
+// シムは「サブメンバーが戦闘に参加していない状態（アシスト効果のみ有効）」として扱う。
+// passives: applyGear()がDMG値を上書きすることで効果を反映。
+const SUB_REGISTRY = {
+  freyja_christmas: {
+    jp: '[聖夜の約束]フレイヤ',
+    assists: {
+      // ジョイフルイルミネイト(2アシ): パーティ全光属性の場合、サブ時も発動。
+      // バーストストリークダメージ×1.1（参加人数非依存・減衰は1.1倍後に計算）。
+      streak_dmgup: 1.1,
+    },
+  },
+  // 例: sub2: { jp: '...', assists: { streak_dmgup: 1.0 } },
+};
+
+// 選択中サブメンバーのキー配列（UIで変更・applyGear()で反映）。
+const SUB_SLOTS = 3;  // サブ枠数(最大)
+let CURRENT_SUBS = [];  // 例: ['freyja_christmas', '', '']
+
+// 選択中サブのアシスト効果を集約してDMG定数を上書きする。
+// streak_dmgup: 複数サブで同一効果があれば最大値を採用（現状は1種のみ）。
+function applySubPassives(){
+  let sdmgup = 1.0;
+  for(const key of CURRENT_SUBS){
+    if(!key) continue;
+    const s = SUB_REGISTRY[key];
+    if(!s) continue;
+    if(s.assists.streak_dmgup) sdmgup = Math.max(sdmgup, s.assists.streak_dmgup);
+  }
+  DMG.streak_dmgup = sdmgup;
+}
 
 // ===== 編成グローバル（buildFormationで構築） =====
 // ABIL形式: [owner, color, cd, keigyo_cost]
@@ -1890,7 +1923,8 @@ self.onmessage=function(e){
       if(d.dmgBase.edison_burst_extra_mult!=null) DMG.edison_burst_extra_mult=d.dmgBase.edison_burst_extra_mult;
       if(d.dmgBase.edison_burst_extra_cap!=null)  DMG.edison_burst_extra_cap =d.dmgBase.edison_burst_extra_cap;
       if(d.dmgBase.betaia_mult!=null)             DMG.betaia_mult=d.dmgBase.betaia_mult;
-      if(d.dmgBase.betaia_cap!=null)              DMG.betaia_cap =d.dmgBase.betaia_cap; }
+      if(d.dmgBase.betaia_cap!=null)              DMG.betaia_cap =d.dmgBase.betaia_cap;
+      if(d.dmgBase.streak_dmgup!=null)            DMG.streak_dmgup=d.dmgBase.streak_dmgup; }
     recalcGearK();
     buildFormation(d.heroKey,d.kamihimeKeys);
     self.postMessage({type:'ready'});
@@ -1948,6 +1982,7 @@ function runSim(){
   const initMsg={type:'init',heroKey,kamihimeKeys,gearState:{...GEAR},
     enemyState:{enemy_def:DMG.enemy_def,enemy_max_hp:DMG.enemy_max_hp},
     gearKC:{...GEAR_K_C},dmgBase:{base_atk:DMG.base_atk,affinity:DMG.affinity,
+      streak_dmgup:DMG.streak_dmgup,
       droid_react_mult:DMG.droid_react_mult,droid_react_cap:DMG.droid_react_cap,
       edison_burst_extra_mult:DMG.edison_burst_extra_mult,edison_burst_extra_cap:DMG.edison_burst_extra_cap,
       betaia_mult:DMG.betaia_mult,betaia_cap:DMG.betaia_cap}};
@@ -2082,6 +2117,16 @@ function renderFormationPanel(){
       </select>
     </div>`).join('');
 
+  const subOpts = '<option value="">-- なし --</option>'+
+    Object.entries(SUB_REGISTRY).map(([k,v])=>`<option value="${k}">${v.jp}</option>`).join('');
+  const subSlotsHtml = Array.from({length:SUB_SLOTS},(_,i)=>`
+    <div class="kslot-wrap">
+      <span class="slot-num">サブ${i+1}</span>
+      <select id="sub-slot-${i}">
+        ${subOpts}
+      </select>
+    </div>`).join('');
+
   document.getElementById('formation-panel').innerHTML=`
     <div class="formation-panel">
       <div class="cfg-title" style="margin-bottom:0;">⚔ 編成選択</div>
@@ -2094,6 +2139,10 @@ function renderFormationPanel(){
           <div class="fp-label">神姫（順序で選択）</div>
           <div class="kslots">${slotsHtml}</div>
         </div>
+        <div class="fp-section">
+          <div class="fp-label">サブメンバー（アシスト効果のみ反映）</div>
+          <div class="kslots">${subSlotsHtml}</div>
+        </div>
       </div>
     </div>`;
 
@@ -2101,6 +2150,8 @@ function renderFormationPanel(){
   const currentKami = CHARS.filter(c=>c!==LEADER);
   currentKami.forEach((c,i)=>{ document.getElementById(`kslot-${i}`).value=c; });
   syncSlots();
+  // サブメンバー選択を復元
+  CURRENT_SUBS.forEach((k,i)=>{ const el=document.getElementById(`sub-slot-${i}`); if(el&&k) el.value=k; });
 }
 
 function syncSlots(){
@@ -2197,6 +2248,8 @@ const DROID_REACT_BASE = { mult: HERO_WEAPON_BASE.droid_react_mult, cap: HERO_WE
 function applyGear(){
   // 敵パラメータを先に同期(GEAR_K_Cの enemy_def 参照より前に実行)
   applyEnemy(document.getElementById('enemy-select')?.value||CURRENT_ENEMY_KEY);
+  CURRENT_SUBS = Array.from({length:SUB_SLOTS},(_,i)=>document.getElementById(`sub-slot-${i}`)?.value||'');
+  applySubPassives();
   // 属性相性
   DMG.affinity = document.getElementById('dmg-affinity')?.value==='adv'?1.5:1.0;
   for(const [box] of GEAR_BOXES) GEAR[box]=0;
