@@ -58,7 +58,7 @@ const WEAPON_MASTER = {
     ],
   },
   launcher_tank: {
-    jp: '自走ランチャータンク', atk: 4543, hp: 272, type: '銃', elem: 'light',
+    jp: '自走光砲ランチャータンク', atk: 4543, hp: 272, type: '銃', elem: 'light',
     skills: [
       // 発明王の覇気+: 属性攻撃UP(%未確定・TODO) + 最終ダメUP5% — メインエジソン限定
       { box: 'dmgup', pct: 5, condition: { mainOf: 'edison' } },
