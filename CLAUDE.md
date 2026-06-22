@@ -259,7 +259,7 @@ CHAR_REGISTRY[charKey] = {
   可能性=knee較正)＋高バフ敵数の最終確認。抽象ハーネスはraw≪capで減衰休眠のため基準値111,777,714は不変。
 - **テトラ1アシ（ゴッド・オムニポンテス）= 特殊攻撃+30%（光パーティ・クエスト開始時自動発動）を実装済**。
   `buf.omni`(spec枠)＝`onBattleStart`フック(def記述・`_beginTurn`のt===1で全キャラ呼出)でbattle開始時付与。
-  テトラ4(HELIX)発動時に`buf.omni`をrefresh(再発動)。**TODO: `dur_omni=3`はプレースホルダ（実機効果ターン未検証）**。
+  テトラ4(HELIX)発動時に`buf.omni`をrefresh(再発動)。**`dur_omni=1`は実機確定（2026-06）。テトラ4再発動時の持続は未確認**。
 
 ### 将来課題（未実装・情報待ち）
 
@@ -350,13 +350,13 @@ console.log("FullBurst:",fb+"/10","TotalDmg:",Math.round(sim.dmg));
 
 期待値（基準・DMG定数が現行値の場合）:
 ```
-T1  FB:5 J:3 renri:5  dmg:8,285,171    T6  FB:5 J:4 renri:30 dmg:71,408,375
-T2  FB:5 J:5 renri:10 dmg:24,350,635   T7  FB:5 J:6 renri:30 dmg:88,924,633
-T3  FB:5 J:4 renri:15 dmg:40,362,347   T8  FB:5 J:4 renri:30 dmg:105,868,662
-T4  FB:5 J:1 renri:20 dmg:49,712,187   T9  FB:5 J:5 renri:30 dmg:122,928,459
-T5  FB:5 J:3 renri:25 dmg:60,091,827   T10 FB:5 J:6 renri:30 dmg:152,897,059
+T1  FB:5 J:3 renri:5  dmg:8,285,171    T6  FB:5 J:4 renri:30 dmg:71,905,922
+T2  FB:5 J:5 renri:10 dmg:24,027,780   T7  FB:5 J:4 renri:30 dmg:88,588,657
+T3  FB:5 J:4 renri:15 dmg:39,730,824   T8  FB:5 J:6 renri:30 dmg:104,937,444
+T4  FB:5 J:1 renri:20 dmg:49,080,665   T9  FB:5 J:4 renri:30 dmg:120,011,875
+T5  FB:5 J:3 renri:25 dmg:59,641,339   T10 FB:5 J:4 renri:30 dmg:147,190,696
 ```
-（FullBurst:10/10、TotalDmg:152,897,059。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
+（FullBurst:10/10、TotalDmg:147,190,696。`DMG` 定数を変えると数値も変わる＝この基準も更新する。
 **バーストストリーク式(有志確定・2026-06)**: ストリークダメージ = バースト合計 × 属性補正 × 人数補正 × ダメージUP効果量。
 人数補正は参加人数依存(`streak_count`: 2人0.30/3人0.35/4人0.41/5人0.50)、中立属性は属性補正=affinity=1.0、
 ダメージUP効果量は`streak_dmgup`(現編成=1.0)。減衰(`decay_streak.caps`)は参加人数別の第一/第二減衰(raw実ダメ閾値)で、
