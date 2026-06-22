@@ -13,28 +13,36 @@
 火属性神姫（アマテラス/ミネルヴァ/ニケ/ラミエル）は今後シミュ対象としない方針のため削除済み
 （英霊ナポレオンは引き続き使用可。elem:nullのため編成上は光属性として動作する）。
 
-## コード地図（index.html / 約1980行）
+## コード地図（index.html / 2173行）
 
 セクション編集時は該当範囲だけを Read すればトークンを節約できる。
+また、DB化されたマスタデータは `data/` 配下の外部JSに定義されています。
+
+### 外部DBファイル構成
+- [weapons.js](file:///c:/Users/Kanta%20Miyanaga/kamipro/data/weapons.js): 武器マスターDB (`WEAPON_MASTER`)
+- [summons.js](file:///c:/Users/Kanta%20Miyanaga/kamipro/data/summons.js): 幻獣マスターDB (`SUMMON_REGISTRY`)
+- [enemies.js](file:///c:/Users/Kanta%20Miyanaga/kamipro/data/enemies.js): 敵DB (`ENEMY_REGISTRY`)
+- [characters.js](file:///c:/Users/Kanta%20Miyanaga/kamipro/data/characters.js): キャラクターDB (`CHAR_REGISTRY` + `SUB_REGISTRY` 統合、フレイヤ実装含む、`DEBUFF_KEYS`/`buffCount`も同梱)
+
+### index.html のコード地図
 
 | 範囲(行) | 内容 |
 |---|---|
 | 7–209 | CSS（`<style>`、Material白基調UI・スピナー） |
-| 211–258 | HTML構造（ヘッダ/サイドバー/メイン/ローディング） |
-| 259–260 | `data/weapons.js` 読込 ＋ 本体 `<script>` 開始 |
-| 261–282 | ゲーム定数（確定仕様・後述） |
-| 283–380 | **`DMG`**（概算火力モデル定数） |
-| 381–498 | **`GEAR`/`SUMMON_REGISTRY`/`GEAR_K`**（装備設定・幻獣プリセット）＋**表示攻撃力**（`SSR_LV_RELEASE`/`DISPLAY_ATK_OVERRIDE`/`calcDisplayAtk`/`calcDisplayHp`/`recalcGearK`） |
-| 499–766 | **`CHAR_REGISTRY`**（全キャラ定義の唯一の集約先。エジソン/ヤマト/ヘカテー/テトラ/エレイン/ナポレオン） |
-| 767–835 | 編成グローバル構築（`buildFormation`/`ELEM`/`CHAR_SIM_STATES`/`MILESTONES`/`computeBaseScore`） |
-| 836–1209 | `class Sim` エンジン（tick/procR/burst/use/`_na`/beam等。`_beamSearch`は`forcedPrefix`引数でルート分散に対応） |
-| 1211–1251 | `cmpVec` ＋ **ルート分散ヘルパ**（`enumerateRootPrefixes`=開幕候補を汎用列挙／`_runRootPlan`・`_runBaselinePlan`=1ルート/基準の実行。`class Sim`の外だがWorker抽出範囲内＝Worker/フォールバック共用） |
-| 1253–1325 | UI helpers（`uiFeats`/loopsHTML/gaugesHTML/cdBadgesHTML等） |
-| 1326–1373 | カード描画（cardHTML/toggleCard） |
-| 1374–1584 | **Web Worker プール・ルート分散**（`_buildWorkerCode`/`_finishSim`/`runSim`/`_fallbackRunSim`/`renderSim`） |
-| 1585–1641 | 編成選択UI（編成・装備とも▶実行時にrunSimが読み取り反映） |
-| 1642–1945 | 装備設定UI（renderGearPanel/applyGear・per-char `GEAR_K_C` 構築） |
-| 1946–末尾 | INIT（renderParty等） |
+| 211–282 | HTML構造（ヘッダ/サイドバー/メイン/ローディング） |
+| 283–287 | 外部JSファイル読込 (`weapons`/`summons`/`enemies`/`characters`) |
+| 289–302 | ゲーム定数（確定仕様・後述） |
+| 303–488 | **`DMG`**（概算火力モデル定数） |
+| 489–623 | **`GEAR`**（装備設定）＋**表示攻撃力**（`SSR_LV_RELEASE`/`DISPLAY_ATK_OVERRIDE`/`calcDisplayAtk`/`calcDisplayHp`/`recalcGearK`） |
+| 624–709 | 編成グローバル構築（`buildFormation`/`ELEM`/`CHAR_SIM_STATES`/`MILESTONES`/`computeBaseScore`） |
+| 710–1189 | `class Sim` エンジン（tick/procR/burst/use/`_na`/beam等。フレイヤ配線含む） |
+| 1190–1373 | リプレイモード ＋ **ルート分散ヘルパ**（`enumerateRootPrefixes` = 開幕候補を汎用列挙） |
+| 1374–1494 | UI helpers（`uiFeats`/loopsHTML/gaugesHTML/cdBadgesHTML等、`AUTO SIM`含む） |
+| 1495–1730 | **Web Worker プール・ルート分散**（`_buildWorkerCode`/`_finishSim`/`runSim`/`_fallbackRunSim`/`renderSim`） |
+| 1731–1804 | 編成選択UI（▶実行時にrunSimが読み取り反映） |
+| 1805–1969 | 装備設定UI（renderGearPanel/applyGear・per-char `GEAR_K_C` 構築） |
+| 1970–2151 | 編成保存スロット（GitHub Gist同期機能） |
+| 2152–末尾 | INIT（renderParty等） |
 
 最適化の最上位目標は**概算総ダメージ**（`DMG` モデル）。FB回数/総バースト/総ジャッジ/連理魔力
 は補助指標として目的関数の下位次元に残る。詳細は「概算火力モデル」節を参照。
