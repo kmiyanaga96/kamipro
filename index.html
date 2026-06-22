@@ -594,15 +594,6 @@ function calcDisplayHp(charKey, slots, summonHpTotal, heroRank){
 function recalcGearK(){ GEAR_K = DMG.base_atk*(1+GEAR.dmgup)*(1+GEAR.other)*DMG.misc/DMG.enemy_def; }
 recalcGearK();
 
-// ===== キャラクタ登録簿 =====
-// 各キャラのデータをここに集約。buildFormation() で選択編成の globals を再構築する。
-// type:'hero'|'kamihime' / abilities: {key:[color,cd,keigyo_cost]} / def: CHAR_DEF エントリ
-
-// 強化効果数の概算: buf辞書の総スタック数(ナポレオンのバフ数比例効果の参照用)
-// 敵デバフ系buf키(防御/耐性DOWN・敵デバフ)は味方の「強化効果」ではないため buffCount から除外する。
-// ナポレオンの roy/pike/consort/factor のtier判定は原文「(英霊/自分の)強化効果の数」に従う。
-// 敵デバフ(防御/耐性DOWN・DOT)は味方の「強化効果」ではないため buffCount から除外。
-
 // 選択中サブメンバーのキー配列（UIで変更・applyGear()で反映）。
 const SUB_SLOTS = 3;  // サブ枠数(最大)
 let CURRENT_SUBS = [];  // 例: ['freyja_christmas', '', '']
