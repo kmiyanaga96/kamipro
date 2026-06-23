@@ -409,8 +409,11 @@ const DMG = {
   // 追加ダメージ(追撃): ヤマト「現神の祈り中」のみ味方全体のバーストに付与(burst()でinoriゲート)。
   // 実機確定(2026-06 試行A/B): inori無し=追撃なし(1数値)/inori中=第2数値出現。スクショ表記「3倍/50万」
   // とは桁が合わず(試行B第2数値130万≒naB118182×11)、実測整合を優先し11倍を採用(解X)。
-  burst_followup_mult: 11,    // 追撃倍率(通常攻撃比11倍・実機較正・inori中のみ)
-  burst_followup_cap: 500000, // 追撃減衰上限(50万)
+  burst_followup_mult: 3,     // 追撃倍率(通常攻撃比3倍・スクショ確定・inori中のみ・abi枠)
+  burst_followup_cap: 500000, // 追撃減衰上限(50万・スクショ確定)
+  // ─── エレイン(契晶80個以上バースト追加ダメージ) ───
+  elaine_burst_extra_mult: 2,    // バースト追加ダメージ倍率(通常攻撃比2倍・スクショ確定)
+  elaine_burst_extra_cap:  300000, // 追加ダメージ減衰上限(30万・スクショ確定)
   dur_sleur_def: 3,          // スリール防壁効果ターン(buffCount精度用・ダメージ無寄与・3T/3T累積可)
   // ─── 英霊武器専用強化(applyGear()でセット・非装備時=OFF基準値で無効) ─────────────────
   // 各定数はDMG宣言時の値が「英霊武器なし」基準。applyGear()冒頭でリセット後、装備検出時に上書き。
@@ -888,6 +891,7 @@ class Sim {
       for(const k of Object.keys(ABIL)) if(ownerOf(k)===ho) this.cd[k]=0;
       T.mobius=(T.mobius||0)+1;
     }
+    return core; // D8: ストリーク基底用(バースト本体コアのみ・royBurst/passiveFlat/追加ダメ除く)
   }
 
   use(name, T, ord, note='') {
@@ -966,16 +970,16 @@ class Sim {
   // 攻撃フェイズ: ゲージ100以上のキャラがバーストするだけ。アビリティ発動は一切なし。
   // procによるjudg arm（cd=0）は次ターンへ持ち越し。
   _attackPhase(){
-    const atk=[]; const before=this.dmg;
+    const atk=[]; let burstCoreTotal=0;
     for(const c of CHARS){
-      if(this.g[c]>=FB_THR){ this.g[c]-=100; this.burst(c,this.bset,this.T,true); atk.push(c); }
+      if(this.g[c]>=FB_THR){ this.g[c]-=100; burstCoreTotal+=this.burst(c,this.bset,this.T,true); atk.push(c); }
     }
     // バーストストリーク(有志確定式): ストリークダメージ = バースト合計 × 属性補正 × 人数補正 × ダメージUP効果量。
-    // バースト合計 = this.dmg-before(本フェイズのバースト総量・通常攻撃は本フェイズに無いので純バースト)。
+    // バースト合計 = バースト本体コア合計(royBurst/passiveFlat/onBurst追加ダメは除外・D8ストリーク純化)。
     // 人数補正は参加人数依存・属性補正は中立1.0(affinity)・減衰は参加人数別cap(_decay('streak',raw,n))。
     const n=atk.length;
     if(n>=2){
-      const raw=(this.dmg-before)*DMG.affinity*DMG.streak_count[n]*DMG.streak_dmgup;
+      const raw=burstCoreTotal*DMG.affinity*DMG.streak_count[n]*DMG.streak_dmgup;
       this.dmg += this._decay('streak', raw, n);
     }
     return atk;
@@ -1546,7 +1550,8 @@ self.onmessage=function(e){
       if(d.dmgBase.edison_burst_extra_cap!=null)  DMG.edison_burst_extra_cap =d.dmgBase.edison_burst_extra_cap;
       if(d.dmgBase.betaia_mult!=null)             DMG.betaia_mult=d.dmgBase.betaia_mult;
       if(d.dmgBase.betaia_cap!=null)              DMG.betaia_cap =d.dmgBase.betaia_cap;
-      if(d.dmgBase.streak_dmgup!=null)            DMG.streak_dmgup=d.dmgBase.streak_dmgup; }
+      if(d.dmgBase.streak_dmgup!=null)            DMG.streak_dmgup=d.dmgBase.streak_dmgup;
+      if(d.dmgBase.napo_burst_cd_reduce!=null)    DMG.napo_burst_cd_reduce=d.dmgBase.napo_burst_cd_reduce; }
     recalcGearK();
     buildFormation(d.heroKey,d.kamihimeKeys);
     self.postMessage({type:'ready'});
@@ -1607,7 +1612,8 @@ function runSim(){
       streak_dmgup:DMG.streak_dmgup,
       droid_react_mult:DMG.droid_react_mult,droid_react_cap:DMG.droid_react_cap,
       edison_burst_extra_mult:DMG.edison_burst_extra_mult,edison_burst_extra_cap:DMG.edison_burst_extra_cap,
-      betaia_mult:DMG.betaia_mult,betaia_cap:DMG.betaia_cap}};
+      betaia_mult:DMG.betaia_mult,betaia_cap:DMG.betaia_cap,
+      napo_burst_cd_reduce:DMG.napo_burst_cd_reduce}};
   const tasks=prefixes.map((prefix,rootId)=>({type:'root',rootId,prefix,n}));
   tasks.push({type:'baseline',n});
 
@@ -1863,6 +1869,7 @@ const HERO_WEAPON_BASE = {
   edison_burst_extra_mult: DMG.edison_burst_extra_mult,  // 0=OFF
   betaia_mult:            DMG.betaia_mult,
   betaia_cap:             DMG.betaia_cap,
+  napo_burst_cd_reduce:   false,  // ナポレオン英霊武器バーストCDリダクション
 };
 // 後方互換エイリアス(参照箇所があるため残置)
 const DROID_REACT_BASE = { mult: HERO_WEAPON_BASE.droid_react_mult, cap: HERO_WEAPON_BASE.droid_react_cap };
@@ -1881,6 +1888,7 @@ function applyGear(){
   DMG.edison_burst_extra_mult = HERO_WEAPON_BASE.edison_burst_extra_mult;
   DMG.betaia_mult             = HERO_WEAPON_BASE.betaia_mult;
   DMG.betaia_cap              = HERO_WEAPON_BASE.betaia_cap;
+  DMG.napo_burst_cd_reduce    = HERO_WEAPON_BASE.napo_burst_cd_reduce;
 
   // 幻獣のweapon_amp合計と直接ボックス補正を収集(ダメージ用。表示攻撃力の幻獣寄与は手動合計入力)
   let weaponAmp=0;
@@ -1913,6 +1921,10 @@ function applyGear(){
         if(sk.betaiaUpgrade){ // 英霊武器ベタイア強化(ナポレオン・メイン装備時)
           DMG.betaia_mult = sk.betaiaUpgrade.mult;
           DMG.betaia_cap  = sk.betaiaUpgrade.cap;
+          continue;
+        }
+        if(sk.napoBurstCdReduce){ // ナポレオン英霊武器バーストCDリダクション
+          DMG.napo_burst_cd_reduce = true;
           continue;
         }
         if(sk.box==='defender') continue; // HP専用・ダメージGEAR外

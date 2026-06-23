@@ -45,8 +45,9 @@ const CHAR_REGISTRY = {
       onBurst: (sim, atk) => {
         if(atk){ sim.cd.droid=Math.max(0,sim.cd.droid-1); sim.cd.banoshik=Math.max(0,sim.cd.banoshik-1); }
         // 英霊武器バースト追加ダメージ(ランチャータンクメイン時のみ有効・mult=0でOFF)
+        // 英霊武器バースト追加ダメージ: アビ枠(有志確定)
         if(DMG.edison_burst_extra_mult > 0)
-          sim.dmg += sim._decay('burst', sim._na(true)*DMG.edison_burst_extra_mult, DMG.edison_burst_extra_cap);
+          sim.dmg += sim._decay('abi', sim._na()*DMG.edison_burst_extra_mult, DMG.edison_burst_extra_cap);
       },
       turnEnd: (sim) => { if(sim.cum>=80) sim.addG([LEADER],20); },
     },
@@ -98,13 +99,9 @@ const CHAR_REGISTRY = {
       onBurst: (sim) => {
         (sim.buf.yamato_elem??=[]).push(DMG.dur_yamato_elem);
         sim.dmg += (sim.buf.yamato_bplus?.length||0) * DMG.bplus_yamato;
-        // 追加ダメージ: ヤマト固有のバースト効果・現神の祈り中のみ発動(inoriゲート)。
-        // 実機確定(2026-06 試行A/B): inori無し=追撃なし(1数値)/inori中=第2数値(naB×11/cap50万)。
+        // 追加ダメージ: ヤマト固有・現神の祈り中のみ発動(スクショ確定: 3倍/50万・アビ枠)。
         if((sim.buf.inori_burst?.length||0)>0)
-          sim.dmg += sim._decay('burst', sim._na()*DMG.burst_followup_mult, DMG.burst_followup_cap);
-        // 追加ダメージ(追撃)は burst() で inori ゲートして味方全体に付与済み(naB×burst_followup_mult/50万)。
-        // スクショ表記は「3倍/50万」だが実機観測(試行B 第2数値130万≒naB×11)とは桁が合わず、
-        // 実測整合を優先して burst_followup_mult=11 を採用(解X)。yamato_extra系は廃止。
+          sim.dmg += sim._decay('abi', sim._na()*DMG.burst_followup_mult, DMG.burst_followup_cap);
       },
       // 自バースト性能バフ(現神の祈り倍率UP＋大和の奮起累積)をオーナー限定で burst係数に加算。
       burstBonus: (sim) => (sim.buf.inori_burst?.length?DMG.burst_inori:0)
@@ -171,10 +168,10 @@ const CHAR_REGISTRY = {
       burst_coef_a: 5, burst_coef_b: 2500,  // ヘカテー: a=5.0 b=2500
       gmax: BG.other_max,
       keigyoGain: 1,
-      // バースト効果: ムーンコード発動時、追加ダメージ(倍率3倍・減衰50万)。自バーストのみ(onBurst)。
+      // バースト効果: ムーンコード発動時、追加ダメージ(倍率3倍・減衰50万・アビ枠)。自バーストのみ(onBurst)。
       onBurst: (sim) => {
         if(sim.mooncode>0)
-          sim.dmg += sim._decay('burst', sim._na()*DMG.hecate_extra_mult, DMG.hecate_extra_cap);
+          sim.dmg += sim._decay('abi', sim._na()*DMG.hecate_extra_mult, DMG.hecate_extra_cap);
         // モビウスムーンズ: ヘカテー自身のバースト4回毎に光属性キャラの特殊攻撃+5%(4T累積可)を付与。
         sim.mobius_bcount = (sim.mobius_bcount||0)+1;
         if(sim.mobius_bcount % DMG.mobius_burst_cycle === 0)
@@ -225,7 +222,7 @@ const CHAR_REGISTRY = {
     },
     def: {
       gmax: BG.other_max,
-      burst_coef_a: 4.5, burst_coef_b: 2500,  // テトラ: a=4.5 b=2500
+      burst_coef_a: 5, burst_coef_b: 2500,  // テトラ: a=5.0 b=2500(スクショ確定)
       keigyoGain: 1,
       // テトラ1アシ(ゴッド・オムニポンテス): クエスト開始時に光パーティへ特殊攻撃+30%(omni)を自動付与。
       onBattleStart: (sim) => { (sim.buf.omni??=[]).push(DMG.dur_omni); },
@@ -234,14 +231,12 @@ const CHAR_REGISTRY = {
       // HELIX解禁検出(初回到達ターン表示用)。doneKeyは自前state。
       helix: { reached: s=>s.renri>=30, doneKey: 'helix_done' },
       onBurst: (sim, atk, owner) => {
-        // バースト効果: 追撃はburst()の全バースト共通式(naB×3/50万)で付与済み。
-        // HELIX後(helix_done=true)は効果量2倍(倍率6倍/減衰100万)→共通追撃との差分のみ追加付与。
+        // バースト追加ダメージ(スクショ確定・アビ枠): HELIX前=3倍/50万、HELIX後=6倍/100万(おそらく)。
         const helix = !!sim.helix_done;
-        if(helix) {
-          const naB_t = sim._na();
-          sim.dmg += sim._decay('burst', naB_t*DMG.tetra_burst_mult2, DMG.tetra_burst_cap2)
-                   - sim._decay('burst', naB_t*DMG.tetra_burst_mult,  DMG.tetra_burst_cap);
-        }
+        const naB_t = sim._na();
+        const mult = helix ? DMG.tetra_burst_mult2 : DMG.tetra_burst_mult;
+        const cap  = helix ? DMG.tetra_burst_cap2  : DMG.tetra_burst_cap;
+        sim.dmg += sim._decay('abi', naB_t * mult, cap);
         // CD短縮: 自バーストのみ全アビCD-1(自然分)。HELIX後はCD-2(CT短縮効果)。
         const cdDec = helix ? 2 : 1;
         const skip = atk ? [] : ['judg'];
@@ -288,7 +283,7 @@ const CHAR_REGISTRY = {
                   exec:(sim,T,ord)=>{ T.pactcoreUsed=true; const lk=Object.keys(ABIL).filter(k=>ownerOf(k)===LEADER); for(const k of lk) if(sim.cd[k]>0) sim.cd[k]=Math.max(0,sim.cd[k]-1); sim.addG(CHARS,BG.pactcore); sim.use('pactcore',T,ord,'(全+100)'); }},
     },
     def: {
-      burst_coef_a: 4.5, burst_coef_b: 2500,  // エレイン: a=4.5 b=2500
+      burst_coef_a: 5.5, burst_coef_b: 3000,  // エレイン: a=5.5 b=3000(スクショ確定)
       gmax: BG.other_max,
       keigyoGain: 1,
       // ARRIVE(3アシスト): パーティ全員が光属性のとき永続発動(消去不可)。
@@ -296,6 +291,14 @@ const CHAR_REGISTRY = {
       // 会心発動率+20%(crit_rate_arrive)は _na() に常時反映済み。
       burstPartyPassive: (sim) => CHARS.every(c=>ELEM[c]==='light')
         ? { dmg: DMG.burst_dmg_arrive, flat: DMG.bplus_arrive } : null,
+      // バースト追加ダメージ: 契晶80個以上獲得時のみ3回発動(スクショ確定・アビ枠・2倍/30万)。
+      onBurst: (sim) => {
+        if(sim.cum >= 80){
+          const naB_e = sim._na();
+          for(let i=0; i<3; i++)
+            sim.dmg += sim._decay('abi', naB_e * DMG.elaine_burst_extra_mult, DMG.elaine_burst_extra_cap);
+        }
+      },
     },
   },
 
@@ -344,6 +347,14 @@ const CHAR_REGISTRY = {
       burst_coef_a: 5, burst_coef_b: 3000,  // ナポレオン: a=5.0 b=3000(エジソンと同英霊クラス)
       gmax: BG.other_max,
       keigyoGain: 3,
+      // 英霊武器「レス・ボナパルト」メイン装備時: バースト発動時に自身の全アビCD-1短縮。
+      onBurst: (sim, atk, owner) => {
+        if(!DMG.napo_burst_cd_reduce) return;
+        for(const k of Object.keys(sim.cd)){
+          if(ABIL[k]?.[0] !== owner) continue;
+          if(sim.cd[k] > 0) sim.cd[k] = Math.max(0, sim.cd[k]-1);
+        }
+      },
       // エキープ・ベニフィッシ: 味方の強化系アビ(atkBufタグ)毎に闘気+1
       onAbility: (sim, name) => { if(CHAR_REGISTRY[ownerOf(name)]?.cands?.[name]?.atkBuf) sim.aura++; },
       // ベタイア・コンヴェフティ: ターン終了時に闘気を消費(闘気1個=1ヒット×3倍・上限50万)

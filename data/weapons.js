@@ -70,4 +70,15 @@ const WEAPON_MASTER = {
       { burstHeroExtra: { mult: 2.5, cap: 800000 }, condition: { mainOf: 'edison' } },
     ],
   },
+  les_bonaparte: {
+    jp: '光皇刃レス・ボナパルト', atk: 4721, hp: 245, type: '剣', elem: 'light',
+    skills: [
+      // 革命皇の覇気: 味方全体の光属性攻撃UP(30%)
+      { box: 'elem', pct: 30 },
+      // 淀みなき進軍: ベタイア・コンヴェフティの倍率3.0→3.5・上限50万→80万へ強化(メインナポレオン限定)
+      { betaiaUpgrade: { mult: 3.5, cap: 800000 }, condition: { mainOf: 'napoleon' } },
+      // バースト発動時、自身の全アビCD-1短縮(メインナポレオン限定)
+      { napoBurstCdReduce: true, condition: { mainOf: 'napoleon' } },
+    ],
+  },
 };
