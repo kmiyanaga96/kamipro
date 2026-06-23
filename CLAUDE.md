@@ -51,4 +51,4 @@ node -e "const fs = require('fs'); const html = fs.readFileSync('index.html', 'u
 
 **期待値（基準・フォールバック抽象スケール）**:
 - FullBurst: `10/10`
-- TotalDmg: `91,385,806`
+- TotalDmg: `91,599,060`
