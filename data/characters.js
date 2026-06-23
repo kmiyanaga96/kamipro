@@ -291,13 +291,12 @@ const CHAR_REGISTRY = {
       // 会心発動率+20%(crit_rate_arrive)は _na() に常時反映済み。
       burstPartyPassive: (sim) => CHARS.every(c=>ELEM[c]==='light')
         ? { dmg: DMG.burst_dmg_arrive, flat: DMG.bplus_arrive } : null,
-      // バースト追加ダメージ: 契晶80個以上獲得時のみ3回発動(スクショ確定・アビ枠・2倍/30万)。
+      // バースト追加ダメージ(スクショ確定・アビ枠・2倍/30万): 常時1回、契晶80個以上で3回発動。
       onBurst: (sim) => {
-        if(sim.cum >= 80){
-          const naB_e = sim._na();
-          for(let i=0; i<3; i++)
-            sim.dmg += sim._decay('abi', naB_e * DMG.elaine_burst_extra_mult, DMG.elaine_burst_extra_cap);
-        }
+        const naB_e = sim._na();
+        const hits = sim.cum >= 80 ? 3 : 1;
+        for(let i=0; i<hits; i++)
+          sim.dmg += sim._decay('abi', naB_e * DMG.elaine_burst_extra_mult, DMG.elaine_burst_extra_cap);
       },
     },
   },
