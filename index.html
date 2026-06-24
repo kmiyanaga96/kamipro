@@ -1709,8 +1709,9 @@ function renderFormationPanel(){
       </select>
     </div>`).join('');
 
+  // サブ枠候補: CHAR_REGISTRY統合後、サブアシスト(subAssists)を持つキャラを列挙(旧SUB_REGISTRYの代替)。
   const subOpts = '<option value="">-- なし --</option>'+
-    Object.entries(SUB_REGISTRY).map(([k,v])=>`<option value="${k}">${v.jp}</option>`).join('');
+    Object.entries(CHAR_REGISTRY).filter(([k,v])=>v.subAssists).map(([k,v])=>`<option value="${k}">${v.jp}</option>`).join('');
   const subSlotsHtml = Array.from({length:SUB_SLOTS},(_,i)=>`
     <div class="kslot-wrap">
       <span class="slot-num">サブ${i+1}</span>

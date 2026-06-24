@@ -1,6 +1,11 @@
 const DEBUFF_KEYS = new Set(['consort_def', 'divinus_def', 'effond_def', 'nights', 'divinus_dot']);
 const buffCount = sim => Object.entries(sim.buf).reduce((a,[k,v])=>a+(DEBUFF_KEYS.has(k)?0:v.length),0);
 
+// ⚠ ロード順の不変条件: data/*.js は index.html のインライン定数(BG/DMG/GEAR)より「前」に読み込まれる。
+// そのため【オブジェクトリテラルの即時評価フィールド】(例: gmax)に BG/DMG/GEAR を参照してはならない
+// (= ReferenceError でファイル全体が落ち、CHAR_REGISTRY 未定義→UI全消失する)。
+// 関数本体(cands.exec / def フック)内での DMG/BG/GEAR 参照は「遅延評価」のため安全(シム実行時に解決)。
+// 即時フィールドのゲージ上限は素の数値で持つ: 100=BG.other_max / 200=BG.yamato_max。
 const CHAR_REGISTRY = {
   // ─── state フィールドの規約 ──────────────────────────────────────────
   // キャラ固有のバトル持続状態変数をここに宣言する（初期値付き）。
@@ -41,7 +46,7 @@ const CHAR_REGISTRY = {
     },
     def: {
       burst_coef_a: 5, burst_coef_b: 3000,  // エジソン: a=5.0 b=3000
-      gmax: BG.other_max,
+      gmax: 100,  // =BG.other_max（即時評価のためリテラル。ロード順不変条件・冒頭注記参照）
       keigyoGain: 3,
       // ロボ作動反応(エジソン固有): 全キャラのアビ使用毎に発火。攻撃ロボ(droid)=赤アビ反応 / 補助ロボ(banoshik_robot)=黄アビ反応。
       // 旧 Sim.use() のハードコードを移管。_naOwner は use() で発動アビ所有者に設定済のため反応ダメージ基準は不変。
@@ -107,7 +112,7 @@ const CHAR_REGISTRY = {
     },
     def: {
       burst_coef_a: 5, burst_coef_b: 2500,  // ヤマト: a=5.0 b=2500
-      gmax: BG.yamato_max,
+      gmax: 200,  // =BG.yamato_max（即時評価のためリテラル。ロード順不変条件・冒頭注記参照）
       keigyoGain: 1,
       // バースト効果: 味方全体の光属性攻撃+5%(3T累積可)。自バースト毎にスタック(天矢乱舞の複数発動も各々付与)。
       // 1アシ: バーストダメージプラス(+15万/stack)を自バースト時に加算。
@@ -186,7 +191,7 @@ const CHAR_REGISTRY = {
     },
     def: {
       burst_coef_a: 5, burst_coef_b: 2500,  // ヘカテー: a=5.0 b=2500
-      gmax: BG.other_max,
+      gmax: 100,  // =BG.other_max（即時評価のためリテラル。ロード順不変条件・冒頭注記参照）
       keigyoGain: 1,
       // ムーンコード(ヘカテー固有): パーティ全体のアビ使用12回毎にムーンコードを再発動(残2T)。
       // 旧 Sim.procR() のハードコードを移管。T.ability は use() で procR 前に++済のため %12 値は不変。
@@ -257,7 +262,7 @@ const CHAR_REGISTRY = {
                     sim.buf.omni=[DMG.dur_omni]; sim.use('helix',T,ord); }},
     },
     def: {
-      gmax: BG.other_max,
+      gmax: 100,  // =BG.other_max（即時評価のためリテラル。ロード順不変条件・冒頭注記参照）
       burst_coef_a: 5, burst_coef_b: 2500,  // テトラ: a=5.0 b=2500(スクショ確定)
       keigyoGain: 1,
       // コヴァレント・アルカナ(連理魔力・テトラ固有): アビ12回毎/バースト2回毎にproc発火。
@@ -336,7 +341,7 @@ const CHAR_REGISTRY = {
     },
     def: {
       burst_coef_a: 5.5, burst_coef_b: 3000,  // エレイン: a=5.5 b=3000(スクショ確定)
-      gmax: BG.other_max,
+      gmax: 100,  // =BG.other_max（即時評価のためリテラル。ロード順不変条件・冒頭注記参照）
       keigyoGain: 1,
       // ARRIVE(3アシスト): パーティ全員が光属性のとき永続発動(消去不可)。
       // バーストダメージ+20% & バーストダメージプラス+50万(減衰外)を全員のバーストに付与。
@@ -396,7 +401,7 @@ const CHAR_REGISTRY = {
     },
     def: {
       burst_coef_a: 5, burst_coef_b: 3000,  // ナポレオン: a=5.0 b=3000(エジソンと同英霊クラス)
-      gmax: BG.other_max,
+      gmax: 100,  // =BG.other_max（即時評価のためリテラル。ロード順不変条件・冒頭注記参照）
       keigyoGain: 3,
       // 英霊武器「レス・ボナパルト」メイン装備時: バースト発動時に自身の全アビCD-1短縮。
       onBurst: (sim, atk, owner) => {
@@ -477,7 +482,7 @@ const CHAR_REGISTRY = {
     },
     def: {
       burst_coef_a: 5, burst_coef_b: 2500,
-      gmax: BG.other_max,
+      gmax: 100,  // =BG.other_max（即時評価のためリテラル。ロード順不変条件・冒頭注記参照）
       keigyoGain: 1,
       onBurst: (sim) => { (sim.buf.freyja_bg_up ??= []).push(4); },
       onPartyBurst: (sim, owner) => {
