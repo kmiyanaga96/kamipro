@@ -1621,7 +1621,9 @@ function runSim(){
       if(done>=total){ onAllDone(); return; }
       dispatch(w);
     };
-    w.onerror=function(){
+    w.onerror=function(err){
+      console.error("Worker error details: ", err);
+      alert("Worker内でエラーが発生しました:\n" + err.message + "\n(場所: " + err.filename + " の " + err.lineno + "行目)\n\n※このあとメインスレッドでのフォールバック実行に移行するため、ブラウザが一時的に応答しなくなります。");
       if(failed) return; failed=true;
       _terminateWorkerPool();
       _fallbackRunSim(heroKey,kamihimeKeys,n);
