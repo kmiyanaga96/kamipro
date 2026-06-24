@@ -260,6 +260,22 @@ const CHAR_REGISTRY = {
       gmax: BG.other_max,
       burst_coef_a: 5, burst_coef_b: 2500,  // テトラ: a=5.0 b=2500(スクショ確定)
       keigyoGain: 1,
+      // コヴァレント・アルカナ(連理魔力・テトラ固有): アビ12回毎/バースト2回毎にproc発火。
+      // 1procで連理魔力+1(RENRI_MAXで頭打ち)＆ジャッジCD即0(CD中のみ・非蓄積)。同ターン上限RENRI_CAP。
+      // 旧 Sim.procR() のハードコードを移管。チャネル別: アビ=onAbility(T.ability%12) / バースト=onPartyBurst(T.burst%2)。
+      // T.proc は use()/burst() でカウンタ++済の T.ability/T.burst を読むため発火条件は不変。
+      onAbility: (sim, name, color, T) => {
+        if(T.ability>0 && T.ability%12===0 && T.proc<RENRI_CAP){
+          T.proc++; if(sim.renri<RENRI_MAX) sim.renri++;
+          if(sim.cd.judg>0) sim.cd.judg=0;
+        }
+      },
+      onPartyBurst: (sim, owner, T, atk) => {
+        if(T.burst>0 && T.burst%2===0 && T.proc<RENRI_CAP){
+          T.proc++; if(sim.renri<RENRI_MAX) sim.renri++;
+          if(sim.cd.judg>0) sim.cd.judg=0;
+        }
+      },
       // テトラ1アシ(ゴッド・オムニポンテス): クエスト開始時に光パーティへ特殊攻撃+30%(omni)を自動付与。
       onBattleStart: (sim) => { (sim.buf.omni??=[]).push(DMG.dur_omni); },
       // HELIX(テトラ4)は連理魔力30で解禁。目的関数は renri をここまで評価し超過分は追わない。

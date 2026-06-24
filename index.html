@@ -750,24 +750,6 @@ class Sim {
     this.cum+=gain;
   }
 
-  procR(T, channel) {
-    // コヴァレント・アルカナ(連理魔力+ジャッジ再発動)はテトラのアシスト。テトラ不在編成では発火しない。
-    if(ABIL.judg){
-      const crossed=(
-        (channel==='b'&&T.burst>0&&T.burst%2===0)||
-        (channel==='a'&&T.ability>0&&T.ability%12===0)
-      );
-      // procは同ターン上限RENRI_CAP(5回)。1procが連理魔力+1＆ジャッジ即使用可を同時付与。
-      // 3チャネル(abi/12・burst/2・通常攻撃/9)を合算してカウント。
-      if(crossed && T.proc<RENRI_CAP){
-        T.proc++; if(this.renri<RENRI_MAX) this.renri++; // 連理魔力は RENRI_MAX で頭打ち(実機検証)
-        // ジャッジ再発動は二値制御(非蓄積): judg CD中のみリセット。アイドル中(CD=0)は捨てる。
-        // リキャストは連理魔力上限到達後も継続処理する。
-        if(this.cd.judg>0) this.cd.judg=0;
-      }
-    }
-  }
-
   // 減衰(上限)モデル: 計算ダメージ raw → 実ダメージ。区分線形で寄与率(slope)を逓減する。
   // frame: 'na'(35/45/55万実ダメ・第1上限のみ×cap_up・第2/第3は+10万/+20万固定・全½傾き反復) / 'burst'(100万・1→1/10)
   //        / 'abi'(base=キャラ毎・1→0.04=1/25) / 'hard'(追撃/城塞・寄与率0=完全頭打ち)。
@@ -883,8 +865,6 @@ class Sim {
     const core = this._decay('burst', naB*(coef_a + bdmg + GEAR.burst_dmg + selfBonus) + coef_b, DMG.decay_burst.cap1*(1+capBonus));
     this.dmg += core + royBurst + passiveFlat;
     if(atk) bset.add(owner);
-    // 連理魔力(コヴァレント): バースト2回毎に+1＆ジャッジ即使用可。攻撃フェーズのバーストも対象
-    this.procR(T,'b');
     // キャラ固有のバースト時処理（CHAR_DEF記述子に集約）
     CHAR_DEF[owner].onBurst?.(this, atk, owner);
     // パーティ全体のバースト監視フック（モビウスムーンズ等・他キャラのバーストにも反応する機構）。
@@ -897,8 +877,7 @@ class Sim {
     this._naOwner = ownerOf(name); // _na()がアビ所有者のGEAR_K_Cを参照するよう設定
     const [,color,cd,cost]=ABIL[name];
     this.cd[name]=cd; if(cost) this.keigyo-=cost; T.ability++;
-    this.procR(T,'a');
-    // パーティ全体のアビ使用監視フック（エジソンのロボ反応・ナポレオン闘気等）。
+    // パーティ全体のアビ使用監視フック（テトラの連理魔力・エジソンのロボ反応・ナポレオン闘気等）。
     // ロボ作動反応(攻撃ロボ赤反応/補助ロボ黄反応・T.ra加算)もこのフック経由でエジソンdefに集約。
     for(const c of CHARS) CHAR_DEF[c].onAbility?.(this, name, color, T);
     ord.push({text:LABEL[name]+(note||''), color});
