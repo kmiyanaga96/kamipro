@@ -1632,7 +1632,7 @@ function runSim(){
   }
 }
 
-// Workerが使えない環境向けフォールバック(メインスレッド同期実行・ルート分散も逐次で再現)
+// Workerが使えない環境向けフォールバック(メインスレッド非同期分割実行・フリーズ防止)
 function _fallbackRunSim(heroKey,kamihimeKeys,n){
   const prog=document.getElementById('spin-progress');
   document.getElementById('sim-loading').classList.add('active');
@@ -1640,12 +1640,21 @@ function _fallbackRunSim(heroKey,kamihimeKeys,n){
     buildFormation(heroKey,kamihimeKeys); applyGear();
     const prefixes=enumerateRootPrefixes();
     let best=null;
-    prefixes.forEach((prefix,i)=>{
-      prog.textContent=`ルート ${i+1}/${prefixes.length} 計算中(非並列フォールバック)…`;
-      const r=_runRootPlan(prefix,n);
-      if(!best||r.dmg>best.dmg) best=r;
-    });
-    _finishSim(best, _runBaselinePlan(n));
+    let i=0;
+    function nextRoute(){
+      if(i<prefixes.length){
+        prog.textContent=`ルート ${i+1}/${prefixes.length} 計算中(非並列フォールバック)…`;
+        setTimeout(()=>{
+          const r=_runRootPlan(prefixes[i],n);
+          if(!best||r.dmg>best.dmg) best=r;
+          i++;
+          nextRoute();
+        }, 0);
+      } else {
+        _finishSim(best, _runBaselinePlan(n));
+      }
+    }
+    nextRoute();
   },0);
 }
 
