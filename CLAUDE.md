@@ -9,6 +9,7 @@
 - **PHASE2_PLAN.md**: Phase 2（汎用化）完了。残るは**未実装の将来設計＝動的コンテキスト指向優先度**。
 - **PHASE3_PLAN.md**: Phase 3 高速化。**実測でホットパス（`_candidates`）最適化を主軸に補正済み**。clone除去/Flat State/VMは棚上げ理由付きでアーカイブ。
 - **ROADMAP.md**: 長期ビジョン（敵行動・味方生存シミュレーション）＋新キャラ導入ワークフロー構想。
+- **DATABASE_PLAN.md**: 外部DB/ビルド（Next.js・Supabase・Vercel・Google）導入の定量・定性分析。結論=不要、演算改善はクライアント側（Phase3→必要ならWASM）に閉じる。
 - 参照データ（非計画書）: `damageCalculator.txt`（計算式）/ `database.txt`（マスター・実機スナップショット）/ `tools/*.js`（較正スクリプト）。
 
 ## ファイル構成 & コード地図 (index.html: 2153行)
