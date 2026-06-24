@@ -1622,7 +1622,9 @@ function runSim(){
     };
     w.onerror=function(err){
       console.error("Worker error details: ", err);
-      alert("Worker内でエラーが発生しました:\n" + err.message + "\n(場所: " + err.filename + " の " + err.lineno + "行目)\n\n※このあとメインスレッドでのフォールバック実行に移行するため、ブラウザが一時的に応答しなくなります。");
+      const lines = workerCode.split('\n');
+      const snippet = lines.slice(0, 15).map((l, i) => `${i+1}: ${l}`).join('\n');
+      alert("Worker内でエラーが発生しました:\n" + err.message + "\n(場所: " + err.filename + " の " + err.lineno + "行目)\n\n--- Workerコード先頭15行 ---\n" + snippet + "\n\n※このあとメインスレッドでのフォールバック実行に移行するため、ブラウザが一時的に応答しなくなります。");
       if(failed) return; failed=true;
       _terminateWorkerPool();
       _fallbackRunSim(heroKey,kamihimeKeys,n);
