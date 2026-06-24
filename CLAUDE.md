@@ -7,9 +7,8 @@
 - **CLAUDE.md**（本書）: 生きた開発ガイド。コード地図・開発ルール・確定仕様・検証方法・実機較正ステータス。**現状の一次情報**。
 - **CALIBRATION_ANALYSIS.md**: 実機較正の確定値＆**根拠アーカイブ**（なぜその値・枠か）。較正・英霊武器は実装済み。
 - **PHASE2_PLAN.md**: Phase 2（汎用化）完了。残るは**未実装の将来設計＝動的コンテキスト指向優先度**。
-- **PHASE3_PLAN.md**: Phase 3 高速化。**実測でホットパス（`_candidates`）最適化を主軸に補正済み**。clone除去/Flat State/VMは棚上げ理由付きでアーカイブ。
+- **PHASE3_PLAN.md**: Phase 3 高速化。**実測でホットパス（`_candidates`）最適化を第一手の主軸に補正済み**。第二手=WebAssembly化（§2.4・大幅改善候補）。clone除去/Flat Stateは棚上げ理由付きでアーカイブ。外部DB/サーバ演算（Next.js/Supabase/Vercel/Google）は不適と評価済み（§2.4内に記録）。
 - **ROADMAP.md**: 長期ビジョン（敵行動・味方生存シミュレーション）＋新キャラ導入ワークフロー構想。
-- **DATABASE_PLAN.md**: 外部DB/ビルド（Next.js・Supabase・Vercel・Google）導入の定量・定性分析。結論=不要、演算改善はクライアント側（Phase3→必要ならWASM）に閉じる。
 - 参照データ（非計画書）: `damageCalculator.txt`（計算式）/ `database.txt`（マスター・実機スナップショット）/ `tools/*.js`（較正スクリプト）。
 
 ## ファイル構成 & コード地図 (index.html: 2153行)
