@@ -3,6 +3,14 @@
 ## 概要
 `index.html`（UI・ロジック）と `data/` 配下の外部DBファイル群（武器・幻獣・敵・キャラ）で構成される、バースト編成シミュレーター＆最適押し順トラッカー。外部ビルド不要で、直接ブラウザで動作。
 
+## ドキュメント体系（Antigravityエージェントとの共有用）
+- **CLAUDE.md**（本書）: 生きた開発ガイド。コード地図・開発ルール・確定仕様・検証方法・実機較正ステータス。**現状の一次情報**。
+- **CALIBRATION_ANALYSIS.md**: 実機較正の確定値＆**根拠アーカイブ**（なぜその値・枠か）。較正・英霊武器は実装済み。
+- **PHASE2_PLAN.md**: Phase 2（汎用化）完了。残るは**未実装の将来設計＝動的コンテキスト指向優先度**。
+- **PHASE3_PLAN.md**: Phase 3 高速化。**実測でホットパス（`_candidates`）最適化を主軸に補正済み**。clone除去/Flat State/VMは棚上げ理由付きでアーカイブ。
+- **ROADMAP.md**: 長期ビジョン（敵行動・味方生存シミュレーション）＋新キャラ導入ワークフロー構想。
+- 参照データ（非計画書）: `damageCalculator.txt`（計算式）/ `database.txt`（マスター・実機スナップショット）/ `tools/*.js`（較正スクリプト）。
+
 ## ファイル構成 & コード地図 (index.html: 2153行)
 - `data/weapons.js`: 武器マスターDB (`WEAPON_MASTER`)
 - `data/summons.js`: 幻獣マスターDB (`SUMMON_REGISTRY`)
