@@ -9,30 +9,31 @@
 - **PHASE2_PLAN.md**: Phase 2（汎用化）完了。残るは**未実装の将来設計＝動的コンテキスト指向優先度**。
 - **PHASE3_PLAN.md**: Phase 3 高速化。**実測でホットパス（`_candidates`）最適化を第一手の主軸に補正済み**。第二手=WebAssembly化（§2.4・大幅改善候補）。clone除去/Flat Stateは棚上げ理由付きでアーカイブ。外部DB/サーバ演算（Next.js/Supabase/Vercel/Google）は不適と評価済み（§2.4内に記録）。
 - **ROADMAP.md**: 長期ビジョン（敵行動・味方生存シミュレーション）＋新キャラ導入ワークフロー構想。
-- 参照データ（非計画書）: `damageCalculator.txt`（計算式）/ `database.txt`（マスター・実機スナップショット）/ `tools/*.js`（較正スクリプト）。
+- 参照ツール（非計画書）: `tools/*.js`（T1較正スクリプト）。
+  - ※旧 `damageCalculator.txt`（計算式）/ `database.txt`（実機スナップショット）/ `*.xlsx` は削除済み。計算式は `DMG` 定数＋index.html冒頭コメントに、実機表示値は index.html の `DISPLAY_ATK_OVERRIDE`/`DISPLAY_HP_OVERRIDE` に反映済み。
 
-## ファイル構成 & コード地図 (index.html: 2153行)
+## ファイル構成 & コード地図 (index.html: 約2154行)
 - `data/weapons.js`: 武器マスターDB (`WEAPON_MASTER`)
 - `data/summons.js`: 幻獣マスターDB (`SUMMON_REGISTRY`)
 - `data/enemies.js`: 敵DB (`ENEMY_REGISTRY`)
-- `data/characters.js`: 統一キャラDB (`CHAR_REGISTRY` + `SUB_REGISTRY` 統合、フレイヤ定義含む、`DEBUFF_KEYS`/`buffCount`同梱)
+- `data/characters.js`: 統一キャラDB (`CHAR_REGISTRY` に統一済み。旧 `SUB_REGISTRY` のサブアシストは `subAssists` フィールドへ統合・フレイヤ等。`DEBUFF_KEYS`/`buffCount` 同梱)
 
-### index.html コード地図
+### index.html コード地図（行番号は目安）
 | 範囲(行) | 内容 |
 |---|---|
 | 7–209 | CSS |
-| 211–282 | HTML構造 |
-| 283–287 | 外部JSファイル読込 (`weapons`/`summons`/`enemies`/`characters`) |
+| 210–282 | HTML構造 |
+| 283–288 | 外部JSファイル読込 (`weapons`/`summons`/`enemies`/`characters`) |
 | 289–302 | ゲーム定数（確定仕様・後述） |
-| 303–488 | **`DMG`**（火力モデル定数） |
-| 489–623 | **`GEAR`**（装備設定）＋表示ステータス計算 |
-| 624–709 | `buildFormation()` 構築処理 |
-| 710–1170 | `class Sim` エンジン（tick, burst, use, _na, beam 等。Phase2でprocR削除・キャラ反応はDB側フックへ移管） |
-| 1190–1373 | リプレイモード ＋ ルート分散ヘルパ (`enumerateRootPrefixes`含む) |
-| 1374–1494 | UI helpers (`AUTO SIM`含む) |
-| 1495–1730 | Web Worker プール・並列探索 (`_buildWorkerCode`含む) |
-| 1731–2151 | 各種UI（編成・装備・保存） |
-| 2152–末尾 | INIT |
+| 303–493 | **`DMG`**（火力モデル定数） |
+| 494–619 | **`GEAR`**（装備設定）＋表示ステータス計算 |
+| 620–711 | 編成グローバル ＋ `buildFormation()` 構築処理 |
+| 712–1148 | **`class Sim`** エンジン（tick, burst, use, _na, ロールアウト/ビーム探索。Phase2でprocR削除・キャラ反応はDB側フックへ移管）＋ `cmpVec`/`enumerateRootPrefixes` |
+| 1149–1332 | リプレイモード |
+| 1333–1453 | UI helpers (`AUTO SIM`含む) |
+| 1454–1691 | Web Worker プール・並列探索 (`_buildWorkerCode`含む) |
+| 1692–2119 | 各種UI（編成・装備・保存） |
+| 2120–末尾 | INIT |
 
 ---
 
@@ -40,6 +41,7 @@
 
 ### 1. キャラクター追加・変更の原則
 - **`CHAR_REGISTRY`（data/characters.js）が唯一の編集先。** エンジン本体（`class Sim`）にキャラ名リテラルを記述しない。
+- **⚠ ロード順不変条件**: `data/*.js` は index.html のインライン定数（`BG`/`DMG`/`GEAR`）より**前**に読み込まれる。そのため**オブジェクトリテラルの即時評価フィールド**（例: `gmax`）に `BG`/`DMG`/`GEAR` を参照してはならない（`ReferenceError` でファイル全体が落ち `CHAR_REGISTRY` 未定義→**UI全消失**）。ゲージ上限は素の数値で持つ（100=`BG.other_max` / 200=`BG.yamato_max`）。**関数本体（`cands.exec`/`def`フック）内の参照は遅延評価のため安全**。
 - キャラ固有状態は `state` に宣言（Simが snap/clone/init で自動同期）。
 - 累積アサルトやバーストプラス等の状態は、クローン時の参照共有を防ぐため、オブジェクトではなく**フラットな数値変数**として `state` に宣言すること。
 - **毎ターン自動デクリメントする残ターン系state**（ロボ残T・ムーンコード等）は `tickStates: ['key', ...]` を宣言（`buildFormation`が`TICK_STATES`へ集約し`tick()`が汎用処理）。
