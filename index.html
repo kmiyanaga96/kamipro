@@ -601,6 +601,12 @@ let CURRENT_SUBS = [];  // 例: ['freyja_christmas', '', '']
 // ===== 編成グローバル（buildFormationで構築） =====
 // ABIL形式: [owner, color, cd, keigyo_cost]
 let CHARS, LEADER, JP, JP_SHORT, GCLS, ABIL, CHAR_DEF, LABEL_SUFFIX, LABEL, CD_SHOW;
+// Phase3-1: ホットパス(_stepStatic/_candidates)のアロケーション削減用 事前計算マップ。
+// buildFormationで一度だけ構築し、探索中の Object.entries(ABIL)/ネスト参照/computeBaseScore 再計算を排除する。
+// ABIL_KEYS=Object.keys(ABIL)順(=Object.entries順=挿入順)で走査順を完全保存。
+// ABIL_KC[key]=契晶コスト, ABIL_CANDS[key]=CHAR_REGISTRY[owner].cands[key](無ければundefined),
+// ABIL_BASE_S[key]=静的スコア(関数sのみnull→走査時評価/定数sおよびcomputeBaseScore結果は事前確定)。
+let ABIL_KEYS = [], ABIL_KC = {}, ABIL_CANDS = {}, ABIL_BASE_S = {};
 // CHAR_SIM_STATES: 編成キャラの state フィールドを合流させたマスター初期値。
 // Sim の constructor/snap/clone がこれを参照して自動管理する。
 let CHAR_SIM_STATES = {};
@@ -641,6 +647,17 @@ function buildFormation(heroKey, kamihimeKeys) {
     cnt[owner]=(cnt[owner]||0)+1;
     return [k, `${JP_SHORT[owner]}${cnt[owner]}${LABEL_SUFFIX[k]||''}`];
   }));
+  // Phase3-1: ホットパス用の事前計算マップを構築（走査順=ABIL挿入順を保存）。
+  ABIL_KEYS = Object.keys(ABIL);
+  ABIL_KC = {}; ABIL_CANDS = {}; ABIL_BASE_S = {};
+  for(const key of ABIL_KEYS){
+    const owner = ABIL[key][0];
+    ABIL_KC[key] = ABIL[key][3];
+    const cand = CHAR_REGISTRY[owner]?.cands?.[key];
+    ABIL_CANDS[key] = cand;
+    // s が関数のものだけ走査時評価(null)。定数sおよび未定義(computeBaseScore)は事前確定。
+    ABIL_BASE_S[key] = cand ? (typeof cand.s==='function' ? null : (cand.s ?? computeBaseScore(key,cand))) : null;
+  }
   CHAR_DEF = {};
   for(const c of CHARS) CHAR_DEF[c]=CHAR_REGISTRY[c].def;
   CD_SHOW = {};
@@ -883,13 +900,16 @@ class Sim {
   _candidates(){
     const sim=this, T=this.T, ord=this.ord, bset=this.bset, t=this._t;
     const c=[];
-    for(const [key,[owner,col,,kc]] of Object.entries(ABIL)){
+    for(const key of ABIL_KEYS){
       if(sim.cd[key]!==0) continue;
+      const kc=ABIL_KC[key];
       if(kc&&sim.keigyo<kc) continue;
-      const cand=CHAR_REGISTRY[owner]?.cands?.[key];
+      const cand=ABIL_CANDS[key];
       if(!cand) continue;
       if(cand.guard&&!cand.guard(sim,T,t)) continue;
-      const s=typeof cand.s==='function'?cand.s(sim,T,t):(cand.s??computeBaseScore(key,cand));
+      const base=ABIL_BASE_S[key];
+      const s=base!==null?base:cand.s(sim,T,t);
+      const col=ABIL[key][1];
       const exec=cand.exec?()=>cand.exec(sim,T,ord,bset,t):()=>sim.use(key,T,ord);
       c.push({s,key,col,exec,deploysRobot:!!cand.deploysRobot,prelude:!!cand.prelude});
     }
@@ -897,9 +917,25 @@ class Sim {
   }
 
   // 静的ポリシーで1ステップ実行（ロールアウト内の既定ポリシー）。候補が無ければfalse。
+  // ホットパス（探索の~43%）。候補配列・クロージャを作らず ABIL_KEYS を1パス走査して
+  // 最大s候補を直接実行する（reduce((a,b)=>b.s>a.s?b:a) と完全同一の「先頭最大」選択）。
   _stepStatic(){
-    const c=this._candidates(); if(!c.length) return false;
-    c.reduce((a,b)=>b.s>a.s?b:a).exec(); return true;
+    const sim=this, T=this.T, ord=this.ord, bset=this.bset, t=this._t;
+    let bestKey=null, bestS=0, bestCand=null;
+    for(const key of ABIL_KEYS){
+      if(sim.cd[key]!==0) continue;
+      const kc=ABIL_KC[key];
+      if(kc&&sim.keigyo<kc) continue;
+      const cand=ABIL_CANDS[key];
+      if(!cand) continue;
+      if(cand.guard&&!cand.guard(sim,T,t)) continue;
+      const base=ABIL_BASE_S[key];
+      const s=base!==null?base:cand.s(sim,T,t);
+      if(bestKey===null||s>bestS){ bestKey=key; bestS=s; bestCand=cand; }
+    }
+    if(bestKey===null) return false;
+    if(bestCand.exec) bestCand.exec(sim,T,ord,bset,t); else sim.use(bestKey,T,ord);
+    return true;
   }
 
   // key一致の候補をクローン上で実行（exec内のthisはクローン）。

@@ -6,7 +6,9 @@
 > **ホットパス（`_candidates`/`_stepStatic`）のアロケーション削減**とする（§1＝第一手・現行計画）。
 > §2 は後続候補と棚上げアーカイブ: §2.1/§2.2（Apply/Revert・Flat State）は実測で棚上げ、
 > §2.3/§2.4（Bytecode VM・**WebAssembly化＝第二手の大幅改善候補**）は per-op コスト削減の将来選択肢。
-> 実装は未着手。着手時は Phase 2 と同じゴールデン値ゲート（後述）で挙動完全保存を担保する。
+> **第一手（§1.4-1・§1.4-2）は実装完了（2026-06）**。挙動完全保存をゴールデン値ゲートで担保済み。
+> **第二手（§1.4-3＝§2.3 VM / §2.4 WASM）は計画中・未着手**（着手前にまず第一手後の再計測でボトルネックが
+> per-op 側へ移ったか確認すること）。着手時は Phase 2 と同じゴールデン値ゲート（後述）で挙動完全保存を担保する。
 
 ---
 
@@ -61,18 +63,22 @@
 候補配列の完全生成は本質的に不要。`_candidates` 297万回の約99%が `_stepStatic` 由来（残りは beam/`_execKey`/root 列挙）。
 
 ### 1.4 高速化の主標的（優先度順）
-1. **【最優先】`_stepStatic` のアロケーションフリー化**（挙動完全保存・ゴールデン値検証可）:
-   - `buildFormation` 時に事前計算（キャラ名リテラル不使用・Phase2フック方針と整合）:
+1. **【最優先・✅実装完了 2026-06】`_stepStatic` のアロケーションフリー化**（挙動完全保存・ゴールデン値検証済）:
+   - `buildFormation` 時に事前計算（キャラ名リテラル不使用・Phase2フック方針と整合）— **index.html に実装済**:
      - `ABIL_KEYS = Object.keys(ABIL)`（毎回の `Object.entries` を排除）
      - `ABIL_CANDS[key] = CHAR_REGISTRY[owner]?.cands?.[key]`（毎回のネスト参照を排除）
-     - `ABIL_BASE_S[key]`: `cand.s` が定数/未定義のものは `computeBaseScore` 結果を事前確定（関数 `s` は走査時評価）。
-   - `_stepStatic` を「候補配列を作らず `ABIL_KEYS` を1パス走査して最大s候補を直接実行」する形へ書換え。
-     - **タイブレーク厳密一致**: 現行 `reduce((a,b)=>b.s>a.s?b:a)` は先頭最大を残す。`if(s>bestS)`（厳密 `>`）も
+     - `ABIL_KC[key]`（契晶コスト＝`ABIL[key][3]` の事前展開）
+     - `ABIL_BASE_S[key]`: `cand.s` が定数/未定義のものは `computeBaseScore` 結果を事前確定（関数 `s` は走査時評価=null）。
+   - `_stepStatic` を「候補配列を作らず `ABIL_KEYS` を1パス走査して最大s候補を直接実行」する形へ書換え済。
+     - **タイブレーク厳密一致**: 現行 `reduce((a,b)=>b.s>a.s?b:a)` は先頭最大を残す。`bestKey===null||s>bestS`（厳密 `>`）も
        先頭最大を残すため選択は完全同一。`Object.keys` の順序＝`Object.entries` の順序（挿入順）で走査順も同一。
-   - 期待効果: `_candidates` 由来コスト(~5.4s)の大半を削減 → 全体 **~30-40% 高速化**見込み。
-2. **【次点】`_candidates()`（beam用・フル候補列挙）の軽量化**: 事前計算マップを共用し `Object.entries`/`computeBaseScore`
-   再計算を排除。beam由来は呼出数が少ない(~万)ため副次的。
-3. **【第二手・将来】per-op コスト削減（§2.3 Bytecode VM / §2.4 WebAssembly化）**: `use`/`burst` 本体（~280万/~135万回）
+   - **実測結果**: 単一ビーム(空prefix)で **14.87s → 12.36s（約17%短縮）・dmg完全同一**。
+     当初見込み(~30-40%)に届かなかったのは、削れたのが `_candidates` のアロケーション分のみで、
+     残コストの約50%が `use`/`burst` 本体の per-op 側にあるため（→ 第二手=3. の領域）。
+2. **【次点・✅実装完了 2026-06】`_candidates()`（beam用・フル候補列挙）の軽量化**: 事前計算マップ(1.)を共用し
+   `Object.entries`/ネスト参照/`computeBaseScore` 再計算を排除。返却shape(`{s,key,col,exec,deploysRobot,prelude}`)は不変で
+   beam・`_execKey`・`enumerateRootPrefixes` と完全互換（root prefix列挙の回帰一致を確認済）。beam由来は呼出数が少ない(~万)ため副次的。
+3. **【第二手・将来・計画中/未着手】per-op コスト削減（§2.3 Bytecode VM / §2.4 WebAssembly化）**: `use`/`burst` 本体（~280万/~135万回）
    の per-op 削減策。第一手（1.・2.）が効いた後に再計測し、なおボトルネックが per-op 側に残る場合に着手。
    特に **§2.4 WASM 化は C5（大幅な演算改善）を満たしうる本命候補**（2-5x見込・「ビルド禁止」解除で開く）。
 
