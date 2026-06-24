@@ -6,9 +6,9 @@
 ## ドキュメント体系（Antigravityエージェントとの共有用）
 - **CLAUDE.md**（本書）: 生きた開発ガイド。コード地図・開発ルール・確定仕様・検証方法・実機較正ステータス。**現状の一次情報**。
 - **CALIBRATION_ANALYSIS.md**: 実機較正の確定値＆**根拠アーカイブ**（なぜその値・枠か）。較正・英霊武器は実装済み。
-- **PHASE2_PLAN.md**: Phase 2（汎用化）完了。残るは**未実装の将来設計＝動的コンテキスト指向優先度**。
-- **PHASE3_PLAN.md**: Phase 3 高速化。**実測でホットパス（`_candidates`）最適化を第一手の主軸に補正済み**。第二手=WebAssembly化（§2.4・大幅改善候補）。clone除去/Flat Stateは棚上げ理由付きでアーカイブ。外部DB/サーバ演算（Next.js/Supabase/Vercel/Google）は不適と評価済み（§2.4内に記録）。
-- **ROADMAP.md**: 長期ビジョン（敵行動・味方生存シミュレーション）＋新キャラ導入ワークフロー構想。
+- **archive/PHASE2_PLAN.md**: Phase 2（汎用化）完了計画（アーカイブ退避済み）。
+- **archive/PHASE3_PLAN.md**: Phase 3（高速化）完了計画。第一手（_stepStatic/_candidatesアロケーションフリー化）の実装完了（~17%短縮）に伴い、保守性優先で早期クローズしアーカイブ退避済み。
+- **ROADMAP.md**: 長期ビジョン（敵行動・味方生存・Phase 4 実機較正と最適押し順改善の泥沼）＋新キャラ導入ワークフロー構想。
 - **BRANCH_WORKFLOW.md**: ブランチ運用メモ。`main` を恒久トランク化し、節目で作業ブランチを集約・削除する手順と注意点（ブランチ乱立の防止）。
 - 参照ツール（非計画書）: `tools/*.js`（T1較正スクリプト）。
   - ※旧 `damageCalculator.txt`（計算式）/ `database.txt`（実機スナップショット）/ `*.xlsx` は削除済み。計算式は `DMG` 定数＋index.html冒頭コメントに、実機表示値は index.html の `DISPLAY_ATK_OVERRIDE`/`DISPLAY_HP_OVERRIDE` に反映済み。
