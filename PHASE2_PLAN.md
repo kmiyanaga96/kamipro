@@ -24,15 +24,15 @@
 
 ## 2. Phase 2 / 3 実行計画案
 
-### 【Phase 2】エンジン内ハードコード汎用化とメタデータ設計（実装保留・設計合意待ち）
-アビリティ記述を宣言化（Phase 3）する前段階として、エンジン本体（`class Sim`）に残存するキャラクター名リテラルや固有カウンタを完全に汎用化し、キャラDB側から注入する構造に整理します。
+### 【Phase 2】エンジン内ハードコード汎用化 ✅ **完了（2026-06）**
+アビリティ記述を宣言化（Phase 3）する前段階として、エンジン本体（`class Sim`）に残存するキャラクター名リテラルや固有カウンタを汎用化し、キャラDB側へ移管した。**実装方針は既存フックを再利用**（新フック名 `onAbilityUsed`/`onMburstMilestone` は新設せず、既存の `onAbility`/`onPartyBurst`/`turnEnd` に集約）。挙動完全保存（4ゴールデン形成＋Tetra入り8形成ターン毎詳細でバイト一致）。
 
-1. **カウンタのtick汎用化**:
-   - `this.droid`, `this.banoshik_robot`, `this.mooncode` などの個別デクリメントを、キャラDBの `state: { key: { init, tick: true } }` 宣言に基づく汎用ループに置換。
-2. **反応アビリティ（ロボ反応等）のフック化**:
-   - `use()` 内の「赤アビ発動時にロボ作動」「黄アビ発動時にバフ付与」等のロジックを、キャラDBの `def.onAbilityUsed: (sim, name, color, T) => { ... }` などのフックへ移管し、エンジンを純粋なイベントトリガー型に変更。
-3. **バーストマイルストーンの汎用化**:
-   - ヘカテーの「バースト5回毎にCDリセット」やヤマトの「天矢乱舞の遅延解禁」などの処理を、`def.onMburstMilestone` や `def.onTurnEnd` などの標準フックで処理するように整理。
+1. **カウンタのtick汎用化** ✅:
+   - `droid`/`banoshik_robot`/`mooncode` の個別デクリメントを、キャラDBの `tickStates: ['key', ...]` 宣言→`TICK_STATES`集約→`tick()`汎用ループに置換。`mooncode`/`mburst`はHecate固有stateへ移管しconstructor/snap/cloneからキャラ名連動を排除。
+2. **反応アビリティのフック化** ✅:
+   - `use()`内のロボ反応（赤/黄）→`edison.def.onAbility`、`procR()`内のムーンコード再発動→`hecate.def.onAbility`、コヴァレント連理魔力→`tetra.def.onAbility`(アビ側)＋`onPartyBurst`(バースト側)へ移管。`procR()`メソッドは削除。
+3. **バーストマイルストーン/タイマーの汎用化** ✅:
+   - モビウス（バースト5回毎CDリセット）→`hecate.def.onPartyBurst`、天矢乱舞の遅延解禁（inori_pタイマー）→`yamato.def.turnEnd`へ移管。
 
 ### 【Phase 3】差分エミュレーター（高速化）とアビリティ宣言化（将来検討）
 シミュレーターのクローン生成・GCコストをゼロにするための抜本的なリファクタリング計画です。

@@ -3,7 +3,7 @@
 ## 概要
 `index.html`（UI・ロジック）と `data/` 配下の外部DBファイル群（武器・幻獣・敵・キャラ）で構成される、バースト編成シミュレーター＆最適押し順トラッカー。外部ビルド不要で、直接ブラウザで動作。
 
-## ファイル構成 & コード地図 (index.html: 2173行)
+## ファイル構成 & コード地図 (index.html: 2153行)
 - `data/weapons.js`: 武器マスターDB (`WEAPON_MASTER`)
 - `data/summons.js`: 幻獣マスターDB (`SUMMON_REGISTRY`)
 - `data/enemies.js`: 敵DB (`ENEMY_REGISTRY`)
@@ -19,7 +19,7 @@
 | 303–488 | **`DMG`**（火力モデル定数） |
 | 489–623 | **`GEAR`**（装備設定）＋表示ステータス計算 |
 | 624–709 | `buildFormation()` 構築処理 |
-| 710–1189 | `class Sim` エンジン（tick, procR, burst, use, _na, beam 等） |
+| 710–1170 | `class Sim` エンジン（tick, burst, use, _na, beam 等。Phase2でprocR削除・キャラ反応はDB側フックへ移管） |
 | 1190–1373 | リプレイモード ＋ ルート分散ヘルパ (`enumerateRootPrefixes`含む) |
 | 1374–1494 | UI helpers (`AUTO SIM`含む) |
 | 1495–1730 | Web Worker プール・並列探索 (`_buildWorkerCode`含む) |
@@ -34,6 +34,8 @@
 - **`CHAR_REGISTRY`（data/characters.js）が唯一の編集先。** エンジン本体（`class Sim`）にキャラ名リテラルを記述しない。
 - キャラ固有状態は `state` に宣言（Simが snap/clone/init で自動同期）。
 - 累積アサルトやバーストプラス等の状態は、クローン時の参照共有を防ぐため、オブジェクトではなく**フラットな数値変数**として `state` に宣言すること。
+- **毎ターン自動デクリメントする残ターン系state**（ロボ残T・ムーンコード等）は `tickStates: ['key', ...]` を宣言（`buildFormation`が`TICK_STATES`へ集約し`tick()`が汎用処理）。
+- **キャラ固有の反応・マイルストーン処理は汎用フックに記述**（エンジンに分岐を足さない）: `def.onAbility(sim,name,color,T)`=全アビ使用反応（ロボ反応・連理魔力・闘気等） / `def.onPartyBurst(sim,owner,T,atk)`=全バースト反応（モビウス・連理魔力burst側） / `def.onBurst(sim,atk,owner)`=自バースト / `def.turnEnd(sim,T)`=ターン終了（タイマー進行等）。フックは`CHARS`順で全キャラ走査され、不在編成では未宣言として自然スキップ。
 
 ### 2. 確定仕様・設計不変条件
 - **ジャッジ即発動**: cd.judg=0になり次第即発動。同ターン上限 `judgCap = 5 + (開始時cd===0?1:0)`。
