@@ -381,11 +381,6 @@ const DMG = {
   dur_yamato_elem: 3,        // ヤマトバースト 光属性攻撃UP効果ターン
   bplus_yamato: 100000,      // 1アシ(集いし願い): ヤマト自バースト時のダメージプラス+10万/stack
   dur_bplus_yamato: 3,       // 1アシ バーストダメージプラス効果ターン(累積可)
-  // 【廃止】ヤマトバースト追加ダメージ(旧: per-charの3倍/cap拡張)。解X(2026-06)で追撃をinoriゲートの
-  // 全味方共通追撃(burst_followup_mult)へ統合したため未参照。将来スクショ「3倍/50万」を再検証する際の記録として残置。
-  yamato_extra_mult: 3,      // (未参照)追加ダメージ倍率(スクショ表記=通常攻撃比3倍)
-  yamato_extra_cap: 500000,  // (未参照)追加ダメージ減衰上限(50万)
-  yamato_extra_cap_inori: 1000000, // (未参照)旧: 現神の祈り中100万拡張(廃止)
   // ─── ヘカテー(エフォンド直接ダメ＋防御DOWN / バースト追加ダメ) ───
   effond_mult:  3,           // エフォンド・ロンブル: 敵全体に光属性ダメージ(通常攻撃比3倍・アビ枠)
   effond_cap:   350000,      // エフォンド直接ダメージ減衰上限(35万)
@@ -510,10 +505,10 @@ const GEAR_BOXES = [
   ['na_dmg',   '通常攻撃ダメUP'], // 通常攻撃のみ: judge ph2(通常)に ×(1+na_dmg)。テクニカのダメUPはここへ
   ['abi_dmg',  'アビダメUP'],     // アビダメのみ: judge ph0/コンソートに ×(1+abi_dmg)
   ['burst_dmg','バーストダメUP'], // バーストのみ: burst()係数に加算(a+...+burst_dmg)
-  // ─── 上限UP枠(基盤のみ・基準上限×(1+上限UP)。通常/バーストの基準上限はInfinity=休眠) ───
-  ['na_cap',   '通常ダメ上限UP'], // 基準上限 DMG.cap_na(=∞・休眠)
+  // ─── 上限UP枠(基盤のみ・基準上限×(1+上限UP)) ───
+  ['na_cap',   '通常ダメ上限UP'], // 基準上限 DMG.decay_na.cap1 を ×(1+na_cap)
   ['abi_cap',  'アビダメ上限UP'], // 基準上限 judg_cap/consort_cap を ×(1+abi_cap)
-  ['burst_cap','バーストダメ上限UP'], // 基準上限 DMG.cap_burst(=∞・休眠)
+  ['burst_cap','バーストダメ上限UP'], // 基準上限 DMG.decay_burst.cap1 を ×(1+burst_cap)
 ];
 const GEAR = Object.fromEntries(GEAR_BOXES.map(([k])=>[k,0]));
 
@@ -602,20 +597,6 @@ recalcGearK();
 // 選択中サブメンバーのキー配列（UIで変更・applyGear()で反映）。
 const SUB_SLOTS = 3;  // サブ枠数(最大)
 let CURRENT_SUBS = [];  // 例: ['freyja_christmas', '', '']
-
-// 選択中サブのアシスト効果を集約してDMG定数を上書きする。
-// streak_dmgup: 複数サブで同一効果があれば最大値を採用（現状は1種のみ）。
-function applySubPassives(){
-  let sdmgup = 1.0;
-  for(const key of CURRENT_SUBS){
-    if(!key) continue;
-    const s = CHAR_REGISTRY[key];
-    if(!s) continue;
-    const isLightParty = typeof CHARS !== 'undefined' && CHARS.every(c => ELEM[c] === 'light');
-    if(isLightParty && s.subAssists?.streak_dmgup) sdmgup = Math.max(sdmgup, s.subAssists.streak_dmgup);
-  }
-  DMG.streak_dmgup = sdmgup;
-}
 
 // ===== 編成グローバル（buildFormationで構築） =====
 // ABIL形式: [owner, color, cd, keigyo_cost]
@@ -1836,14 +1817,11 @@ const HERO_WEAPON_BASE = {
   betaia_cap:             DMG.betaia_cap,
   napo_burst_cd_reduce:   false,  // ナポレオン英霊武器バーストCDリダクション
 };
-// 後方互換エイリアス(参照箇所があるため残置)
-const DROID_REACT_BASE = { mult: HERO_WEAPON_BASE.droid_react_mult, cap: HERO_WEAPON_BASE.droid_react_cap };
 
 function applyGear(){
   // 敵パラメータを先に同期(GEAR_K_Cの enemy_def 参照より前に実行)
   applyEnemy(document.getElementById('enemy-select')?.value||CURRENT_ENEMY_KEY);
   CURRENT_SUBS = Array.from({length:SUB_SLOTS},(_,i)=>document.getElementById(`sub-slot-${i}`)?.value||'');
-  applySubPassives();
   // 属性相性
   DMG.affinity = document.getElementById('dmg-affinity')?.value==='adv'?1.5:1.0;
   for(const [box] of GEAR_BOXES) GEAR[box]=0;
