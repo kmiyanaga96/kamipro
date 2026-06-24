@@ -1622,10 +1622,14 @@ function runSim(){
     };
     w.onerror=function(err){
       console.error("Worker error details: ", err);
-      const lines = workerCode.split('\n');
+      const lines = workerCode.split(/\r?\n|\r/);
       const start = Math.max(0, err.lineno - 5);
       const end = Math.min(lines.length, err.lineno + 5);
-      const snippet = lines.slice(start, end).map((l, i) => `${start + i + 1}: ${l}`).join('\n');
+      const snippet = lines.slice(start, end).map((l, i) => {
+        const lineNum = start + i + 1;
+        const content = l.length > 120 ? l.substring(0, 120) + "..." : l;
+        return `${lineNum}: ${content}`;
+      }).join('\n');
       alert("Worker内でエラーが発生しました:\n" + err.message + "\n(場所: " + err.filename + " の " + err.lineno + "行目)\n\n--- エラー発生位置周辺のコード ---\n" + snippet + "\n\n※このあとメインスレッドでのフォールバック実行に移行するため、ブラウザが一時的に応答しなくなります。");
       if(failed) return; failed=true;
       _terminateWorkerPool();
