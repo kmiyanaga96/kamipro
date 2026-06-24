@@ -13,6 +13,7 @@ const CHAR_REGISTRY = {
     jp: 'エジソン', gcls: 'ge', elem: null,
     favWeapon: ['銃','魔導具'], lvUpAtk: 400,
     state: { droid: 0, banoshik_robot: 0, ycount: 0 },  // droid: 攻撃ロボ残T / banoshik_robot: 補助ロボ残T / ycount: 黄アビ累計
+    tickStates: ['droid', 'banoshik_robot'],  // 毎ターン自動デクリメント(ロボ残T)
     abilities: {
       droid:    ['y', 8, 0],
       banoshik: ['y', 8, 0],
@@ -42,6 +43,20 @@ const CHAR_REGISTRY = {
       burst_coef_a: 5, burst_coef_b: 3000,  // エジソン: a=5.0 b=3000
       gmax: BG.other_max,
       keigyoGain: 3,
+      // ロボ作動反応(エジソン固有): 全キャラのアビ使用毎に発火。攻撃ロボ(droid)=赤アビ反応 / 補助ロボ(banoshik_robot)=黄アビ反応。
+      // 旧 Sim.use() のハードコードを移管。_naOwner は use() で発動アビ所有者に設定済のため反応ダメージ基準は不変。
+      onAbility: (sim, name, color, T) => {
+        if(color==='r' && sim.droid>0){
+          T.ra++;
+          // 攻撃ロボ反応: 赤アビ発動毎に敵全体へ反応ダメージ＋味方全体アビダメバフ付与(累積可)。
+          // アンプリファ(3T): ロボ反応ダメージに固定+10万フラット加算(減衰外・ロボ反応のみ対象)。
+          const ampFlat = sim.buf.amplifa_buf?.length ? DMG.amplifa_flat : 0;
+          sim.dmg += sim._decay('abi', sim._naForAbi()*DMG.droid_react_mult, DMG.droid_react_cap) + ampFlat;
+          (sim.buf.droid_buf??=[]).push(DMG.dur_droid_buf);
+        }
+        // バノーシク: 補助ロボ作動中の黄アビ毎にアサルトバフを独立付与(上限なし累積・各 dur_banoshik 持続)
+        if(color==='y' && sim.banoshik_robot>0){ T.ra++; (sim.buf.banoshik??=[]).push(DMG.dur_banoshik); }
+      },
       onBurst: (sim, atk) => {
         if(atk){ sim.cd.droid=Math.max(0,sim.cd.droid-1); sim.cd.banoshik=Math.max(0,sim.cd.banoshik-1); }
         // 英霊武器バースト追加ダメージ(ランチャータンクメイン時のみ有効・mult=0でOFF)
@@ -125,8 +140,11 @@ const CHAR_REGISTRY = {
       },
       // 1アシ再発動: 3回使用可能後の4回目到達ターン終了時にfunki_cycle(使用可能化カウント)のみリセットし再使用可。
       // yellow_acc(黄アビ累計)はリセットしない。
+      // 天矢乱舞解禁(現神の祈り): inori_p は解禁タイマー。現神の祈り使用で0に、2ターン後に天矢乱舞CDをリセット(解禁)。
+      // 旧 Sim._endBookkeep() のハードコードを移管(keigyo+5 と独立のため順序前倒し無害)。
       turnEnd: (sim) => {
         if(sim.funki_recharge){ sim.funki_cycle = 0; sim.funki_recharge = false; sim.cd.funki = 0; }
+        if(sim.inori_p!=null){ sim.inori_p++; if(sim.inori_p===2){ sim.cd.tenya=0; sim.inori_p=null; } }
       },
     },
   },
@@ -135,7 +153,9 @@ const CHAR_REGISTRY = {
     type: 'kamihime',
     jp: '[愛情と友情]ヘカテー', shortJp: 'ヘカテー', gcls: 'gh', elem: 'light',
     favWeapon: ['杖','魔導具'], baseAtk: 7800, baseHp: 1850,
-    state: { mobius_bcount: 0 },  // モビウスムーンズ: ヘカテー自身のバースト累計(4回毎に特殊攻撃UP付与)
+    // mobius_bcount: ヘカテー自身のバースト累計(4回毎に特殊攻撃UP) / mooncode: ムーンコード残T(初期2) / mburst: パーティバースト累計(モビウス5回毎にCDリセット)
+    state: { mobius_bcount: 0, mooncode: 2, mburst: 0 },
+    tickStates: ['mooncode'],  // ムーンコード残Tを毎ターン自動デクリメント
     abilities: {
       puvoir: ['y', 2, 0],
       effond: ['r', 3, 0],
@@ -168,6 +188,22 @@ const CHAR_REGISTRY = {
       burst_coef_a: 5, burst_coef_b: 2500,  // ヘカテー: a=5.0 b=2500
       gmax: BG.other_max,
       keigyoGain: 1,
+      // ムーンコード(ヘカテー固有): パーティ全体のアビ使用12回毎にムーンコードを再発動(残2T)。
+      // 旧 Sim.procR() のハードコードを移管。T.ability は use() で procR 前に++済のため %12 値は不変。
+      onAbility: (sim, name, color, T) => {
+        if(T.ability>0 && T.ability%12===0) sim.mooncode=2;
+      },
+      // モビウスムーンズ(ヘカテー固有): パーティバースト5回毎にヘカテー自身の全アビCDをリセット。
+      // 旧 Sim.burst() のハードコードを移管。mburst の加算(累積)も含めヘカテー側で完結。
+      // mburst++ を %5 判定の前に置くことで旧エンジン(burst()の加算→判定)と同順序を保持。
+      onPartyBurst: (sim, owner, T, atk) => {
+        sim.mburst++;
+        if(ABIL.puvoir && sim.mburst%5===0){
+          const ho=ownerOf('puvoir');  // =ヘカテー(自キー参照)
+          for(const k of Object.keys(ABIL)) if(ownerOf(k)===ho) sim.cd[k]=0;
+          T.mobius=(T.mobius||0)+1;
+        }
+      },
       // バースト効果: ムーンコード発動時、追加ダメージ(倍率3倍・減衰50万・アビ枠)。自バーストのみ(onBurst)。
       onBurst: (sim) => {
         if(sim.mooncode>0)

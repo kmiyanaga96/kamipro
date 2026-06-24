@@ -631,6 +631,10 @@ let MILESTONES = {};
 // 英霊(elem:null)はウェポン依存のため編成の主属性(神姫の最多属性)を採用する。
 // elemCount(e)が「編成内のe属性キャラ数」(英霊込み)を返す共通ヘルパ。
 let ELEM = {};
+// TICK_STATES: 編成キャラが宣言した「毎ターン自動デクリメントするstate変数」キー一覧。
+// 各キャラの tickStates 宣言を buildFormation で集約。tick() が汎用ループで0まで減算する。
+// (例: droid/banoshik_robot=エジソンのロボ残T, mooncode=ヘカテーのムーンコード残T)
+let TICK_STATES = [];
 const ownerOf = k => ABIL[k][0];
 const elemCount = e => CHARS.filter(c=>ELEM[c]===e).length;
 
@@ -664,6 +668,8 @@ function buildFormation(heroKey, kamihimeKeys) {
   CHAR_SIM_STATES = Object.fromEntries(
     CHARS.flatMap(c => Object.entries(CHAR_REGISTRY[c].state ?? {}))
   );
+  // 毎ターン自動デクリメントするstate変数キーを集約（tick() が汎用処理する）
+  TICK_STATES = CHARS.flatMap(c => CHAR_REGISTRY[c].tickStates ?? []);
   // 目的関数マイルストーンを集約（同一キーは最大値を採用）
   MILESTONES = {};
   for(const c of CHARS)
@@ -710,7 +716,7 @@ class Sim {
     this.cd=Object.fromEntries(Object.keys(ABIL).map(k=>[k,0]));
     // エンジン共通変数（キャラ非依存）
     this.keigyo=4; this.cum=4; this.renri=0;
-    this.mooncode=2; this.mburst=0; this.totalTurns=10; this.planDepth=0;
+    this.totalTurns=10; this.planDepth=0;
     // 概算火力モデル: バフ期間管理辞書と総ダメージ累計
     // buf = {abilityKey: [remaining_turns, ...]}  スタック毎に残りターン数を管理。
     // tick() でデクリメント・失効削除。_na() がbufから動的に乗数を計算する。
@@ -722,9 +728,8 @@ class Sim {
 
   tick() {
     for(const k of Object.keys(this.cd)) if(this.cd[k]>0) this.cd[k]--;
-    if(this.droid>0) this.droid--;
-    if(this.banoshik_robot>0) this.banoshik_robot--;
-    if(this.mooncode>0) this.mooncode--;
+    // キャラ宣言の tickStates(droid/banoshik_robot/mooncode 等)を汎用デクリメント
+    for(const k of TICK_STATES) if(this[k]>0) this[k]--;
     // バフ残ターンをデクリメントし失効スタックを除去
     for(const k of Object.keys(this.buf)){
       this.buf[k]=this.buf[k].map(x=>x-1).filter(x=>x>0);
@@ -761,8 +766,6 @@ class Sim {
         if(this.cd.judg>0) this.cd.judg=0;
       }
     }
-    // ムーンコードはヘカテーのアシスト。ヘカテー不在編成では発火しない。
-    if(ABIL.effond && channel==='a'&&T.ability>0&&T.ability%12===0) this.mooncode=2;
   }
 
   // 減衰(上限)モデル: 計算ダメージ raw → 実ダメージ。区分線形で寄与率(slope)を逓減する。
@@ -884,15 +887,9 @@ class Sim {
     this.procR(T,'b');
     // キャラ固有のバースト時処理（CHAR_DEF記述子に集約）
     CHAR_DEF[owner].onBurst?.(this, atk, owner);
-    // パーティ全体のバースト監視フック（他キャラのバーストにも反応する機構用）
+    // パーティ全体のバースト監視フック（モビウスムーンズ等・他キャラのバーストにも反応する機構）。
+    // mburst(パーティバースト累計)の加算と5回毎のヘカテーCDリセットはヘカテーdefの onPartyBurst に集約。
     for(const c of CHARS) CHAR_DEF[c].onPartyBurst?.(this, owner, T, atk);
-    // モビウスムーンズ: party burst 5回毎にヘカテー(=黄ドレイン所有者)のアビCD全リセット
-    this.mburst++;
-    if(ABIL.puvoir && this.mburst%5===0){
-      const ho=ownerOf('puvoir');
-      for(const k of Object.keys(ABIL)) if(ownerOf(k)===ho) this.cd[k]=0;
-      T.mobius=(T.mobius||0)+1;
-    }
     return core; // D8: ストリーク基底用(バースト本体コアのみ・royBurst/passiveFlat/追加ダメ除く)
   }
 
@@ -900,20 +897,9 @@ class Sim {
     this._naOwner = ownerOf(name); // _na()がアビ所有者のGEAR_K_Cを参照するよう設定
     const [,color,cd,cost]=ABIL[name];
     this.cd[name]=cd; if(cost) this.keigyo-=cost; T.ability++;
-    // ロボ作動カウント: 攻撃ロボ(droid)=赤アビ反応 / 補助ロボ(banoshik_robot)=黄アビ反応
-    if(color==='r'&&this.droid>0){
-      T.ra++;
-      // 攻撃ロボ反応: 赤アビ発動毎に敵全体へ反応ダメージ＋味方全体アビダメバフ付与(累積可)。
-      // アンプリファ(3T): ロボ反応ダメージに固定+10万フラット加算(減衰外・ロボ反応のみ対象)。
-      const ampFlat = this.buf.amplifa_buf?.length ? DMG.amplifa_flat : 0;
-      this.dmg += this._decay('abi', this._naForAbi()*DMG.droid_react_mult, DMG.droid_react_cap) + ampFlat;
-      (this.buf.droid_buf??=[]).push(DMG.dur_droid_buf);
-    }
-    if(color==='y'&&this.banoshik_robot>0) T.ra++;
-    // バノーシク: 補助ロボ作動中の黄アビ毎にアサルトバフを独立付与(上限なし累積・各 dur_banoshik 持続)
-    if(color==='y'&&this.banoshik_robot>0) (this.buf.banoshik??=[]).push(DMG.dur_banoshik);
     this.procR(T,'a');
-    // パーティ全体のアビ使用監視フック（ナポレオン闘気等）
+    // パーティ全体のアビ使用監視フック（エジソンのロボ反応・ナポレオン闘気等）。
+    // ロボ作動反応(攻撃ロボ赤反応/補助ロボ黄反応・T.ra加算)もこのフック経由でエジソンdefに集約。
     for(const c of CHARS) CHAR_DEF[c].onAbility?.(this, name, color, T);
     ord.push({text:LABEL[name]+(note||''), color});
   }
@@ -992,8 +978,6 @@ class Sim {
     this.addG(CHARS, MACH_BG*this.T.ra);
     for(const c of CHARS) CHAR_DEF[c].turnEnd?.(this, this.T);
     if(t%4===0){ this.keigyo=Math.min(this.keigyo+5,KEIGYO_MAX); this.cum+=5; }
-    // inori_p はヤマト固有状態(不在編成では undefined → != でスキップ)
-    if(this.inori_p!=null){ this.inori_p++; if(this.inori_p===2){ this.cd.tenya=0; this.inori_p=null; } }
     // HELIX解禁の既達マーク(def.helix宣言キャラのみ・初回到達ターン検出用)
     for(const c of CHARS){ const h=CHAR_DEF[c].helix; if(h&&h.reached(this)) this[h.doneKey]=true; }
   }
@@ -1116,7 +1100,7 @@ class Sim {
     const cs=Object.fromEntries(Object.keys(CHAR_SIM_STATES).map(k=>[k,this[k]]));
     const buf=Object.fromEntries(Object.entries(this.buf).map(([k,v])=>[k,[...v]]));
     return{g:{...this.g},cd:{...this.cd},keigyo:this.keigyo,cum:this.cum,
-      renri:this.renri,mooncode:this.mooncode,mburst:this.mburst,
+      renri:this.renri,
       dmg:this.dmg,buf,...cs};
   }
 
@@ -1126,7 +1110,6 @@ class Sim {
     const s=new Sim(); const snap=this.snap();
     s.g={...snap.g}; s.cd={...snap.cd};
     s.keigyo=snap.keigyo; s.cum=snap.cum; s.renri=snap.renri;
-    s.mooncode=snap.mooncode; s.mburst=snap.mburst;
     s.dmg=snap.dmg; s.buf=Object.fromEntries(Object.entries(snap.buf).map(([k,v])=>[k,[...v]]));
     for(const k of Object.keys(CHAR_SIM_STATES)) s[k]=snap[k];
     s.totalTurns=this.totalTurns; s.planDepth=this.planDepth+1;
