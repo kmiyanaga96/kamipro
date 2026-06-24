@@ -285,7 +285,7 @@ T2の押し順（2行目）
 <script src="data/summons.js"></script>
 <script src="data/enemies.js"></script>
 <script src="data/characters.js"></script>
-<script>
+<script id="engine-code">
 // ===== ゲーム定数（確定仕様） =====
 const RENRI_CAP = 5;   // コヴァレント: procの同ターン発動上限(連理魔力+1＆ジャッジ再発動を同時付与)
 const RENRI_MAX = 30;  // 連理魔力の総上限(実機検証: 30で頭打ち・以降加算なし。JDリキャストは継続処理)
@@ -1505,8 +1505,7 @@ function _buildWorkerCode(){
   const serializedSummons = serializeObj(SUMMON_REGISTRY);
   const serializedEnemies = serializeObj(ENEMY_REGISTRY);
 
-  const src=document.documentElement.innerHTML;
-  const engineCode=src.slice(src.indexOf('// ===== ゲーム定数'), src.indexOf('// ===== UI HELPERS'));
+  const engineCode=document.getElementById('engine-code').textContent;
   _workerCodeCache=`
 const deserializeObj = str => JSON.parse(str, (k, v) => (typeof v === 'string' && v.startsWith('__FUNC__:')) ? eval('(' + v.substring(9) + ')') : v);
 const CHAR_REGISTRY = deserializeObj(${JSON.stringify(serializedChars)});
