@@ -1495,17 +1495,20 @@ function _finishSim(best, baseDmg){
 }
 
 function _buildWorkerCode(){
-  // index.html全体から // ===== ゲーム定数 〜 // ===== UI HELPERS 直前までのエンジンコードを抽出。
-  // エンジン本文はページ生存中不変なので初回のみ抽出してキャッシュ(innerHTML全文字列化を毎回避ける)。
+  // index.html の <script id="engine-code"> textContent から // ===== ゲーム定数 〜 // ===== UI HELPERS 直前までの
+  // エンジンコードを抽出。textContent は生ソース(HTMLエスケープ無し)を返すため `<`/`>`/`&` 等の演算子が壊れない。
+  // ⚠ slice 必須: textContent 全体には worker未対応の UI/INIT(document参照)が含まれ、worker内で即 ReferenceError → フリーズ。
+  // エンジン本文はページ生存中不変なので初回のみ抽出してキャッシュ。
   // root/baseline実行は _runRootPlan/_runBaselinePlan(エンジン領域=抽出範囲内)に集約しWorker/フォールバックで共用。
   if(_workerCodeCache) return _workerCodeCache;
-  
+
   const serializeObj = obj => JSON.stringify(obj, (k, v) => typeof v === 'function' ? '__FUNC__:' + v.toString() : v);
   const serializedChars = serializeObj(CHAR_REGISTRY);
   const serializedSummons = serializeObj(SUMMON_REGISTRY);
   const serializedEnemies = serializeObj(ENEMY_REGISTRY);
 
-  const engineCode=document.getElementById('engine-code').textContent;
+  const rawEngine=document.getElementById('engine-code').textContent;
+  const engineCode=rawEngine.slice(rawEngine.indexOf('// ===== ゲーム定数'), rawEngine.indexOf('// ===== UI HELPERS'));
   _workerCodeCache=`
 const deserializeObj = str => JSON.parse(str, (k, v) => (typeof v === 'string' && v.startsWith('__FUNC__:')) ? eval('(' + v.substring(9) + ')') : v);
 const CHAR_REGISTRY = deserializeObj(${JSON.stringify(serializedChars)});
