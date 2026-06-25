@@ -295,6 +295,7 @@ const FB_THR    = 100; // フルバースト閾値（カスケードあり）
 const MACH_BG   = 5;   // マシーンタクトゥ: ロボ作動1回あたりBG増加
 const KEIGYO_MAX= 15;  // 契晶最大値
 const BEAM_W      = 32;  // ビームサーチ幅: 各ステップで保持する候補数（本ターン探索のみで使用）
+const PREFIX_TOPK = 10;  // 2段ルート選抜: 静的proxyで全prefixを安価に採点し上位K本だけBW32本選へ回す（PoC: 上位8で最大loss0.013%）
 const IFISHANT_MIN_CD = 3; // イフィシャント使用可の最小CD中アビ数（早撃ち=機会損失の抑止下限）
 const BG = {inori:100,funki:10,absolute:20,sleur:15,legend:10,
             pactcore:100,cascade:10,yamato_max:200,other_max:100};
@@ -1169,6 +1170,33 @@ function _runBaselinePlan(n){
   return base.dmg;
 }
 
+// 2段ルート選抜の安価proxy: 開幕prefixを強制したうえで全ターンを静的greedyで完遂し総ダメージを返す。
+// ビーム不使用(planDepth>=2相当)のため1prefix≈数ms。ロールアウト(_objective)内の静的挙動と同一手順。
+function _staticPrefixDmg(prefix, n){
+  const sim=new Sim(); sim.totalTurns=n; sim.planDepth=2;
+  for(let t=1;t<=n;t++){
+    sim._beginTurn(t);
+    if(t===1) for(const k of prefix) sim._execKey(k);
+    for(let i=0;i<300;i++){ if(!sim._stepStatic()) break; }
+    sim._attackPhase(); sim._endBookkeep(t);
+  }
+  return sim.dmg;
+}
+
+// ルート分散の2段絞り込み: enumerateRootPrefixes() の全候補を _staticPrefixDmg で安価に採点し、
+// 上位 PREFIX_TOPK 本のみ本選(BW32)へ回す。空prefix(単一ビーム=回帰基準)は常に確保する。
+// 静的proxyはビーム先読み利得を捉えないため単独では取りこぼすが、PoC実測で上位8確保なら
+// 最大loss0.013%(押し順/火力指数グレードに不可視)。詳細は PERF_NOTES.md。
+function _selectRootPrefixes(n){
+  const all=enumerateRootPrefixes();
+  if(all.length<=PREFIX_TOPK) return all;
+  const scored=all.map(p=>({p, s:_staticPrefixDmg(p, n)}));
+  scored.sort((a,b)=>b.s-a.s);
+  const top=scored.slice(0, PREFIX_TOPK).map(x=>x.p);
+  if(!top.some(p=>p.length===0)) top.push([]); // 空prefixは回帰基準として必ず含める
+  return top;
+}
+
 // ===== リプレイモード =====
 
 // LABEL(abilityKey→表示名)の逆引きマップを構築。labelSuffix込みの完全形と省略形の両方を登録。
@@ -1583,7 +1611,7 @@ function runSim(){
   let workerCode;
   try{ workerCode=_buildWorkerCode(); } catch(err){ _fallbackRunSim(heroKey,kamihimeKeys,n); return; }
 
-  const prefixes=enumerateRootPrefixes();
+  const prefixes=_selectRootPrefixes(n); // 2段選抜: 静的proxyで上位PREFIX_TOPK本に絞る(品質劣化≤0.013%・PERF_NOTES.md)
   const poolSize=Math.max(1,Math.min(navigator.hardwareConcurrency||4, prefixes.length+1));
 
   let blob,url,workers;
@@ -1645,7 +1673,7 @@ function _fallbackRunSim(heroKey,kamihimeKeys,n){
   document.getElementById('sim-loading').classList.add('active');
   setTimeout(()=>{
     buildFormation(heroKey,kamihimeKeys); applyGear();
-    const prefixes=enumerateRootPrefixes();
+    const prefixes=_selectRootPrefixes(n); // 本選と同じ2段選抜(フォールバックも上位PREFIX_TOPK本のみ)
     let best=null;
     let i=0;
     function nextRoute(){
