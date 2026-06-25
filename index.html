@@ -609,6 +609,8 @@ let ABIL_KEYS = [], ABIL_KC = {}, ABIL_CANDS = {}, ABIL_BASE_S = {};
 // CHAR_SIM_STATES: 編成キャラの state フィールドを合流させたマスター初期値。
 // Sim の constructor/snap/clone がこれを参照して自動管理する。
 let CHAR_SIM_STATES = {};
+// CHAR_SIM_STATE_KEYS: CHAR_SIM_STATES のキー配列を buildFormation で事前確定（clone/snap の毎回 Object.keys 回避）。
+let CHAR_SIM_STATE_KEYS = [];
 // MILESTONES: 編成キャラが宣言した目的関数マイルストーン。
 // def.milestones の同一キーは最大値で集約（例: renri はHELIX解禁閾値30）。
 // 目的関数はこの値で頭打ち評価し、解禁後の超過分を無駄に追わない。
@@ -665,6 +667,8 @@ function buildFormation(heroKey, kamihimeKeys) {
   CHAR_SIM_STATES = Object.fromEntries(
     CHARS.flatMap(c => Object.entries(CHAR_REGISTRY[c].state ?? {}))
   );
+  // Phase3-E: clone()/snap() のホットパスで毎回 Object.keys する代わりに事前確定（キー配列を共有）。
+  CHAR_SIM_STATE_KEYS = Object.keys(CHAR_SIM_STATES);
   // 毎ターン自動デクリメントするstate変数キーを集約（tick() が汎用処理する）
   TICK_STATES = CHARS.flatMap(c => CHAR_REGISTRY[c].tickStates ?? []);
   // 目的関数マイルストーンを集約（同一キーは最大値を採用）
@@ -1093,8 +1097,8 @@ class Sim {
   }
 
   snap(){
-    const cs=Object.fromEntries(Object.keys(CHAR_SIM_STATES).map(k=>[k,this[k]]));
-    const buf=Object.fromEntries(Object.entries(this.buf).map(([k,v])=>[k,[...v]]));
+    const cs={}; for(const k of CHAR_SIM_STATE_KEYS) cs[k]=this[k];
+    const buf={}; for(const k in this.buf) buf[k]=this.buf[k].slice();
     return{g:{...this.g},cd:{...this.cd},keigyo:this.keigyo,cum:this.cum,
       renri:this.renri,
       dmg:this.dmg,buf,...cs};
@@ -1102,12 +1106,14 @@ class Sim {
 
   // 先読み/ロールアウト用の複製。planDepth+1 で深度管理し再帰を防ぐ。
   // ターン途中(this.T存在)ならターンローカル状態も複製し、続きをクローン上で完遂できるようにする。
+  // Phase3-E: snap() を経由せず this から直接コピー（snap の中間オブジェクト生成と buf の二重 deep copy を排除）。
+  // buf は配列を slice で独立化・CHAR_SIM_STATES はフラット数値のため値コピーで安全（aliasing は従来と同一）。
   clone(){
-    const s=new Sim(); const snap=this.snap();
-    s.g={...snap.g}; s.cd={...snap.cd};
-    s.keigyo=snap.keigyo; s.cum=snap.cum; s.renri=snap.renri;
-    s.dmg=snap.dmg; s.buf=Object.fromEntries(Object.entries(snap.buf).map(([k,v])=>[k,[...v]]));
-    for(const k of Object.keys(CHAR_SIM_STATES)) s[k]=snap[k];
+    const s=new Sim();
+    s.g={...this.g}; s.cd={...this.cd};
+    s.keigyo=this.keigyo; s.cum=this.cum; s.renri=this.renri; s.dmg=this.dmg;
+    const buf={}; for(const k in this.buf) buf[k]=this.buf[k].slice(); s.buf=buf;
+    for(const k of CHAR_SIM_STATE_KEYS) s[k]=this[k];
     s.totalTurns=this.totalTurns; s.planDepth=this.planDepth+1;
     if(this.T){ s.T={...this.T}; s.ord=this.ord.slice(); s.bset=new Set(this.bset); s._t=this._t; }
     return s;
