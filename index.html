@@ -294,8 +294,7 @@ const TENYA_FROM= 2;   // 天矢乱舞: 使用可能開始ターン
 const FB_THR    = 100; // フルバースト閾値（カスケードあり）
 const MACH_BG   = 5;   // マシーンタクトゥ: ロボ作動1回あたりBG増加
 const KEIGYO_MAX= 15;  // 契晶最大値
-const BEAM_W      = 32;  // ビームサーチ幅（本ターン）: 各ステップで保持する候補数
-const BEAM_W_INNER= 4;   // ビームサーチ幅（ロールアウト内）: 深度1クローンで使用
+const BEAM_W      = 32;  // ビームサーチ幅: 各ステップで保持する候補数（本ターン探索のみで使用）
 const IFISHANT_MIN_CD = 3; // イフィシャント使用可の最小CD中アビ数（早撃ち=機会損失の抑止下限）
 const BG = {inori:100,funki:10,absolute:20,sleur:15,legend:10,
             pactcore:100,cascade:10,yamato_max:200,other_max:100};
@@ -994,7 +993,7 @@ class Sim {
     let totalJudg=this.T.ju;
     const la=this.totalTurns-t0;
     for(let k=1;k<=la;k++){
-      const r=this.greedyTakeTurn(t0+k); // planDepth>=2 → 静的、planDepth=1 → 内部ビーム
+      const r=this.greedyTakeTurn(t0+k); // ロールアウトは planDepth>=2 で静的greedy
       if(r.atk.length===5) fbTurns++;
       totalBurst+=r.burst;
       totalJudg+=r.ju;
@@ -1023,7 +1022,7 @@ class Sim {
 
   // ビームサーチ: beamW本の仮想シムを並列維持し最良アビ順序列を返す。
   // 各ステップで全候補をcloneして展開 → _finishStatic()+_objective()で採点 → 上位beamW保持。
-  // planDepth=0(本ターン)はBEAM_W、planDepth=1(ロールアウト内)はBEAM_W_INNERで呼ばれる。
+  // 本ターン(planDepth=0)からのみ呼ばれBEAM_Wで探索する。ロールアウト(_objective)はビームを張らず静的greedy。
   // forcedPrefix: 探索開始前に強制実行するキー列(ルート分散ワーカーが異なる開幕を強制するために使う)。
   _beamSearch(beamW, forcedPrefix=[]){
     const evalEntry=e=>{
@@ -1053,7 +1052,8 @@ class Sim {
 
   greedyTakeTurn(t) {
     this._beginTurn(t);
-    // planDepth=0: 本ターン(フルビーム) / planDepth=1: ロールアウト(内部ビーム) / >=2: 静的greedy
+    // planDepth=0: 本ターン(フルビーム) / >=2: ロールアウト(静的greedy)。
+    // ※greedyTakeTurnはdepth0(実ターン)か_objective内のdepth>=2クローンからのみ呼ばれ、depth1は構造上発生しない。
     if(this.planDepth>=2){
       for(let i=0;i<300;i++) if(!this._stepStatic()) break;
     } else {
@@ -1061,7 +1061,7 @@ class Sim {
       // forcePrefix: ルート分散ワーカーが本ターン(t===_forceTurn)の開幕だけ強制する。
       // 内部ロールアウトのクローンには伝播しない(clone()がコピーしない独自フィールドのため)。
       const fp=(this.planDepth===0 && this._forcePrefix && t===this._forceTurn) ? this._forcePrefix : [];
-      const keys=this._beamSearch(this.planDepth===1?BEAM_W_INNER:BEAM_W, fp);
+      const keys=this._beamSearch(BEAM_W, fp);
       for(const key of keys) this._execKey(key);
     }
     const atk=this._attackPhase();
