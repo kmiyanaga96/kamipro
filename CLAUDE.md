@@ -5,7 +5,7 @@
 
 ## ドキュメント体系（Antigravityエージェントとの共有用）
 - **CLAUDE.md**（本書）: 生きた開発ガイド。コード地図・開発ルール・確定仕様・検証方法・実機較正ステータス。**現状の一次情報**。
-- **.agents/AGENTS.md**: Antigravity（Gemini）エージェント用のルール／ガイドライン定義。開発不変条件（ロード順・Workerコード抽出のフリーズ回避等）・Gitワークフロー・検証ゲート（91,723,594）を規定。
+- **.agents/AGENTS.md**: Antigravity（Gemini）エージェント用のルール／ガイドライン定義。開発不変条件（ロード順・Workerコード抽出のフリーズ回避等）・Gitワークフロー・検証ゲート（92,031,195）を規定。
 - **PERF_NOTES.md**: 探索エンジン高速化の調査・実装・採否判断の台帳（待ち時間の支配式・実装済み施策D/E/①-A・路線①PoC実測・WASMの位置づけ降格）。性能面の一次台帳。
 - **CALIBRATION_ANALYSIS.md**: 実機較正の確定値＆**根拠アーカイブ**（なぜその値・枠か）。較正・英霊武器は実装済み。
 - **archive/PHASE2_PLAN.md**: Phase 2（汎用化）完了計画（アーカイブ退避済み）。
@@ -57,8 +57,8 @@
 - **モビウスムーンズ**: パーティ全体のバースト5回ごとに、ヘカテーの全アビCDをリセット。
 - **イフィシャント早撃ち抑止**: `IFISHANT_MIN_CD = 3`（CD中アビが3つ未満は使用不可）。
 - **ロワ・クモンドの3枠加算**: 通常（`roy_na_frac`）、アビ（`roy_abi_frac`）、バースト（`roy_burst_frac`）をそれぞれ独自枠加算。
-- **Phase3-1 事前計算マップ（ホットパス高速化・実装済）**: `buildFormation` で `ABIL_KEYS`/`ABIL_KC`/`ABIL_CANDS`/`ABIL_BASE_S` を一度だけ構築し、`_stepStatic`/`_candidates` が `Object.entries(ABIL)`・ネスト参照・`computeBaseScore` 再計算をせず `ABIL_KEYS` を1パス走査する。**⚠不変条件**: 走査順は `ABIL` 挿入順（=`Object.keys`順）でタイブレークは厳密 `>`（先頭最大）。キャラ追加・`abilities`/`cands` 変更時はこのマップ構築を経由するため自動追従するが、**走査順や `>` 比較を崩すと最適押し順の選択がズレる**（ゴールデン値 91,723,594 で検証すること）。詳細は archive/PHASE3_PLAN.md §1.4 / PERF_NOTES.md。高速化はその後 D（死コード除去）・E（clone二重コピー排除）・①-A（2段ルート選抜）まで実施済み。WASM化（per-op）は最終手段に降格（PERF_NOTES.md §5）。
-- **⚠ Workerコード抽出不変条件**: `_buildWorkerCode` は `<script id="engine-code">` の **`textContent`**（`innerHTML`は不可＝`<`/`>`/`&`をHTMLエスケープしWorker構文エラー）を取得し、**必ず `// ===== ゲーム定数` 〜 `// ===== UI HELPERS` 直前へ slice** して Worker へ渡す。slice を外して全文を渡すと UI/INIT の `document` 参照が Worker 読込時に `ReferenceError` を投げ、`onerror`→メインスレッド同期フォールバックで**ページがフリーズ**する。Worker が必要とする関数（`recalcGearK`/`buildFormation`/`Sim`/`enumerateRootPrefixes`/`_runRootPlan`/`_runBaselinePlan` 等）は全て `UI HELPERS` マーカーより前＝エンジン領域内に置くこと。検証は scratchpad の worker 再現スクリプト（`document` 無しサンドボックスで `init`→`root`→`baseline` が 91,723,594 を返すか）に準拠。
+- **Phase3-1 事前計算マップ（ホットパス高速化・実装済）**: `buildFormation` で `ABIL_KEYS`/`ABIL_KC`/`ABIL_CANDS`/`ABIL_BASE_S` を一度だけ構築し、`_stepStatic`/`_candidates` が `Object.entries(ABIL)`・ネスト参照・`computeBaseScore` 再計算をせず `ABIL_KEYS` を1パス走査する。**⚠不変条件**: 走査順は `ABIL` 挿入順（=`Object.keys`順）でタイブレークは厳密 `>`（先頭最大）。キャラ追加・`abilities`/`cands` 変更時はこのマップ構築を経由するため自動追従するが、**走査順や `>` 比較を崩すと最適押し順の選択がズレる**（ゴールデン値 92,031,195 で検証すること）。詳細は archive/PHASE3_PLAN.md §1.4 / PERF_NOTES.md。高速化はその後 D（死コード除去）・E（clone二重コピー排除）・①-A（2段ルート選抜）まで実施済み。WASM化（per-op）は最終手段に降格（PERF_NOTES.md §5）。
+- **⚠ Workerコード抽出不変条件**: `_buildWorkerCode` は `<script id="engine-code">` の **`textContent`**（`innerHTML`は不可＝`<`/`>`/`&`をHTMLエスケープしWorker構文エラー）を取得し、**必ず `// ===== ゲーム定数` 〜 `// ===== UI HELPERS` 直前へ slice** して Worker へ渡す。slice を外して全文を渡すと UI/INIT の `document` 参照が Worker 読込時に `ReferenceError` を投げ、`onerror`→メインスレッド同期フォールバックで**ページがフリーズ**する。Worker が必要とする関数（`recalcGearK`/`buildFormation`/`Sim`/`enumerateRootPrefixes`/`_runRootPlan`/`_runBaselinePlan` 等）は全て `UI HELPERS` マーカーより前＝エンジン領域内に置くこと。検証は scratchpad の worker 再現スクリプト（`document` 無しサンドボックスで `init`→`root`→`baseline` が 92,031,195 を返すか）に準拠。
 - **2段ルート選抜（①-A・実装済）**: `runSim`/`_fallbackRunSim` は `enumerateRootPrefixes()` の全prefixを `_staticPrefixDmg`（静的greedy・約数ms）で安価採点し、上位 `PREFIX_TOPK`(=10) 本のみ本選(BW32)へ回す（`_selectRootPrefixes`）。空prefix（単一ビーム＝回帰基準）は常に確保。**品質低下は PoC 実測で最大0.013%**（押し順・火力指数グレードに不可視・K10は静的top8の上位集合で単調保証）。ゴールデン値ワンライナーは単一 `takeTurn` でこの選抜を経由しないため不変。**⚠ 新キャラ追加・`abilities`/`cands` 変更時は PoC（scratchpad `poc.js`）を数形成で再実行し `PREFIX_TOPK` の余裕を再確認**（真の勝者が上位Kから外れると品質が落ちる）。詳細は PERF_NOTES.md §4。
 
 ### 3. Git 開発ワークフロー (強制ルール)
@@ -82,7 +82,7 @@
 1. **リプレイ照合**: ユーザー又はエージェントは `index.html` の「リプレイモード」に実機手順を入力し、乖離の発生起点（ターン・バフ・ロボ・ダメージ等）を特定する。
 2. **課題のDB化**: 乖離の詳細（対象キャラ/アビ/ターン/実機挙動/シム誤挙動）を [CALIBRATION_ANALYSIS.md](file:///c:/Users/Kanta%20Miyanaga/kamipro/CALIBRATION_ANALYSIS.md) に追記する。
 3. **計画・検証策定**: 設計担当（Antigravity等）が不整合の原因を特定し、`implementation_plan.md` を作成。その中で修正指示と再現テストケースを定義する。
-4. **自律修正とテスト**: 実装担当（Claude Code等）が計画書に基づきコードを修正し、テストを実行。期待値（`91,723,594`）と追加テストケースの双方をアサートして完了する。
+4. **自律修正とテスト**: 実装担当（Claude Code等）が計画書に基づきコードを修正し、テストを実行。期待値（`92,031,195`）と追加テストケースの双方をアサートして完了する。
 
 ### 5. ドキュメント・レガシーファイルの管理ルール
 AIエージェントのコンテキスト節約と古い仕様の誤認防止のため、以下のルールを遵守すること。
@@ -98,7 +98,7 @@ node -e "const fs = require('fs'); const html = fs.readFileSync('index.html', 'u
 
 **期待値（基準・フォールバック抽象スケール）**:
 - FullBurst: `10/10`
-- TotalDmg: `91,723,594`
+- TotalDmg: `92,031,195`
 
 ---
 

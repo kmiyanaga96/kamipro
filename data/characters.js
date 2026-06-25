@@ -41,7 +41,22 @@ const CHAR_REGISTRY = {
       // ビーム目的関数は総ダメージ駆動でスコアより優先するため、早撃ち抑止にはガードが必須。
       // 検証(edison+光4): 下限1→総8.77M / 下限2〜4→総9.52M(最適plateau)。中央値3を採用。
       ifishant: { s:(sim)=>{ const ct=Object.keys(sim.cd).filter(k=>k!=='ifishant'&&sim.cd[k]>0).length; return ct*ct; },
-                  guard:(sim)=>Object.keys(sim.cd).filter(k=>k!=='ifishant'&&sim.cd[k]>0).length>=IFISHANT_MIN_CD,
+                  guard:(sim)=>{
+                    if(sim._t < 2) return false;
+                    const ct = Object.keys(sim.cd).filter(k=>k!=='ifishant'&&sim.cd[k]>0).length;
+                    if(ct < IFISHANT_MIN_CD) return false;
+                    for(const key of Object.keys(ABIL)){
+                      if(key==='ifishant') continue;
+                      if(sim.cd[key]===0){
+                        const owner = ABIL[key][0];
+                        const cand = CHAR_REGISTRY[owner]?.cands?.[key];
+                        if(cand && (!cand.guard || cand.guard(sim, sim.T, sim._t))){
+                          if(ABIL[key][2]>=2) return false;
+                        }
+                      }
+                    }
+                    return true;
+                  },
                   exec:(sim,T,ord)=>{ for(const k of Object.keys(sim.cd)) if(k!=='ifishant'&&sim.cd[k]>0) sim.cd[k]--; sim.use('ifishant',T,ord); }},
     },
     def: {
