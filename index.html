@@ -1517,7 +1517,7 @@ const ENEMY_REGISTRY = deserializeObj(${JSON.stringify(serializedEnemies)});
 const DEBUFF_KEYS = new Set(['consort_def', 'divinus_def', 'effond_def', 'nights', 'divinus_dot']);
 const buffCount = sim => Object.entries(sim.buf).reduce((a,[k,v])=>a+(DEBUFF_KEYS.has(k)?0:v.length),0);
 
-\${engineCode}
+${engineCode}
 // ===== Worker エントリポイント =====
 self.onmessage=function(e){
   const d=e.data;
