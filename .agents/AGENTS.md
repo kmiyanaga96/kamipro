@@ -12,6 +12,10 @@
   * `data/*.js` は [index.html](file:///c:/Users/Kanta%20Miyanaga/kamipro/index.html) のインライン定数（`BG`/`DMG`/`GEAR`）より**前**に読み込まれます。
   * そのため、`data/*.js` のオブジェクトリテラルの即時評価フィールド（例: `gmax` など）で、インライン定数（`BG`, `DMG`, `GEAR`）を参照してはなりません。
   * 参照したい場合は、関数本体（遅延評価される `cands.exec` や `def` 内のフックなど）からアクセスしてください。
+* **Workerコード抽出の制限 (ページフリーズ回避)**:
+  * `_buildWorkerCode` は `<script id="engine-code">` の **`textContent`** を取得すること（`innerHTML` は `<`/`>`/`&` をHTMLエスケープし Worker 構文エラーになるため不可）。
+  * さらに **必ず `// ===== ゲーム定数` 〜 `// ===== UI HELPERS` 直前へ slice** してから Worker へ渡すこと。slice を外して全文を渡すと、UI/INIT の `document` 参照が Worker 読込時に `ReferenceError` を投げ、`onerror`→メインスレッド同期フォールバックで**ページがフリーズ**します。
+  * Worker が使う関数（`recalcGearK`/`buildFormation`/`Sim`/`enumerateRootPrefixes`/`_runRootPlan`/`_runBaselinePlan` 等）は全て `// ===== UI HELPERS` マーカーより前＝エンジン領域内に置いてください。
 * **フラットな数値変数としての状態管理**:
   * クローン時のオブジェクト参照共有を防ぐため、キャラ固有の累積値などの状態は、オブジェクトではなく**フラットな数値変数**として `state` に宣言してください。
 * **自動進行ターン数管理**:
