@@ -595,8 +595,8 @@ function recalcGearK(){ GEAR_K = DMG.base_atk*(1+GEAR.dmgup)*(1+GEAR.other)*DMG.
 recalcGearK();
 
 // 選択中サブメンバーのキー配列（UIで変更・applyGear()で反映）。
-const SUB_SLOTS = 3;  // サブ枠数(最大)
-let CURRENT_SUBS = [];  // 例: ['freyja_christmas', '', '']
+const SUB_SLOTS = 2;  // サブ枠数(最大)
+let CURRENT_SUBS = [];  // 例: ['freyja_christmas', '']
 
 // ===== 編成グローバル（buildFormationで構築） =====
 // ABIL形式: [owner, color, cd, keigyo_cost]
@@ -1772,14 +1772,12 @@ function renderFormationPanel(){
       </select>
     </div>`).join('');
 
-  // サブ枠候補: CHAR_REGISTRY統合後、サブアシスト(subAssists)を持つキャラを列挙(旧SUB_REGISTRYの代替)。
-  const subOpts = '<option value="">-- なし --</option>'+
-    Object.entries(CHAR_REGISTRY).filter(([k,v])=>v.subAssists).map(([k,v])=>`<option value="${k}">${v.jp}</option>`).join('');
   const subSlotsHtml = Array.from({length:SUB_SLOTS},(_,i)=>`
     <div class="kslot-wrap">
       <span class="slot-num">サブ${i+1}</span>
-      <select id="sub-slot-${i}">
-        ${subOpts}
+      <select id="sub-slot-${i}" onchange="syncSlots()">
+        <option value="">-- なし --</option>
+        ${kamOptions}
       </select>
     </div>`).join('');
 
@@ -1805,26 +1803,35 @@ function renderFormationPanel(){
   // 現在の編成をスロットに反映
   const currentKami = CHARS.filter(c=>c!==LEADER);
   currentKami.forEach((c,i)=>{ document.getElementById(`kslot-${i}`).value=c; });
-  syncSlots();
   // サブメンバー選択を復元
   CURRENT_SUBS.forEach((k,i)=>{ const el=document.getElementById(`sub-slot-${i}`); if(el&&k) el.value=k; });
+  syncSlots();
 }
 
-function syncSlots(){
+function syncSlots(overrideVals){
   const kamihime = Object.entries(CHAR_REGISTRY).filter(([,v])=>v.type==='kamihime');
-  const vals = [0,1,2,3].map(i=>document.getElementById(`kslot-${i}`)?.value||'');
+  const allKeys = [
+    'kslot-0', 'kslot-1', 'kslot-2', 'kslot-3',
+    'sub-slot-0', 'sub-slot-1'
+  ];
+  const vals = overrideVals || allKeys.map(id => document.getElementById(id)?.value || '');
 
-  for(let i=0;i<4;i++){
-    const sel = document.getElementById(`kslot-${i}`);
-    if(!sel) continue;
+  allKeys.forEach((id, i) => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
     const cur = vals[i];
-    sel.innerHTML = `<option value="">-- 未選択 --</option>`;
-    for(const [k,v] of kamihime){
-      const takenElsewhere = vals.some((v2,j)=>j!==i&&v2===k);
-      if(!takenElsewhere || k===cur)
-        sel.innerHTML += `<option value="${k}"${k===cur?' selected':''}>${v.jp}</option>`;
+    const isSub = id.startsWith('sub-slot-');
+    
+    const emptyText = isSub ? '-- なし --' : '-- 未選択 --';
+    sel.innerHTML = `<option value="">${emptyText}</option>`;
+    
+    for (const [k,v] of kamihime) {
+      const takenElsewhere = vals.some((v2, j) => j !== i && v2 === k);
+      if (!takenElsewhere || k === cur) {
+        sel.innerHTML += `<option value="${k}"${k === cur ? ' selected' : ''}>${v.jp}</option>`;
+      }
     }
-  }
+  });
 }
 
 // ===== 装備設定UI =====
@@ -2038,12 +2045,13 @@ async function persistSlots(){
 function captureFormation(){
   const heroKey = document.querySelector('input[name="hero-sel"]:checked')?.value||LEADER;
   const kamihimeKeys = [0,1,2,3].map(i=>document.getElementById(`kslot-${i}`)?.value||'');
+  const subKamihimeKeys = [0,1].map(i=>document.getElementById(`sub-slot-${i}`)?.value||'');
   const summon = Array.from({length:SUMMON_SLOTS},(_,i)=>document.getElementById('summon-'+i)?.value||'none');
   const weapons = Array.from({length:10},(_,i)=>document.getElementById('wslot-'+i)?.value||'');
   const wpnBoxes = {};
   for(const [k] of GEAR_BOXES) wpnBoxes[k]=document.getElementById('wpn-'+k)?.value||'0';
   return {
-    hero: heroKey, kamihime: kamihimeKeys, summon, weapons, wpnBoxes,
+    hero: heroKey, kamihime: kamihimeKeys, subKamihime: subKamihimeKeys, summon, weapons, wpnBoxes,
     affinity: document.getElementById('dmg-affinity')?.value||'neu',
     heroRank: document.getElementById('hero-rank')?.value||'165',
     summonAtkTotal: document.getElementById('summon-atk-total')?.value||'0',
@@ -2054,8 +2062,16 @@ function captureFormation(){
 // 保存済みスロットの内容をUIへ反映し、編成・シムを再構築する
 function applyFormation(slot){
   document.getElementById('hr-'+slot.hero).checked = true;
-  for(let i=0;i<4;i++) document.getElementById(`kslot-${i}`).value = slot.kamihime[i]||'';
-  syncSlots();
+  const subKam = slot.subKamihime || [];
+  const overrideVals = [
+    slot.kamihime[0] || '',
+    slot.kamihime[1] || '',
+    slot.kamihime[2] || '',
+    slot.kamihime[3] || '',
+    subKam[0] || '',
+    subKam[1] || ''
+  ];
+  syncSlots(overrideVals);
   renderGearPanel();
   for(let i=0;i<SUMMON_SLOTS;i++){ const el=document.getElementById('summon-'+i); if(el) el.value = slot.summon?.[i]||'none'; }
   for(let i=0;i<10;i++){ const el=document.getElementById('wslot-'+i); if(el) el.value = slot.weapons?.[i]||''; }
@@ -2073,7 +2089,9 @@ function applyFormation(slot){
 function slotSummaryText(slot){
   const heroJp = CHAR_REGISTRY[slot.hero]?.jp||slot.hero;
   const kamJp = slot.kamihime.map(k=>CHAR_REGISTRY[k]?.jp||'?').join('/');
-  return `${heroJp} ＋ ${kamJp}`;
+  const subKam = slot.subKamihime || [];
+  const subJp = subKam.filter(Boolean).map(k=>CHAR_REGISTRY[k]?.jp||'?').join('/');
+  return `${heroJp} ＋ ${kamJp}${subJp ? ` (サブ: ${subJp})` : ''}`;
 }
 
 function renderSlotsPanel(){
