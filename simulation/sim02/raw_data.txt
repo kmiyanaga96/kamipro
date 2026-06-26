@@ -20,7 +20,8 @@ sim01 で T1(+α) は検証済み（C5確定）。sim02 はホライズンを T2
 神姫4（並び順）:
 装備（概要・アビ上限UP合計があれば）:
 幻獣 / 初期契晶:
-敵（防御・totalHP）: totalHP =
+敵: ヴァルプルギス・ロキ（幻属性・有利／key=walpurgis_loki・敵DB登録済）。def/affinity は enemies/walpurgis_loki.md → data/enemies.js を正とする。
+敵（防御・totalHP）: def = / totalHP =
 
 # 2. T1（state を作るための押し順・内訳は任意）
 押し順（キー列）:

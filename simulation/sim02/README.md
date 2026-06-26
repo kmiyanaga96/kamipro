@@ -41,8 +41,14 @@ HELIX ターンに到達した時点で「前段が全て固定済み＝残差�
 | [design_report.md](design_report.md) | 設計レポート（5節・データ受領後／準備査読の記録を含む） |
 | [integrated_analysis.md](integrated_analysis.md) | 統合分析（データ受領後・実装担当） |
 
+## 較正ボス
+**ヴァルプルギス・ロキ**（幻属性・光有利／`ENEMY_REGISTRY.walpurgis_loki`・詳細 `enemies/walpurgis_loki.md`）を採用。
+ムーンコードで被弾無効化しT7-8までソロ生存＝B のホライズン全域を1体でカバー。def/affinity は敵DBが正
+（`applyEnemy('walpurgis_loki')` で `DMG.affinity` も上書き）。序数/系統では affinity・def は A/B 共通で相殺するため、
+シムをこのボス設定にして直接比較すればよい（÷1.5 の近似は不要）。
+
 ## 必要データ（raw_data.txt フォーム参照）
-1. メタ：編成 / 装備 / 幻獣 / 初期契晶 / 敵HP
+1. メタ：編成 / 装備 / 幻獣 / 初期契晶 / 敵=ヴァルプルギス・ロキ（def・affinity は実機確認して enemies/walpurgis_loki.md へ）
 2. T1：押し順（state 確定用）＋（任意）内訳
 3. T2：押し順 ＋ **成分内訳**（バースト/ストリーク/ジャッジ/追撃/英霊武器/通常）★本体
 4. （推奨）T2 序数 A/B：2手順とその総ダメージ・実機での上下

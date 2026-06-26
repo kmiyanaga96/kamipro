@@ -11,6 +11,7 @@
 - **archive/PHASE2_PLAN.md**: Phase 2（汎用化）完了計画（アーカイブ退避済み）。
 - **archive/PHASE3_PLAN.md**: Phase 3（高速化）**完了・クローズ**。Phase3-1（アロケフリー化）/D（死コード除去）/E（clone二重コピー排除）/①-A（2段ルート選抜）まで実装し準備時間を大幅短縮。性能の現行台帳は PERF_NOTES.md。
 - **PHASE4_PLAN.md**: Phase 4（実機較正の反復＝**現行フェーズ**）の進め方台帳。**押し順優先**・序数比較ハーネス・「押し順は蓄積誤差に頑健、系統誤差だけを狙う」方針・乖離バックログ駆動を規定。
+- **enemies/**: 敵DB intake ディレクトリ。`enemies/README.md`（命名・追加手順・スキーマ）＋ `TEMPLATE.md` ＋ `<key>.md`（実機詳細＝根拠）。`data/enemies.js` の `ENEMY_REGISTRY` がそこから蒸留した現在値。Phase4較正ボス `walpurgis_loki`（ヴァルプルギス・ロキ）を登録（PHASE4_PLAN §7 のPhase5前倒し・1体のみ）。
 - **simulation/**: Phase 4 の試行データ蓄積ディレクトリ。`simulation/README.md`（命名規約・ワークフロー）＋ `TEMPLATE/`（新試行の雛形）＋ `simNN/`（1試行=1サブフォルダ: `raw_data.txt`実機原本 / `replay_screenshots.md`転記 / `design_report.md`設計レポート（設計担当＝主にAntigravity・**必須5節構成**）/ `integrated_analysis.md`統合分析（実装担当＝主にClaude Code・検証+回帰+Phase方針）/ `README.md`要約）。**新試行は `cp -r simulation/TEMPLATE simulation/simNN` で開始**。
 - **ROADMAP.md**: 長期ビジョン（敵行動・味方生存＝Phase 5）＋新キャラ導入ワークフロー構想。Phase 4 定義は PHASE4_PLAN.md が一次。
 - **BRANCH_WORKFLOW.md**: ブランチ運用メモ。`main` を恒久トランク化し、節目で作業ブランチを集約・削除する手順と注意点（ブランチ乱立の防止）。
@@ -20,7 +21,7 @@
 ## ファイル構成 & コード地図 (index.html: 約2154行)
 - `data/weapons.js`: 武器マスターDB (`WEAPON_MASTER`)
 - `data/summons.js`: 幻獣マスターDB (`SUMMON_REGISTRY`)
-- `data/enemies.js`: 敵DB (`ENEMY_REGISTRY`)
+- `data/enemies.js`: 敵DB (`ENEMY_REGISTRY`)。スキーマ: `label/def/max_hp/element/affinity(任意・指定時applyEnemyがDMG.affinity上書き)/limit`。実機詳細の根拠は `enemies/<key>.md` を正とし本jsは現在値。新規追加は `enemies/README.md`（命名: キー=ファイル名=snake_case）。
 - `data/characters.js`: 統一キャラDB (`CHAR_REGISTRY` に統一済み。旧 `SUB_REGISTRY` のサブアシストは `subAssists` フィールドへ統合・フレイヤ等。`DEBUFF_KEYS`/`buffCount` 同梱)
 
 ### index.html コード地図（行番号は目安）

@@ -1,0 +1,36 @@
+# 敵DB intake（実機詳細 → ランタイム登録）
+
+敵の実機詳細をテキストで受け渡し・保全し、`data/enemies.js`（シムが読むランタイム DB）へ反映するための置き場。
+較正方針は [PHASE4_PLAN.md](../PHASE4_PLAN.md)（§7 で Phase5 敵DBの前倒し条件を規定）、確定値は [CALIBRATION_ANALYSIS.md](../CALIBRATION_ANALYSIS.md)。
+
+## 役割分担（mdとjsの分離・既存の履歴管理原則と同じ）
+- **`enemies/<key>.md`** … 実機詳細・根拠（intake／人間・エージェントが記入）。**source of record**。
+- **`data/enemies.js` の `ENEMY_REGISTRY[<key>]`** … そこから蒸留した**現在のランタイム値**（シムが読む唯一の正）。
+- 値の変更履歴は git。md は根拠、js は現在値。**別途の履歴MDは作らない**（simulation/README.md「履歴管理の原則」と同様）。
+
+## 命名規約
+- **キー（`ENEMY_REGISTRY` のキー＝ファイル名 stem）**: 小文字 ASCII の snake_case スラッグ。
+  例: ヴァルプルギス・ロキ → `walpurgis_loki` → `enemies/walpurgis_loki.md` / `ENEMY_REGISTRY.walpurgis_loki`。
+- ファイル名とキーは**必ず一致**させる（相互参照のため）。
+
+## 追加手順
+1. `cp enemies/TEMPLATE.md enemies/<key>.md` で intake を作成し、実機値を記入。
+2. 記入済みの値を `data/enemies.js` の `ENEMY_REGISTRY[<key>]` へ蒸留（def / max_hp / element / affinity / 任意フィールド）。
+3. 検証ワンライナー（ゴールデン 92,031,195）が**不変**であることを確認（applyEnemy 非経由のため通常不変）。
+4. 必要なら UI の敵セレクタ（`enemy-select`）に出ることを確認。
+
+## `ENEMY_REGISTRY` スキーマ（data/enemies.js 冒頭にも記載）
+| フィールド | 必須 | 意味 |
+|---|---|---|
+| `label` | ○ | 表示名（日本語可） |
+| `def` | ○ | 敵防御値（`recalcGearK` の除数・較正対象） |
+| `max_hp` | ○ | 敵最大HP（DOT・撃破ターン） |
+| `element` | 任意 | 敵属性（メタ・'phantom' 等） |
+| `affinity` | 任意 | 本編成(光)に対する属性相性（有利1.5/中立1.0）。指定時 `applyEnemy` が `DMG.affinity` を上書き（UIトグルより優先）。省略時はUI/既定。 |
+| `limit` | 任意 | 限定行動（将来拡張用） |
+
+## 登録済み
+| key | label | 用途 | 状態 |
+|---|---|---|---|
+| `default` | 汎用 placeholder | 抽象スケール基準（ゴールデン） | — |
+| [`walpurgis_loki`](walpurgis_loki.md) | ヴァルプルギス・ロキ | Phase4 較正ボス（T2〜C1） | **実機値待ち**（プレースホルダ登録済み） |

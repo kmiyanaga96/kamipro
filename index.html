@@ -484,6 +484,9 @@ function applyEnemy(key){
   CURRENT_ENEMY_KEY = key;
   DMG.enemy_def    = e.def;
   DMG.enemy_max_hp = e.max_hp;
+  // 敵DB指定の属性相性(本編成=光に対する有利1.5/中立1.0)があれば上書き(UIトグルより優先)。
+  // 省略時は DMG.affinity を据え置き(UI/既定に従う=従来挙動)。
+  if(e.affinity != null) DMG.affinity = e.affinity;
 }
 
 // ===== 装備設定(幻獣・ウェポン) =====
@@ -1911,8 +1914,14 @@ function applyGear(){
   // 敵パラメータを先に同期(GEAR_K_Cの enemy_def 参照より前に実行)
   applyEnemy(document.getElementById('enemy-select')?.value||CURRENT_ENEMY_KEY);
   CURRENT_SUBS = Array.from({length:SUB_SLOTS},(_,i)=>document.getElementById(`sub-slot-${i}`)?.value||'');
-  // 属性相性
-  DMG.affinity = document.getElementById('dmg-affinity')?.value==='adv'?1.5:1.0;
+  // 属性相性: 選択中の敵DBが affinity を定義していればそれを正とし(UIトグルより優先)、
+  // 未定義の敵(default等)のみ UIトグルで決める(従来挙動)。
+  {
+    const _e = ENEMY_REGISTRY[CURRENT_ENEMY_KEY];
+    DMG.affinity = (_e && _e.affinity != null)
+      ? _e.affinity
+      : (document.getElementById('dmg-affinity')?.value==='adv'?1.5:1.0);
+  }
   for(const [box] of GEAR_BOXES) GEAR[box]=0;
   // 英霊武器専用強化定数を基準値にリセット(ループで武器を検出した場合に上書き)
   DMG.droid_react_mult        = HERO_WEAPON_BASE.droid_react_mult;
