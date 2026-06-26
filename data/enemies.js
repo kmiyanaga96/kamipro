@@ -24,9 +24,9 @@ const ENEMY_REGISTRY = {
   // ⚠ def / max_hp / affinity は実機未取得のプレースホルダ。確定値は enemies/walpurgis_loki.md を埋めてから反映。
   walpurgis_loki: {
     label:    'ヴァルプルギス・ロキ',
-    def:      10,          // PLACEHOLDER・要実機（暫定=default相当。enemies/walpurgis_loki.md で確定）
-    max_hp:   100000000,   // PLACEHOLDER・要実機
+    def:      25,          // 敵防御値 (有志検証値)
+    max_hp:   250000000,   // 敵最大HP (2億5000万)
     element:  'phantom',   // 幻属性（レイドボス）
-    affinity: 1.5,         // 光→幻=有利（暫定×1.5・要実機確認。倍率自体も較正対象になりうる）
+    affinity: 1.0,         // 与ダメージ等倍 (幻属性仕様)
   },
 };
