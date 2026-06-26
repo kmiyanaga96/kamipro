@@ -70,3 +70,4 @@ cp -r simulation/TEMPLATE simulation/sim02   # 次の試行を開始
 | 試行 | 形成 | 主題 | 結論 / 状態 |
 |---|---|---|---|
 | [sim01](sim01/README.md) | エジソン＋ヤマト/ヘカテー/テトラ/エレイン（vs 84M木人） | シム推奨 vs 実機勘の優劣＋バースト追撃減衰上限の較正（C5） | **C5実装済み**（[integrated_analysis](sim01/integrated_analysis.md)） |
+| [sim02](sim02/README.md) | （データ受領後に記入） | テトラHELIX後追撃の減衰上限の確定（C1） | **データ待ち**（C1特化フォーム用意済み） |
