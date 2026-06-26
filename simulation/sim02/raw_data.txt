@@ -20,8 +20,8 @@ sim01 で T1(+α) は検証済み（C5確定）。sim02 はホライズンを T2
 神姫4（並び順）:
 装備（概要・アビ上限UP合計があれば）:
 幻獣 / 初期契晶:
-敵: ヴァルプルギス・ロキ（幻属性・等倍affinity1.0／key=walpurgis_loki・敵DB登録済）。def/affinity は enemies/walpurgis_loki.md → data/enemies.js を正とする。
-敵（防御・totalHP）: def=25(有志・未確証) / totalHP=250,000,000(有志・未確証)
+敵: ヴァルプルギス・ロキ（幻属性・有利affinity1.5／key=walpurgis_loki・敵DB登録済）。def/affinity は enemies/walpurgis_loki.md → data/enemies.js を正とする。
+敵（防御・totalHP）: def=10(暫定・複数データで確定) / totalHP=980,000,000(9.8億・実機)
 ★被ダメ2フェーズ: HP>50%=30%カット(×0.7) / HP50%「ファントムリリース」後=カット解除+被ダメ+20%(×1.2)。各ターンのボスHP%を必ず記録。
 
 # 2. T1（state を作るための押し順・内訳は任意）
