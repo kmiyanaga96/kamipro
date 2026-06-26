@@ -59,7 +59,8 @@ cp -r simulation/TEMPLATE simulation/sim02   # 次の試行を開始
    これは「古い値で実装するな」という道標で、stale な値による誤実装を防ぐ。
 
 ## ワークフロー（1試行の流れ）
-1. `TEMPLATE/` をコピーして `simNN/` を作成。
+1. `TEMPLATE/` をコピーして `simNN/` を作成。測定が非自明な場合は **測定設計（必要データ・逆算式・前提）を `README.md`/`raw_data.txt` に先に固める**（C1=sim02 が例）。
+   - **1.5（任意・推奨）測定設計の査読ゲート**: 相手エージェント（実装設計なら Antigravity）が測定設計を査読し、結果を `design_report.md` の「準備査読」節に記録。**誤った測定設計での実機計測の手戻りを防ぐ**ため、データ収集前に挟める。
 2. 実機測定を `raw_data.txt` に貼り、リプレイ結果を `replay_screenshots.md` に転記。
 3. （任意）設計担当（主に Antigravity）が `design_report.md` を**必須5節構成**で作成。
 4. 実装担当（主に Claude Code）が `integrated_analysis.md` で検証 → 較正案 → **ゴールデン値（92,031,195）への影響を scratchpad で実測** → Phase方針所見 → 結論。
@@ -70,4 +71,4 @@ cp -r simulation/TEMPLATE simulation/sim02   # 次の試行を開始
 | 試行 | 形成 | 主題 | 結論 / 状態 |
 |---|---|---|---|
 | [sim01](sim01/README.md) | エジソン＋ヤマト/ヘカテー/テトラ/エレイン（vs 84M木人） | シム推奨 vs 実機勘の優劣＋バースト追撃減衰上限の較正（C5） | **C5実装済み**（[integrated_analysis](sim01/integrated_analysis.md)） |
-| [sim02](sim02/README.md) | （データ受領後に記入） | テトラHELIX後追撃の減衰上限の確定（C1） | **データ待ち**（C1特化フォーム用意済み） |
+| [sim02](sim02/README.md) | （データ受領後に記入） | テトラHELIX後追撃の減衰上限の確定（C1） | **準備完了・Antigravity査読待ち**（データ収集前） |
