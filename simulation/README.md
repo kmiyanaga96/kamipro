@@ -38,6 +38,26 @@ cp -r simulation/TEMPLATE simulation/sim02   # 次の試行を開始
   `replay_screenshots.md` にテキスト化すると、diff・序数フィクスチャ化・他試行との比較が可能になる。
 - **序数で語る**: 絶対値一致ではなく「ルートA vs B どちらが上か」の符号（PHASE4_PLAN §2）を主指標にする。
 
+## 履歴管理の原則（simNN凍結・現在値分離・前方ポインタ）
+ダブルエージェントPJでは履歴を積極的に残すが、**処理変更を記録する archive MD は作らない**。
+変更履歴は既に二重に保全されている（コード差分＝`git`、意思決定・根拠＝simNNフォルダ）ため、
+専用の履歴MDを足すと三重化し肥大する。代わりに**層の役割を固定**して矛盾と肥大を同時に防ぐ:
+
+| 層 | 役割 | 時間軸 | 編集 |
+|---|---|---|---|
+| `simNN/`（design_report / integrated_analysis 等） | その試行**時点**の分析・提案・実装結果 | **過去の一点（凍結）** | クローズ後は **retro編集禁止** |
+| コード（`DMG`/`CHAR_REGISTRY`）＋ CLAUDE.md ＋ CALIBRATION_ANALYSIS.md | **現在の確定状態** | 常に最新 | 都度更新 |
+| git commit ＋ CALIBRATION の Cx 行 | 両者を繋ぐ索引（どの試行がどの較正を今どの状態にしたか） | 連続 | append |
+
+ルール:
+1. **simNN は凍結スナップショット**: 試行クローズ後は内容を retro編集しない。後続試行で値が変わっても旧 simNN は当時の記録としてそのまま残す。
+2. **「現在値」は simNN から読まない**: 確定値・現行仕様は必ず**コード ＋ CALIBRATION_ANALYSIS.md** を正とする。simNN は明示的に「歴史」、生きたドキュは明示的に「現在」なので、旧新が食い違っても誤認が起きない。
+3. **追跡は新規MDでなく既存の安い場所で**: 実装結果は simNN/integrated_analysis の「実装結果」節、状態遷移は CALIBRATION の Cx（open→fixed）、変更差分は git コミット（メッセージで `simNN` を参照）。**新たな archive/履歴MDは作らない。**
+4. **前方ポインタ（唯一足す例外）**: 後続試行が旧試行の結論を**上書き**したら、旧試行の `README.md` に**1行だけ**前方注記を足す（analysis 本文は書き換えない）。例:
+   > ⚠ 本試行の C5 値は simNN で再較正済み。現在値は CALIBRATION_ANALYSIS.md C5 を参照。
+
+   これは「古い値で実装するな」という道標で、stale な値による誤実装を防ぐ。
+
 ## ワークフロー（1試行の流れ）
 1. `TEMPLATE/` をコピーして `simNN/` を作成。
 2. 実機測定を `raw_data.txt` に貼り、リプレイ結果を `replay_screenshots.md` に転記。

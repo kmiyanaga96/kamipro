@@ -59,6 +59,14 @@ AIエージェントのコンテキスト節約と古い仕様の誤認防止の
 * **生きたガイドへの集約**: 開発上の確定仕様や決定経緯（棚上げの理由など）は、[CLAUDE.md](file:///c:/Users/Kanta%20Miyanaga/kamipro/CLAUDE.md) に適宜要約して集約する。
 * **完了済み計画書の退避**: Phaseが完了し不要となった過去の計画書（例：`PHASE2_PLAN.md` など）は、プロジェクトルートに残さず、`archive/` ディレクトリ（例：[archive/PHASE2_PLAN.md](file:///c:/Users/Kanta%20Miyanaga/kamipro/archive/PHASE2_PLAN.md)）へ速やかに移動（退避）させる。
 
+### 5. simNN試行の履歴管理（凍結スナップショット・現在値分離・前方ポインタ）
+較正の変更履歴は既に二重保全されている（コード差分＝`git`、意思決定・根拠＝`simulation/simNN/`）。
+**処理変更を記録する archive MD は新たに作らないこと**（三重化＝MD肥大の原因）。代わりに層の役割を固定する（詳細・表は [simulation/README.md](../simulation/README.md)「履歴管理の原則」）:
+* **simNN は凍結スナップショット**: 試行クローズ後は `design_report.md`/`integrated_analysis.md` 等を retro編集しない。後続試行で値が変わっても旧 simNN は当時の記録として残す。
+* **「現在値」は simNN から読まない**: 確定値・現行仕様は必ず**コード ＋ CALIBRATION_ANALYSIS.md** を正とする（simNN=歴史、生きたドキュ=現在）。
+* **追跡は既存の安い場所で**: 実装結果は `integrated_analysis.md` の実装結果節、状態遷移は CALIBRATION の Cx（open→fixed）、差分は git コミット（`simNN` を参照）。
+* **前方ポインタ（唯一の例外）**: 後続試行が旧試行の結論を上書きしたら、旧試行の `README.md` に**1行だけ**前方注記（例: 「⚠ 本試行のC5値は再較正済み。現在値は CALIBRATION_ANALYSIS.md C5 参照」）を足す。analysis 本文は書き換えない。
+
 ## 検証用テスト
 
 リファクタリングや機能追加後は、以下のコマンドを実行し、結果が期待値と一致することを確認してください。

@@ -89,6 +89,7 @@
 AIエージェントのコンテキスト節約と古い仕様の誤認防止のため、以下のルールを遵守すること。
 * **生きたガイドへの集約**: 開発上の確定仕様や決定経緯（棚上げの理由など）は、[CLAUDE.md](file:///c:/Users/Kanta%20Miyanaga/kamipro/CLAUDE.md) に適宜要約して集約する。
 * **完了済み計画書の退避**: Phaseが完了し不要となった過去の計画書（例：`PHASE2_PLAN.md` など）は、プロジェクトルートに残さず、`archive/` ディレクトリ（例：[archive/PHASE2_PLAN.md](file:///c:/Users/Kanta%20Miyanaga/kamipro/archive/PHASE2_PLAN.md)）へ速やかに移動（退避）させる。
+* **simNN試行の履歴管理（凍結スナップショット・現在値分離）**: 較正の変更履歴はコード差分＝git、根拠＝`simulation/simNN/` に二重保全済み。**処理変更用の archive MD は新たに作らない**（三重化＝肥大の原因）。`simNN` はクローズ後 retro編集しない凍結スナップショット、**現在値はコード＋CALIBRATION_ANALYSIS.md のみを正**とし、後続が旧結論を上書きした時だけ旧 `simNN/README.md` に前方ポインタ1行を足す。詳細は `simulation/README.md`「履歴管理の原則」。
 
 ## 検証方法
 リファクタリング・機能追加後は、Node.jsで以下のワンライナーを実行し、既存の検証基準値と一致することを確認すること。
