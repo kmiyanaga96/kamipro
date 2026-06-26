@@ -42,10 +42,16 @@ HELIX ターンに到達した時点で「前段が全て固定済み＝残差�
 | [integrated_analysis.md](integrated_analysis.md) | 統合分析（データ受領後・実装担当） |
 
 ## 較正ボス
-**ヴァルプルギス・ロキ**（幻属性・光有利／`ENEMY_REGISTRY.walpurgis_loki`・詳細 `enemies/walpurgis_loki.md`）を採用。
-ムーンコードで被弾無効化しT7-8までソロ生存＝B のホライズン全域を1体でカバー。def/affinity は敵DBが正
-（`applyEnemy('walpurgis_loki')` で `DMG.affinity` も上書き）。序数/系統では affinity・def は A/B 共通で相殺するため、
-シムをこのボス設定にして直接比較すればよい（÷1.5 の近似は不要）。
+**ヴァルプルギス・ロキ**（幻属性／`ENEMY_REGISTRY.walpurgis_loki`・詳細 `enemies/walpurgis_loki.md`）を採用。
+ムーンコードで被弾無効化しT7-8までソロ生存＝B のホライズン全域を1体でカバー。`applyEnemy('walpurgis_loki')` で
+def=25 と **affinity=1.0（光→幻=等倍・[web]確認。当初想定の有利1.5は誤り）** を適用。等倍なので属性正規化は不要。
+
+### ★較正の必須注意：HP依存の2フェーズ被ダメ倍率（[web]確認・現行シム未モデル化）
+- **HP>50%（フェーズ1）= 常時30%カット → 我々の与ダメ ×0.7**。
+- **HP50%「ファントムリリース」後 = カット解除＋被ダメ+20% → ×1.2**（同時に敵が火力UP）。
+- 含意: 序数A/B・成分比は**同一フェーズなら相殺**。だが**フェーズを跨ぐ比較・絶対逆算（C1）はこの倍率を必ず除算**。
+  → 各測定ターンで**ボスHP%（50%超/未満）を必ず記録**（HELIXターンT6-7は境界を跨ぎうる）。
+- ⚠ def=25 / HP=2.5億 は有志・未確証（公式wiki表は空欄）。絶対値較正の前に実機で再確認。
 
 ## 必要データ（raw_data.txt フォーム参照）
 1. メタ：編成 / 装備 / 幻獣 / 初期契晶 / 敵=ヴァルプルギス・ロキ（def・affinity は実機確認して enemies/walpurgis_loki.md へ）
