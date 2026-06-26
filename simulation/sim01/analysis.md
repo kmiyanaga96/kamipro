@@ -84,4 +84,7 @@ report_design §3 の中心的主張は「**シムのバースト追撃ベース
 - **探索ポリシーの所見（新規・C6候補）**: シムは2T総和ではなく辞書式T1優先を最適化する。固定HP木人の
   ダメージレースでは妥当だが、「2Tで撃破でき総和を重視したい」要求が出た場合は目的関数の再検討が必要。
   現方針（フロントロード是・PHASE4_PLAN §2）では問題化しないため**記録のみ**。
-- **バックログ更新**: CALIBRATION_ANALYSIS.md の C5 を `open → fixed`（実装後）に遷移。
+- **バックログ更新**: CALIBRATION_ANALYSIS.md の C5 を `open → fixed` に遷移。
+- **実装結果（2026-06-26）**: `index.html` の `DMG` 4値（`burst_followup_cap`/`hecate_extra_cap`/
+  `tetra_burst_cap` = 100万、`elaine_burst_extra_cap` = 80万）を較正値へ修正。検証コマンドで
+  FullBurst 10/10・TotalDmg 92,031,195 を再確認（不変）。

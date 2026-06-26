@@ -19,4 +19,5 @@
 3. テトラHELIX後上限(C1)・探索目的関数(C6候補)は据え置き・記録のみ。
 
 ## 状態
-- C5: 分析完了・**実装推奨**（未実装。実装で CALIBRATION_ANALYSIS.md C5 を fixed へ）。
+- C5: **実装済み（2026-06-26）**。`DMG` 4値を較正値へ修正（ゴールデン 92,031,195 不変を実測確認）。
+  CALIBRATION_ANALYSIS.md C5 = fixed。
