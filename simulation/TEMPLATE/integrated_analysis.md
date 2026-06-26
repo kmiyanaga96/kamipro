@@ -1,12 +1,12 @@
-# simNN 分析（Claude Code 検証 + 申し送り回収）
+# simNN 統合分析（実装担当 = Claude Code 等）
 
-> 設計担当（Antigravity 等）の `report_design.md` がある場合は、その主張を**検証・追認/反証**し、
-> 実装可否と回帰影響を確定するのが本ファイルの役割（CLAUDE.md §4 / AGENTS.md §3 の実装担当パート）。
+> 設計担当の `design_report.md`（5節構成）を**受けて**、その主張を**検証・追認/反証**し、実装可否・
+> 回帰影響・**Phase進行方針への含意**まで確定するのが本ファイルの役割（CLAUDE.md §4 / AGENTS.md §3 の実装担当パート）。
 
 ## 1. 入力サマリ
 - 生データ: `raw_data.txt`
 - スクショ転記: `replay_screenshots.md`
-- 設計レポート: `report_design.md`（あれば）
+- 設計レポート: `design_report.md`（あれば）
 - 比較ルート: A=… / B=…
 
 ## 2. シム値の確認（ターン別・序数）

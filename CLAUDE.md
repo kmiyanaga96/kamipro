@@ -11,7 +11,7 @@
 - **archive/PHASE2_PLAN.md**: Phase 2（汎用化）完了計画（アーカイブ退避済み）。
 - **archive/PHASE3_PLAN.md**: Phase 3（高速化）**完了・クローズ**。Phase3-1（アロケフリー化）/D（死コード除去）/E（clone二重コピー排除）/①-A（2段ルート選抜）まで実装し準備時間を大幅短縮。性能の現行台帳は PERF_NOTES.md。
 - **PHASE4_PLAN.md**: Phase 4（実機較正の反復＝**現行フェーズ**）の進め方台帳。**押し順優先**・序数比較ハーネス・「押し順は蓄積誤差に頑健、系統誤差だけを狙う」方針・乖離バックログ駆動を規定。
-- **simulation/**: Phase 4 の試行データ蓄積ディレクトリ。`simulation/README.md`（命名規約・ワークフロー）＋ `TEMPLATE/`（新試行の雛形）＋ `simNN/`（1試行=1サブフォルダ: `raw_data.txt`実機原本 / `replay_screenshots.md`転記 / `report_design.md`設計分析 / `analysis.md`実装検証 / `README.md`要約）。**新試行は `cp -r simulation/TEMPLATE simulation/simNN` で開始**。
+- **simulation/**: Phase 4 の試行データ蓄積ディレクトリ。`simulation/README.md`（命名規約・ワークフロー）＋ `TEMPLATE/`（新試行の雛形）＋ `simNN/`（1試行=1サブフォルダ: `raw_data.txt`実機原本 / `replay_screenshots.md`転記 / `design_report.md`設計レポート（設計担当＝主にAntigravity・**必須5節構成**）/ `integrated_analysis.md`統合分析（実装担当＝主にClaude Code・検証+回帰+Phase方針）/ `README.md`要約）。**新試行は `cp -r simulation/TEMPLATE simulation/simNN` で開始**。
 - **ROADMAP.md**: 長期ビジョン（敵行動・味方生存＝Phase 5）＋新キャラ導入ワークフロー構想。Phase 4 定義は PHASE4_PLAN.md が一次。
 - **BRANCH_WORKFLOW.md**: ブランチ運用メモ。`main` を恒久トランク化し、節目で作業ブランチを集約・削除する手順と注意点（ブランチ乱立の防止）。
 - 参照ツール（非計画書）: `tools/*.js`（T1較正スクリプト）。
@@ -82,8 +82,8 @@
 シミュレーターの計算値やアビ実行順序が実機と乖離した場合は、チャットでの細かな往復を避け、以下の手順でドキュメントをハブにして自律解決すること。各試行のデータ・分析は **`simulation/simNN/` に蓄積**する（`simulation/README.md` 参照。新試行は `cp -r simulation/TEMPLATE simulation/simNN`）。
 1. **リプレイ照合**: ユーザー又はエージェントは `index.html` の「リプレイモード」に実機手順を入力し、乖離の発生起点（ターン・バフ・ロボ・ダメージ等）を特定する。実測は `simNN/raw_data.txt`（原本・加工禁止）、リプレイ画面は `simNN/replay_screenshots.md` へテキスト転記する（画像バイナリは保存しない）。
 2. **課題のDB化**: 乖離の詳細（対象キャラ/アビ/ターン/実機挙動/シム誤挙動）を [CALIBRATION_ANALYSIS.md](file:///c:/Users/Kanta%20Miyanaga/kamipro/CALIBRATION_ANALYSIS.md) のバックログ（Cx）に追記する。
-3. **計画・検証策定**: 設計担当（Antigravity等）が不整合の原因を特定し、`simNN/report_design.md`（原因分析・実装申し送り・再現テストケース）を作成する。
-4. **自律修正とテスト**: 実装担当（Claude Code等）が `report_design.md` を検証して `simNN/analysis.md`（較正案・回帰影響・結論）にまとめ、コードを修正し、テストを実行。期待値（`92,031,195`）と追加テストケースの双方をアサートして完了する。
+3. **計画・検証策定**: 設計担当（主に Antigravity）が不整合の原因を特定し、`simNN/design_report.md` を**必須5節構成**（1.総合比較 / 2.敗北要因 / 3.乖離分析 / 4.影響度検証 / 5.引継ぎ）で作成する。
+4. **自律修正とテスト**: 実装担当（主に Claude Code）が `design_report.md` を検証して `simNN/integrated_analysis.md`（較正案・回帰影響・Phase方針所見・結論）にまとめ、コードを修正し、テストを実行。期待値（`92,031,195`）と追加テストケースの双方をアサートして完了する。
 
 ### 5. ドキュメント・レガシーファイルの管理ルール
 AIエージェントのコンテキスト節約と古い仕様の誤認防止のため、以下のルールを遵守すること。
