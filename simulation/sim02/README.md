@@ -37,10 +37,10 @@ HELIX ターンに到達した時点で「前段が全て固定済み＝残差�
 | ファイル | 内容 |
 |---|---|
 | [raw_data.md](raw_data.md) | **実機データ原本**（試行1=実機勘Manual・T1〜T7・ユーザーpush）。試行2=シム順実機は後日追記 |
-| [replay_screenshots.md](replay_screenshots.md) | **シム推奨順(Sim Opt)のシム replay 値**（実機ではない・Manual順とは別押し順） |
-| [design_report.md](design_report.md) | Antigravity 設計レポート＋**Claude Code 批判的監査メモ**（要修正フラグ） |
+| [replay_screenshots.md](replay_screenshots.md) | **実機勘(Manual)順をシムでreplayしたシム値**（旧「Sim Opt」表記は誤記）。`raw_data.md` と同一順序＝直接比較可 |
+| [design_report.md](design_report.md) | Antigravity 設計レポート＋**Claude Code 監査メモ（自己訂正含む）** |
 | [user_notes.md](user_notes.md) | **ユーザー所感**（実機勘押し順・分析の仮説の種。測定原本とは分離） |
-| [integrated_analysis.md](integrated_analysis.md) | 統合分析（**未着手**・Manual順のシム replay 取得後に実施） |
+| [integrated_analysis.md](integrated_analysis.md) | 統合分析（**未着手**・同一順序のシム/実機は既に揃っている） |
 
 > 旧 `raw_data.txt`（雛形）・`simdata02.md`（ユーザー原本の旧名）・Antigravity 再整形版 raw_data.md は
 > 重複/破損メタのため整理（原本は `raw_data.md` に統合・git履歴に保全）。
