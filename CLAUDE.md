@@ -12,13 +12,13 @@
 - **archive/PHASE3_PLAN.md**: Phase 3（高速化）**完了・クローズ**。Phase3-1（アロケフリー化）/D（死コード除去）/E（clone二重コピー排除）/①-A（2段ルート選抜）まで実装し準備時間を大幅短縮。性能の現行台帳は PERF_NOTES.md。
 - **PHASE4_PLAN.md**: Phase 4（実機較正の反復＝**現行フェーズ**）の進め方台帳。**押し順優先**・序数比較ハーネス・「押し順は蓄積誤差に頑健、系統誤差だけを狙う」方針・乖離バックログ駆動を規定。
 - **enemies/**: 敵DB intake ディレクトリ。`enemies/README.md`（命名・追加手順・スキーマ）＋ `TEMPLATE.md` ＋ `<key>.md`（実機詳細＝根拠）。`data/enemies.js` の `ENEMY_REGISTRY` がそこから蒸留した現在値。Phase4較正ボス `walpurgis_loki`（ヴァルプルギス・ロキ）を登録（PHASE4_PLAN §7 のPhase5前倒し・1体のみ）。
-- **simulation/**: Phase 4 の試行データ蓄積ディレクトリ。`simulation/README.md`（命名規約・ワークフロー）＋ `TEMPLATE/`（新試行の雛形）＋ `simNN/`（1試行=1サブフォルダ: `raw_data.txt`実機原本 / `replay_screenshots.md`転記 / `design_report.md`設計レポート（設計担当＝主にAntigravity・**必須5節構成**）/ `integrated_analysis.md`統合分析（実装担当＝主にClaude Code・検証+回帰+Phase方針）/ `README.md`要約）。**新試行は `cp -r simulation/TEMPLATE simulation/simNN` で開始**。
+- **simulation/**: Phase 4 の試行データ蓄積ディレクトリ。`simulation/README.md`（命名規約・ワークフロー・**較正カデンツ=turn-by-turnホライズン**・履歴管理の原則）＋ `TEMPLATE/`（新試行の雛形）＋ `simNN/`（1試行=1サブフォルダ: `raw_data.md`実機原本 / `replay_screenshots.md`シムreplay転記 / `design_report.md`設計レポート（設計担当＝主にAntigravity・**必須5節構成**）/ `integrated_analysis.md`統合分析（実装担当＝主にClaude Code・検証+回帰+Phase方針）/ `user_notes.md`ユーザー所感（仮説の種）/ `README.md`要約）。**新試行は `cp -r simulation/TEMPLATE simulation/simNN` で開始**。
 - **ROADMAP.md**: 長期ビジョン（敵行動・味方生存＝Phase 5）＋新キャラ導入ワークフロー構想。Phase 4 定義は PHASE4_PLAN.md が一次。
 - **BRANCH_WORKFLOW.md**: ブランチ運用メモ。`main` を恒久トランク化し、節目で作業ブランチを集約・削除する手順と注意点（ブランチ乱立の防止）。
 - 参照ツール（非計画書）: `tools/*.js`（T1較正スクリプト）。
   - ※旧 `damageCalculator.txt`（計算式）/ `database.txt`（実機スナップショット）/ `*.xlsx` は削除済み。計算式は `DMG` 定数＋index.html冒頭コメントに、実機表示値は index.html の `DISPLAY_ATK_OVERRIDE`/`DISPLAY_HP_OVERRIDE` に反映済み。
 
-## ファイル構成 & コード地図 (index.html: 約2154行)
+## ファイル構成 & コード地図 (index.html: 約2240行・行番号は目安)
 - `data/weapons.js`: 武器マスターDB (`WEAPON_MASTER`)
 - `data/summons.js`: 幻獣マスターDB (`SUMMON_REGISTRY`)
 - `data/enemies.js`: 敵DB (`ENEMY_REGISTRY`)。スキーマ: `label/def/max_hp/element/affinity(任意・指定時applyEnemyがDMG.affinity上書き)/limit`。実機詳細の根拠は `enemies/<key>.md` を正とし本jsは現在値。新規追加は `enemies/README.md`（命名: キー=ファイル名=snake_case）。
@@ -113,6 +113,16 @@ node -e "const fs = require('fs'); const html = fs.readFileSync('index.html', 'u
   - 追加ダメージフレーム: **アビ枠 (`'abi'` / 減衰率 0.04)**
   - エレインバースト追加: 常時1回、契晶80以上で3回発動
   - エジソン英霊武器追加ダメ: 2.5倍/80万 (アビ枠・onBurst実装済み)
-- **保留 / 未解決乖離 (Phase 4 で回収・追跡は CALIBRATION_ANALYSIS.md §4 バックログ)**:
-  - **C1**: テトラHELIX後追加ダメの減衰上限 (推定100万)。テトラ4アビはT6〜T7まで連理魔力を毎ターン蓄積しないと発動条件を満たせず単独検証が困難。押し順を反転させるケースが出た時に序数A/Bで確定 (PHASE4_PLAN.md)。
-  - **C2(低優先)**: ターン内総ダメージの絶対乖離 (各ダメージ算出の許容誤差の蓄積・直接修正困難)。押し順優先方針では序数で問題化しない限り追わない。
+- **バックログ状態 (一次は CALIBRATION_ANALYSIS.md §4)**: C1=open(turn-by-turnホライズンがHELIXターン到達≈sim06-07で確定・逆算式は台帳に退避) / C2=open低優先 / C3=investigating / C4=fixed / **C5=fixed(追撃上限100万/80万・ユーザー承認)** / **C6=wontfix(2T総和最大化案・却下)** / **C7=deferred(較正ボスの2フェーズ被ダメ未モデル化・較正時は手補正)**。
+
+---
+
+## 現在の進行状況（引き継ぎ用・2026-06-27）
+- **現フェーズ**: Phase 4 = **turn-by-turn ホライズン較正（B案）**。sim毎にホライズンを1ターン前進し、各ターンで**系統誤差/序数のみ**を潰す（絶対総和は追わない＝PHASE4_PLAN §2/§3.5）。
+- **較正ボス**: `walpurgis_loki`（ヴァルプルギス・ロキ・Lv160 ANONYMOUS）。**affinity=1.5(光→幻=有利・実機確定/急所発動で裏付)・def=10暫定(要複数実機で確定)・HP=9.8億(実機)**。⚠**HP依存2フェーズ被ダメ**: HP>50%=30%カット(与ダメ×0.7)/HP50%「ファントムリリース」後=被ダメ+20%(×1.2)。**現行シム未モデル化(C7)→絶対逆算時は手補正・測定ターンのボスHP%必須**。詳細 `enemies/walpurgis_loki.md`。
+- **sim02 進行中**（C1ホライズン拡張・T2〜）:
+  - 試行1=実機勘(Manual)押し順の実機データ=`raw_data.md`（T1〜T7・**実機ログがダメージ事象の正**）。
+  - 同一Manual順のシムreplay=`replay_screenshots.md`（replayは全アビ押下を含む／T2のテトラ1・ヘカテー2回数差は要ユーザー確認）。
+  - ユーザー所感=`user_notes.md`（手動ロス: T2/4/6エレイン3不要再発動・JD空転・HELIX撃ち忘れ／シム乖離候補: エレイン3の2T継続をシムが正しく扱うか）。
+  - **試行2=シム推奨順の実機データ=取得中**。
+  - **総合分析(`integrated_analysis.md`)は最後**＝試行2の格納完了かつ全体矛盾なし確認後に着手（現状未着手）。

@@ -2,6 +2,8 @@
 
 このファイルは、Antigravity（Gemini）エージェントが本リポジトリで安全かつ規約に則って開発を行うためのルールとガイドラインを定義しています。
 
+> **現在の進行状況の一次情報は [CLAUDE.md](../CLAUDE.md)「現在の進行状況（引き継ぎ用）」**を参照（Phase4=turn-by-turn較正・較正ボス walpurgis_loki・sim02進行中・総合分析は試行2完了後）。本書は不変ルール集。
+
 ## 開発不変条件・ルール
 
 ### 1. キャラクター追加・変更の原則
@@ -43,7 +45,7 @@
 
 ### 3. 実機乖離・最適順序不整合の改善フロー
 シミュレーターの計算値やアビ実行順序が実機と乖離した場合は、チャットでの細かな往復を避け、以下の手順でドキュメントをハブにして自律解決すること。各試行は **`simulation/simNN/` に蓄積**する（`simulation/README.md` の命名規約・テンプレに従う。新試行は `cp -r simulation/TEMPLATE simulation/simNN`）。
-1. **リプレイ照合**: ユーザー又はエージェントは `index.html` の「リプレイモード」に実機手順を入力し、乖離の発生起点（ターン・バフ・ロボ・ダメージ等）を特定する。実測は `simNN/raw_data.txt`（原本・加工禁止）、リプレイ画面は `simNN/replay_screenshots.md` へテキスト転記する（画像バイナリは保存しない）。
+1. **リプレイ照合**: ユーザー又はエージェントは `index.html` の「リプレイモード」に実機手順を入力し、乖離の発生起点（ターン・バフ・ロボ・ダメージ等）を特定する。実測は `simNN/raw_data.md`（実機ログ＝**ダメージ事象の正**・加工禁止／replayは全アビ押下を含むためダメージ行動で対応付ける）、リプレイ画面は `simNN/replay_screenshots.md` へテキスト転記する（画像バイナリは保存しない）。
 2. **課題のDB化**: 乖離の詳細（対象キャラ/アビ/ターン/実機挙動/シム誤挙動）を [CALIBRATION_ANALYSIS.md](file:///c:/Users/Kanta%20Miyanaga/kamipro/CALIBRATION_ANALYSIS.md) のバックログ（Cx）に追記する。
 3. **計画・検証策定（あなた＝Antigravity の主担当）**: 設計担当が不整合の原因を特定し、`simNN/design_report.md` を作成する。
    **必ず以下の5節構成を徹底すること**（節の追加は可、削除・順序変更は不可。雛形=`simulation/TEMPLATE/design_report.md`）:
