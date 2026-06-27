@@ -40,7 +40,7 @@ HELIX ターンに到達した時点で「前段が全て固定済み＝残差�
 | [replay_screenshots.md](replay_screenshots.md) | **実機勘(Manual)順をシムでreplayしたシム値**（旧「Sim Opt」表記は誤記）。`raw_data.md` と同一順序＝直接比較可 |
 | [design_report.md](design_report.md) | Antigravity 設計レポート＋**Claude Code 監査メモ（自己訂正含む）** |
 | [user_notes.md](user_notes.md) | **ユーザー所感**（実機勘押し順・分析の仮説の種。測定原本とは分離） |
-| [integrated_analysis.md](integrated_analysis.md) | 統合分析（**未着手**・同一順序のシム/実機は既に揃っている） |
+| [integrated_analysis.md](integrated_analysis.md) | 統合分析（**未着手・最後に実施**＝試行2格納完了＋矛盾なし確認後） |
 
 > 旧 `raw_data.txt`（雛形）・`simdata02.md`（ユーザー原本の旧名）・Antigravity 再整形版 raw_data.md は
 > 重複/破損メタのため整理（原本は `raw_data.md` に統合・git履歴に保全）。
