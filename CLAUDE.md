@@ -122,7 +122,7 @@ node -e "const fs = require('fs'); const html = fs.readFileSync('index.html', 'u
 - **較正ボス**: `walpurgis_loki`（ヴァルプルギス・ロキ・Lv160 ANONYMOUS）。**affinity=1.5(光→幻=有利・実機確定/急所発動で裏付)・def=10暫定(要複数実機で確定)・HP=9.8億(実機)**。⚠**HP依存2フェーズ被ダメ**: HP>50%=30%カット(与ダメ×0.7)/HP50%「ファントムリリース」後=被ダメ+20%(×1.2)。**現行シム未モデル化(C7)→絶対逆算時は手補正・測定ターンのボスHP%必須**。詳細 `enemies/walpurgis_loki.md`。
 - **sim02 進行中**（C1ホライズン拡張・T2〜）:
   - 試行1=実機勘(Manual)押し順の実機データ=`raw_data.md`（T1〜T7・**実機ログがダメージ事象の正**）。
-  - 同一Manual順のシムreplay=`replay_screenshots.md`（replayは全アビ押下を含む／T2のテトラ1・ヘカテー2回数差は要ユーザー確認）。
+  - 同一Manual順のシムreplay=`replay_screenshots.md`（replayは全アビ押下を含む／**T2はユーザー確定で6/3＝実機ログが正**・チップ列の当方転記は×5/×2の誤りでダメージ行動はraw_data.md参照）。
   - ユーザー所感=`user_notes.md`（手動ロス: T2/4/6エレイン3不要再発動・JD空転・HELIX撃ち忘れ／シム乖離候補: エレイン3の2T継続をシムが正しく扱うか）。
   - **試行2=シム推奨順の実機データ=取得中**。
   - **総合分析(`integrated_analysis.md`)は最後**＝試行2の格納完了かつ全体矛盾なし確認後に着手（現状未着手）。
