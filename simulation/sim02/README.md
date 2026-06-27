@@ -33,13 +33,16 @@ HELIX ターンに到達した時点で「前段が全て固定済み＝残差�
 - **② アビ上限UP系** … `_decay` の `(1+GEAR.abi_cap)` に効くが naB に入らない。残存していれば**較正ギャップ候補**として記録。
 - **会心**: シムは期待会心、実機は実現会心。**T2絶対総和を会心RNGで突き合わせない**（序数・系統で見る）。
 
-## ファイル
-| ファイル | 状態 |
+## ファイル（2026-06-27 データ成形で整理）
+| ファイル | 内容 |
 |---|---|
-| [raw_data.txt](raw_data.txt) | **T2較正フォーム**（ユーザーが T1/T2 を記入） |
-| [replay_screenshots.md](replay_screenshots.md) | 実機/シムのリプレイ転記（データ受領後） |
-| [design_report.md](design_report.md) | 設計レポート（5節・データ受領後／準備査読の記録を含む） |
-| [integrated_analysis.md](integrated_analysis.md) | 統合分析（データ受領後・実装担当） |
+| [raw_data.md](raw_data.md) | **実機データ原本**（試行1=実機勘Manual・T1〜T7・ユーザーpush）。試行2=シム順実機は後日追記 |
+| [replay_screenshots.md](replay_screenshots.md) | **シム推奨順(Sim Opt)のシム replay 値**（実機ではない・Manual順とは別押し順） |
+| [design_report.md](design_report.md) | Antigravity 設計レポート＋**Claude Code 批判的監査メモ**（要修正フラグ） |
+| [integrated_analysis.md](integrated_analysis.md) | 統合分析（**未着手**・Manual順のシム replay 取得後に実施） |
+
+> 旧 `raw_data.txt`（雛形）・`simdata02.md`（ユーザー原本の旧名）・Antigravity 再整形版 raw_data.md は
+> 重複/破損メタのため整理（原本は `raw_data.md` に統合・git履歴に保全）。
 
 ## 較正ボス
 **ヴァルプルギス・ロキ**（幻属性／`ENEMY_REGISTRY.walpurgis_loki`・詳細 `enemies/walpurgis_loki.md`）を採用。
@@ -51,10 +54,10 @@ HELIX ターンに到達した時点で「前段が全て固定済み＝残差�
 - **HP50%「ファントムリリース」後 = カット解除＋被ダメ+20% → ×1.2**（同時に敵が火力UP）。
 - 含意: 序数A/B・成分比は**同一フェーズなら相殺**。だが**フェーズを跨ぐ比較・絶対逆算（C1）はこの倍率を必ず除算**。
   → 各測定ターンで**ボスHP%（50%超/未満）を必ず記録**（HELIXターンT6-7は境界を跨ぎうる）。
-- ⚠ def=25 / HP=2.5億 は有志・未確証（公式wiki表は空欄）。絶対値較正の前に実機で再確認。
+- HP=9.8億は実機確定。**def=10は暫定**（実機データ複数回で確定予定）。絶対値較正の前に def を再確認。
 
-## 必要データ（raw_data.txt フォーム参照）
-1. メタ：編成 / 装備 / 幻獣 / 初期契晶 / 敵=ヴァルプルギス・ロキ（def・affinity は実機確認して enemies/walpurgis_loki.md へ）
+## 必要データ（raw_data.md 参照）
+1. メタ：編成 / 装備 / 幻獣 / 初期契晶 / 敵=ヴァルプルギス・ロキ（def 確定は実機複数回・affinity=1.5確定）
 2. T1：押し順（state 確定用）＋（任意）内訳
 3. T2：押し順 ＋ **成分内訳**（バースト/ストリーク/ジャッジ/追撃/英霊武器/通常）★本体
 4. （推奨）T2 序数 A/B：2手順とその総ダメージ・実機での上下
