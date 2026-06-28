@@ -1,7 +1,7 @@
 # 敵DB intake（実機詳細 → ランタイム登録）
 
 敵の実機詳細をテキストで受け渡し・保全し、`data/enemies.js`（シムが読むランタイム DB）へ反映するための置き場。
-較正方針は [PHASE4_PLAN.md](../PHASE4_PLAN.md)（§7 で Phase5 敵DBの前倒し条件を規定）、確定値は [CALIBRATION_ANALYSIS.md](../CALIBRATION_ANALYSIS.md)。
+較正方針は [PHASE4_PLAN.md](../PHASE4_PLAN.md)（§7 で Phase6 敵DBの前倒し条件を規定）、確定値は [CALIBRATION_ANALYSIS.md](../CALIBRATION_ANALYSIS.md)。
 
 ## 役割分担（mdとjsの分離・既存の履歴管理原則と同じ）
 - **`enemies/<key>.md`** … 実機詳細・根拠（intake／人間・エージェントが記入）。**source of record**。
