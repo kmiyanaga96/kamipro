@@ -294,8 +294,12 @@ const TENYA_FROM= 2;   // 天矢乱舞: 使用可能開始ターン
 const FB_THR    = 100; // フルバースト閾値（カスケードあり）
 const MACH_BG   = 5;   // マシーンタクトゥ: ロボ作動1回あたりBG増加
 const KEIGYO_MAX= 15;  // 契晶最大値
-const BEAM_W      = 32;  // ビームサーチ幅: 各ステップで保持する候補数（本ターン探索のみで使用）
-const PREFIX_TOPK = 10;  // 2段ルート選抜: 静的proxyで全prefixを安価に採点し上位K本だけBW32本選へ回す（PoC: 上位8で最大loss0.013%）
+const BEAM_W      = 128; // ビームサーチ幅: 各ステップで保持する候補数（本ターン探索のみで使用）。
+                         // C9(2026-06-28): 32→128。BW32は「バフ/デバフ先・ダメージアビ後」の最適枝を
+                         // 枝刈りで取りこぼし、実機定石とズレた押し順を出していた（非単調の崖: 64≈無改善/128で回復）。
+                         // 改善はギア依存（弱ギア+5.0% / 強ギア+0.10%）だが、装備充実で増分拡大しうるため最適押し順を優先し採用。
+                         // 代償は探索量増（約4倍）。詳細・実測台帳は BEAM_SEARCH_DESIGN.md。
+const PREFIX_TOPK = 10;  // 2段ルート選抜: 静的proxyで全prefixを安価に採点し上位K本だけBW本選へ回す（PoC: 上位8で最大loss0.013%）
 const IFISHANT_MIN_CD = 3; // イフィシャント使用可の最小CD中アビ数（早撃ち=機会損失の抑止下限）
 const BG = {inori:100,funki:10,absolute:20,sleur:15,legend:10,
             pactcore:100,cascade:10,yamato_max:200,other_max:100};
