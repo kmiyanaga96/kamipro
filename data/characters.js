@@ -130,14 +130,16 @@ const CHAR_REGISTRY = {
       gmax: 200,  // =BG.yamato_max（即時評価のためリテラル。ロード順不変条件・冒頭注記参照）
       keigyoGain: 1,
       // バースト効果: 味方全体の光属性攻撃+5%(3T累積可)。自バースト毎にスタック(天矢乱舞の複数発動も各々付与)。
-      // 1アシ: バーストダメージプラス(+15万/stack)を自バースト時に加算。
       onBurst: (sim) => {
         (sim.buf.yamato_elem??=[]).push(DMG.dur_yamato_elem);
-        sim.dmg += (sim.buf.yamato_bplus?.length||0) * DMG.bplus_yamato;
         // 追加ダメージ: ヤマト固有・現神の祈り中のみ発動(スクショ確定: 3倍/50万・アビ枠)。
         if((sim.buf.inori_burst?.length||0)>0)
           sim.dmg += sim._decay('abi', sim._na()*DMG.burst_followup_mult, DMG.burst_followup_cap);
       },
+      // 1アシ(集いし願い): バーストダメージプラス(+10万/stack)は【味方全体】のバーストが対象(C8・実機確定)。
+      // 全員のバーストに乗るため burstPartyPassive(=全バースト共通の減衰外フラット加算・index.html burst())に集約。
+      // yamato_bplus は onAbility(ヤマトのアビ使用毎)でpush・3T累積。旧実装はyamato自バーストのみ加算する誤りだった。
+      burstPartyPassive: (sim) => { const n=sim.buf.yamato_bplus?.length||0; return n?{flat:n*DMG.bplus_yamato}:null; },
       // 自バースト性能バフ(現神の祈り倍率UP＋大和の奮起累積)をオーナー限定で burst係数に加算。
       burstBonus: (sim) => (sim.buf.inori_burst?.length?DMG.burst_inori:0)
                          + (sim.buf.funki_burst?.length||0)*DMG.burst_funki,
