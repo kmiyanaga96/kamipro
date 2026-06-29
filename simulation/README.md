@@ -34,7 +34,7 @@ cp -r simulation/TEMPLATE simulation/sim02   # 次の試行を開始
 1. **総合比較** — 2ルートのターン別・累計・手数を表で定量比較。
 2. **なぜその差が出たか（敗北要因）** — リソース制約・操作手数・発動順の構造で説明。
 3. **乖離分析（系統誤差の特定）** — cap/frame/倍率トリガーへ分解し**数学的に**検証。
-4. **影響度検証（回帰）** — ゴールデン値（155,756,325）への影響を予測・論証。
+4. **影響度検証（回帰）** — ゴールデン値（175,023,298）への影響を予測・論証。
 5. **引継ぎ（実装申し送り）** — 適用すべき `DMG`/`CHAR_REGISTRY` の差分を diff 形式で明示。
 
 > `integrated_analysis.md`（実装担当＝主に Claude Code）は、この設計レポートを受けた**総合分析**であり、
@@ -71,7 +71,7 @@ cp -r simulation/TEMPLATE simulation/sim02   # 次の試行を開始
    - **1.5（任意・推奨）測定設計の査読ゲート**: 相手エージェント（実装設計なら Antigravity）が測定設計を査読し、結果を `design_report.md` の「準備査読」節に記録。**誤った測定設計での実機計測の手戻りを防ぐ**ため、データ収集前に挟める。
 2. 実機測定を `raw_data.txt` に貼り、リプレイ結果を `replay_screenshots.md` に転記。
 3. （任意）設計担当（主に Antigravity）が `design_report.md` を**必須5節構成**で作成。
-4. 実装担当（主に Claude Code）が `integrated_analysis.md` で検証 → 較正案 → **ゴールデン値（155,756,325）への影響を scratchpad で実測** → Phase方針所見 → 結論。
+4. 実装担当（主に Claude Code）が `integrated_analysis.md` で検証 → 較正案 → **ゴールデン値（175,023,298）への影響を scratchpad で実測** → Phase方針所見 → 結論。
 5. 確定した較正は `DMG` / `CHAR_REGISTRY` の宣言的記述として実装し、`CALIBRATION_ANALYSIS.md` のバックログ（Cx）を更新。
 6. `simNN/README.md` に結論を1ページ要約。
 

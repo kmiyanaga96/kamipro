@@ -98,9 +98,12 @@ const CHAR_REGISTRY = {
       inori: ['y', 14, 0],
       tenya: ['r', 12, 0],
       funki: ['y', 5, 0],
+      // 天矢乱舞 再発動(C12-④b): 探索が3発の間に他アビを挟めるよう「初回tenya」と分離した独立候補。
+      // cd=0/cost=0。実体は40消費の追加バースト(sim.use非経由＝アビ計数・onAbilityを増やさない＝旧atomic挙動と同一)。
+      tenya_re: ['r', 0, 0],
     },
     labelSuffix: { inori:'(ヤ+100)', funki:'(+10)' },
-    cdShow: { inori:"現神の祈り", tenya:"天矢乱舞", funki:"大和の奮起" },
+    cdShow: { inori:"現神の祈り", tenya:"天矢乱舞", funki:"大和の奮起", tenya_re:"天矢乱舞(再)" },
     cands: {
       funki: { s:150, atkBuf:true, partyBG:true, exec:(sim,T,ord)=>{ sim.ycount++; sim.addG(CHARS,BG.funki);
         // 大和の奮起: ヤマト自身のバースト性能UP(+15%/上限+10%・3T累積可) → burstBonusで参照
@@ -112,17 +115,25 @@ const CHAR_REGISTRY = {
       inori: { s:160, atkBuf:true,
         exec:(sim,T,ord)=>{ sim.addG([ownerOf('inori')],BG.inori); sim.inori_p=0;
           (sim.buf.inori_burst??=[]).push(DMG.dur_inori_burst); sim.use('inori',T,ord); }},
-      // 天矢乱舞: ゲージ消費なしでバースト＋40消費で2回まで再発動(最大3回)。inoriが2T後にCDリセットして解禁する。
-      // 旧版はg<100ガードで実質発火しなかった(全員毎ターン100開始)。inoriのCDリセット待ちで自然にゲートされる。
+      // 天矢乱舞: ゲージ消費なしでバースト(初回1発)。+40消費で2回まで再発動(最大3回)＝別候補 tenya_re。
+      // inoriが2T後にCDリセットして解禁する。旧版はg<100ガードで実質発火しなかった(全員毎ターン100開始)。
+      // C12-④b: 旧実装は while で3発を atomic 一括発火していたが、探索が3発間に他アビを挟めず最適を取りこぼしていた
+      // (実測+12%)。初回tenya(本候補)＋再発動(tenya_re)へ分割し interleave 可能化。本候補は cd を設定する初回のみ。
       tenya: { s:90, burstTrigger:true,
         guard:(sim,T,t)=>t>=TENYA_FROM,
         exec:(sim,T,ord,bset)=>{
-          const me=ownerOf('tenya'), tidx=ord.length;
+          const me=ownerOf('tenya');
           sim.use('tenya',T,ord); sim.burst(me,bset,T); T.tenya=1;
-          while(T.tenya<3&&sim.g[me]>=40){
-            sim.g[me]-=40; sim.burst(me,bset,T); T.tenya++;
-            ord[tidx]={text:`${LABEL.tenya}×${T.tenya}(-40×${T.tenya-1})`,color:'r'};
-          }
+        }},
+      // 天矢乱舞 再発動(C12-④b): 初回tenya後に T.tenya<3 かつ g>=40 で発動可。40消費＋追加バースト。
+      // sim.use は呼ばず(=アビ計数/onAbility/CD設定なし＝旧atomic re-fireと同一挙動)、ord へ専用エントリを push。
+      // cd=0 のまま guard(T.tenya<3) で同ターン最大2回に頭打ち。T.tenya はターン頭に0初期化(T init)。
+      tenya_re: { s:90, burstTrigger:true,
+        guard:(sim,T,t)=>(T.tenya||0)>=1 && (T.tenya||0)<3 && sim.g[ownerOf('tenya')]>=40,
+        exec:(sim,T,ord,bset)=>{
+          const me=ownerOf('tenya');
+          sim.g[me]-=40; sim.burst(me,bset,T); T.tenya++;
+          ord.push({text:`${LABEL.tenya}(再-40)`,color:'r'});
         }},
     },
     def: {
