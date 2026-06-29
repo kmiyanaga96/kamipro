@@ -8,6 +8,7 @@
 - **.agents/AGENTS.md**: Antigravity（Gemini）エージェント用のルール／ガイドライン定義。開発不変条件（ロード順・Workerコード抽出のフリーズ回避等）・Gitワークフロー・検証ゲート（150,445,920）を規定。
 - **archive/PERF_NOTES.md**: 探索エンジン高速化の調査・実装・採否判断の台帳（待ち時間の支配式・実装済み施策D/E/①-A・路線①PoC実測・WASMの位置づけ降格）。性能面の過去の一次台帳。
 - **BEAM_SEARCH_DESIGN.md**: 探索エンジンの**準最適性（C9）設計レポート**（5節構成）。ビーム幅32の枝刈り不足で「バフ/デバフ先・ダメージアビ後」最適枝を取りこぼす件の原因分析・実測台帳（greedy/BW32/64/128/C2比較・非単調の崖）・修正候補（②賢い枝刈り推奨）。索引は CALIBRATION_ANALYSIS.md C9。
+- **ORDER_OPTIMIZATION_DESIGN.md**: 押し順最適化の精緻化（**C12＝C9-②「賢い枝刈り」本設計**）。sim2押し順の5症状（amplifa表示/effond先行/judg空転/hecate順/tenya分割）の根本原因と設計案（僅差タイブレークに定石性スコア・tenya多段分割等）・段階実装計画。索引は CALIBRATION_ANALYSIS.md C12。
 - **CALIBRATION_ANALYSIS.md**: 実機較正の確定値＆**根拠アーカイブ**（なぜその値・枠か）。較正・英霊武器は実装済み。
 - **archive/PHASE2_PLAN.md**: Phase 2（汎用化）完了計画（アーカイブ退避済み）。
 - **archive/PHASE3_PLAN.md**: Phase 3（高速化）**完了・クローズ**。Phase3-1（アロケフリー化）/D（死コード除去）/E（clone二重コピー排除）/①-A（2段ルート選抜）まで実装し準備時間を大幅短縮。性能の過去台帳は archive/PERF_NOTES.md。
