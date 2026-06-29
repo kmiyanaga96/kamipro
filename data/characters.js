@@ -536,8 +536,8 @@ const CHAR_REGISTRY = {
     type: 'kamihime',
     jp: 'アルテミス[神想真化]', shortJp: 'アルテミス', gcls: 'gar', elem: 'light',
     favWeapon: ['銃','ハンマー'], baseAtk: 12440, baseHp: 3120,
-    // artemis_link_used: LinkSkill(4アビ・戦闘中1回のみ)使用済みフラグ
-    state: { artemis_link_used: false },
+    // artemis_link_used: LinkSkill(4アビ・戦闘中1回のみ)使用済みフラグ / kyosho_amp: 恐傷の被ダメUP量(_naで参照)
+    state: { artemis_link_used: false, kyosho_amp: 0 },
     abilities: {
       enchant:    ['r', 7, 0],  // エンチャントアロー: ゲージ消費の段階ダメージ
       refine:     ['y', 8, 0],  // リファインメントエイド: 急所＋追撃付与
@@ -547,9 +547,10 @@ const CHAR_REGISTRY = {
     labelSuffix: { manapolite:'(全+10)', linkskill:'(全+100)' },
     cdShow: { enchant:"エンチャントアロー", refine:"リファインメント", manapolite:"マナポライト", linkskill:"リンクスキル" },
     cands: {
-      // エンチャントアロー: アルテミスの現バーストゲージを全消費し、消費量で段階(倍率/減衰)を決定するアビ枠ダメージ。
-      // ゲージを消費=FB(攻撃フェイズの100消費バースト)と競合する。目的関数(総ダメージ)が両者を比較し選択する。
-      // s は低め＝静的greedyでは選ばれずビーム(火力駆動)に委ねる。guardで最低tier(消費26)に届く時のみ候補化。
+      // エンチャントアロー: アルテミスの現バーストゲージを全消費し、消費量の入る帯で段階(倍率/減衰)を決定するアビ枠ダメージ。
+      // 下位帯は累積内包（消費100＝全デバフ＋最大倍率12倍/150万＋恐傷）。ゲージ消費=FB(攻撃フェイズの100消費)と競合し
+      // 目的関数(総ダメージ)が両者を比較し選択する。s低め＝静的greedyでは選ばれずビーム(火力駆動)に委ねる。
+      // guardで最低帯(消費26)に届く時のみ候補化。消費100で恐傷(被ダメUP)を付与=後続全攻撃を底上げ。
       enchant: { s:55, guard:(sim)=>sim.g[ownerOf('enchant')]>=26,
                  exec:(sim,T,ord)=>{ const me=ownerOf('enchant'); const spent=sim.g[me]; sim.g[me]=0;
                    sim._naOwner=me;
@@ -561,6 +562,12 @@ const CHAR_REGISTRY = {
                    else { mult=DMG.arrow_mult1; cap=DMG.arrow_cap1; }
                    const db=sim._droidAbiBuf();
                    sim.dmg += sim._decay('abi', sim._naForAbi()*mult*(1+GEAR.abi_dmg+db.dmg), cap*(1+db.cap));
+                   // 恐傷(消費100): 被ダメUP = 状態異常数×2%(上限30%)。計上=矢由来の冥闇+恐傷(2) ＋ ディウィヌスDOT4種(あれば)。
+                   if(spent>=100){
+                     const ailments = 2 + (sim.buf.divinus_dot?.length ? DMG.divinus_dot_types : 0);
+                     sim.kyosho_amp = Math.min(ailments*DMG.kyosho_per_ailment, DMG.kyosho_cap);
+                     (sim.buf.kyosho??=[]).push(DMG.dur_kyosho);
+                   }
                    sim.use('enchant',T,ord,`(消費${spent})`); }},
       // リファインメントエイド: 味方全体に急所(refine_acute・_naで参照)＋追撃(refine_followup・burstで参照)を付与(refresh/dur3)。
       refine: { s:155, atkBuf:true, exec:(sim,T,ord)=>{
@@ -594,19 +601,21 @@ const CHAR_REGISTRY = {
         sim.addG([me], 15);
         (sim.buf.artemis_bplus??=[]).push(DMG.dur_artemis_bplus);
       },
-      // 編成パッシブのバースト寄与(全バーストに乗る):
-      //  ・AnotherLink(アシスト2): 全員光属性編成で バーストダメージ+25%。
+      // 編成パッシブのバースト寄与(全バーストに乗る・メイン編成時のみ。アシスト2はサブ対応のため subAssits 側へ集約):
       //  ・リファイン追撃: 有効中は全バーストにアビ枠追加ダメ(3倍/30万・減衰外フラット近似)。
       //  ・リンクスフェロー bplus: アルテミス自身のバーストのみ +15万/stack(_naOwner判定)。
       burstPartyPassive: (sim) => {
-        let dmg = 0, flat = 0;
-        if(CHARS.every(c=>ELEM[c]==='light')) dmg += DMG.burst_dmg_anotherlink;
+        let flat = 0;
         if(sim.buf.refine_followup?.length)
           flat += Math.min(sim._na()*DMG.refine_followup_mult, DMG.refine_followup_cap);
         if(sim._naOwner===ownerOf('refine'))
           flat += (sim.buf.artemis_bplus?.length||0)*DMG.bplus_artemis;
-        return (dmg||flat) ? { dmg, flat } : null;
+        return flat ? { flat } : null;
       },
     },
+    // アシスト2 AnotherLink: サブメンバー時にも発動する編成パッシブ。全員光属性編成で
+    //   バーストダメージ+25% / バースト上限+10% / 最終ダメージ+10%。buildFormationが集約し
+    //   sub_burst_dmg / sub_burst_cap / final_dmg へ反映（メイン編成でも同経路で1回だけ適用）。
+    subAssists: { burst_dmg: 0.25, burst_cap: 0.10, final_dmg: 0.10 },
   }
 };
