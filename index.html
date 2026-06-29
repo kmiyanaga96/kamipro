@@ -1010,6 +1010,10 @@ class Sim {
     let fbTurns=(this._atk.length===5)?1:0;
     let totalBurst=this.T.burst;
     let totalJudg=this.T.ju;
+    // C12-②: 定石性スコア(当該ターン・rollout前に捕捉。greedyTakeTurnのrolloutが this.T を上書きする前)。
+    // 目的ベクトルの【最終要素】に置き、厳密同ダメージ(前要素すべて同値)のオーダー間でのみタイブレークする
+    // ＝火力(第1要素 dmg)を1ポイントも削らずgolden不変のまま、表示を実機定石(バフ/デバフ先・ダメージ後)へ寄せる。
+    const orth=this.T.orthodoxy||0;
     const la=this.totalTurns-t0;
     for(let k=1;k<=la;k++){
       const r=this.greedyTakeTurn(t0+k); // ロールアウトは planDepth>=2 で静的greedy
@@ -1023,7 +1027,7 @@ class Sim {
       .reduce((a,[k,cap])=>a+Math.min(this[k]??0,cap), 0);
     // 最上位目標は概算総ダメージ(ロールアウト終了時点の this.dmg 累積値)。
     // float 比較ノイズを避けるため整数化。以降は従来のFB/バースト系を補助指標として保持。
-    return [Math.round(this.dmg), fbTurns, totalBurst, totalJudg, renriObj, this.cum, this.keigyo];
+    return [Math.round(this.dmg), fbTurns, totalBurst, totalJudg, renriObj, this.cum, this.keigyo, orth];
   }
 
   // 先読みガードのキャッシュを一括計算し T['_la_'+key] に格納。
