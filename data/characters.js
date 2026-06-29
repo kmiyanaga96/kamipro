@@ -349,8 +349,10 @@ const CHAR_REGISTRY = {
                     if(sim.cum>=70) sim.buf.leg_vigor=[DMG.dur_legend];
                     if(sim.cum>=80) sim.buf.leg_spec=[DMG.dur_legend];
                     const lead100=sim.g[LEADER]>=100; sim.addG(lead100?CHARS:[LEADER,ownerOf('legend')],BG.legend); sim.use('legend',T,ord); }},
-      // ナイツサプレス: 敵バースト攻撃耐性-20% ≒ 全バースト(誘発含む)+20%(2T累積)。契晶3消費。
-      knights:  { s:85, atkBuf:true, guard:(sim,T)=>!T.knightsUsed,
+      // ナイツサプレス: 敵バースト攻撃耐性-20% ≒ 全バースト(誘発含む)+20%。契晶3消費。
+      // 【非累積・refresh】(C11・実機確認2026-06-28): -20%は重ねがけ不可で2T持続するだけ。
+      // guardで「nights有効中は再発動しない」を課し、2T毎(隔ターン)発動＝連続+20%・無駄な毎ターン連発を抑止。
+      knights:  { s:85, atkBuf:true, guard:(sim,T)=>!T.knightsUsed && !(sim.buf.nights?.length),
                   exec:(sim,T,ord)=>{ T.knightsUsed=true; (sim.buf.nights??=[]).push(DMG.dur_nights); sim.use('knights',T,ord); }},
       pactcore: { s:(sim)=>{ const lk=Object.keys(ABIL).filter(k=>ownerOf(k)===LEADER); const n=lk.filter(k=>sim.cd[k]>0).length; return n>=3?150:n===2?110:n===1?70:20; }, atkBuf:true, partyBG:true,
                   guard:(sim,T)=>{ if(T.pactcoreUsed||sim.g[LEADER]<100) return false; return Object.keys(ABIL).filter(k=>ownerOf(k)===LEADER).some(k=>sim.cd[k]>0); },

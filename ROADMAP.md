@@ -126,7 +126,7 @@ graph TD
 1. **再現リプレイの作成**: [index.html](file:///c:/Users/Kanta%20Miyanaga/kamipro/index.html) の「🎬 リプレイモード」を使用し、実機とシミュレータのズレの起点（ターン・バフ・ロボ・ダメージ等）を特定。
 2. **課題のドキュメント化**: 乖離の詳細（対象キャラ/アビ/ターン/実機挙動/シム誤挙動）を [CALIBRATION_ANALYSIS.md](file:///c:/Users/Kanta%20Miyanaga/kamipro/CALIBRATION_ANALYSIS.md) に追記。
 3. **計画・検証策定（Antigravity）**: 設計エージェントが不整合の原因（パラメータ較正不足や状態遷移バグ）を特定し、`simulation/simNN/design_report.md` を**必須5節構成**（総合比較/敗北要因/乖離分析/影響度検証/引継ぎ）で作成して再現テストケースを定義。
-4. **自律修正とテスト（Claude Code）**: 実装エージェントが `design_report.md` を検証して `simNN/integrated_analysis.md` にまとめ、コードを修正し、テストを実行。基準値（`162,398,625`）と新規アサートの双方を検証して完了。
+4. **自律修正とテスト（Claude Code）**: 実装エージェントが `design_report.md` を検証して `simNN/integrated_analysis.md` にまとめ、コードを修正し、テストを実行。基準値（`150,445,920`）と新規アサートの双方を検証して完了。
 
 ### 3.2 較正・改善の泥沼への心構え
 アビリティ押し順やダメージ計算式は、ゲームのアップデートや新たな検証データによって常に更新される動的なものです。

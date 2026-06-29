@@ -16,7 +16,7 @@
 ## 追加手順
 1. `cp enemies/TEMPLATE.md enemies/<key>.md` で intake を作成し、実機値を記入。
 2. 記入済みの値を `data/enemies.js` の `ENEMY_REGISTRY[<key>]` へ蒸留（def / max_hp / element / affinity / 任意フィールド）。
-3. 検証ワンライナー（ゴールデン 162,398,625）が**不変**であることを確認（applyEnemy 非経由のため通常不変）。
+3. 検証ワンライナー（ゴールデン 150,445,920）が**不変**であることを確認（applyEnemy 非経由のため通常不変）。
 4. 必要なら UI の敵セレクタ（`enemy-select`）に出ることを確認。
 
 ## `ENEMY_REGISTRY` スキーマ（data/enemies.js 冒頭にも記載）
