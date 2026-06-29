@@ -12,7 +12,7 @@
 > 回帰影響・**Phase進行方針への含意**まで確定するのが本ファイルの役割（CLAUDE.md §4 / AGENTS.md §3）。
 
 ## 1. 入力サマリ
-- 生データ: `raw_data.txt`（T1=state作成 / T2=検証本体）
+- 生データ: `raw_data.md`（T1=state作成 / T2=検証本体）
 - スクショ転記: `replay_screenshots.md`（実機/シム）
 - 設計レポート: `design_report.md`
 - T2 比較ルート: A=… / B=…
