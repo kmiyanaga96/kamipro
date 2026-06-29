@@ -300,6 +300,10 @@ const BEAM_W      = 128; // ビームサーチ幅: 各ステップで保持す�
                          // 改善はギア依存（弱ギア+5.0% / 強ギア+0.10%）だが、装備充実で増分拡大しうるため最適押し順を優先し採用。
                          // 代償は探索量増（約4倍）。詳細・実測台帳は BEAM_SEARCH_DESIGN.md。
 const PREFIX_TOPK = 10;  // 2段ルート選抜: 静的proxyで全prefixを安価に採点し上位K本だけBW本選へ回す（PoC: 上位8で最大loss0.013%）
+// C12-案C: ビーム多様性枠。純ダメージ上位BEAM_W を全保持した上で、定石性(T.orthodoxy)上位を
+// 追加 BEAM_DIVERSITY_K 本だけ枝刈りから保護する（剪定で消さない）。最終選択は純ダメージ最大のまま
+// （_objective/cmpVec 不変）＝ダメージ単調・golden安全。強ギアで取りこぼす高ダメージ定石枝を拾う狙い。
+const BEAM_DIVERSITY_K = 24;
 const IFISHANT_MIN_CD = 3; // イフィシャント使用可の最小CD中アビ数（早撃ち=機会損失の抑止下限）
 const BG = {inori:100,funki:10,absolute:20,sleur:15,legend:10,
             pactcore:100,cascade:10,yamato_max:200,other_max:100};
@@ -852,6 +856,9 @@ class Sim {
     this._naOwner = owner; // バーストダメージはオーナーのGEAR_K_Cを参照
     this.addG(CHARS.filter(c=>c!==owner), BG.cascade, atk?bset:null);
     this.grif(owner); T.burst++;
+    // C12-案C: 定石性報酬 — バースト(ダメージ行動)が攻撃/防御DOWN・アサルト等の有効中に撃たれたら加点。
+    // ダメージ非加算のランキング用シグナルのみ(火力計算には不関与・golden不変)。
+    T.orthodoxy=(T.orthodoxy||0)+(this.buf.divinus_def?.length?1:0)+(this.buf.effond_def?.length?1:0)+(this.buf.absolute?.length?1:0)+(this.buf.nights?.length?1:0);
     // 編成パッシブのバースト寄与(全員のバーストに乗る永続効果)をCHAR_DEFから汎用合算。
     // 例: ARRIVE(エレイン3アシ・全光属性編成) = バーストダメ+20% & バーストプラス+50万。
     // 返り値 {dmg:バーストダメUP加算, flat:減衰外フラット加算}。キャラ名リテラルはエンジンに置かない。
@@ -1038,7 +1045,11 @@ class Sim {
   // forcedPrefix: 探索開始前に強制実行するキー列(ルート分散ワーカーが異なる開幕を強制するために使う)。
   _beamSearch(beamW, forcedPrefix=[]){
     const evalEntry=e=>{
-      const cl=e.sim.clone(); cl._finishStatic(); e.obj=cl._objective(this._t);
+      const cl=e.sim.clone(); cl._finishStatic();
+      // C12-案C: orthodoxy は _finishStatic 直後(=当該ターン完遂時点)に捕捉する。
+      // _objective() は rollout で cl.T を翌ターン以降に上書きするため、その前に読む。
+      e.orth=cl.T.orthodoxy||0;
+      e.obj=cl._objective(this._t);
     };
     const seed=this.clone();
     for(const k of forcedPrefix) seed._execKey(k);
@@ -1057,7 +1068,17 @@ class Sim {
         }
       }
       if(!anyLive) break;
-      next.sort((a,b)=>cmpVec(b.obj,a.obj)); beam=next.slice(0,beamW);
+      next.sort((a,b)=>cmpVec(b.obj,a.obj));
+      // C12-案C: 純ダメージ上位 beamW を全保持(=現状)。その上で、上位に入らなかった枝のうち
+      // 定石性(orth)上位 BEAM_DIVERSITY_K 本を多様性枠として追加保護する(剪定で消さない)。
+      // top は cmpVec 降順なので top[0]=最大ダメージ。extra は末尾に追加するため beam[0] は不変
+      // (=純ダメージ最大)。∴ 最終選択は現状と同一以上(ダメージ単調)・golden は top 経路を必ず含む。
+      const top=next.slice(0,beamW);
+      if(BEAM_DIVERSITY_K>0 && next.length>beamW){
+        const inTop=new Set(top);
+        const extra=next.filter(e=>!inTop.has(e)).sort((a,b)=>(b.orth||0)-(a.orth||0)).slice(0,BEAM_DIVERSITY_K);
+        beam=extra.length?top.concat(extra):top;
+      } else beam=top;
     }
     return beam[0]?.keys??[];
   }
@@ -1094,7 +1115,10 @@ class Sim {
     if(t===1) for(const c of CHARS) CHAR_DEF[c].onBattleStart?.(this);
     this.T={ability:0,burst:0,proc:0,ra:0,tenya:0,
             ju:0,mobius:0,legend:0,pactcoreUsed:false,alone:0,knightsUsed:false,
-            freyja_all:false};
+            freyja_all:false,
+            // C12-案C: 定石性スコア(ターンローカル・clone浅コピーで伝播)。ダメージ行動がバフ/デバフ
+            // 有効中に撃たれた度合いを加点(報酬)。ビーム多様性枠の選抜キーのみに使い、_objectiveには入れない。
+            orthodoxy:0};
     // lookaheadフックを持つアビのキャッシュスロットをnullで初期化（_primeLookaheadsで埋める）
     for(const [key,[owner]] of Object.entries(ABIL)){
       const cand=CHAR_REGISTRY[owner]?.cands?.[key];

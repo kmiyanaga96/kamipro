@@ -5,7 +5,7 @@
 
 ## ドキュメント体系（Antigravityエージェントとの共有用）
 - **CLAUDE.md**（本書）: 生きた開発ガイド。コード地図・開発ルール・確定仕様・検証方法・実機較正ステータス。**現状の一次情報**。
-- **.agents/AGENTS.md**: Antigravity（Gemini）エージェント用のルール／ガイドライン定義。開発不変条件（ロード順・Workerコード抽出のフリーズ回避等）・Gitワークフロー・検証ゲート（150,445,920）を規定。
+- **.agents/AGENTS.md**: Antigravity（Gemini）エージェント用のルール／ガイドライン定義。開発不変条件（ロード順・Workerコード抽出のフリーズ回避等）・Gitワークフロー・検証ゲート（155,756,325）を規定。
 - **archive/PERF_NOTES.md**: 探索エンジン高速化の調査・実装・採否判断の台帳（待ち時間の支配式・実装済み施策D/E/①-A・路線①PoC実測・WASMの位置づけ降格）。性能面の過去の一次台帳。
 - **BEAM_SEARCH_DESIGN.md**: 探索エンジンの**準最適性（C9）設計レポート**（5節構成）。ビーム幅32の枝刈り不足で「バフ/デバフ先・ダメージアビ後」最適枝を取りこぼす件の原因分析・実測台帳（greedy/BW32/64/128/C2比較・非単調の崖）・修正候補（②賢い枝刈り推奨）。索引は CALIBRATION_ANALYSIS.md C9。
 - **ORDER_OPTIMIZATION_DESIGN.md**: 押し順最適化の精緻化（**C12＝C9-②「賢い枝刈り」本設計**）。sim2押し順の5症状（amplifa表示/effond先行/judg空転/hecate順/tenya分割）の根本原因と設計案（僅差タイブレークに定石性スコア・tenya多段分割等）・段階実装計画。索引は CALIBRATION_ANALYSIS.md C12。
@@ -13,7 +13,7 @@
 - **archive/PHASE2_PLAN.md**: Phase 2（汎用化）完了計画（アーカイブ退避済み）。
 - **archive/PHASE3_PLAN.md**: Phase 3（高速化）**完了・クローズ**。Phase3-1（アロケフリー化）/D（死コード除去）/E（clone二重コピー排除）/①-A（2段ルート選抜）まで実装し準備時間を大幅短縮。性能の過去台帳は archive/PERF_NOTES.md。
 - **PHASE4_PLAN.md**: Phase 4（実機較正の反復＝**現行フェーズ**）の進め方台帳。**押し順優先**・序数比較ハーネス・「押し順は蓄積誤差に頑健、系統誤差だけを狙う」方針・乖離バックログ駆動を規定。§5.5 に Phase4で判明した重大エンジン改善（C8/C9）の履歴。
-- **PHASE5_PLAN.md**: Phase 5（**探索UX刷新＝待機画面の本格リニューアル**）の計画台帳。C9のBW128化で探索が重くなった緩和策（進捗可視化・ETA・中断・演出／4段実装）。UX専任で火力モデル・ゴールデン値(150,445,920)は不変。⚠Workerコード抽出不変条件に注意。起点はバックログC10。
+- **PHASE5_PLAN.md**: Phase 5（**探索UX刷新＝待機画面の本格リニューアル**）の計画台帳。C9のBW128化で探索が重くなった緩和策（進捗可視化・ETA・中断・演出／4段実装）。UX専任で火力モデル・ゴールデン値(155,756,325)は不変。⚠Workerコード抽出不変条件に注意。起点はバックログC10。
 - **enemies/**: 敵DB intake ディレクトリ。`enemies/README.md`（命名・追加手順・スキーマ）＋ `TEMPLATE.md` ＋ `<key>.md`（実機詳細＝根拠）。`data/enemies.js` の `ENEMY_REGISTRY` がそこから蒸留した現在値。Phase4較正ボス `walpurgis_loki`（ヴァルプルギス・ロキ）を登録（PHASE4_PLAN §7 のPhase6前倒し・1体のみ）。
 - **simulation/**: Phase 4 の試行データ蓄積ディレクトリ。`simulation/README.md`（命名規約・ワークフロー・**較正カデンツ=turn-by-turnホライズン**・履歴管理の原則）＋ `TEMPLATE/`（新試行の雛形）＋ `simNN/`（1試行=1サブフォルダ: `raw_data.md`実機原本 / `replay_screenshots.md`シムreplay転記 / `design_report.md`設計レポート（設計担当＝主にAntigravity・**必須5節構成**）/ `integrated_analysis.md`統合分析（実装担当＝主にClaude Code・検証+回帰+Phase方針）/ `user_notes.md`ユーザー所感（仮説の種）/ `README.md`要約）。**新試行は `cp -r simulation/TEMPLATE simulation/simNN` で開始**。
 - **ROADMAP.md**: 長期ビジョン（敵行動・味方生存＝**Phase 6**・旧Phase5からリネーム）＋新キャラ導入ワークフロー構想。Phase 4 定義は PHASE4_PLAN.md、Phase 5（UX刷新）は PHASE5_PLAN.md が一次。
@@ -62,8 +62,8 @@
 - **モビウスムーンズ**: パーティ全体のバースト5回ごとに、ヘカテーの全アビCDをリセット。
 - **イフィシャント早撃ち抑止**: `IFISHANT_MIN_CD = 3`（CD中アビが3つ未満は使用不可）。
 - **ロワ・クモンドの3枠加算**: 通常（`roy_na_frac`）、アビ（`roy_abi_frac`）、バースト（`roy_burst_frac`）をそれぞれ独自枠加算。
-- **Phase3-1 事前計算マップ（ホットパス高速化・実装済）**: `buildFormation` で `ABIL_KEYS`/`ABIL_KC`/`ABIL_CANDS`/`ABIL_BASE_S` を一度だけ構築し、`_stepStatic`/`_candidates` が `Object.entries(ABIL)`・ネスト参照・`computeBaseScore` 再計算をせず `ABIL_KEYS` を1パス走査する。**⚠不変条件**: 走査順は `ABIL` 挿入順（=`Object.keys`順）でタイブレークは厳密 `>`（先頭最大）。キャラ追加・`abilities`/`cands` 変更時はこのマップ構築を経由するため自動追従するが、**走査順や `>` 比較を崩すと最適押し順の選択がズレる**（ゴールデン値 150,445,920 で検証すること）。詳細は archive/PHASE3_PLAN.md §1.4 / PERF_NOTES.md。高速化はその後 D（死コード除去）・E（clone二重コピー排除）・①-A（2段ルート選抜）まで実施済み。WASM化（per-op）は最終手段に降格（PERF_NOTES.md §5）。
-- **⚠ Workerコード抽出不変条件**: `_buildWorkerCode` は `<script id="engine-code">` の **`textContent`**（`innerHTML`は不可＝`<`/`>`/`&`をHTMLエスケープしWorker構文エラー）を取得し、**必ず `// ===== ゲーム定数` 〜 `// ===== UI HELPERS` 直前へ slice** して Worker へ渡す。slice を外して全文を渡すと UI/INIT の `document` 参照が Worker 読込時に `ReferenceError` を投げ、`onerror`→メインスレッド同期フォールバックで**ページがフリーズ**する。Worker が必要とする関数（`recalcGearK`/`buildFormation`/`Sim`/`enumerateRootPrefixes`/`_runRootPlan`/`_runBaselinePlan` 等）は全て `UI HELPERS` マーカーより前＝エンジン領域内に置くこと。検証は scratchpad の worker 再現スクリプト（`document` 無しサンドボックスで `init`→`root`→`baseline` が 150,445,920 を返すか）に準拠。
+- **Phase3-1 事前計算マップ（ホットパス高速化・実装済）**: `buildFormation` で `ABIL_KEYS`/`ABIL_KC`/`ABIL_CANDS`/`ABIL_BASE_S` を一度だけ構築し、`_stepStatic`/`_candidates` が `Object.entries(ABIL)`・ネスト参照・`computeBaseScore` 再計算をせず `ABIL_KEYS` を1パス走査する。**⚠不変条件**: 走査順は `ABIL` 挿入順（=`Object.keys`順）でタイブレークは厳密 `>`（先頭最大）。キャラ追加・`abilities`/`cands` 変更時はこのマップ構築を経由するため自動追従するが、**走査順や `>` 比較を崩すと最適押し順の選択がズレる**（ゴールデン値 155,756,325 で検証すること）。詳細は archive/PHASE3_PLAN.md §1.4 / PERF_NOTES.md。高速化はその後 D（死コード除去）・E（clone二重コピー排除）・①-A（2段ルート選抜）まで実施済み。WASM化（per-op）は最終手段に降格（PERF_NOTES.md §5）。
+- **⚠ Workerコード抽出不変条件**: `_buildWorkerCode` は `<script id="engine-code">` の **`textContent`**（`innerHTML`は不可＝`<`/`>`/`&`をHTMLエスケープしWorker構文エラー）を取得し、**必ず `// ===== ゲーム定数` 〜 `// ===== UI HELPERS` 直前へ slice** して Worker へ渡す。slice を外して全文を渡すと UI/INIT の `document` 参照が Worker 読込時に `ReferenceError` を投げ、`onerror`→メインスレッド同期フォールバックで**ページがフリーズ**する。Worker が必要とする関数（`recalcGearK`/`buildFormation`/`Sim`/`enumerateRootPrefixes`/`_runRootPlan`/`_runBaselinePlan` 等）は全て `UI HELPERS` マーカーより前＝エンジン領域内に置くこと。検証は scratchpad の worker 再現スクリプト（`document` 無しサンドボックスで `init`→`root`→`baseline` が 155,756,325 を返すか）に準拠。
 - **2段ルート選抜（①-A・実装済）**: `runSim`/`_fallbackRunSim` は `enumerateRootPrefixes()` の全prefixを `_staticPrefixDmg`（静的greedy・約数ms）で安価採点し、上位 `PREFIX_TOPK`(=10) 本のみ本選(BW128・C9で32→128)へ回す（`_selectRootPrefixes`）。空prefix（単一ビーム＝回帰基準）は常に確保。**品質低下は PoC 実測で最大0.013%**（押し順・火力指数グレードに不可視・K10は静的top8の上位集合で単調保証）。ゴールデン値ワンライナーは単一 `takeTurn` でこの選抜を経由しないため不変。**⚠ 新キャラ追加・`abilities`/`cands` 変更時は PoC（scratchpad `poc.js`）を数形成で再実行し `PREFIX_TOPK` の余裕を再確認**（真の勝者が上位Kから外れると品質が落ちる）。詳細は PERF_NOTES.md §4。
 
 ### 3. Git 開発ワークフロー (強制ルール)
@@ -87,7 +87,7 @@
 1. **リプレイ照合**: ユーザー又はエージェントは `index.html` の「リプレイモード」に実機手順を入力し、乖離の発生起点（ターン・バフ・ロボ・ダメージ等）を特定する。実測は `simNN/raw_data.txt`（原本・加工禁止）、リプレイ画面は `simNN/replay_screenshots.md` へテキスト転記する（画像バイナリは保存しない）。
 2. **課題のDB化**: 乖離の詳細（対象キャラ/アビ/ターン/実機挙動/シム誤挙動）を [CALIBRATION_ANALYSIS.md](file:///c:/Users/Kanta%20Miyanaga/kamipro/CALIBRATION_ANALYSIS.md) のバックログ（Cx）に追記する。
 3. **計画・検証策定**: 設計担当（主に Antigravity）が不整合の原因を特定し、`simNN/design_report.md` を**必須5節構成**（1.総合比較 / 2.敗北要因 / 3.乖離分析 / 4.影響度検証 / 5.引継ぎ）で作成する。
-4. **自律修正とテスト**: 実装担当（主に Claude Code）が `design_report.md` を検証して `simNN/integrated_analysis.md`（較正案・回帰影響・Phase方針所見・結論）にまとめ、コードを修正し、テストを実行。期待値（`150,445,920`）と追加テストケースの双方をアサートして完了する。
+4. **自律修正とテスト**: 実装担当（主に Claude Code）が `design_report.md` を検証して `simNN/integrated_analysis.md`（較正案・回帰影響・Phase方針所見・結論）にまとめ、コードを修正し、テストを実行。期待値（`155,756,325`）と追加テストケースの双方をアサートして完了する。
 
 ### 5. ドキュメント・レガシーファイルの管理ルール
 AIエージェントのコンテキスト節約と古い仕様の誤認防止のため、以下のルールを遵守すること。
@@ -104,7 +104,7 @@ node -e "const fs = require('fs'); const html = fs.readFileSync('index.html', 'u
 
 **期待値（基準・フォールバック抽象スケール）**:
 - FullBurst: `10/10`
-- TotalDmg: `150,445,920`
+- TotalDmg: `155,756,325`
 
 ---
 
@@ -118,7 +118,7 @@ node -e "const fs = require('fs'); const html = fs.readFileSync('index.html', 'u
   - エジソン英霊武器追加ダメ: 2.5倍/80万 (アビ枠・onBurst実装済み)
   - **ヤマト1アシ バーストダメージプラス: +10万/stack・味方全体のバースト対象 (C8・`burstPartyPassive`・自分のみは誤りだった)**
   - **ナイツサプレス(エレイン3): バーストダメ+20%・非累積(refresh)・2T (C11・有効中は再発動しないguard＝隔ターン発動。length累積は誤りだった)**
-- **バックログ状態 (一次は CALIBRATION_ANALYSIS.md §4)**: C1=open(turn-by-turnホライズンがHELIXターン到達≈sim06-07で確定・逆算式は台帳に退避) / C2=open低優先 / C3=investigating / C4=fixed / **C5=fixed(追撃上限100万/80万・ユーザー承認)** / **C6=wontfix(2T総和最大化案・却下)** / **C7=deferred(較正ボスの2フェーズ被ダメ未モデル化・較正時は手補正)** / **C8=fixed(ヤマト1アシ+10万を味方全体化・ゴールデン値92,031,195→154,711,673・ユーザー承認2026-06-28)** / **C9=fixed(ビーム幅BW32→128・「バフ/デバフ先・ダメージアビ後」最適枝の取りこぼし解消・ゴールデン値154,711,673→162,398,625・約4倍重・ユーザー承認2026-06-28・詳細BEAM_SEARCH_DESIGN.md)** / **C10=Phase5昇格(探索中の待機画面の本格刷新・PHASE5_PLAN.md)** / **C11=fixed(ナイツサプレス非累積化＝有効中は再発動しないguard・ゴールデン値162,398,625→150,445,920・実機確認Q2:a 2026-06-28)** / **C12=open(順序最適化群=effond優先/judg空転/hecate順/tenya分割/amplifa表示・C9-②賢い枝刈りとして設計予定・Q3:a)**。現ゴールデン値=**150,445,920**。
+- **バックログ状態 (一次は CALIBRATION_ANALYSIS.md §4)**: C1=open(turn-by-turnホライズンがHELIXターン到達≈sim06-07で確定・逆算式は台帳に退避) / C2=open低優先 / C3=investigating / C4=fixed / **C5=fixed(追撃上限100万/80万・ユーザー承認)** / **C6=wontfix(2T総和最大化案・却下)** / **C7=deferred(較正ボスの2フェーズ被ダメ未モデル化・較正時は手補正)** / **C8=fixed(ヤマト1アシ+10万を味方全体化・ゴールデン値92,031,195→154,711,673・ユーザー承認2026-06-28)** / **C9=fixed(ビーム幅BW32→128・「バフ/デバフ先・ダメージアビ後」最適枝の取りこぼし解消・ゴールデン値154,711,673→162,398,625・約4倍重・ユーザー承認2026-06-28・詳細BEAM_SEARCH_DESIGN.md)** / **C10=Phase5昇格(探索中の待機画面の本格刷新・PHASE5_PLAN.md)** / **C11=fixed(ナイツサプレス非累積化＝有効中は再発動しないguard・ゴールデン値162,398,625→150,445,920・実機確認Q2:a 2026-06-28)** / **C12=fixed-S2(案C＝ビーム多様性枠で定石枝を枝刈りから保持・選択は純ダメージ最大＝ダメージ単調。ゴールデン値150,445,920→155,756,325・+3.5%generic/+0.8%強ギア・2026-06-29。残:②exact-tie定石タイブレーク/④b tenya分割)**。現ゴールデン値=**155,756,325**。
 
 ---
 

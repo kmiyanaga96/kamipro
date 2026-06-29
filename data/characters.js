@@ -202,6 +202,8 @@ const CHAR_REGISTRY = {
       effond: { s:70, burstTrigger:true,
                 exec:(sim,T,ord,bset)=>{ const db=sim._droidAbiBuf();
                   sim.dmg += sim._decay('abi', sim._naForAbi()*DMG.effond_mult*(1+GEAR.abi_dmg+db.dmg), DMG.effond_cap*(1+db.cap));
+                  // C12-案C: 定石性報酬 — divinus(防御DOWN)先行中にeffondを撃てたら加点(divinus→effondの定石・ランキング用のみ)。
+                  T.orthodoxy=(T.orthodoxy||0)+(sim.buf.divinus_def?.length?1:0);
                   (sim.buf.effond_def??=[]).push(DMG.dur_effond_def);
                   sim.use('effond',T,ord);
                   if(sim.mooncode>0) sim.burst(ownerOf('effond'),bset,T); }},
@@ -264,7 +266,9 @@ const CHAR_REGISTRY = {
                       // amplifa(+10万)はロボ反応ダメージ専用のためジャッジには加算しない。
                       const db0=sim._droidAbiBuf();
                       const hit=sim._decay('abi', sim._naForAbi()*DMG.judg_mult*(1+GEAR.abi_dmg+db0.dmg), DMG.judg_cap*(1+db0.cap));
-                      sim.dmg += 10*hit + royAbi; }
+                      sim.dmg += 10*hit + royAbi;
+                      // C12-案C: 定石性報酬 — judgダメージ(ph0)が防御DOWN有効中なら加点(ランキング用のみ・火力不関与)。
+                      T.orthodoxy=(T.orthodoxy||0)+(sim.buf.divinus_def?.length?1:0)+(sim.buf.effond_def?.length?1:0); }
                     else if(ph===1) sim.burst(ownerOf('judg'),bset,T);
                     else sim.dmg += sim._decay('na', sim._na()*(1+GEAR.na_dmg)); }},
       absolute: { s:130, atkBuf:true, partyBG:true, exec:(sim,T,ord)=>{ if(!sim.buf.absolute)sim.buf.absolute=[]; sim.buf.absolute.push(DMG.dur_absolute); sim.addG(CHARS,BG.absolute); sim.use('absolute',T,ord); }},
