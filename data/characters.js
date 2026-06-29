@@ -530,5 +530,83 @@ const CHAR_REGISTRY = {
     subAssists: {
       streak_dmgup: 1.1
     }
+  },
+
+  artemis: {
+    type: 'kamihime',
+    jp: 'アルテミス[神想真化]', shortJp: 'アルテミス', gcls: 'gar', elem: 'light',
+    favWeapon: ['銃','ハンマー'], baseAtk: 12440, baseHp: 3120,
+    // artemis_link_used: LinkSkill(4アビ・戦闘中1回のみ)使用済みフラグ
+    state: { artemis_link_used: false },
+    abilities: {
+      enchant:    ['r', 7, 0],  // エンチャントアロー: ゲージ消費の段階ダメージ
+      refine:     ['y', 8, 0],  // リファインメントエイド: 急所＋追撃付与
+      manapolite: ['y', 2, 0],  // マナポライトオペレーション: 全体BG＋ストリークUP
+      linkskill:  ['y', 1, 0],  // LinkSkill[アルテミス]: 特殊攻撃UP＋全体BG100(戦闘中1回)
+    },
+    labelSuffix: { manapolite:'(全+10)', linkskill:'(全+100)' },
+    cdShow: { enchant:"エンチャントアロー", refine:"リファインメント", manapolite:"マナポライト", linkskill:"リンクスキル" },
+    cands: {
+      // エンチャントアロー: アルテミスの現バーストゲージを全消費し、消費量で段階(倍率/減衰)を決定するアビ枠ダメージ。
+      // ゲージを消費=FB(攻撃フェイズの100消費バースト)と競合する。目的関数(総ダメージ)が両者を比較し選択する。
+      // s は低め＝静的greedyでは選ばれずビーム(火力駆動)に委ねる。guardで最低tier(消費26)に届く時のみ候補化。
+      enchant: { s:55, guard:(sim)=>sim.g[ownerOf('enchant')]>=26,
+                 exec:(sim,T,ord)=>{ const me=ownerOf('enchant'); const spent=sim.g[me]; sim.g[me]=0;
+                   sim._naOwner=me;
+                   let mult,cap;
+                   if(spent>=100){ mult=DMG.arrow_mult5; cap=DMG.arrow_cap5; }
+                   else if(spent>=76){ mult=DMG.arrow_mult4; cap=DMG.arrow_cap4; }
+                   else if(spent>=51){ mult=DMG.arrow_mult3; cap=DMG.arrow_cap3; }
+                   else if(spent>=26){ mult=DMG.arrow_mult2; cap=DMG.arrow_cap2; }
+                   else { mult=DMG.arrow_mult1; cap=DMG.arrow_cap1; }
+                   const db=sim._droidAbiBuf();
+                   sim.dmg += sim._decay('abi', sim._naForAbi()*mult*(1+GEAR.abi_dmg+db.dmg), cap*(1+db.cap));
+                   sim.use('enchant',T,ord,`(消費${spent})`); }},
+      // リファインメントエイド: 味方全体に急所(refine_acute・_naで参照)＋追撃(refine_followup・burstで参照)を付与(refresh/dur3)。
+      refine: { s:155, atkBuf:true, exec:(sim,T,ord)=>{
+                  sim.buf.refine_acute=[DMG.dur_refine];
+                  sim.buf.refine_followup=[DMG.dur_refine];
+                  sim.use('refine',T,ord); }},
+      // マナポライトオペレーション: 全体BG+10 ＋ ストリークダメージ+2%/stack(累積可・dur10・_attackPhaseで参照)。
+      manapolite: { s:140, atkBuf:true, partyBG:true, exec:(sim,T,ord)=>{
+                  (sim.buf.manapolite??=[]).push(DMG.dur_manapolite);
+                  sim.addG(CHARS, DMG.bg_manapolite); sim.use('manapolite',T,ord); }},
+      // LinkSkill: 光属性キャラ特殊攻撃+30%(dur1) ＋ 全体BG+100。戦闘中1回のみ。BG100の開幕加速が強く高スコア。
+      linkskill: { s:300, atkBuf:true, partyBG:true, guard:(sim)=>!sim.artemis_link_used,
+                  exec:(sim,T,ord)=>{ sim.artemis_link_used=true;
+                    (sim.buf.artemis_spec??=[]).push(DMG.dur_artemis_spec);
+                    sim.addG(CHARS, 100); sim.use('linkskill',T,ord); }},
+    },
+    def: {
+      burst_coef_a: 5.5, burst_coef_b: 3000,  // アルテミス: a=5.5 b=3000(ユーザー提供)
+      gmax: 100,  // =BG.other_max（即時評価のためリテラル。ロード順不変条件・冒頭注記参照）
+      keigyoGain: 1,
+      // バースト効果: 自身のアビリティ再使用間隔1ターン短縮(自バーストのみ・全アビCD-1)。
+      onBurst: (sim, atk, owner) => {
+        for(const k of Object.keys(sim.cd)){
+          if(ABIL[k]?.[0] !== owner) continue;
+          if(sim.cd[k] > 0) sim.cd[k] = Math.max(0, sim.cd[k]-1);
+        }
+      },
+      // アシスト1 リンクスフェロー: 味方バースト毎にアルテミスへ BG+15 ＆ バーストダメージプラス+15万バフ(自バーストのみ対象・3T累積可)。
+      onPartyBurst: (sim, owner, T, atk) => {
+        const me = ownerOf('refine');  // =artemis(自キー参照)
+        sim.addG([me], 15);
+        (sim.buf.artemis_bplus??=[]).push(DMG.dur_artemis_bplus);
+      },
+      // 編成パッシブのバースト寄与(全バーストに乗る):
+      //  ・AnotherLink(アシスト2): 全員光属性編成で バーストダメージ+25%。
+      //  ・リファイン追撃: 有効中は全バーストにアビ枠追加ダメ(3倍/30万・減衰外フラット近似)。
+      //  ・リンクスフェロー bplus: アルテミス自身のバーストのみ +15万/stack(_naOwner判定)。
+      burstPartyPassive: (sim) => {
+        let dmg = 0, flat = 0;
+        if(CHARS.every(c=>ELEM[c]==='light')) dmg += DMG.burst_dmg_anotherlink;
+        if(sim.buf.refine_followup?.length)
+          flat += Math.min(sim._na()*DMG.refine_followup_mult, DMG.refine_followup_cap);
+        if(sim._naOwner===ownerOf('refine'))
+          flat += (sim.buf.artemis_bplus?.length||0)*DMG.bplus_artemis;
+        return (dmg||flat) ? { dmg, flat } : null;
+      },
+    },
   }
 };

@@ -102,6 +102,7 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
 .gh{background:#1aa179;}
 .gt{background:#e08a00;}
 .gl{background:#42a5f5;}
+.gar{background:#a78bfa;}
 .renri-wrap{position:relative;height:12px;background:var(--card2);border-radius:6px;overflow:hidden;margin-bottom:4px;}
 .renri-fill{height:100%;background:linear-gradient(90deg,#5b6ef5,#8b5cf6);border-radius:6px;}
 .renri-mark{position:absolute;top:0;bottom:0;width:2px;background:rgba(0,0,0,.12);}
@@ -479,6 +480,34 @@ const DMG = {
   divinus_dot_cap:  100000,  // DOT1種あたり上限(10万)
   divinus_dot_types: 4,      // DOT種類数(猛毒/重炎獄/深溺水/過腐敗)
   dur_divinus_dot:  2,       // DOT持続(2Tティック)
+  // ─── アルテミス[神想真化] ──────────────────────────────────────────────
+  // 1アビ エンチャントアロー: バーストゲージ「消費量に応じた」段階ダメージ(単体・アビ枠)。
+  //   実装は「現ゲージを全消費」して消費量で段階を決定する近似(部分消費でのtier調整はモデル化しない)。
+  arrow_mult1: 3,  arrow_cap1: 300000,    // 消費1〜25:   3倍/30万 (状態異常耐性/連続攻撃確率DOWN)
+  arrow_mult2: 5,  arrow_cap2: 500000,    // 消費26〜50:  5倍/50万 (冥闇)
+  arrow_mult3: 7,  arrow_cap3: 700000,    // 消費51〜75:  7倍/70万 (闇属性攻撃DOWN25%)
+  arrow_mult4: 10, arrow_cap4: 1000000,   // 消費76〜99: 10倍/100万(与ダメージDOWN30%)
+  arrow_mult5: 12, arrow_cap5: 1500000,   // 消費100:    12倍/150万(恐傷・必中)
+  //   段階デバフ(状態異常耐性/連続攻撃DOWN/冥闇/闇攻撃DOWN/与ダメDOWN/恐傷)は自軍火力へ直結しないため未モデル化。
+  //   ※恐傷の被ダメUPがあれば後続全攻撃を底上げしうる(要実機確認・現状は無視)。
+  // 2アビ リファインメントエイド: 味方全体に急所(倍率1.3)＋追撃付与。追撃=全バーストにアビ枠追加ダメ(3倍/30万)。dur3。
+  acute_refine: 0.09,         // 急所期待寄与 = 発動率(推定30%)×(倍率1.3-1)。発動率はスキル未記載のため推定・要較正。
+  refine_followup_mult: 3,    // 追撃: 通常攻撃比3倍(有効中は全バーストに付与・burstPartyPassiveで合算)
+  refine_followup_cap: 300000,// 追撃減衰上限30万(抽象スケールでは raw≪cap で休眠)
+  dur_refine: 3,
+  // 3アビ マナポライトオペレーション: 全体BG+10 ＋ バーストストリークダメージ+2%/stack(累積可・dur10)。
+  bg_manapolite: 10,
+  streak_manapolite: 0.02,    // ストリークダメUP/stack(_attackPhaseで streak_dmgup に加算・buf不在で無効)
+  dur_manapolite: 10,
+  // 4アビ LinkSkill[アルテミス]: 光属性キャラ特殊攻撃+30%(dur1) ＋ 全体BG+100。戦闘中1回のみ(state artemis_link_used)。
+  spec_artemis: 0.30,
+  dur_artemis_spec: 1,
+  // アシスト1 リンクスフェロー: 味方バースト毎にアルテミス自身へ BG+15 ＆ バーストダメージプラス+15万(自バーストのみ対象・3T累積可)。
+  bplus_artemis: 150000,
+  dur_artemis_bplus: 3,
+  // アシスト2 AnotherLink: 全員光属性編成で バーストダメージ+25%(全員のバーストに乗る・burstPartyPassive)。
+  //   バースト上限+10%(抽象スケールで休眠)・最終ダメージ+10%(順序非依存=ランキング不関与)は未配線。サブ時発動も未モデル化(subは streak_dmgup のみ対応)。
+  burst_dmg_anotherlink: 0.25,
   // 敵パラメータ(ENEMY_REGISTRYから applyEnemy() で上書き)
   enemy_def:        10,      // 敵防御値(placeholder・実機較正要)
   enemy_max_hp:     100000000, // 敵最大HP(placeholder・DOT計算に使用)
@@ -833,10 +862,11 @@ class Sim {
     const crit = critRate*D.crit_mult;
     // 急所枠: 光(puvoirはムーンコード時のみ/absolute/legend/pike_crit) + 装備
     const acute = nPuvAcute*D.acute_puvoir + nAbs*D.acute_absolute + nLeg*D.acute_legend
-                + nPikeCrit*D.acute_pike_crit + G.acute;
+                + nPikeCrit*D.acute_pike_crit + (b.refine_acute?.length?D.acute_refine:0) + G.acute;
     // 特殊攻撃枠: leg_spec(光) + omni(テトラ1アシ・光) + 装備
     const spec = (b.leg_spec?D.spec_legend:0)+(b.omni?.length?D.spec_omni:0)
-               + (b.mobius_spec?.length||0)*D.spec_mobius + G.spec;
+               + (b.mobius_spec?.length||0)*D.spec_mobius
+               + (b.artemis_spec?.length?D.spec_artemis:0) + G.spec;
     // GEAR_K or per-character GEAR_K_C[owner] (武器マスタ設定時)
     const gk = (this._naOwner && GEAR_K_C[this._naOwner]) || GEAR_K;
     const base = gk*(1+aslt)*elemBox*(1+vigor)*(1+crit)*(1+acute)*(1+spec);
@@ -981,7 +1011,9 @@ class Sim {
     // 人数補正は参加人数依存・属性補正は中立1.0(affinity)・減衰は参加人数別cap(_decay('streak',raw,n))。
     const n=atk.length;
     if(n>=2){
-      const raw=burstCoreTotal*DMG.affinity*DMG.streak_count[n]*DMG.streak_dmgup;
+      // マナポライト(アルテミス3): ストリークダメージ+2%/stack(buf不在で素の streak_dmgup＝golden不変)。
+      const sdup=DMG.streak_dmgup+(this.buf.manapolite?.length||0)*DMG.streak_manapolite;
+      const raw=burstCoreTotal*DMG.affinity*DMG.streak_count[n]*sdup;
       this.dmg += this._decay('streak', raw, n);
     }
     return atk;
