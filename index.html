@@ -480,17 +480,27 @@ const DMG = {
   divinus_dot_cap:  100000,  // DOT1種あたり上限(10万)
   divinus_dot_types: 4,      // DOT種類数(猛毒/重炎獄/深溺水/過腐敗)
   dur_divinus_dot:  2,       // DOT持続(2Tティック)
+  // ─── アシスト由来のグローバル枠(buildFormationが subAssists から集約・全員光属性編成でのみ有効) ───
+  // メイン/サブどちらの編成でも適用される編成パッシブ。golden編成はサブ無し→既定値で無効(不変)。
+  sub_burst_dmg: 0,           // バーストダメージUP加算(burst()のbdmgへ。例: アルテミスAnotherLink +0.25)
+  sub_burst_cap: 0,           // バースト上限UP加算(burst capへ。抽象スケールでは休眠)
+  final_dmg:     1.0,         // 最終ダメージ倍率(_na()末尾に全乗算。順序非依存=ランキング不関与だが絶対値に反映)
   // ─── アルテミス[神想真化] ──────────────────────────────────────────────
   // 1アビ エンチャントアロー: バーストゲージ「消費量に応じた」段階ダメージ(単体・アビ枠)。
-  //   実装は「現ゲージを全消費」して消費量で段階を決定する近似(部分消費でのtier調整はモデル化しない)。
-  arrow_mult1: 3,  arrow_cap1: 300000,    // 消費1〜25:   3倍/30万 (状態異常耐性/連続攻撃確率DOWN)
-  arrow_mult2: 5,  arrow_cap2: 500000,    // 消費26〜50:  5倍/50万 (冥闇)
-  arrow_mult3: 7,  arrow_cap3: 700000,    // 消費51〜75:  7倍/70万 (闇属性攻撃DOWN25%)
-  arrow_mult4: 10, arrow_cap4: 1000000,   // 消費76〜99: 10倍/100万(与ダメージDOWN30%)
-  arrow_mult5: 12, arrow_cap5: 1500000,   // 消費100:    12倍/150万(恐傷・必中)
-  //   段階付与効果は弱体化(連続攻撃確率DOWN/闇属性攻撃DOWN/与ダメージDOWN)＋状態異常(冥闇/恐傷)で別カテゴリだが、
-  //   いずれも敵側の弱体＝自軍火力に直結しないため未モデル化(テトラの状態異常はDOT4種=猛毒/重炎獄/深溺水/過腐敗)。
-  //   ※恐傷の被ダメUPがあれば後続全攻撃を底上げしうる(要実機確認・現状は無視)。
+  //   下位tierは上位に内包(累積構造): 消費量が入る帯のダメージ倍率＋その帯までの全デバフを付与。
+  //   消費量で帯を決定。【部分消費探索】cand.variants が各帯の下限消費を候補化し、optimizerが残ゲージ温存(部分消費)も探索する。
+  arrow_mult1: 3,  arrow_cap1: 300000,    // 消費1〜25:   3倍/30万 (状態異常耐性DOWN30%/連続攻撃確率DOWN)
+  arrow_mult2: 5,  arrow_cap2: 500000,    // 消費26〜50:  5倍/50万 (＋冥闇=敵通常攻撃必中回避)
+  arrow_mult3: 7,  arrow_cap3: 700000,    // 消費51〜75:  7倍/70万 (＋闇属性攻撃DOWN25%)
+  arrow_mult4: 10, arrow_cap4: 1000000,   // 消費76〜99: 10倍/100万(＋与ダメージDOWN30%)
+  arrow_mult5: 12, arrow_cap5: 1500000,   // 消費100:    12倍/150万(＋恐傷・必中)
+  //   段階付与効果は弱体化(連続攻撃確率DOWN/闇属性攻撃DOWN/与ダメージDOWN)＋状態異常(冥闇/恐傷)で別カテゴリ。
+  //   DPS非関与デバフ(状態異常耐性DOWN/連続攻撃DOWN/冥闇/闇攻撃DOWN/与ダメDOWN)は被弾/敵攻撃側のため未配線。
+  // 恐傷(消費100で付与): 被ダメージUP = 付与状態異常数×2%(恐傷自身も計上)・上限30%。被ダメUP/与ダメUP同枠加算。
+  //   状態異常のみ計上(弱体=攻防DOWN等は非計上)。現モデルで計上: 冥闇/恐傷(矢由来=2) ＋ ディウィヌスDOT4種(=猛毒/重炎獄/深溺水/過腐敗)。
+  kyosho_per_ailment: 0.02,   // 状態異常1つあたり被ダメUP
+  kyosho_cap: 0.30,           // 恐傷の被ダメUP上限
+  dur_kyosho: 3,              // 恐傷効果ターン(スキル未記載のため暫定3T・要較正)
   // 2アビ リファインメントエイド: 味方全体に急所(倍率1.3)＋追撃付与。追撃=全バーストにアビ枠追加ダメ(3倍/30万)。dur3。
   acute_refine: 0.09,         // 急所期待寄与 = 発動率(推定30%)×(倍率1.3-1)。発動率はスキル未記載のため推定・要較正。
   refine_followup_mult: 3,    // 追撃: 通常攻撃比3倍(有効中は全バーストに付与・burstPartyPassiveで合算)
@@ -506,9 +516,8 @@ const DMG = {
   // アシスト1 リンクスフェロー: 味方バースト毎にアルテミス自身へ BG+15 ＆ バーストダメージプラス+15万(自バーストのみ対象・3T累積可)。
   bplus_artemis: 150000,
   dur_artemis_bplus: 3,
-  // アシスト2 AnotherLink: 全員光属性編成で バーストダメージ+25%(全員のバーストに乗る・burstPartyPassive)。
-  //   バースト上限+10%(抽象スケールで休眠)・最終ダメージ+10%(順序非依存=ランキング不関与)は未配線。サブ時発動も未モデル化(subは streak_dmgup のみ対応)。
-  burst_dmg_anotherlink: 0.25,
+  // アシスト2 AnotherLink(サブ時にも発動): 全員光属性編成で バーストダメ+25%/バースト上限+10%/最終ダメ+10%。
+  //   subAssists{burst_dmg/burst_cap/final_dmg}で宣言→buildFormationが sub_burst_dmg/sub_burst_cap/final_dmg へ集約。
   // 敵パラメータ(ENEMY_REGISTRYから applyEnemy() で上書き)
   enemy_def:        10,      // 敵防御値(placeholder・実機較正要)
   enemy_max_hp:     100000000, // 敵最大HP(placeholder・DOT計算に使用)
@@ -719,21 +728,23 @@ function buildFormation(heroKey, kamihimeKeys) {
     for(const [k,v] of Object.entries(CHAR_REGISTRY[c].def.milestones ?? {}))
       MILESTONES[k] = Math.max(MILESTONES[k] ?? -Infinity, v);
 
-  // サブとメインのアシスト効果（streak_dmgup）を合算（光統一時のみ適用）
-  let sdmgup = 1.0;
-  for(const key of CURRENT_SUBS){
-    const s = CHAR_REGISTRY[key];
-    if(s && s.subAssists?.streak_dmgup) sdmgup = Math.max(sdmgup, s.subAssists.streak_dmgup);
-  }
-  for(const c of CHARS){
-    const s = CHAR_REGISTRY[c];
-    if(s && s.subAssists?.streak_dmgup) sdmgup = Math.max(sdmgup, s.subAssists.streak_dmgup);
-  }
-  if (CHARS.every(c => ELEM[c] === 'light')) {
-    DMG.streak_dmgup = sdmgup;
-  } else {
-    DMG.streak_dmgup = 1.0;
-  }
+  // サブとメインのアシスト効果（streak_dmgup ＋ AnotherLink系の編成パッシブ）を集約（光統一時のみ適用）。
+  // subAssists はサブメンバー時にも発動するアシスト効果（例: アルテミスAnotherLink）をメイン/サブ共通で拾う。
+  let sdmgup = 1.0, bdmg = 0, bcap = 0, fdmg = 1.0;
+  const collect = key => {
+    const s = CHAR_REGISTRY[key]?.subAssists; if(!s) return;
+    if(s.streak_dmgup) sdmgup = Math.max(sdmgup, s.streak_dmgup);
+    if(s.burst_dmg)    bdmg   = Math.max(bdmg,   s.burst_dmg);
+    if(s.burst_cap)    bcap   = Math.max(bcap,   s.burst_cap);
+    if(s.final_dmg)    fdmg   = Math.max(fdmg,   1 + s.final_dmg);
+  };
+  for(const key of CURRENT_SUBS) collect(key);
+  for(const c of CHARS) collect(c);
+  const allLight = CHARS.every(c => ELEM[c] === 'light');
+  DMG.streak_dmgup  = allLight ? sdmgup : 1.0;
+  DMG.sub_burst_dmg = allLight ? bdmg   : 0;
+  DMG.sub_burst_cap = allLight ? bcap   : 0;
+  DMG.final_dmg     = allLight ? fdmg   : 1.0;
 }
 
 // 候補スコア自動算出: s を省略したアビに対して構造的特徴から標準スコアを導出する。
@@ -887,7 +898,10 @@ class Sim {
       (b.consort_def?.length||0)*D.defdown_consort
     + (b.divinus_def?.length||0)*D.defdown_divinus
     + Math.min((b.effond_def?.length||0)*D.defdown_effond, D.defdown_effond_max), 0.50);
-    const res = (base + royFlat) * (1 + defdown);
+    // 恐傷(アルテミス1・消費100): 敵への被ダメージUP(this.kyosho_amp・buf.kyosho有効中のみ)。全枠の外側に乗算。
+    // 最終ダメージ倍率(DMG.final_dmg・AnotherLink等のアシスト由来): 既定1.0で golden 不変。
+    const kyo = b.kyosho?.length ? (this.kyosho_amp||0) : 0;
+    const res = (base + royFlat) * (1 + defdown) * (1 + kyo) * (DMG.final_dmg ?? 1);
     return res;
   }
 
@@ -904,8 +918,9 @@ class Sim {
     let passiveDmg=0, passiveFlat=0;
     for(const c of CHARS){ const p=CHAR_DEF[c].burstPartyPassive?.(this); if(p){ passiveDmg+=p.dmg||0; passiveFlat+=p.flat||0; } }
     // 概算バーストダメージ: absolute(バーストダメUP) + nights(敵バースト耐性DOWN≒バーストダメUP) + 編成パッシブ
+    //   + sub_burst_dmg(アシスト由来・AnotherLink等。golden編成は0で不変)。
     const bdmg = (this.buf.absolute?.length||0)*DMG.burst_dmg_absolute
-               + (this.buf.nights?.length||0)*DMG.burst_dmg_nights + passiveDmg;
+               + (this.buf.nights?.length||0)*DMG.burst_dmg_nights + passiveDmg + DMG.sub_burst_dmg;
     // バースト基準は通常攻撃ダメ。technicaはGEAR_K外のため_na()は自然にtechnica非含。
     const naB = this._na();
     // ロワ・クモンド: バーストプラス(独自枠・味方全体付与のため全員のバーストに加算・上限の外)
@@ -916,7 +931,7 @@ class Sim {
     // a/b はキャラ毎(CHAR_DEF[owner].def.burst_coef_a/b)。省略時 a=5 / b=2500。
     const coef_a = CHAR_DEF[owner].burst_coef_a ?? 5;
     const coef_b = CHAR_DEF[owner].burst_coef_b ?? 2500;
-    const capBonus = CHAR_DEF[owner].burstCapBonus?.(this) ?? 0;
+    const capBonus = (CHAR_DEF[owner].burstCapBonus?.(this) ?? 0) + DMG.sub_burst_cap;
     const core = this._decay('burst', naB*(coef_a + bdmg + GEAR.burst_dmg + selfBonus) + coef_b, DMG.decay_burst.cap1*(1+capBonus));
     this.dmg += core + royBurst + passiveFlat;
     if(atk) bset.add(owner);
@@ -1655,6 +1670,9 @@ self.onmessage=function(e){
       if(d.dmgBase.streak_dmgup!=null)            DMG.streak_dmgup=d.dmgBase.streak_dmgup;
       if(d.dmgBase.napo_burst_cd_reduce!=null)    DMG.napo_burst_cd_reduce=d.dmgBase.napo_burst_cd_reduce; }
     recalcGearK();
+    // サブメンバー選択を反映してから buildFormation（subAssists由来の集約 streak_dmgup/sub_burst_dmg/final_dmg を
+    // worker でも正しく算出する。未伝播だと buildFormation がサブ無し前提で再計算しメインスレッドとズレる）。
+    if(d.currentSubs) CURRENT_SUBS = d.currentSubs;
     buildFormation(d.heroKey,d.kamihimeKeys);
     self.postMessage({type:'ready'});
   } else if(d.type==='root'){
@@ -1708,7 +1726,7 @@ function runSim(){
   URL.revokeObjectURL(url); // 全Workerが起動済みなので即revoke可
   _workerPool=workers;
 
-  const initMsg={type:'init',heroKey,kamihimeKeys,gearState:{...GEAR},
+  const initMsg={type:'init',heroKey,kamihimeKeys,currentSubs:[...CURRENT_SUBS],gearState:{...GEAR},
     enemyState:{enemy_def:DMG.enemy_def,enemy_max_hp:DMG.enemy_max_hp},
     gearKC:{...GEAR_K_C},dmgBase:{base_atk:DMG.base_atk,affinity:DMG.affinity,
       streak_dmgup:DMG.streak_dmgup,
