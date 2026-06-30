@@ -488,7 +488,8 @@ const DMG = {
   arrow_mult3: 7,  arrow_cap3: 700000,    // 消費51〜75:  7倍/70万 (闇属性攻撃DOWN25%)
   arrow_mult4: 10, arrow_cap4: 1000000,   // 消費76〜99: 10倍/100万(与ダメージDOWN30%)
   arrow_mult5: 12, arrow_cap5: 1500000,   // 消費100:    12倍/150万(恐傷・必中)
-  //   段階デバフ(状態異常耐性/連続攻撃DOWN/冥闇/闇攻撃DOWN/与ダメDOWN/恐傷)は自軍火力へ直結しないため未モデル化。
+  //   段階付与効果は弱体化(連続攻撃確率DOWN/闇属性攻撃DOWN/与ダメージDOWN)＋状態異常(冥闇/恐傷)で別カテゴリだが、
+  //   いずれも敵側の弱体＝自軍火力に直結しないため未モデル化(テトラの状態異常はDOT4種=猛毒/重炎獄/深溺水/過腐敗)。
   //   ※恐傷の被ダメUPがあれば後続全攻撃を底上げしうる(要実機確認・現状は無視)。
   // 2アビ リファインメントエイド: 味方全体に急所(倍率1.3)＋追撃付与。追撃=全バーストにアビ枠追加ダメ(3倍/30万)。dur3。
   acute_refine: 0.09,         // 急所期待寄与 = 発動率(推定30%)×(倍率1.3-1)。発動率はスキル未記載のため推定・要較正。
@@ -800,6 +801,14 @@ class Sim {
   _naForAbi(){ const na=this._na(); const c1=DMG.decay_na.cap1*(1+(GEAR.na_cap||0)); return na>=c1?this._decay('na',na):na; }
   // 攻撃ロボ(droid_buf): 赤アビ反応毎のアビダメ枠加算(累積可・各スタック dur_droid_buf 持続)
   _droidAbiBuf(){ const n=this.buf.droid_buf?.length||0; return {dmg:n*DMG.abi_dmg_droid, cap:n*DMG.abi_cap_droid}; }
+  // 汎用: ownerのバーストゲージを spent 消費し、アビ枠ダメージ(mult/cap)を加算して use(key) する。
+  // 「ゲージ消費量に応じた段階ダメージ」アビ(アルテミス1)の共通処理。keyは引数=エンジンにキャラ名リテラルなし。
+  _spendGaugeAbi(key, spent, mult, cap, T, ord){
+    const owner=ownerOf(key); this.g[owner]=Math.max(0, this.g[owner]-spent); this._naOwner=owner;
+    const db=this._droidAbiBuf();
+    this.dmg += this._decay('abi', this._naForAbi()*mult*(1+GEAR.abi_dmg+db.dmg), cap*(1+db.cap));
+    this.use(key, T, ord, `(消費${spent})`);
+  }
 
   _decay(frame, raw, base){
     const up = GEAR[frame+'_cap']||0;
@@ -955,9 +964,18 @@ class Sim {
       const cand=ABIL_CANDS[key];
       if(!cand) continue;
       if(cand.guard&&!cand.guard(sim,T,t)) continue;
+      const col=ABIL[key][1];
+      // variants: 1キーから複数の同CD候補を展開する（例: アルテミス1の部分消費＝消費量別tier）。
+      // 各variantは独自key(合成・例 enchant_t3)を持ち _execKey で再生成・実行される。CDは exec 内の use(key) で共有。
+      // 宣言キャラのみ・他キャラ/golden編成では cand.variants 不在＝従来の単一candと完全同一挙動。
+      if(cand.variants){
+        for(const v of cand.variants(sim,T,t))
+          c.push({s:v.s, key:v.key, col, exec:()=>v.exec(sim,T,ord,bset,t),
+                  deploysRobot:!!cand.deploysRobot, prelude:!!cand.prelude});
+        continue;
+      }
       const base=ABIL_BASE_S[key];
       const s=base!==null?base:cand.s(sim,T,t);
-      const col=ABIL[key][1];
       const exec=cand.exec?()=>cand.exec(sim,T,ord,bset,t):()=>sim.use(key,T,ord);
       c.push({s,key,col,exec,deploysRobot:!!cand.deploysRobot,prelude:!!cand.prelude});
     }

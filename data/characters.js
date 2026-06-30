@@ -547,21 +547,21 @@ const CHAR_REGISTRY = {
     labelSuffix: { manapolite:'(全+10)', linkskill:'(全+100)' },
     cdShow: { enchant:"エンチャントアロー", refine:"リファインメント", manapolite:"マナポライト", linkskill:"リンクスキル" },
     cands: {
-      // エンチャントアロー: アルテミスの現バーストゲージを全消費し、消費量で段階(倍率/減衰)を決定するアビ枠ダメージ。
-      // ゲージを消費=FB(攻撃フェイズの100消費バースト)と競合する。目的関数(総ダメージ)が両者を比較し選択する。
-      // s は低め＝静的greedyでは選ばれずビーム(火力駆動)に委ねる。guardで最低tier(消費26)に届く時のみ候補化。
+      // エンチャントアロー: バーストゲージ消費量に応じた段階(倍率/減衰)のアビ枠ダメージ。ゲージ消費=FBと競合し、
+      // 目的関数(総ダメージ)が両者を比較し選択する。s は低め＝静的greedyでは選ばれずビーム(火力駆動)に委ねる。
+      // 【部分消費探索】variants で各tier帯の「最小消費量」を1候補ずつ展開(同一CD・use('enchant')で共有)。
+      //   帯内でそれ以上消費しても同tierで残ゲージが減るだけ＝常に劣るため、各tierは帯の下限消費のみを候補化。
+      //   残ゲージを翌ターンのFBへ温存する押し順を探索できる。基底exec(静的greedy)は到達可能な最大tierで現ゲージ消費。
       enchant: { s:55, guard:(sim)=>sim.g[ownerOf('enchant')]>=26,
-                 exec:(sim,T,ord)=>{ const me=ownerOf('enchant'); const spent=sim.g[me]; sim.g[me]=0;
-                   sim._naOwner=me;
-                   let mult,cap;
-                   if(spent>=100){ mult=DMG.arrow_mult5; cap=DMG.arrow_cap5; }
-                   else if(spent>=76){ mult=DMG.arrow_mult4; cap=DMG.arrow_cap4; }
-                   else if(spent>=51){ mult=DMG.arrow_mult3; cap=DMG.arrow_cap3; }
-                   else if(spent>=26){ mult=DMG.arrow_mult2; cap=DMG.arrow_cap2; }
-                   else { mult=DMG.arrow_mult1; cap=DMG.arrow_cap1; }
-                   const db=sim._droidAbiBuf();
-                   sim.dmg += sim._decay('abi', sim._naForAbi()*mult*(1+GEAR.abi_dmg+db.dmg), cap*(1+db.cap));
-                   sim.use('enchant',T,ord,`(消費${spent})`); }},
+                 variants:(sim)=>{ const g=sim.g[ownerOf('enchant')];
+                   const tiers=[[1,1],[26,2],[51,3],[76,4],[100,5]]; // [帯下限消費, tier番号]
+                   return tiers.filter(([need])=>g>=need).map(([need,ti])=>({
+                     key:'enchant_t'+ti, s:50+ti, // 高tierほど僅かに先頭(同点タイブレーク用・選択は火力駆動)
+                     exec:(sim,T,ord)=>sim._spendGaugeAbi('enchant',need,DMG['arrow_mult'+ti],DMG['arrow_cap'+ti],T,ord)
+                   })); },
+                 exec:(sim,T,ord)=>{ const g=sim.g[ownerOf('enchant')];
+                   const ti=g>=100?5:g>=76?4:g>=51?3:g>=26?2:1;
+                   sim._spendGaugeAbi('enchant',g,DMG['arrow_mult'+ti],DMG['arrow_cap'+ti],T,ord); }},
       // リファインメントエイド: 味方全体に急所(refine_acute・_naで参照)＋追撃(refine_followup・burstで参照)を付与(refresh/dur3)。
       refine: { s:155, atkBuf:true, exec:(sim,T,ord)=>{
                   sim.buf.refine_acute=[DMG.dur_refine];
