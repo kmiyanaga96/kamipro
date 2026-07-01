@@ -1,3 +1,4 @@
+import { DMG, BG, GEAR, CHARS, ABIL, ownerOf, ELEM, LEADER, RENRI_CAP, RENRI_MAX, TENYA_FROM, IFISHANT_MIN_CD, LABEL } from '../src/app.js';
 const DEBUFF_KEYS = new Set(['consort_def', 'divinus_def', 'effond_def', 'nights', 'divinus_dot']);
 const buffCount = sim => Object.entries(sim.buf).reduce((a,[k,v])=>a+(DEBUFF_KEYS.has(k)?0:v.length),0);
 
@@ -618,3 +619,4 @@ const CHAR_REGISTRY = {
     subAssists: { burst_dmg: 0.25, burst_cap: 0.10, final_dmg: 0.10 },
   }
 };
+export { CHAR_REGISTRY, DEBUFF_KEYS, buffCount };

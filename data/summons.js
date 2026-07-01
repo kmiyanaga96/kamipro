@@ -4,3 +4,5 @@ const SUMMON_REGISTRY = {
   catas: { jp:'カタス',       weapon_amp:0.50, atk:0,    hp:0, elem:'light', box:{assault:1.0} },
   oni:   { jp:'鬼',           weapon_amp:0.50, atk:0,    hp:0, elem:'dark',  box:{assault:1.0, spec:0.10} },
 };
+
+export { SUMMON_REGISTRY };

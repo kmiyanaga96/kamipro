@@ -13,14 +13,29 @@
 | サブステップ | 内容 | 状態 |
 |---|---|---|
 | **S5a** | Vite足場（分割せず現 index.html をビルド可能に） | ✅ **完了（2026-06-30）** |
-| S5b | `data/*.js` を ESM 化（export/import） | ⬜ 未着手 |
-| S5c | `src/constants.js` + `src/state.js`（可変グローバル集約）抽出 | ⬜ 未着手 |
-| S5d | `src/sim.js`（class Sim 等）抽出 | ⬜ 未着手 |
-| S5e | `src/worker.js` へ移行し `_buildWorkerCode` 撤廃・**minify有効化** | ⬜ 未着手 |
-| S5f | `src/replay.js`/`ui.js`/`main.js` 抽出・INIT配線 | ⬜ 未着手 |
+| **S5b〜f（協調ESM化フリップ）** | data ESM化＋`src/app.js`外部化＋`src/worker.js`＋index.html module化＋`_buildWorkerCode`撤廃＋minify有効化 | ✅ **完了（2026-06-30）** |
+| （残・任意/低リスク） | `src/app.js` を `constants.js`/`state.js`/`sim.js`/`ui.js` へ内部分割 | ⬜ 未着手 |
 
 **採用案**: A案（フルVite・bundler+build）。「ビルド不要・index.html直開き」原則は放棄済み
 （将来 `vite-plugin-singlefile` で直開き性を回復する逃げ道は残る）。
+
+### ✅ 協調ESM化フリップ 完了サマリ（2026-06-30）
+現行アーキテクチャ（この構成が現在の正）:
+- `index.html` = 薄いシェル（`<script type="module" src="/src/app.js">`）。
+- `src/app.js` = エンジン＋UI（旧 inline engine-code を移設）。先頭で data を import／末尾で公開 export＋`setCurrentSubs`＋
+  window ブリッジ（onclick 用）。INIT は `if(typeof document!=='undefined')` ガード。
+- `src/worker.js` = ESM Worker（`new Worker(new URL('./worker.js',import.meta.url),{type:'module'})` で Vite 自動バンドル）。
+- `data/*.js` = ESM（characters は `../src/app.js` から遅延参照記号を import）。
+- `package.json` に `"type":"module"`（node が .js を ESM 解釈）。`vite.config.mjs` は minify 既定(ON)・copyプラグイン撤去。
+- **旧 `_buildWorkerCode`（slice＋`__FUNC__` serialize）は撤廃済み**。
+- 検証（全パス）: `npm run test:golden`＝175,023,298/FB10 ／ node `_runRootPlan([],10)`＝175,023,298 ／
+  `npm run build` OK（worker 別チャンク・minify ON）／ built dist を `vite preview`(http) で Chromium 検証＝
+  window ブリッジ・INIT・**ESM worker 起動(workerCreated)**・runSim 結果描画・中断復帰・**console/pageエラー無し**。
+- ⚠ **ESM は file:// 直開き不可（CORS）**。ローカル確認は `npm run dev` か `npm run build && npm run preview`。
+
+### ⚠ 残タスク（次エージェント）
+- **CLAUDE.md / .agents/AGENTS.md の単一ファイル前提の記述を更新**（Worker slice 不変条件の削除、検証方法を `npm run test:golden` へ、コード地図を src/ 構成へ）。CLAUDE.md の 検証方法・Worker注記は本フリップで一部更新済み。AGENTS.md は未反映＝要対応。
+- （任意）`src/app.js` の内部分割（constants/state/sim/ui）。純内部リファクタ・低リスク・各段で `npm run test:golden`。
 
 ---
 

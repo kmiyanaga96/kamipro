@@ -82,3 +82,5 @@ const WEAPON_MASTER = {
     ],
   },
 };
+
+export { WEAPON_MASTER };

@@ -1,12 +1,14 @@
 {
   "name": "kamipro-burst-tracker",
   "private": true,
+  "type": "module",
   "version": "0.0.0",
-  "description": "神姫PROJECT R バーストトラッカー（Phase5 S5: Vite移行の足場。現状は単一 index.html をそのままビルド）",
+  "description": "神姫PROJECT R バーストトラッカー（Phase5 S5・A案 Vite/ESM モジュール構成）",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:golden": "node test/golden.mjs"
   },
   "devDependencies": {
     "vite": "^5.4.11"

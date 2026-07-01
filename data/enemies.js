@@ -32,3 +32,5 @@ const ENEMY_REGISTRY = {
     affinity: 1.5,         // 光→幻=有利×1.5 [実機]（幻は相互有利: 全属性⇄幻が互いに有利。等倍ではない）
   },
 };
+
+export { ENEMY_REGISTRY };
