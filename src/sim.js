@@ -44,16 +44,10 @@ class Sim {
     this.cum+=gain;
   }
 
-  // 減衰(上限)モデル: 計算ダメージ raw → 実ダメージ。区分線形で寄与率(slope)を逓減する。
-  // frame: 'na'(35/45/55万実ダメ・第1上限のみ×cap_up・第2/第3は+10万/+20万固定・全½傾き反復) / 'burst'(100万・1→1/10)
-  //        / 'abi'(base=キャラ毎・1→0.04=1/25) / 'hard'(追撃/城塞・寄与率0=完全頭打ち)。
-  // 通常攻撃が上限到達時はアビダメ計算基準をdecay(na)に切替(_naForAbi)。抽象スケールでは全休眠。
-  // アビダメ計算基準: 通常攻撃が上限到達時は減衰後naをbase(na_dmg・テクニカ不適用)。未到達はna()そのまま。
+  // 減衰(上限)モデル: 計算ダメージ raw → 実ダメージ。
   _naForAbi(){ const na=this._na(); const c1=DMG.decay_na.cap1*(1+(GEAR.na_cap||0)); return na>=c1?this._decay('na',na):na; }
-  // 攻撃ロボ(droid_buf): 赤アビ反応毎のアビダメ枠加算(累積可・各スタック dur_droid_buf 持続)
   _droidAbiBuf(){ const n=this.buf.droid_buf?.length||0; return {dmg:n*DMG.abi_dmg_droid, cap:n*DMG.abi_cap_droid}; }
   // 汎用: ownerのバーストゲージを spent 消費し、アビ枠ダメージ(mult/cap)を加算して use(key) する。
-  // 「ゲージ消費量に応じた段階ダメージ」アビ(アルテミス1)の共通処理。keyは引数=エンジンにキャラ名リテラルなし。
   _spendGaugeAbi(key, spent, mult, cap, T, ord){
     const owner=ownerOf(key); this.g[owner]=Math.max(0, this.g[owner]-spent); this._naOwner=owner;
     const db=this._droidAbiBuf();
@@ -64,7 +58,6 @@ class Sim {
   _decay(frame, raw, base){
     const up = GEAR[frame+'_cap']||0;
     if(frame==='na'){
-      // 第1上限のみcap_up×。第2/第3は+10万/+20万の固定オフセット。各超過分に½を反復適用(有志確定)。
       const c1=DMG.decay_na.cap1*(1+up), c2=c1+100000, c3=c1+200000;
       let r=raw;
       if(r>c1) r=c1+(r-c1)*0.5;
@@ -77,8 +70,7 @@ class Sim {
       return raw<=c1 ? raw : c1+(raw-c1)*DMG.decay_burst.slope;
     }
     if(frame==='streak'){
-      // バーストストリーク専用減衰。base=参加人数(2〜5)。第一/第二減衰はraw実ダメ閾値。
-      // raw≤c1:等倍 / c1〜c2:超過分×slope1(0.25) / c2超:超過分×slope2(0.40)。限界寄与率は人数共通。
+      // バーストストリーク減衰。base=参加人数(2〜5)。
       const d=DMG.decay_streak, cap=d.caps[base??5]||d.caps[5], c1=cap[0], c2=cap[1];
       if(raw<=c1) return raw;
       if(raw<=c2) return c1+(raw-c1)*d.slope1;
@@ -88,28 +80,23 @@ class Sim {
       const c1=(base??Infinity)*(1+up);
       return raw<=c1 ? raw : c1+(raw-c1)*DMG.decay_abi_slope;
     }
-    return Math.min(raw, (base??Infinity)*(1+up)); // hard(追撃/城塞): 寄与率0
+    return Math.min(raw, (base??Infinity)*(1+up)); // hard: 寄与率0
   }
 
-  // 概算通常攻撃ダメージ(中央値): バフ期間管理辞書(buf)から動的に枠を計算する。
-  // 各バフキーのスタック数が実効枠値を決定し、失効スタックは tick() で除去済み。
-  // ※ フレーム別ダメージUP(na_dmg/abi_dmg/burst_dmg)は base に含めず、各フレームの加算点で乗じる。
-  // technicaはGEAR_Kに含まれない(na_dmgへ移動済み)のでバースト基準も_na()そのまま。
+  // 概算通常攻撃ダメージ
   _na(){
     const D=DMG, b=this.buf, G=GEAR;
     const nAbs=b.absolute?.length||0, nPuv=b.puvoir?.length||0;
     const nBan=b.banoshik?.length||0, nLeg=b.legend?.length||0;
     const nPikeCrit=b.pike_crit?.length||0;
-    const nPuvAcute=b.puvoir_acute?.length||0;  // プヴワール急所(ムーンコード時のみpush)
-    // ムーンコード自己バフ(ヘカテー2アシ): 発動中かつ攻撃者がムーンコード所有者(=effond所有者)のみ。
-    // 旺盛/会心をヘカテー自身の_na()に加算する(party全体ではなく自己バフ)。
+    const nPuvAcute=b.puvoir_acute?.length||0;  // プヴワール急所
+    // ムーンコード自己バフ(ヘカテー2アシ)
     const mc = (ABIL.effond && this.mooncode>0 && this._naOwner===ownerOf('effond')) ? 1 : 0;
-    // アサルト枠: banoshik/absolute + legend(契晶) + フレイヤ累積攻撃UP + 装備
+    // アサルト枠
     const fAslt = (this._naOwner && this['freyja_a_' + this._naOwner]) || 0;
     const aslt = nBan*D.assault_banoshik + nAbs*D.assault_absolute
                + (b.leg_aslt?D.assault_legend:0) + G.assault + fAslt;
-    // 属性値枠: 属性相性(affinity・実機式では枠内に加算) + puvoir(光) + ヤマトバースト + 装備。
-    // 実機式の属性枠 = (属性相性 + 属性値UP幻獣 + 属性値 + 属性バフ + アシスト)。先頭1+ではなくaffinityが基底。
+    // 属性値枠
     const nYel=b.yamato_elem?.length||0;
     const elemBox = D.affinity + nPuv*D.elem_puvoir + nYel*D.elem_yamato + G.elem;
     // 旺盛枠: absolute/leg_vigor/pike(光) + 装備。+100%上限(フルHP前提)

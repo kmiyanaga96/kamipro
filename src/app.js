@@ -557,19 +557,10 @@ function cardHTML(r,first=false){
   </div>`;
 }
 
-// ===== Web Worker プール (Blob・ルート分散) =====
-// ビームサーチ単体は「今すぐの価値が低いが後続の押し順次第で伸びる」候補(例: 補助ロボ起動の
-// 直後に複数の黄アビを連打するシナジー)をBEAM_W幅のカットで早期に切り落としてしまう
-// (詳細はCLAUDE.md「ビームのランキング」節)。これを安価に補うため、T1開幕の候補ごとに
-// 開幕を強制した独立ビームサーチ(=ルート)を enumerateRootPrefixes() で汎用列挙し、
-// navigator.hardwareConcurrency 分のWorkerプールに分散して並列実行、最終ダメージ最大の
-// ルートを採用する。各ルートの実コストは従来の単体ビームと同等(~15s)なので、
-// P並列なら ceil((K+1)/P)×15s 程度のライブ再計算時間で済む。
-// Workerは {type:'init',...} で1回初期化後、{type:'root',...}/{type:'baseline',...} タスクを
-// 受け取り次第処理して結果を返す(タスクキューはメインスレッドが管理)。
+// ===== Web Worker プール =====
+// T1の開幕候補ごとにWorkerへ分散して並列実行し、最終ダメージ最大のルートを採用する。
 let _workerPool=null, _workerCodeCache=null;
-// Phase5-S3: 中断フラグ。runSim/フォールバック開始時に false、cancelSim()で true。
-// 遅延到着メッセージ・フォールバックループの停止判定に使う。
+// 中断フラグ。runSim/フォールバック開始時に false、cancelSim()で true。
 let _simCancelled=false;
 
 function _terminateWorkerPool(){
