@@ -201,11 +201,17 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
 /* Phase5-S2: 探索進捗の可視化(プログレスバー/ターンチップ/ETA) */
 .sim-prog-wrap{width:min(420px,90%);display:flex;flex-direction:column;gap:8px;margin-top:4px;}
 .sim-prog-bar{height:8px;background:var(--border);border-radius:4px;overflow:hidden;}
-.sim-prog-fill{height:100%;width:0;background:var(--accent);border-radius:4px;transition:width .2s ease;}
+.sim-prog-fill{height:100%;width:0;border-radius:4px;transition:width .2s ease;
+  background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent));
+  background-size:200% 100%;animation:progShimmer 1.4s linear infinite;}
+@keyframes progShimmer{to{background-position:-200% 0;}}
 .sim-prog-chips{display:flex;flex-wrap:wrap;gap:4px;justify-content:center;}
 .sim-prog-chip{font-size:10px;padding:2px 6px;border-radius:4px;background:var(--border);color:var(--muted);transition:background .2s ease,color .2s ease;}
 .sim-prog-chip.done{background:var(--green);color:#fff;}
 .sim-prog-eta{font-size:11px;color:var(--muted);text-align:center;}
+.sim-cancel-btn{margin-top:4px;font-size:12px;padding:5px 16px;border:1px solid var(--border);
+  border-radius:6px;background:transparent;color:var(--muted);cursor:pointer;}
+.sim-cancel-btn:hover{border-color:var(--accent2);color:var(--accent2);}
 
 .gear-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:8px;}
 .gear-sub{font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px;}
@@ -261,10 +267,11 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
       <div class="spin-msg">最適押し順を計算中…</div>
       <div id="spin-progress" class="spin-sub" aria-live="polite">準備中</div>
       <div id="sim-prog-wrap" class="sim-prog-wrap" style="display:none;">
-        <div class="sim-prog-bar"><div id="sim-prog-fill" class="sim-prog-fill"></div></div>
+        <div id="sim-prog-bar" class="sim-prog-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="sim-prog-fill" class="sim-prog-fill"></div></div>
         <div id="sim-prog-chips" class="sim-prog-chips"></div>
         <div id="sim-prog-eta" class="sim-prog-eta" aria-live="polite"></div>
       </div>
+      <button id="sim-cancel" class="sim-cancel-btn" onclick="cancelSim()">中断</button>
     </div>
     <div id="sim-results"></div>
 
@@ -1628,9 +1635,20 @@ function cardHTML(r,first=false){
 // Workerは {type:'init',...} で1回初期化後、{type:'root',...}/{type:'baseline',...} タスクを
 // 受け取り次第処理して結果を返す(タスクキューはメインスレッドが管理)。
 let _workerPool=null, _workerCodeCache=null;
+// Phase5-S3: 中断フラグ。runSim/フォールバック開始時に false、cancelSim()で true。
+// 遅延到着メッセージ・フォールバックループの停止判定に使う。
+let _simCancelled=false;
 
 function _terminateWorkerPool(){
   if(_workerPool){ for(const w of _workerPool) w.terminate(); _workerPool=null; }
+}
+
+// Phase5-S3: 探索の中断。Worker経路はプール破棄、フォールバックは _simCancelled で次ルートを止める。
+// 中断後はプレースホルダへ復帰(clearSim)。以降の遅延メッセージは各ハンドラの _simCancelled ガードで無視。
+function cancelSim(){
+  _simCancelled=true;
+  _terminateWorkerPool();
+  clearSim();
 }
 
 // 採用ルート確定後の共通仕上げ: SIM_ROWS反映→カード描画→サマリー(renderSim)。
@@ -1653,8 +1671,11 @@ function _initSimProgress(n){
   wrap.style.display='flex';
 }
 function _updateSimProgress(completedSteps, totalSteps, baselineTurn, startTime){
+  const pct=totalSteps>0?Math.min(100,completedSteps/totalSteps*100):0;
   const fill=document.getElementById('sim-prog-fill');
-  if(fill) fill.style.width=(totalSteps>0?Math.min(100,completedSteps/totalSteps*100):0)+'%';
+  if(fill) fill.style.width=pct+'%';
+  const bar=document.getElementById('sim-prog-bar');  // Phase5-S4: aria-valuenow を同期(読み上げ)
+  if(bar) bar.setAttribute('aria-valuenow', Math.round(pct));
   // ターンチップ: 代表ルート(baseline=空prefix)の到達ターンまでを done 表示(計画 §5.2-2)
   const chips=document.getElementById('sim-prog-chips');
   if(chips) for(const c of chips.children){ c.classList.toggle('done', (+c.dataset.t)<=baselineTurn); }
@@ -1747,6 +1768,7 @@ function runSim(){
   prog.textContent='準備中';
 
   SIM_ROWS=[];
+  _simCancelled=false;  // Phase5-S3: 新規探索開始でリセット
 
   // 既存プールを破棄して新規生成
   _terminateWorkerPool();
@@ -1786,7 +1808,7 @@ function runSim(){
   function dispatch(w){ if(nextTask<total) w.postMessage(tasks[nextTask++]); }
 
   function onAllDone(){
-    if(failed) return;
+    if(failed||_simCancelled) return;
     _workerPool=null;
     rootResults.sort((a,b)=>b.dmg-a.dmg);
     _finishSim(rootResults[0], baseDmg);
@@ -1794,6 +1816,7 @@ function runSim(){
 
   for(const w of workers){
     w.onmessage=function(e){
+      if(_simCancelled) return;  // Phase5-S3: 中断後の遅延メッセージを無視
       const d=e.data;
       if(d.type==='ready'){ dispatch(w); return; }
       if(d.type==='progress'){
@@ -1823,6 +1846,7 @@ function runSim(){
 function _fallbackRunSim(heroKey,kamihimeKeys,n){
   const prog=document.getElementById('spin-progress');
   document.getElementById('sim-loading').classList.add('active');
+  _simCancelled=false;  // Phase5-S3: フォールバック開始でリセット(runSim未経由の直接呼び出しにも対応)
   setTimeout(()=>{
     buildFormation(heroKey,kamihimeKeys); applyGear();
     const prefixes=_selectRootPrefixes(n); // 本選と同じ2段選抜(フォールバックも上位PREFIX_TOPK本のみ)
@@ -1832,9 +1856,11 @@ function _fallbackRunSim(heroKey,kamihimeKeys,n){
     let best=null;
     let i=0;
     function nextRoute(){
+      if(_simCancelled) return;  // Phase5-S3: 中断でフォールバックループ停止
       if(i<prefixes.length){
         prog.textContent=`ルート ${i+1}/${prefixes.length} 計算中(非並列フォールバック)…`;
         setTimeout(()=>{
+          if(_simCancelled) return;
           const r=_runRootPlan(prefixes[i],n,()=>{ completedSteps++; });
           if(!best||r.dmg>best.dmg) best=r;
           i++;
