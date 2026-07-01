@@ -384,8 +384,8 @@ class Sim {
       // (=純ダメージ最大)。∴ 最終選択は現状と同一以上(ダメージ単調)・golden は top 経路を必ず含む。
       const top=next.slice(0,beamW);
       if(BEAM_DIVERSITY_K>0 && next.length>beamW){
-        const inTop=new Set(top);
-        const extra=next.filter(e=>!inTop.has(e)).sort((a,b)=>(b.orth||0)-(a.orth||0)).slice(0,BEAM_DIVERSITY_K);
+        // nextは既にcmpVecでソート済みなため、top以外の要素は単にnext.slice(beamW)で取得可能です
+        const extra=next.slice(beamW).sort((a,b)=>(b.orth||0)-(a.orth||0)).slice(0,BEAM_DIVERSITY_K);
         beam=extra.length?top.concat(extra):top;
       } else beam=top;
     }

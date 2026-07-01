@@ -817,7 +817,7 @@ function renderFormationPanel(){
   const kamihime = Object.entries(CHAR_REGISTRY).filter(([,v])=>v.type==='kamihime');
 
   const heroHtml = heroes.map(([k,v])=>`
-    <input class="hero-card" type="radio" name="hero-sel" id="hr-${k}" value="${k}" ${LEADER===k?'checked':''}>
+    <input class="hero-card" type="radio" name="hero-sel" id="hr-${k}" value="${k}" ${LEADER===k?'checked':''} onchange="syncSlots()">
     <label for="hr-${k}">${v.jp}</label>`).join('');
 
   const kamOptions = kamihime.map(([k,v])=>`<option value="${k}">${v.jp}</option>`).join('');
@@ -890,6 +890,18 @@ function syncSlots(overrideVals){
       }
     }
   });
+  // メインスレッドかつUI変更時の場合、編成状態を即座に更新して上部の編成バッジを同期する
+  if (typeof window !== 'undefined' && !overrideVals) {
+    const heroEl = document.querySelector('input[name="hero-sel"]:checked');
+    if (heroEl) {
+      const kamihimeKeys = [0,1,2,3].map(i => document.getElementById(`kslot-${i}`)?.value || '');
+      // 4人全員が選択されているときのみ buildFormation を走らせる
+      if (kamihimeKeys.every(k => k)) {
+        buildFormation(heroEl.value, kamihimeKeys);
+        renderParty();
+      }
+    }
+  }
 }
 
 // ===== 装備設定UI =====
