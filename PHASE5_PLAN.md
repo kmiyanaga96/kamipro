@@ -97,18 +97,73 @@ graph LR
 
 ## 6. 段階実装ステップ
 
-### 6.1 前半：待機UXの刷新
-*   **S1（足場・低リスク）**: 進捗フックの配管（engine slice にオプショナルフック追加 → Worker/フォールバックで postMessage 化）。UI は既存テキストのまま。**数値・挙動不変を確認**。
-*   **S2（可視化）**: プログレスバー＋ターン別チップ＋経過/ETA を `#sim-loading` に追加（CSS/HTML/更新ロジック）。
-*   **S3（中断）**: キャンセルボタン＋Worker terminate／フォールバック中断フラグ。中断後の状態復帰。
-*   **S4（演出）**: アニメーション・レイアウト刷新。アクセシビリティ（aria-live で進捗読み上げ）。
+### 6.1 前半：待機UXの刷新 ✅ **実装済み（2026-06-30・main反映）**
+*   **S1（足場・低リスク）** ✅: 進捗フックの配管。`_runRootPlan`/`_runBaselinePlan` に副作用専用 `onTurn(t)`（省略時=戻り値不変）を追加、Worker entry が `postMessage({type:'progress',rootId,t})` を注入。本体に self/document 参照を置かず slice 不変条件を維持。
+*   **S2（可視化）** ✅: プログレスバー＋ターン別チップ（代表ルート=baseline到達で done）＋経過/ETA を `#sim-loading` に追加。総ステップ=タスク数×n。
+*   **S3（中断）** ✅: 「中断」ボタン＋`cancelSim()`（`_simCancelled`→プール破棄→clearSim復帰）。worker/フォールバックに遅延メッセージ無視ガード。
+*   **S4（演出）** ✅: `role=progressbar`+`aria-valuenow`同期、バーのシマー演出、`aria-live`。
+*   **検証**: golden=175,023,298 不変 / Worker再現 / インラインJS `node --check` / ブラウザ実機(Chromium)スモーク（進捗更新・結果描画・中断復帰・エラー無し）。
 
-### 6.2 後半：開発環境のモジュール化刷新 (Vite導入)
-*   **S5（開発環境の移行）**:
-    - Viteのセットアップ（`vite.config.js`、`package.json` の整備）。
-    - 単一ファイル `index.html` から、シミュレーションエンジン（`Sim.js`）、アビリティデータ（`characters.js`、`weapons.js` 等）、Web Worker用スクリプト（`worker.js`）、UI記述（`ui.js`）へとソースコードを解体・物理分割。
-    - `_buildWorkerCode` によるスライス職人芸コードを完全廃止し、Viteの Worker バンドル機能（例: `new Worker(new URL('./worker.js', import.meta.url), {type: 'module'})`）へ移行。
-    - バンドラを通した最終出力（`dist/`）で、検証ワンライナーが **`175,023,298` 不変**で実行・パスできることを徹底検証する。
+### 6.2 後半：開発環境のモジュール化刷新 (Vite導入) — **本設計（A案採用・2026-06-30）**
+
+> **決定**: 3案（A=フルVite／B=素のESM無バンドラ／C=Vite+singlefile）から **A案（フルVite・bundler+build）を採用**（ユーザー決定 2026-06-30）。
+> **原則転換**: 「外部ビルド不要・index.html直開き」を放棄し、開発は Vite dev server、配布は `vite build`→`dist/`（静的ホスト or `vite preview`）とする。
+> 直開き性が将来必要になれば `vite-plugin-singlefile`（単一自己完結HTML出力）を後付けでき、逃げ道は残る（今回は非採用）。
+> **非目標厳守**: 探索アルゴリズム・火力モデル・ゴールデン値（`175,023,298`）は不変。全 S5 サブステップで回帰アサート。
+
+#### 6.2.1 目標モジュール構成（`src/`）
+```
+src/
+  constants.js   // 葉モジュール(import無し): 定数 BG / DMG / GEAR / GEAR_BOXES / 各種上限
+  state.js       // 可変クロス状態の唯一の所有者: CHARS/LEADER/ABIL/CHAR_DEF/ABIL_KEYS…と
+                 //   ミューテータ buildFormation()/applyGear()/recalcGearK()。読み手は live binding を import のみ
+  data/
+    characters.js // export const CHAR_REGISTRY(フック内で constants/state を遅延参照)
+    weapons.js  summons.js  enemies.js
+  sim.js         // class Sim, cmpVec, enumerateRootPrefixes, _runRootPlan, _runBaselinePlan
+  worker.js      // Worker entry: import {Sim,_runRootPlan…}。new Worker(new URL(...),{type:'module'})で起動
+  replay.js  ui.js  main.js  // UI/INIT。DOM依存はここに隔離
+index.html       // Viteエントリ(薄いシェル): <script type="module" src="/src/main.js">
+vite.config.js  package.json
+test/golden.test.js // vitest: src を import して 175,023,298 をアサート
+```
+
+#### 6.2.2 中核設計：可変グローバル → ESM live binding（R1/R2）
+現行の「`buildFormation`/`applyGear` が module-level `let` を再代入し `Sim`/`_na`/フックがグローバル参照」を ESM へ写す要:
+- **再代入は所有モジュール内のみ**: `CHARS/ABIL/CHAR_DEF/ABIL_KEYS/GEAR_K/GEAR_K_C…` は `state.js` が `export let` で所有し、`buildFormation`/`applyGear` も `state.js` に置く。他モジュールは **import した live binding を読むだけ（再代入禁止）**。ESMのライブバインディングは所有側の再代入を読み手へ反映するため現行の挙動を保てる。
+- **循環importの回避/無害化**: `sim.js`↔`data/characters.js` の相互依存（simはCHAR_REGISTRY要／charactersはDMG/BG/ownerOf/ABIL要）は、参照される側（`DMG/BG`=constants、`ownerOf/ABIL/CHARS`=state）を**葉側に寄せ**、フック内参照は**遅延（呼出時）**に限定する（＝現行のロード順不変条件と同一規律）。トップレベル即時参照は厳禁。
+
+#### 6.2.3 Worker移行（slice職人芸・関数serialize の撤廃）
+- `_buildWorkerCode`（textContent slice＋`__FUNC__`serialize/deserialize）を**全廃**。`worker.js` が `Sim`/registry を通常 import。
+- 起動は `new Worker(new URL('./worker.js', import.meta.url), {type:'module'})`。
+- init で渡すのは**実行時設定のみ**（`GEAR`値/enemy/`GEAR_K_C`/`dmgBase`）。registry はモジュール共有のため**関数の受け渡し不要**＝serialize不整合リスクが消滅。
+
+#### 6.2.4 段階サブステップ（各段で golden＋Worker再現＋ブラウザスモークを必須ゲート）
+- **S5a**: Vite足場のみ。分割せず現 index.html を Vite 経由でビルド/起動でき golden が通ることを確認（ツールチェーン確立）。
+- **S5b**: `data/*.js` を ESM 化（export/import）。
+- **S5c**: `constants.js` + `state.js`（可変状態集約）抽出（R1/R2の要・最重要）。
+- **S5d**: `sim.js` 抽出。
+- **S5e**: `worker.js` へ移行し `_buildWorkerCode` 撤廃。
+- **S5f**: `replay.js`/`ui.js`/`main.js` 抽出。INIT配線。
+- 各段はブランチ上・**純機械的移設（ロジック改変ゼロ）**・parity確認まで旧 index.html を参照保持＝**いつでも中断/巻き戻し可能**。
+
+#### 6.2.5 リスクと対策（本設計の要約）
+| # | リスク | 対策 |
+|---|---|---|
+| R1 | 可変グローバル→ESM binding で stale/undefined | 可変状態＋ミューテータを `state.js` に集約、読み手は live binding import のみ。Sim が再代入後の状態を見るスモーク |
+| R2 | 循環import（sim↔characters） | 被参照を葉(constants/state)へ寄せ、フック内は遅延参照のみ。トップレベル即時参照禁止 |
+| R3 | golden ドリフト（移設で順序/タイブレーク変化） | 純機械的移設。移行前に vitest golden を整備し各段で実行。ABIL挿入順・`>`タイブレークを厳守 |
+| R4 | Worker parity | worker再現テストを built `dist` で実行し init→root→baseline=175,023,298 |
+| R5 | 直開き性喪失（原則転換） | A案の既定として受容（dist配布/preview）。必要時 singlefile プラグインで回復可 |
+| R6 | 検証ワークフロー破壊（slice ワンライナー無効） | vitest/Node-ESM golden へ置換。移行中は旧slice併存（inline撤去まで） |
+| R7 | コンテナ/proxy（npm install・dev serverポート） | dev server依存を避け `vite build`→静的dist を Playwright 検証（再現性） |
+| R8 | 単一ファイル前提の不変条件（CLAUDE.md/AGENTS.md） | S5で更新: **Worker slice不変条件は削除**、load順→import graph規律へ、検証方法を vitest へ差替。Antigravity と同期 |
+
+#### 6.2.6 完了条件（Definition of Done）
+- `npm run build` で `dist/` 生成、`dist` 実機（Chromium）で探索が動作しエラー無し。
+- vitest golden = **175,023,298 / FullBurst 10/10**、Worker再現（built）= 175,023,298。
+- `_buildWorkerCode` 全廃・`__FUNC__` serialize 消滅。
+- CLAUDE.md / .agents/AGENTS.md の該当不変条件・検証方法を更新済み。
 
 ---
 
