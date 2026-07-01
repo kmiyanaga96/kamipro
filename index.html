@@ -198,6 +198,14 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
 .pc-hp{font-size:10px;color:var(--accent2);margin-left:3px;}
 .spin-msg{font-size:13px;color:var(--muted);}
 .spin-sub{font-size:11px;color:var(--muted);opacity:0.7;}
+/* Phase5-S2: 探索進捗の可視化(プログレスバー/ターンチップ/ETA) */
+.sim-prog-wrap{width:min(420px,90%);display:flex;flex-direction:column;gap:8px;margin-top:4px;}
+.sim-prog-bar{height:8px;background:var(--border);border-radius:4px;overflow:hidden;}
+.sim-prog-fill{height:100%;width:0;background:var(--accent);border-radius:4px;transition:width .2s ease;}
+.sim-prog-chips{display:flex;flex-wrap:wrap;gap:4px;justify-content:center;}
+.sim-prog-chip{font-size:10px;padding:2px 6px;border-radius:4px;background:var(--border);color:var(--muted);transition:background .2s ease,color .2s ease;}
+.sim-prog-chip.done{background:var(--green);color:#fff;}
+.sim-prog-eta{font-size:11px;color:var(--muted);text-align:center;}
 
 .gear-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:8px;}
 .gear-sub{font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px;}
@@ -251,7 +259,12 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
     <div id="sim-loading" class="sim-loading">
       <div class="spin"></div>
       <div class="spin-msg">最適押し順を計算中…</div>
-      <div id="spin-progress" class="spin-sub">準備中</div>
+      <div id="spin-progress" class="spin-sub" aria-live="polite">準備中</div>
+      <div id="sim-prog-wrap" class="sim-prog-wrap" style="display:none;">
+        <div class="sim-prog-bar"><div id="sim-prog-fill" class="sim-prog-fill"></div></div>
+        <div id="sim-prog-chips" class="sim-prog-chips"></div>
+        <div id="sim-prog-eta" class="sim-prog-eta" aria-live="polite"></div>
+      </div>
     </div>
     <div id="sim-results"></div>
 
@@ -1256,17 +1269,19 @@ function enumerateRootPrefixes(){
 // ルート分散の1ルート実行: 開幕prefixを強制してnターン完遂し {prefix,dmg,rows} を返す。
 // Worker側(タスク処理)とメインスレッドのフォールバック双方から呼ぶ唯一の実装(prefix強制の
 // 手順をここに集約し二重管理を防ぐ)。rowsはgreedyTakeTurnの戻り値配列=構造化複製可能。
-function _runRootPlan(prefix, n){
+// Phase5-S1: onTurn(t) は各ターン完遂後に呼ばれる副作用専用フック(省略時=完全に従来通り＝戻り値不変)。
+// Worker側は self.postMessage で進捗通知、フォールバックはUI更新に使う。本体に self/document 参照は置かない(slice不変条件)。
+function _runRootPlan(prefix, n, onTurn){
   const sim=new Sim(); sim.totalTurns=n;
   if(prefix.length){ sim._forcePrefix=prefix; sim._forceTurn=1; }
-  const rows=[]; for(let t=1;t<=n;t++) rows.push(sim.greedyTakeTurn(t));
+  const rows=[]; for(let t=1;t<=n;t++){ rows.push(sim.greedyTakeTurn(t)); if(onTurn) onTurn(t); }
   return {prefix, dmg:sim.dmg, rows};
 }
 
 // 基準シム(静的greedyのみ・planDepth=2で強制): 対基準比の分母に使う総ダメージを返す。
-function _runBaselinePlan(n){
+function _runBaselinePlan(n, onTurn){
   const base=new Sim(); base.totalTurns=n; base.planDepth=2;
-  for(let t=1;t<=n;t++) base.greedyTakeTurn(t);
+  for(let t=1;t<=n;t++){ base.greedyTakeTurn(t); if(onTurn) onTurn(t); }
   return base.dmg;
 }
 
@@ -1628,6 +1643,30 @@ function _finishSim(best, baseDmg){
   renderSim(baseDmg, best ? best.prefix : []);
 }
 
+// Phase5-S2: 探索進捗UI(プログレスバー/ターンチップ/ETA)。runSim・フォールバック共用の純UI関数。
+function _initSimProgress(n){
+  const wrap=document.getElementById('sim-prog-wrap');
+  const chips=document.getElementById('sim-prog-chips');
+  chips.innerHTML=Array.from({length:n},(_,i)=>`<span class="sim-prog-chip" data-t="${i+1}">T${i+1}</span>`).join('');
+  document.getElementById('sim-prog-fill').style.width='0%';
+  document.getElementById('sim-prog-eta').textContent='';
+  wrap.style.display='flex';
+}
+function _updateSimProgress(completedSteps, totalSteps, baselineTurn, startTime){
+  const fill=document.getElementById('sim-prog-fill');
+  if(fill) fill.style.width=(totalSteps>0?Math.min(100,completedSteps/totalSteps*100):0)+'%';
+  // ターンチップ: 代表ルート(baseline=空prefix)の到達ターンまでを done 表示(計画 §5.2-2)
+  const chips=document.getElementById('sim-prog-chips');
+  if(chips) for(const c of chips.children){ c.classList.toggle('done', (+c.dataset.t)<=baselineTurn); }
+  // ETA: 完了ステップあたり平均所要 × 残ステップ(計画 §5.2-3)
+  const eta=document.getElementById('sim-prog-eta');
+  if(eta && completedSteps>0){
+    const elapsed=(performance.now()-startTime)/1000;
+    const remain=Math.max(0,totalSteps-completedSteps)*(elapsed/completedSteps);
+    eta.textContent=`経過 ${elapsed.toFixed(1)}s ・ 残り約 ${remain.toFixed(1)}s`;
+  }
+}
+
 function _buildWorkerCode(){
   // index.html の <script id="engine-code"> textContent から // ===== ゲーム定数 〜 // ===== UI HELPERS 直前までの
   // エンジンコードを抽出。textContent は生ソース(HTMLエスケープ無し)を返すため `<`/`>`/`&` 等の演算子が壊れない。
@@ -1676,9 +1715,9 @@ self.onmessage=function(e){
     buildFormation(d.heroKey,d.kamihimeKeys);
     self.postMessage({type:'ready'});
   } else if(d.type==='root'){
-    self.postMessage({type:'rootResult', rootId:d.rootId, ..._runRootPlan(d.prefix,d.n)});
+    self.postMessage({type:'rootResult', rootId:d.rootId, ..._runRootPlan(d.prefix,d.n,(t)=>self.postMessage({type:'progress',rootId:d.rootId,t}))});
   } else if(d.type==='baseline'){
-    self.postMessage({type:'baselineResult', baseDmg:_runBaselinePlan(d.n)});
+    self.postMessage({type:'baselineResult', baseDmg:_runBaselinePlan(d.n,(t)=>self.postMessage({type:'progress',rootId:'baseline',t}))});
   }
 };
 `;
@@ -1740,6 +1779,10 @@ function runSim(){
   let nextTask=0, done=0; const total=tasks.length;
   const rootResults=[]; let baseDmg=0, failed=false;
 
+  // Phase5-S2: per-turn 進捗(総ステップ=タスク数×n)。各Workerの{type:'progress'}を集計しバー/チップ/ETAを更新。
+  const totalSteps=total*n; let completedSteps=0; const turnByRoot={}; const startTime=performance.now();
+  _initSimProgress(n);
+
   function dispatch(w){ if(nextTask<total) w.postMessage(tasks[nextTask++]); }
 
   function onAllDone(){
@@ -1753,6 +1796,12 @@ function runSim(){
     w.onmessage=function(e){
       const d=e.data;
       if(d.type==='ready'){ dispatch(w); return; }
+      if(d.type==='progress'){
+        const prev=turnByRoot[d.rootId]||0;
+        if(d.t>prev){ completedSteps+=(d.t-prev); turnByRoot[d.rootId]=d.t; }
+        _updateSimProgress(completedSteps, totalSteps, turnByRoot['baseline']||0, startTime);
+        return;
+      }
       if(d.type==='rootResult') rootResults.push(d);
       else if(d.type==='baselineResult') baseDmg=d.baseDmg;
       done++;
@@ -1777,19 +1826,25 @@ function _fallbackRunSim(heroKey,kamihimeKeys,n){
   setTimeout(()=>{
     buildFormation(heroKey,kamihimeKeys); applyGear();
     const prefixes=_selectRootPrefixes(n); // 本選と同じ2段選抜(フォールバックも上位PREFIX_TOPK本のみ)
+    // Phase5-S2: 進捗(非並列は同期実行のためターン単位のライブ描画は不可＝ルート境界で更新)。
+    const totalSteps=(prefixes.length+1)*n; let completedSteps=0; const startTime=performance.now();
+    _initSimProgress(n);
     let best=null;
     let i=0;
     function nextRoute(){
       if(i<prefixes.length){
         prog.textContent=`ルート ${i+1}/${prefixes.length} 計算中(非並列フォールバック)…`;
         setTimeout(()=>{
-          const r=_runRootPlan(prefixes[i],n);
+          const r=_runRootPlan(prefixes[i],n,()=>{ completedSteps++; });
           if(!best||r.dmg>best.dmg) best=r;
           i++;
+          _updateSimProgress(completedSteps, totalSteps, 0, startTime);
           nextRoute();
         }, 0);
       } else {
-        _finishSim(best, _runBaselinePlan(n));
+        const baseDmg=_runBaselinePlan(n,()=>{ completedSteps++; });
+        _updateSimProgress(completedSteps, totalSteps, n, startTime);
+        _finishSim(best, baseDmg);
       }
     }
     nextRoute();
