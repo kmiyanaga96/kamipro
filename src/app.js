@@ -617,7 +617,7 @@ function _updateSimProgress(completedSteps, totalSteps, baselineTurn, startTime)
   if(eta && completedSteps>0){
     const elapsed=(performance.now()-startTime)/1000;
     const remain=Math.max(0,totalSteps-completedSteps)*(elapsed/completedSteps);
-    eta.textContent=`経過 ${elapsed.toFixed(1)}s ・ 残り約 ${remain.toFixed(1)}s`;
+    eta.textContent=`経過 ${Math.round(elapsed)}s ・ 残り約 ${Math.round(remain)}s`;
   }
 }
 
@@ -848,11 +848,11 @@ function renderFormationPanel(){
           <div class="hero-cards">${heroHtml}</div>
         </div>
         <div class="fp-section">
-          <div class="fp-label">神姫（順序で選択）</div>
+          <div class="fp-label">神姫</div>
           <div class="kslots">${slotsHtml}</div>
         </div>
         <div class="fp-section">
-          <div class="fp-label">サブメンバー（アシスト効果のみ反映）</div>
+          <div class="fp-label">サブメンバー</div>
           <div class="kslots">${subSlotsHtml}</div>
         </div>
       </div>
@@ -959,9 +959,6 @@ function renderGearPanel(){
         </div>
         <div>
           <div class="gear-sub">追加補正（ウェポンマスタ外・各ボックス%）</div>${wpnRows}
-          <div style="font-size:10px;color:var(--muted);margin-top:6px;">
-            ※ウェポン選択でスキルを自動加算。未登録ウェポンは上欄に手動入力。<br>
-            　上限UP系は第一上限を増加（区分線形減衰モデル実装済）。</div>
         </div>
       </div>
     </div>`;
@@ -1175,7 +1172,7 @@ function renderSlotsPanel(){
   if(!ghToken()){
     panel.innerHTML = `
       <div class="gear-card">
-        <div class="cfg-title">💾 編成保存スロット（GitHub Gist同期）</div>
+        <div class="cfg-title">💾 編成保存スロット</div>
         <div class="gear-row" style="gap:8px;">
           <input type="password" id="gh-token-input" placeholder="GitHub Personal Access Token (gist権限)" style="flex:1;min-width:240px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;">
           <button class="btn btn-primary btn-sm" onclick="saveTokenAndInit()">連携</button>
@@ -1203,7 +1200,7 @@ function renderSlotsPanel(){
     </div>`).join('') || `<div class="slot-empty">保存済みの編成はありません</div>`;
   panel.innerHTML = `
     <div class="gear-card">
-      <div class="cfg-title">💾 編成保存スロット（GitHub Gist同期）</div>
+      <div class="cfg-title">💾 編成保存スロット</div>
       <div class="gear-row" style="gap:8px;">
         <input type="text" id="slot-name-input" placeholder="新しいスロット名（例: 光エジソン基準）" style="flex:1;min-width:200px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;">
         <button class="btn btn-primary btn-sm" onclick="saveNewSlot()">＋ 現在の編成を保存</button>
