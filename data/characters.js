@@ -1,4 +1,5 @@
-import { DMG, BG, GEAR, CHARS, ABIL, ownerOf, ELEM, LEADER, RENRI_CAP, RENRI_MAX, TENYA_FROM, IFISHANT_MIN_CD, LABEL } from '../src/app.js';
+import { DMG, BG, RENRI_CAP, RENRI_MAX, TENYA_FROM, IFISHANT_MIN_CD } from '../src/constants.js';
+import { GEAR, CHARS, ABIL, ownerOf, ELEM, LEADER, LABEL } from '../src/app.js';
 const DEBUFF_KEYS = new Set(['consort_def', 'divinus_def', 'effond_def', 'nights', 'divinus_dot']);
 const buffCount = sim => Object.entries(sim.buf).reduce((a,[k,v])=>a+(DEBUFF_KEYS.has(k)?0:v.length),0);
 
