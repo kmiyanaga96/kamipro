@@ -7,17 +7,19 @@
 ## 開発不変条件・ルール
 
 ### 1. キャラクター追加・変更の原則
+> ⚠ **Phase5 S5（2026-06-30）で Vite/ESM 構成へ移行済み**：`index.html`=薄いシェル、エンジン＝`src/app.js`（class Sim 等）、Worker＝`src/worker.js`、`data/*.js`=ESM、`package.json`=`type:module`。一次情報は [VITE_MIGRATION.md](../VITE_MIGRATION.md)。以下のルールは新構成で読み替える。
+
 * **キャラクター情報の編集先**:
-  * [data/characters.js](file:///c:/Users/Kanta%20Miyanaga/kamipro/data/characters.js)（`CHAR_REGISTRY`）が唯一の編集先です。
-  * エンジン本体（[index.html](file:///c:/Users/Kanta%20Miyanaga/kamipro/index.html) 内の `class Sim`）に、特定のキャラクター名のリテラルや個別処理を直接ハードコードしてはいけません。
-* **ロード順の制限 (ReferenceError 回避)**:
-  * `data/*.js` は [index.html](file:///c:/Users/Kanta%20Miyanaga/kamipro/index.html) のインライン定数（`BG`/`DMG`/`GEAR`）より**前**に読み込まれます。
-  * そのため、`data/*.js` のオブジェクトリテラルの即時評価フィールド（例: `gmax` など）で、インライン定数（`BG`, `DMG`, `GEAR`）を参照してはなりません。
-  * 参照したい場合は、関数本体（遅延評価される `cands.exec` や `def` 内のフックなど）からアクセスしてください。
-* **Workerコード抽出の制限 (ページフリーズ回避)**:
-  * `_buildWorkerCode` は `<script id="engine-code">` の **`textContent`** を取得すること（`innerHTML` は `<`/`>`/`&` をHTMLエスケープし Worker 構文エラーになるため不可）。
-  * さらに **必ず `// ===== ゲーム定数` 〜 `// ===== UI HELPERS` 直前へ slice** してから Worker へ渡すこと。slice を外して全文を渡すと、UI/INIT の `document` 参照が Worker 読込時に `ReferenceError` を投げ、`onerror`→メインスレッド同期フォールバックで**ページがフリーズ**します。
-  * Worker が使う関数（`recalcGearK`/`buildFormation`/`Sim`/`enumerateRootPrefixes`/`_runRootPlan`/`_runBaselinePlan` 等）は全て `// ===== UI HELPERS` マーカーより前＝エンジン領域内に置いてください。
+  * [data/characters.js](../data/characters.js)（`CHAR_REGISTRY`）が唯一の編集先です。
+  * エンジン本体（`src/` 配下の `class Sim` 等）に、特定のキャラクター名のリテラルや個別処理を直接ハードコードしてはいけません。
+* **ロード順／循環importの制限 (ReferenceError 回避)**:
+  * `data/characters.js` は `../src/app.js` から `DMG`/`BG`/`GEAR`/`CHARS`/`ABIL`/`ownerOf` 等を **import** します（`app.js` も `data` を import＝相互循環）。
+  * この循環は**参照が全て関数本体（`cands.exec`/`def` フック）＝遅延評価**である限り安全に解決します。
+  * そのため `data/*.js` のオブジェクトリテラルの**即時評価フィールド**（例: `gmax`）で `BG`/`DMG`/`GEAR` を参照してはなりません（トップレベル即時参照は TDZ/循環死の原因）。素の数値で持つこと（100=`BG.other_max`）。
+* **Worker の制限 (ESM 化済み)**:
+  * 旧 `_buildWorkerCode`（inline slice＋`__FUNC__` serialize）は**撤廃済み**。Worker は `src/worker.js`（ESM）を `new Worker(new URL('./worker.js', import.meta.url), {type:'module'})` で起動します。
+  * Worker が使う関数（`recalcGearK`/`buildFormation`/`Sim`/`_runRootPlan`/`_runBaselinePlan` 等）は `src/app.js` の **export に含める**こと（worker はそこから import）。registry はモジュール共有のため serialize 不要。
+  * UI/DOM 依存コードは Worker で動きません。INIT は `if(typeof document!=='undefined')` ガード内に、`onclick` 用のグローバル関数は window ブリッジに隔離してください（`document`/`window` 参照を worker 到達コードに置かない）。
 * **フラットな数値変数としての状態管理**:
   * クローン時のオブジェクト参照共有を防ぐため、キャラ固有の累積値などの状態は、オブジェクトではなく**フラットな数値変数**として `state` に宣言してください。
 * **自動進行ターン数管理**:
@@ -71,10 +73,13 @@ AIエージェントのコンテキスト節約と古い仕様の誤認防止の
 
 ## 検証用テスト
 
-リファクタリングや機能追加後は、以下のコマンドを実行し、結果が期待値と一致することを確認してください。
+> ⚠ Phase5 S5 で旧 slice ワンライナーは廃止（`index.html` は薄いシェル・data は ESM）。
+
+リファクタリングや機能追加後は、以下を実行し期待値と一致することを確認してください。
 
 ```bash
-node -e "const fs = require('fs'); const html = fs.readFileSync('index.html', 'utf8'); let fullCode = ''; fullCode += html.slice(html.indexOf('// ===== ゲーム定数'), html.indexOf('// ===== 概算火力モデル定数')); fullCode += '\n' + fs.readFileSync('data/weapons.js', 'utf8'); fullCode += '\n' + fs.readFileSync('data/summons.js', 'utf8'); fullCode += '\n' + fs.readFileSync('data/enemies.js', 'utf8'); fullCode += '\n' + fs.readFileSync('data/characters.js', 'utf8'); fullCode += '\n' + html.slice(html.indexOf('// ===== 概算火力モデル定数'), html.indexOf('// ===== UI HELPERS')); fullCode += '\nglobalThis.Sim=Sim;globalThis.buildFormation=buildFormation;'; (0, eval)(fullCode); globalThis.buildFormation('edison', ['yamato', 'hecate', 'tetra', 'elaine']); const sim = new globalThis.Sim(); let fb = 0; for (let t = 1; t <= 10; t++) { const r = sim.takeTurn(t); if (r.full) fb++; console.log('T' + t, 'FB:' + r.atk.length, 'dmg:' + Math.round(r.dmg)); } console.log('FullBurst:', fb + '/10', 'TotalDmg:', Math.round(sim.dmg));"
+npm run test:golden      # = node test/golden.mjs（src/app.js を import し10T総ダメージを検証）
+# 大きな構造/Worker/ビルド変更時: npm run build（成功・worker別チャンク）／npm run preview で実機確認（ESMは file:// 不可）
 ```
 
 * **期待値**:
