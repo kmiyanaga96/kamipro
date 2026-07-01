@@ -71,34 +71,67 @@ npm run preview      # dist/ を静的配信して確認
 
 ## 4. これから（S5b〜S5f）の設計と順序
 
-詳細は PHASE5_PLAN.md §6.2。要点のみ再掲（次段の指針）:
+> ⚠ **重要な再スコープ（2026-06-30 実測で確定）**: 当初想定の「S5b=data ESM化だけ」等の**細分は不可能**。
+> **共有グローバル結合**のため、data/worker/UI のどれか一つを ESM 化すると芋づる式に全部必要になる。
+> → **S5b〜S5f は「1つの協調 ESM 化コミット（core externalization）」として実施**する。
+>
+> **実測事実**:
+> - `data/weapons.js`/`summons.js`/`enemies.js` の DMG/GEAR 参照は**全てコメント**＝純データ（`export` 追加のみ）。
+> - `data/characters.js` のみ実コードで外部参照: `DMG,BG,GEAR,CHARS,ABIL,ownerOf,ELEM,LEADER,RENRI_CAP,RENRI_MAX,TENYA_FROM,IFISHANT_MIN_CD,LABEL`。ただし**全て関数本体内＝遅延参照**（ロード順不変条件が保証）＝ESM循環でもTDZに当たらず安全。
+> - HTMLのインラインハンドラ（**window 公開必須**）: `runSim,clearSim,cancelSim,toggleCard,toggleReplayPanel,runReplay,saveTokenAndInit,loadSlotById,overwriteSlotById,deleteSlotById,saveNewSlot,syncSlots`。
+> - Worker init は `CURRENT_SUBS = …` を**再代入**する→ESM import 束縛には代入不可。`export function setCurrentSubs(v)` を用意して worker から呼ぶ。他（`GEAR[k]=`/`DMG.x=`/`GEAR_K_C[k]=`）はプロパティ変更でESM importでも合法。
 
-### 目標 `src/` 構成
+### 推奨実施形（coarse-first：まず粗く外部化して slice-worker を撤廃）
+細粒度 constants/state/sim 分割は**後回し**（純内部リファクタ・低リスク）。まず:
+1. `data/*.js` を ESM 化: weapons/summons/enemies は末尾に `export {…}` 追加のみ。characters は先頭に
+   `import { DMG,BG,GEAR,CHARS,ABIL,ownerOf,ELEM,LEADER,RENRI_CAP,RENRI_MAX,TENYA_FROM,IFISHANT_MIN_CD,LABEL } from '../src/app.js';`
+   ＋末尾 `export { CHAR_REGISTRY, DEBUFF_KEYS, buffCount };`。
+2. `src/app.js` = 現 inline script（ゲーム定数〜INIT）を `sed -n '310,〜p'` で丸ごと移設。編集:
+   先頭で data を import／末尾で worker・characters・test・window が要る記号を `export`／
+   UI関数を `Object.assign(window,{…})`／最終 INIT を `if(typeof document!=='undefined')` でガード／
+   `_buildWorkerCode` を削除／runSim の worker 生成を
+   `new Worker(new URL('./worker.js',import.meta.url),{type:'module'})` に変更／`setCurrentSubs` を export。
+3. `src/worker.js` = 現 worker entry(self.onmessage・progress postMessage 込み) を移植。
+   `import { buildFormation,recalcGearK,_runRootPlan,_runBaselinePlan,GEAR,DMG,GEAR_K_C,setCurrentSubs } from './app.js';`
+4. `index.html` = data classic scripts＋inline engine-code を削除し `<script type="module" src="/src/app.js"></script>`。
+5. `vite.config.mjs` = copy プラグイン削除・`minify` 有効化（slice 撤廃後）。
+6. **後日（低リスク・純内部）**: `app.js` を `constants.js`/`state.js`/`sim.js`/`ui.js` に内部分割（下記「目標構成」へ）。
+
+### 循環importの安全性（確認済みの理屈）
+`app.js` ⇄ `data/characters.js` は相互 import になるが、
+- characters.js の**トップレベルは外部記号を触らない**（`gmax:100` 等リテラルのみ）。
+- app.js の**トップレベルも `CHAR_REGISTRY` を触らない**（`buildFormation` は INIT/runSim のみ・`recalcGearK()` の top-level 呼びは DMG/GEAR のみ）。
+∴ 双方トップレベル評価が外部束縛に触れず TDZ 回避＝循環は安全に解決。
+
+### 検証（この協調ステップの受入ゲート）
+- **新 golden（ハーネス移行 R6）**: `node test/golden.mjs`（`import {Sim,buildFormation} from '../src/app.js'`）＝175,023,298/FB10。
+  ※旧 slice ワンライナーは data ESM化で無効（`export` により eval 不可）＝**同時置換必須**。CLAUDE.md 検証方法も更新。
+- **built dist（Chromium）**: ページ内 golden＝175,023,298・実 runSim（ESM worker）動作・console/pageエラー無し・**UIボタン反応**（window公開確認）。
+- **Worker 再現**: ESM worker が init→root→baseline＝175,023,298。
+
+### 目標 `src/` 構成（最終形・後日の内部分割で到達）
 ```
 src/constants.js  // 葉(import無し): BG/DMG/GEAR/GEAR_BOXES/各種上限
-src/state.js      // 可変クロス状態の唯一の所有者: CHARS/ABIL/CHAR_DEF/ABIL_KEYS/GEAR_K…
-                  //   ＋ミューテータ buildFormation/applyGear/recalcGearK。読み手は live binding を import のみ
-src/data/{characters,weapons,summons,enemies}.js  // export const REGISTRY。フック内は constants/state を遅延参照
-src/sim.js        // class Sim, cmpVec, enumerateRootPrefixes, _runRootPlan, _runBaselinePlan
-src/worker.js     // Worker entry。new Worker(new URL('./worker.js',import.meta.url),{type:'module'})
-src/{replay,ui,main}.js
-index.html        // 薄いシェル: <script type="module" src="/src/main.js">
+src/state.js      // 可変クロス状態の唯一の所有者: CHARS/ABIL/CHAR_DEF/ABIL_KEYS/GEAR_K…＋buildFormation/applyGear/recalcGearK
+src/data/{characters,weapons,summons,enemies}.js
+src/sim.js  src/worker.js  src/{replay,ui,main}.js
+index.html        // 薄いシェル
 ```
 
-### 中核リスクと鉄則（S5c が最重要）
-- **R1 可変グローバル → ESM live binding**: `buildFormation`/`applyGear` の**再代入は所有モジュール（state.js）内でのみ**行う。
-  他モジュールは import した live binding を**読むだけ（再代入禁止）**。ESM のライブバインディングは
-  所有側の再代入を読み手へ反映するので現行挙動を保てる。
-- **R2 循環import**: `sim.js`↔`data/characters.js` は相互依存。被参照（`DMG/BG`=constants、`ownerOf/ABIL/CHARS`=state）を
-  **葉側に寄せ**、フック内参照は**遅延（呼出時）**に限定（＝現行のロード順不変条件と同一規律）。
-  **トップレベルでの即時参照は厳禁**（ReferenceError/循環死の原因）。
-- **各サブステップの受入ゲート**: ①ソース golden（該当時）②built dist golden ③Worker 再現 ④ブラウザスモーク。
-  1段ずつ・**純機械的移設**・parity 確認まで旧 index.html を残す＝いつでも巻き戻し可。
+### 中核リスクと鉄則
+- **R1 可変グローバル → ESM live binding**: 再代入は所有モジュール内でのみ。読み手は live binding を import して**読むだけ**。
+- **R2 循環import**: 被参照を葉へ寄せ・フック内は遅延参照のみ・**トップレベル即時参照厳禁**（＝ロード順不変条件）。
+- **純機械的移設**（ロジック・数値・タイブレーク順を変えない）。parity 確認まで巻き戻し可能に保つ。
 
-### S5e で必ずやる後始末
+### ⚠ 環境メモ（2026-06-30）
+リモートコンテナがターン間で**ローカルブランチを過去commitへリセットする事象**を確認。
+push 済みは origin に安全。**大きな未コミット変更は避け、緑になり次第 commit+push**すること。
+リセット時は `git fetch && git reset --hard origin/<branch>` で復旧。
+
+### S5e で必ずやる後始末（協調ステップに含める）
 - `_buildWorkerCode`（slice＋`__FUNC__` serialize/deserialize）を**全廃**。
-- `vite.config.mjs` の **`minify:false` を `'esbuild'` に戻す**（落とし穴1が解消するため）。
-- **copy プラグイン**（落とし穴2）は S5b で data を ESM 化した時点で撤去。
+- `vite.config.mjs` の **`minify:false` を `'esbuild'` に戻す**。
+- **copy プラグイン**（S5a 落とし穴2）撤去（data がバンドルされるため）。
 
 ### S5f 完了（Definition of Done）
 - `npm run build`→`dist` 実機（Chromium）で探索動作・エラー無し。
