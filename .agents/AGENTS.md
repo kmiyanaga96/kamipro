@@ -4,35 +4,38 @@
 
 > **現在の進行状況の一次情報は [CLAUDE.md](../CLAUDE.md)「現在の進行状況（引き継ぎ用）」**を参照（Phase4=turn-by-turn較正・較正ボス walpurgis_loki・sim02進行中・総合分析は試行2完了後）。本書は不変ルール集。
 
+---
+
 ## 開発不変条件・ルール
 
 ### 1. キャラクター追加・変更の原則
-> ⚠ **Phase5 S5（2026-06-30）で Vite/ESM 構成へ移行済み**：`index.html`=薄いシェル、エンジン＝`src/app.js`（class Sim 等）、Worker＝`src/worker.js`、`data/*.js`=ESM、`package.json`=`type:module`。一次情報は [VITE_MIGRATION.md](../VITE_MIGRATION.md)。以下のルールは新構成で読み替える。
+> ⚠ **Phase5 S5 で Vite/ESM モジュール構成へ移行済み**：`index.html` は薄いシェルになり、エンジンは `src/` 配下に物理分割され、`data/*.js` は ESM として機能します。
 
 * **キャラクター情報の編集先**:
   * [data/characters.js](../data/characters.js)（`CHAR_REGISTRY`）が唯一の編集先です。
-  * エンジン本体（`src/` 配下の `class Sim` 等）に、特定のキャラクター名のリテラルや個別処理を直接ハードコードしてはいけません。
-* **ロード順／循環importの制限 (ReferenceError 回避)**:
-  * `data/characters.js` は `../src/app.js` から `DMG`/`BG`/`GEAR`/`CHARS`/`ABIL`/`ownerOf` 等を **import** します（`app.js` も `data` を import＝相互循環）。
-  * この循環は**参照が全て関数本体（`cands.exec`/`def` フック）＝遅延評価**である限り安全に解決します。
-  * そのため `data/*.js` のオブジェクトリテラルの**即時評価フィールド**（例: `gmax`）で `BG`/`DMG`/`GEAR` を参照してはなりません（トップレベル即時参照は TDZ/循環死の原因）。素の数値で持つこと（100=`BG.other_max`）。
-* **Worker の制限 (ESM 化済み)**:
-  * 旧 `_buildWorkerCode`（inline slice＋`__FUNC__` serialize）は**撤廃済み**。Worker は `src/worker.js`（ESM）を `new Worker(new URL('./worker.js', import.meta.url), {type:'module'})` で起動します。
-  * Worker が使う関数（`recalcGearK`/`buildFormation`/`Sim`/`_runRootPlan`/`_runBaselinePlan` 等）は `src/app.js` の **export に含める**こと（worker はそこから import）。registry はモジュール共有のため serialize 不要。
-  * UI/DOM 依存コードは Worker で動きません。INIT は `if(typeof document!=='undefined')` ガード内に、`onclick` 用のグローバル関数は window ブリッジに隔離してください（`document`/`window` 参照を worker 到達コードに置かない）。
+  * エンジン本体（`src/` 配下）に、特定のキャラクター名のリテラルや個別処理を直接ハードコードしてはいけません。
+* **循環importの制限 (ReferenceError/TDZ 回避)**:
+  * `data/characters.js` は `../src/app.js` から `DMG`/`BG`/`GEAR`/`CHARS`/`ABIL`/`ownerOf` 等を **import** します（`app.js` も `data` を import しており相互循環関係にあります）。
+  * この循環参照は**参照が全て関数本体（`cands.exec` や `def` フック）＝遅延評価**である限り、JavaScriptの仕様上安全に解決されます。
+  * そのため `data/*.js` のオブジェクトリテラルの**トップレベル即時評価フィールド**（例: `gmax`）で `BG`/`DMG`/`GEAR` などの外部モジュール定数を直接参照してはなりません（TDZ / 循環死の原因となります）。必要な場合は素の数値（例: 100）で記述してください。
+* **Worker の実行制限**:
+  * 旧 `_buildWorkerCode`（インライン文字列 slice ＋ `__FUNC__` 変換）は**撤廃済み**です。
+  * Worker は `src/worker.js` をエントリポイントとし、Viteバンドラによって `new Worker(new URL('./worker.js', import.meta.url), {type:'module'})` でコンパイル・自動解決されます。
+  * Worker が実行時に使用する関数やオブジェクト（`recalcGearK`/`buildFormation`/`Sim`/`_runRootPlan` 等）は、すべて `src/app.js` もしくは適切なモジュールから **export** し、Worker 内で正しく `import` してください。
+  * `document` や `window` などの UI/DOM 依存コードは Worker 上で動作しません。UI に依存する初期化やイベントハンドラは、メインスレッド側の `if (typeof document !== 'undefined')` ガード内や window ブリッジ領域に隔離し、Worker に読み込まれるコードパスに混入させないでください。
 * **フラットな数値変数としての状態管理**:
-  * クローン時のオブジェクト参照共有を防ぐため、キャラ固有の累積値などの状態は、オブジェクトではなく**フラットな数値変数**として `state` に宣言してください。
+  * クローン時のオブジェクト参照共有（バグ）を防ぐため、キャラ固有の累積値などの状態は、オブジェクトではなく**フラットな数値変数**として `Sim.state`（`CHAR_REGISTRY` 内の `state` 定義）に宣言してください。
 * **自動進行ターン数管理**:
-  * 毎ターン自動デクリメントする残ターン系state（例: バフ残りターン等）は、`tickStates` 配列でキーを宣言し、エンジンの `tick()` で汎用処理されるようにしてください。
+  * 毎ターン自動デクリメントする残ターン系状態（例: バフ残りターン、ロボ残ターン等）は、各キャラクター定義で `tickStates` 配列にキーを宣言し、エンジンの `tick()` で自動的かつ汎用的に処理されるようにしてください。
 * **汎用フックの利用**:
-  * キャラ固有の反応やマイルストーン処理は、以下の汎用フックに記述してください：
+  * キャラ固有の反応やマイルストーン処理は、以下の汎用フック（`data/characters.js`）に記述してください：
     * `def.onAbility(sim, name, color, T)`: アビリティ使用時
     * `def.onPartyBurst(sim, owner, T, atk)`: 全バースト発生時
     * `def.onBurst(sim, atk, owner)`: 自身のバースト時
     * `def.turnEnd(sim, T)`: ターン終了時
 * **2段ルート選抜と新キャラ追加時の再検証 (品質維持)**:
-  * `runSim` は全開幕ルートを静的proxyで採点し上位 `PREFIX_TOPK`(=10) 本のみ本選(BW32)へ回します（`_selectRootPrefixes`）。品質低下は PoC 実測で最大0.013%（押し順・火力指数グレードに不可視）。
-  * **新キャラ追加や `abilities`/`cands` 変更時は、PoC（scratchpad `poc.js`: 真値=BW32全探索 vs 静的/BW4 proxy 上位K）を数形成で再実行し、真の勝者ルートが上位Kから外れていないか＝`PREFIX_TOPK` の余裕を必ず再確認してください**（外れると静かに品質が落ちます）。詳細は [PERF_NOTES.md](../PERF_NOTES.md) §4/§6。
+  * `runSim` は全開幕ルートを静的proxyで採点し、上位 `PREFIX_TOPK`(=10) 本のみを本選(BW128)へ回します（`_selectRootPrefixes`）。
+  * **新キャラ追加や `abilities`/`cands` 変更時は、PoC（scratchpad `poc.js` 等で真値=BW128全探索 vs 静的/BW4 proxy 上位K）を再実行し、真の勝者ルートが上位Kから外れていないか（`PREFIX_TOPK` の余裕）を必ず再確認してください**（外れると静かに品質が落ちます）。詳細は [PERF_NOTES.md](../archive/PERF_NOTES.md) §4/§6。
 
 ### 2. Git 開発ワークフロー（強制ルール）
 変更を加える際は、以下の手順を必ず厳守してください。
@@ -71,9 +74,9 @@ AIエージェントのコンテキスト節約と古い仕様の誤認防止の
 * **追跡は既存の安い場所で**: 実装結果は `integrated_analysis.md` の実装結果節、状態遷移は CALIBRATION の Cx（open→fixed）、差分は git コミット（`simNN` を参照）。
 * **前方ポインタ（唯一の例外）**: 後続試行が旧試行の結論を上書きしたら、旧試行の `README.md` に**1行だけ**前方注記（例: 「⚠ 本試行のC5値は再較正済み。現在値は CALIBRATION_ANALYSIS.md C5 参照」）を足す。analysis 本文は書き換えない。
 
-## 検証用テスト
+---
 
-> ⚠ Phase5 S5 で旧 slice ワンライナーは廃止（`index.html` は薄いシェル・data は ESM）。
+## 検証用テスト
 
 リファクタリングや機能追加後は、以下を実行し期待値と一致することを確認してください。
 
