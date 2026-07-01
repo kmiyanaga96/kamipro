@@ -14,7 +14,18 @@
 |---|---|---|
 | **S5a** | Vite足場（分割せず現 index.html をビルド可能に） | ✅ **完了（2026-06-30）** |
 | **S5b〜f（協調ESM化フリップ）** | data ESM化＋`src/app.js`外部化＋`src/worker.js`＋index.html module化＋`_buildWorkerCode`撤廃＋minify有効化 | ✅ **完了（2026-06-30）** |
-| （残・任意/低リスク） | `src/app.js` を `constants.js`/`state.js`/`sim.js`/`ui.js` へ内部分割 | ⬜ 未着手 |
+| 内部分割① `src/constants.js` 抽出（葉：ゲーム定数＋DMG） | app.js から分離 | ✅ **完了（2026-06-30）** |
+| 内部分割② `src/sim.js` 抽出（class Sim＋探索） | app.js から分離 | ✅ **完了（2026-06-30）** |
+| 内部分割③ `state.js`/`ui.js` 分割 | **保留（下記 §4.5 の結合問題）** | ⏸ 保留 |
+
+### 4.5 state/ui 分割を保留した理由（2026-06-30・バグ回避）
+`applyGear()`（DOM 読取＝UI領域）が **state 側変数を再代入**する: `GEAR_K_C={}` / `DISPLAY_ATK_C={}` / `DISPLAY_HP_C={}` / `CURRENT_SUBS=[…]`。
+ESM では **import した束縛への再代入は不可**なので、これらを `state.js` へ移すと `applyGear` が壊れる。
+クリーンに分けるには (a) `applyGear` も `state.js` へ移す（DOM読取関数が混入・呼出は browser のみなので動作はする）か、
+(b) `setGearKC()/setDisplay*/setCurrentSubs` 等のセッターを介す、のいずれかが必要。
+リスク（bug）> 便益（cosmetic）と判断し、**constants/sim の2モジュール抽出で内部分割は一旦完了**とする。
+state/ui を further 分割する場合は上記 (a) か (b) を採り、各段 `npm run test:golden` で緑を確認すること。
+現状の app.js（≈1300行）は state＋UI＋entry(barrel)＝十分に扱える粒度。
 
 **採用案**: A案（フルVite・bundler+build）。「ビルド不要・index.html直開き」原則は放棄済み
 （将来 `vite-plugin-singlefile` で直開き性を回復する逃げ道は残る）。
