@@ -13,7 +13,8 @@
 - **archive/PHASE2_PLAN.md**: Phase 2（汎用化）完了計画（アーカイブ退避済み）。
 - **archive/PHASE3_PLAN.md**: Phase 3（高速化）**完了・クローズ**。Phase3-1（アロケフリー化）/D（死コード除去）/E（clone二重コピー排除）/①-A（2段ルート選抜）まで実装し準備時間を大幅短縮。性能の過去台帳は archive/PERF_NOTES.md。
 - **PHASE4_PLAN.md**: Phase 4（実機較正の反復＝**現行フェーズ**）の進め方台帳。**押し順優先**・序数比較ハーネス・「押し順は蓄積誤差に頑健、系統誤差だけを狙う」方針・乖離バックログ駆動を規定。§5.5 に Phase4で判明した重大エンジン改善（C8/C9）の履歴。
-- **PHASE5_PLAN.md**: Phase 5（**探索UX刷新＝待機画面の本格リニューアル**）の計画台帳。C9のBW128化で探索が重くなった緩和策（進捗可視化・ETA・中断・演出／4段実装）。UX専任で火力モデル・ゴールデン値(175,023,298)は不変。⚠Workerコード抽出不変条件に注意。起点はバックログC10。
+- **PHASE5_PLAN.md**: Phase 5（**探索UX刷新＝待機画面の本格リニューアル**＋後半＝Vite/モジュール化）の計画台帳。前半S1-S4（進捗可視化・ETA・中断・演出）は**実装済み・main反映**。後半S5（A案=フルVite）本設計は §6.2。UX専任で火力モデル・ゴールデン値(175,023,298)は不変。⚠Workerコード抽出不変条件に注意。起点はバックログC10。
+- **VITE_MIGRATION.md**: Phase 5 S5（Vite導入・A案）の**唯一の作業記録・引継ぎ書**。S5着手前に必読。現在地(S5a完了)・build/dev/testコマンド・S5aの暫定ブリッジ(minify:false＋data copyプラグイン・撤去タイミング)・S5b〜f設計と受入ゲート・ロールバック手順。⚠**S5期間中もWorkerコード抽出不変条件は有効**（S5eで撤廃するまで）。
 - **enemies/**: 敵DB intake ディレクトリ。`enemies/README.md`（命名・追加手順・スキーマ）＋ `TEMPLATE.md` ＋ `<key>.md`（実機詳細＝根拠）。`data/enemies.js` の `ENEMY_REGISTRY` がそこから蒸留した現在値。Phase4較正ボス `walpurgis_loki`（ヴァルプルギス・ロキ）を登録（PHASE4_PLAN §7 のPhase6前倒し・1体のみ）。
 - **simulation/**: Phase 4 の試行データ蓄積ディレクトリ。`simulation/README.md`（命名規約・ワークフロー・**較正カデンツ=turn-by-turnホライズン**・履歴管理の原則）＋ `TEMPLATE/`（新試行の雛形）＋ `simNN/`（1試行=1サブフォルダ: `raw_data.md`実機原本 / `replay_screenshots.md`シムreplay転記 / `design_report.md`設計レポート（設計担当＝主にAntigravity・**必須5節構成**）/ `integrated_analysis.md`統合分析（実装担当＝主にClaude Code・検証+回帰+Phase方針）/ `user_notes.md`ユーザー所感（仮説の種）/ `README.md`要約）。**新試行は `cp -r simulation/TEMPLATE simulation/simNN` で開始**。
 - **ROADMAP.md**: 長期ビジョン（敵行動・味方生存＝**Phase 6**・旧Phase5からリネーム）＋新キャラ導入ワークフロー構想。Phase 4 定義は PHASE4_PLAN.md、Phase 5（UX刷新）は PHASE5_PLAN.md が一次。

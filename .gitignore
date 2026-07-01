@@ -1,4 +1,5 @@
 node_modules/
+dist/
 .claude/
 # scratch / 一時検証スクリプト（リポジトリには含めない）
 _exp_*.js
