@@ -2,7 +2,7 @@
 
 > 対象: 押し順探索が真の最適を取りこぼす「rollout（将来ターンの静的greedy価値推定）の質」問題。
 > 索引: `CALIBRATION_ANALYSIS.md` C13。関連: BEAM_SEARCH_DESIGN.md（C9・幅の崖）/ ORDER_OPTIMIZATION_DESIGN.md（C12・定石順）。
-> 作成: 2026-07-02 セッション（①funki解禁バグ発見 → 探索抜本改善の原因究明まで）。**STEP1=本diagnosis記録（済）／STEP2=lookaheadロールアウトPoC（最小版を実施＝§5.3・不合格。設計見直しへ）**。
+> 作成: 2026-07-02 セッション（①funki解禁バグ発見 → 探索抜本改善の原因究明まで）。**STEP1=本diagnosis記録（済）／STEP2=lookaheadロールアウトPoC（最小版§5.3＝不合格）→ 案(c)自動較正PoC（§5.4＝full-search較正で合格・+9.6%かつ非退行）**。次段=案(c)のproduction設計（多パラメータ較正・golden更新・ユーザー承認）。
 
 ---
 
@@ -178,10 +178,42 @@ funki は黄アビ＝`use()` で `T.ability` を+1 → `T.ability%12` の proc�
 - **(b) 実ダメージ採点の浅ビーム rollout**: 実験 f（浅ビーム×静的採点＝±0）に対し、採点関数だけ実ダメージへ付替えた浅ビーム rollout。§5.1 の「幅でなく採点」を幅と併用して検証。
 - **(c) 静的 s の config別 自動較正**: 少数掃引で s を fit（runtime コスト0）。docの狙い「s非依存」からは外れるが、overfit/脆弱性（§4-3）を機械的に潰す現実解。
 
+### 5.4 STEP2 案(c) 自動較正 PoC（2026-07-02 セッション3・**結論=full-search較正なら合格＝STEP2初の肯定的結果**）
+
+§5.3 で最小 lookahead が不合格のため、案(c)＝「静的 s を config ごとに機械的に fit する」を検証した。judg の s は関数（runtime 評価）のため **単一プロセス内で `POC_JUDG_S` を掃引可能**。harness=`archive/tools/search_autocal.mjs`（**commit 済**・POC-C スキャフォールド前提）。安価 proxy（pure static greedy の N ターン総ダメージ・**~20ms/点**）と高価 full beam の双方で採点し比較した。
+
+**①修正モデル（N=10・JUDG_S 掃引）**:
+| JUDG_S | proxy(static greedy) | full beam |
+|---|---|---|
+| dyn(30/80) / 80 | 141,570,610 | 174,253,492 |
+| **130** | **151,717,059** | **191,141,005（+9.6%）** |
+| 160 | 151,498,997 | 183,628,849 |
+
+→ **proxy-argmax=130 と full-argmax=130 が一致**。①修正では安価 proxy が full の最良 s を当てる。
+
+**blackout モデル（現行 golden 側・proxy 掃引）**:
+| JUDG_S | proxy(static greedy) |
+|---|---|
+| dyn | 101,260,297 |
+| **130（proxy-argmax）** | **114,117,997** |
+
+→ しかし full では **blackout+dyn=175,023,298（§3 row a）＞ blackout+130=163,590,435（§3 row h）**。**proxy-argmax=130 は full では −6.5% 退行**。
+
+**判定と原因（重要）**:
+1. **安価 proxy 較正は不採用**。①修正では full と一致するが、blackout では **full と逆順にミスランク**（proxy→130 だが full→dyn）。static greedy は myopic で「judg 高優先」を常に好み、full beam が見抜く proc 整列・ゲージ効率を捉えないため。安価較正だけでは blackout を退行させる。
+2. **full-search 較正は正しく単調安全**。grid（**現行 dyn を必ず含む**）で full 最大を採る＝①修正→130（**+9.6%**）・blackout→dyn（**退行なし**）。C12 多様性枠と同じ「最大を取るだけ」の非退行設計。**STEP2 で初めて「手調整なしで真の最適（191M）へ届き、かつ汎化（blackout 非退行）する」経路**。
+3. **コスト**: config ロード時に **|grid|×full-search の一度きり**（N=10 で ~60s/点・キャッシュ前提）。推論時は追加コスト0。lookahead(b) が**毎探索に40×**乗るのと対照的で、production 現実味は (c) が最有力。
+
+**残課題・production 化の条件**:
+- 本 PoC は **judg スカラ1次元のみ**。funki 等の**多パラメータ同時較正**・gear 変更時の再fit・grid 設計（粗→細）・s キャッシュの持ち方は未検討。
+- **「s 非依存」理想からは外れる現実解**（s を残し自動 fit）。ただし固定マジックナンバーではなく **config 別に再fit** するため、§4-3 の overfit/脆弱性は機械的に回避。
+- production 実装には **①funki 修正の本実装 + golden 更新（→ ~191M 想定）+ ユーザー承認**が必要（既存規律どおり）。
+
 ---
 
 ## 6. 未確定・持ち越し
-- **STEP2 の設計見直し**: 最小PoC（turn-end 実ダメージ採点）は不合格（§5.3）。次は §5.3 末尾の (a)εタイブレーク / (b)実ダメージ採点の浅ビーム / (c)静的s自動較正 のいずれかを PoC する。`_stepLookahead()`（env-gate）は revert 済のため、再検証時はスキャフォールド A（funki毎ターン化）＋ E（本ロールアウト差替え）を再適用する。
+- **STEP2 の次段＝案(c) の production 設計**: 最小 lookahead は不合格（§5.3）だが、**案(c) full-search 較正が合格**（§5.4・+9.6%かつ blackout 非退行）。次段は (c) の本実装設計＝**多パラメータ（judg 以外に funki 等）の較正範囲・grid 設計（粗→細）・s のキャッシュ場所（buildFormation 時に1回較正して保持）・N や gear 変更時の再f 方針**を詰める。検証は `archive/tools/search_autocal.mjs`（commit 済）＋スキャフォールド A（funki毎ターン化）＋C（judg-s env）を再適用。※ funki 掃引は s が定数評価のためプロセス分離が必要（B スキャフォールド＋`POC_FUNKI_S`）。
+- **(b)/(a) は保留**: (b) 実ダメージ採点の浅ビームは毎探索コストが重く (c) 優先。(a) εタイブレークは主レバー（judg 優先度の大変更）に触れず改善小のため見送り。
 - **① funki 修正の本実装**: STEP2 の探索改善とセットで確定（単独適用は golden 退行のため保留）。
 - **③ ヘカテー mobius 空振り**: 次セッション・**実ギア（ユーザーのスクショ編成の GEAR 設定）待ち**で切り分け。
 - **overfit 注意**: 本レポートの数値は全て generic gear。実ギアでは最適 order も改善幅も異なる。STEP2 は「特定 s 値」ではなく「自己適応の仕組み」を目指すこと。
