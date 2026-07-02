@@ -9,6 +9,7 @@
 - **archive/PERF_NOTES.md**: 探索エンジン高速化の調査・実装・採否判断の台帳（待ち時間の支配式・実装済み施策D/E/①-A・路線①PoC実測・WASMの位置づけ降格）。性能面の過去の一次台帳。
 - **BEAM_SEARCH_DESIGN.md**: 探索エンジンの**準最適性（C9）設計レポート**（5節構成）。ビーム幅32の枝刈り不足で「バフ/デバフ先・ダメージアビ後」最適枝を取りこぼす件の原因分析・実測台帳（greedy/BW32/64/128/C2比較・非単調の崖）・修正候補（②賢い枝刈り推奨）。索引は CALIBRATION_ANALYSIS.md C9。
 - **ORDER_OPTIMIZATION_DESIGN.md**: 押し順最適化の精緻化（**C12＝C9-②「賢い枝刈り」本設計**）。sim2押し順の5症状（amplifa表示/effond先行/judg空転/hecate順/tenya分割）の根本原因と設計案（僅差タイブレークに定石性スコア・tenya多段分割等）・段階実装計画。索引は CALIBRATION_ANALYSIS.md C12。
+- **SEARCH_ROLLOUT_DESIGN.md**: 探索ロールアウトの**準最適性診断＋自己適応化設計（C13-C15）**。2026-07-02セッションの一次資料。①funki解禁バグ（C14）・②リプレイ往復スキップ（C13・修正済）・**探索rolloutポリシー脆弱性（C15＝本丸）**の全検証データ・再現手順（スキャフォールド編集＋`archive/tools/search_probe.mjs`/`search_validate.mjs`）・根本原因（静的スコアがモデル固有に手調整され脆い）・頑健解の方向（静的s非依存のlookaheadロールアウト＝STEP2次セッション）を収録。索引は CALIBRATION_ANALYSIS.md C13-C15。
 - **CALIBRATION_ANALYSIS.md**: 実機較正の確定値＆**根拠アーカイブ**（なぜその値・枠か）。較正・英霊武器は実装済み。
 - **archive/PHASE2_PLAN.md**: Phase 2（汎用化）完了計画（アーカイブ退避済み）。
 - **archive/PHASE3_PLAN.md**: Phase 3（高速化）**完了・クローズ**。Phase3-1（アロケフリー化）/D（死コード除去）/E（clone二重コピー排除）/①-A（2段ルート選抜）まで実装し準備時間を大幅短縮。性能の過去台帳は archive/PERF_NOTES.md。
@@ -112,7 +113,7 @@ npm run preview              # dist を http 配信 → ブラウザで探索/�
   - エジソン英霊武器追加ダメ: 2.5倍/80万 (アビ枠・onBurst実装済み)
   - ヤマト1アシ バーストダメージプラス: +10万/stack・味方全体のバースト対象 (C8)
   - ナイツサプレス(エレイン3): バーストダメ+20%・非累積(refresh)・2T (C11)
-- **バックログ状態**: C1=open / C2=open / C3=investigating / C4=fixed / C5=fixed / C6=wontfix / C7=deferred / C8=fixed / C9=fixed / C10=Phase5昇格 / C11=fixed / C12=fixed (案C＝ビーム多様性枠で定石枝を保持、④b＝tenyaをatomicとreに分割しinterleave化、②定石タイブレーク)。現ゴールデン値=**175,023,298**。
+- **バックログ状態**: C1=open / C2=open / C3=investigating / C4=fixed / C5=fixed / C6=wontfix / C7=deferred / C8=fixed / C9=fixed / C10=Phase5昇格 / C11=fixed / C12=fixed (案C＝ビーム多様性枠で定石枝を保持、④b＝tenyaをatomicとreに分割しinterleave化、②定石タイブレーク) / **C13=fixed（リプレイ往復スキップ=tenya_re・commit済）/ C14=open（①funki解禁バグ・C15とセットで確定）/ C15=investigating（探索rolloutポリシー脆弱性＝本丸・詳細 SEARCH_ROLLOUT_DESIGN.md）**。現ゴールデン値=**175,023,298**。
 
 ---
 
