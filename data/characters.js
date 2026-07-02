@@ -94,8 +94,9 @@ const CHAR_REGISTRY = {
     type: 'kamihime',
     jp: '[光醒の現神]ヤマトタケル', shortJp: 'ヤマト', gcls: 'gy', elem: 'light',
     favWeapon: ['剣','槍'], baseAtk: 10000, baseHp: 1100,
-    // inori_p=現神の祈りの天矢乱舞解禁タイマー / yellow_acc=黄アビ累計(ターン跨ぎ・永続) / funki_cycle=大和の奮起の使用可能化カウント(0〜3) / funki_recharge=ターン終了時の再発動予約
-    state: { inori_p: null, yellow_acc: 0, funki_cycle: 0, funki_recharge: false },
+    // inori_p=現神の祈りの天矢乱舞解禁タイマー / yellow_acc=黄アビ累計(ターン跨ぎ・永続)
+    // funki_recasts=同ターンの大和の奮起 即時解禁回数(0〜3・毎ターンリセット) / funki_carryover=4回目契機の翌ターン頭復活予約
+    state: { inori_p: null, yellow_acc: 0, funki_recasts: 0, funki_carryover: false },
     abilities: {
       inori: ['y', 14, 0],
       tenya: ['r', 12, 0],
@@ -164,24 +165,26 @@ const CHAR_REGISTRY = {
       // 1アシ(集いし願い): ① ヤマトがアビリティを使用した時にバーストダメージプラスバフを付与(3T累積可)。
       // ② 黄色アビの使用回数をターンを跨いで集計し、4回毎に大和の奮起を「使用可能」にする(最大3回=12回時点)。
       //    3回使用可能にした後さらに4回(計16)使用すると、ターン終了時に集計を初期化し再度使用可能になる(ループ)。
-      //    1〜3回目は即時(同ターン再使用可)、4回目はターン終了時(funki_recharge予約→turnEndで反映=翌ターン解禁)。
-      //    yellow_accはリセットせず永続集計。turnEndでリセットするのはfunki_cycle(使用可能化カウント)のみ。
+      //    黄アビ累計 yellow_acc は【ターン跨ぎで持ち越し】、4回毎(=黄アビ4回)に大和の奮起を解禁する。
+      //    同ターン最大3回まで即時解禁(funki_recasts・毎ターンリセット)、4回目以降の解禁契機は翌ターン頭で1回復活
+      //    (funki_carryover→turnEndで反映=実機バグ挙動・ユーザー実機確認 2026-07-02)。C14/C15。
       onAbility: (sim, name, color) => {
         if(ABIL[name]?.[0]==='yamato') (sim.buf.yamato_bplus??=[]).push(DMG.dur_bplus_yamato);
         if(color==='y'){
           sim.yellow_acc++;
           if(sim.yellow_acc % 4 === 0){
-            if(sim.funki_cycle < 3){ sim.funki_cycle++; sim.cd.funki = 0; }  // 1〜3回目: 即時
-            else sim.funki_recharge = true;                                   // 4回目: ターン終了時予約
+            if(sim.funki_recasts < 3){ sim.funki_recasts++; sim.cd.funki = 0; }  // 同ターン最大3回まで即時
+            else sim.funki_carryover = true;                                     // 4回目契機は翌ターン頭へ
           }
         }
       },
-      // 1アシ再発動: 3回使用可能後の4回目到達ターン終了時にfunki_cycle(使用可能化カウント)のみリセットし再使用可。
-      // yellow_acc(黄アビ累計)はリセットしない。
+      // 1アシ再発動: 同ターン即時解禁カウント funki_recasts は毎ターンリセット。yellow_acc(黄アビ累計)はリセットしない。
+      // funki_carryover(4回目契機)が立っていれば翌ターン頭で funki CD=0 に復活させる(実機バグ挙動)。
       // 天矢乱舞解禁(現神の祈り): inori_p は解禁タイマー。現神の祈り使用で0に、2ターン後に天矢乱舞CDをリセット(解禁)。
       // 旧 Sim._endBookkeep() のハードコードを移管(keigyo+5 と独立のため順序前倒し無害)。
       turnEnd: (sim) => {
-        if(sim.funki_recharge){ sim.funki_cycle = 0; sim.funki_recharge = false; sim.cd.funki = 0; }
+        sim.funki_recasts = 0;
+        if(sim.funki_carryover){ sim.cd.funki = 0; sim.funki_carryover = false; }
         if(sim.inori_p!=null){ sim.inori_p++; if(sim.inori_p===2){ sim.cd.tenya=0; sim.inori_p=null; } }
       },
     },

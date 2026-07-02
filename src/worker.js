@@ -4,7 +4,7 @@
 // ⚠ 旧 _buildWorkerCode（slice＋__FUNC__ serialize）を置き換えたもの。詳細は VITE_MIGRATION.md。
 import {
   buildFormation, recalcGearK, _runRootPlan, _runBaselinePlan,
-  GEAR, DMG, GEAR_K_C, setCurrentSubs
+  GEAR, DMG, GEAR_K_C, setCurrentSubs, setStaticOverride, _runCalibrationProbe
 } from './app.js';
 
 self.onmessage = function(e){
@@ -27,10 +27,16 @@ self.onmessage = function(e){
     // サブメンバー選択を反映してから buildFormation（subAssists 由来の集約をworkerでも正しく算出）。
     if(d.currentSubs) setCurrentSubs(d.currentSubs);
     buildFormation(d.heroKey,d.kamihimeKeys);
+    setStaticOverride({});               // C15: init は較正なし（各タスクが override を明示適用）
     self.postMessage({type:'ready'});
+  } else if(d.type==='calibrate'){
+    // C15 案(c): 1 つの静的スコア override を適用して単一ビームfullで採点（full-verify 段の1点）。
+    self.postMessage({type:'calibResult', override:d.override, dmg:_runCalibrationProbe(d.override, d.n)});
   } else if(d.type==='root'){
+    setStaticOverride(d.override||{});   // C15: 採用された較正 override を適用してから探索
     self.postMessage({type:'rootResult', rootId:d.rootId, ..._runRootPlan(d.prefix,d.n,(t)=>self.postMessage({type:'progress',rootId:d.rootId,t}))});
   } else if(d.type==='baseline'){
+    setStaticOverride(d.override||{});   // C15: baseline も同一 override で（比率の分母を較正後に揃える）
     self.postMessage({type:'baselineResult', baseDmg:_runBaselinePlan(d.n,(t)=>self.postMessage({type:'progress',rootId:'baseline',t}))});
   }
 };

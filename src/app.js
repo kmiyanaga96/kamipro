@@ -151,6 +151,10 @@ let ABIL_KEYS = [], ABIL_KC = {}, ABIL_CANDS = {}, ABIL_BASE_S = {};
 // s を config ごとに機械的に fit した結果をここへ載せて ABIL_BASE_S に反映する。
 // **空(既定)では ABIL_BASE_S が自然値と完全一致＝挙動/golden 不変**（inert by default）。
 let S_OVERRIDE = {};
+// C15 案(c) runtime 較正: 掃引 grid（judg 1次元・診断§4の主レバー）と config別採用overrideのキャッシュ。
+// config署名(hero/kamihime/gear/subs/enemy/n)→override。同configの再探索は較正phaseをskipする。
+const CALIB_GRID = { judg: [null, 100, 130, 160, 200] };
+const _calibCache = new Map();
 // CHAR_SIM_STATES: 編成キャラの state フィールドを合流させたマスター初期値。
 // Sim の constructor/snap/clone がこれを参照して自動管理する。
 let CHAR_SIM_STATES = {};
@@ -277,6 +281,28 @@ function getStaticOverride(){ return {...S_OVERRIDE}; }
 // 較正用スコアラ: 純static greedy（安価proxy・planDepth=2）／単一ビームfull（takeTurn）の N ターン総ダメージ。
 function _calProxyDmg(n){ const s=new Sim(); s.totalTurns=n; s.planDepth=2; for(let t=1;t<=n;t++) s.greedyTakeTurn(t); return s.dmg; }
 function _calFullDmg(n){  const s=new Sim(); s.totalTurns=n; for(let t=1;t<=n;t++) s.takeTurn(t); return s.dmg; }
+
+// runtime 較正の分割API（worker分散用）:
+//  - calibrationShortlist: 安価proxyで grid を採点し、full-verify すべき override 候補（baseline{}を必ず含む）を返す。
+//  - _runCalibrationProbe: 1 override を適用し単一ビームfullで採点（worker が並列に回す・返り値=総ダメージ）。
+// runSim は shortlist を worker へ分散採点→最大dmgの override を採用（baseline含むため退行しない）。
+function calibrationShortlist(n=10, grid, opts={}){
+  grid = grid ?? { judg:[null, 100, 130, 160, 200] };
+  const K = opts.shortlistK ?? 2;
+  const pk = Object.keys(grid)[0];
+  const toOv = v => (v==null ? {} : { [pk]: v });
+  const saved = getStaticOverride();
+  try{
+    const scored = grid[pk].map(v=>{ setStaticOverride(toOv(v)); return {v, s:_calProxyDmg(n)}; });
+    scored.sort((a,b)=>b.s-a.s);
+    const out=[]; const seen=new Set();
+    const add=v=>{ const ov=toOv(v); const t=JSON.stringify(ov); if(!seen.has(t)){ seen.add(t); out.push(ov); } };
+    add(null);                                     // baseline{} を必ず full-verify（単調安全の要）
+    for(let i=0;i<K && i<scored.length;i++) add(scored[i].v);
+    return out;
+  } finally { setStaticOverride(saved); }
+}
+function _runCalibrationProbe(override, n){ setStaticOverride(override||{}); return _calFullDmg(n); }
 
 // 静的スコアの config別自動較正（proxy-shortlist + full-verify・**単調安全**）。
 // grid: {abilityKey:[null, v1, v2, ...]}（null=baseline維持=上書きなし）。既定は judg 1次元（診断の主レバー）。
@@ -725,17 +751,51 @@ function runSim(){
       edison_burst_extra_mult:DMG.edison_burst_extra_mult,edison_burst_extra_cap:DMG.edison_burst_extra_cap,
       betaia_mult:DMG.betaia_mult,betaia_cap:DMG.betaia_cap,
       napo_burst_cd_reduce:DMG.napo_burst_cd_reduce}};
-  const tasks=prefixes.map((prefix,rootId)=>({type:'root',rootId,prefix,n}));
-  tasks.push({type:'baseline',n});
+  // C15 案(c) 自動較正: 「較正phase→本探索phase」の2段。configキャッシュ命中なら較正skip。
+  // 較正phase: 安価proxyで絞った override 候補を worker へ分散し単一ビームfullで採点、最大dmg(baseline{}含むため退行なし)を採用。
+  // 較正列挙で例外が出ても override なし(=funki修正のみ)で本探索へ graceful fallback。
+  const configSig=JSON.stringify([heroKey,kamihimeKeys,GEAR,[...CURRENT_SUBS],DMG.enemy_def,DMG.enemy_max_hp,n]);
+  let chosenOverride=_calibCache.get(configSig)||null;
+  let calibTasks=[];
+  if(!chosenOverride){
+    try{ calibTasks=calibrationShortlist(n,CALIB_GRID).map((override,ci)=>({type:'calibrate',override,n,ci})); }
+    catch(err){ chosenOverride={}; }
+  }
+  const calibResults=[];
+  const buildMainTasks=()=>{
+    const t=prefixes.map((prefix,rootId)=>({type:'root',rootId,prefix,n,override:chosenOverride||{}}));
+    t.push({type:'baseline',n,override:chosenOverride||{}});
+    return t;
+  };
 
-  let nextTask=0, done=0; const total=tasks.length;
-  const rootResults=[]; let baseDmg=0, failed=false;
+  let phase = calibTasks.length ? 'calib' : 'main';
+  let mainTasks = phase==='main' ? buildMainTasks() : null;
 
-  // Phase5-S2: per-turn 進捗(総ステップ=タスク数×n)。各Workerの{type:'progress'}を集計しバー/チップ/ETAを更新。
-  const totalSteps=total*n; let completedSteps=0; const turnByRoot={}; const startTime=performance.now();
+  let nextTask=0, done=0, failed=false;
+  const rootResults=[]; let baseDmg=0;
+
+  // Phase5-S2: per-turn 進捗(総ステップ=本探索タスク数×n)。較正phase中はバー据置＋テキスト表示。
+  const totalSteps=(prefixes.length+1)*n; let completedSteps=0; const turnByRoot={}; let startTime=performance.now();
   _initSimProgress(n);
+  if(phase==='calib') prog.textContent=`較正中… (${calibTasks.length}候補)`;
 
-  function dispatch(w){ if(nextTask<total) w.postMessage(tasks[nextTask++]); }
+  const curTasks=()=>phase==='calib'?calibTasks:mainTasks;
+  function dispatch(w){ const ts=curTasks(); if(nextTask<ts.length) w.postMessage(ts[nextTask++]); }
+
+  function startMainPhase(){
+    phase='main'; mainTasks=buildMainTasks();
+    nextTask=0; done=0; startTime=performance.now(); prog.textContent='準備中';
+    for(const w of workers) dispatch(w);
+  }
+  function finishCalib(){
+    // baseline{} を必ず含むため最大dmgを採れば退行しない。同dmgタイは baseline({}) を優先(安定・無駄な上書き回避)。
+    let best=calibResults[0];
+    for(const r of calibResults) if(r.dmg>best.dmg) best=r;
+    const tieBase=calibResults.find(r=>r.dmg===best.dmg && Object.keys(r.override).length===0);
+    chosenOverride=tieBase?tieBase.override:best.override;
+    _calibCache.set(configSig, chosenOverride);
+    startMainPhase();
+  }
 
   function onAllDone(){
     if(failed||_simCancelled) return;
@@ -755,11 +815,17 @@ function runSim(){
         _updateSimProgress(completedSteps, totalSteps, turnByRoot['baseline']||0, startTime);
         return;
       }
+      if(d.type==='calibResult'){
+        calibResults.push(d); done++;
+        prog.textContent=`較正中… ${done}/${calibTasks.length}`;
+        if(done>=calibTasks.length){ finishCalib(); return; }
+        dispatch(w); return;
+      }
       if(d.type==='rootResult') rootResults.push(d);
       else if(d.type==='baselineResult') baseDmg=d.baseDmg;
       done++;
-      prog.textContent=`ルート ${done}/${total} 計算中(${poolSize}並列)…`;
-      if(done>=total){ onAllDone(); return; }
+      prog.textContent=`ルート ${done}/${mainTasks.length} 計算中(${poolSize}並列)…`;
+      if(done>=mainTasks.length){ onAllDone(); return; }
       dispatch(w);
     };
     w.onerror=function(){
@@ -779,6 +845,15 @@ function _fallbackRunSim(heroKey,kamihimeKeys,n){
   _simCancelled=false;  // Phase5-S3: フォールバック開始でリセット(runSim未経由の直接呼び出しにも対応)
   setTimeout(()=>{
     buildFormation(heroKey,kamihimeKeys); applyGear();
+    // C15 案(c): 非並列フォールバックでも自動較正を適用（同期・configキャッシュ）。例外時は override なしへ。
+    const configSig=JSON.stringify([heroKey,kamihimeKeys,GEAR,[...CURRENT_SUBS],DMG.enemy_def,DMG.enemy_max_hp,n]);
+    let chosenOverride=_calibCache.get(configSig);
+    if(!chosenOverride){
+      prog.textContent='較正中…';
+      try{ chosenOverride=calibrateStaticScores(n,CALIB_GRID).override; }catch(err){ chosenOverride={}; }
+      _calibCache.set(configSig, chosenOverride);
+    }
+    setStaticOverride(chosenOverride);   // 以降の _runRootPlan/_runBaselinePlan は較正済み s で走る
     const prefixes=_selectRootPrefixes(n); // 本選と同じ2段選抜(フォールバックも上位PREFIX_TOPK本のみ)
     // Phase5-S2: 進捗(非並列は同期実行のためターン単位のライブ描画は不可＝ルート境界で更新)。
     const totalSteps=(prefixes.length+1)*n; let completedSteps=0; const startTime=performance.now();
@@ -801,6 +876,7 @@ function _fallbackRunSim(heroKey,kamihimeKeys,n){
         const baseDmg=_runBaselinePlan(n,()=>{ completedSteps++; });
         _updateSimProgress(completedSteps, totalSteps, n, startTime);
         _finishSim(best, baseDmg);
+        setStaticOverride({});   // C15: メインスレッドの override をリセット(次回探索/他処理へ漏らさない)
       }
     }
     nextRoute();
@@ -1374,7 +1450,7 @@ export function setCurrentSubs(v){ CURRENT_SUBS = v; }
 export {
   Sim, buildFormation, applyGear, applyEnemy, recalcGearK,
   _runRootPlan, _runBaselinePlan, enumerateRootPrefixes, _selectRootPrefixes,
-  setStaticOverride, getStaticOverride, calibrateStaticScores,
+  setStaticOverride, getStaticOverride, calibrateStaticScores, calibrationShortlist, _runCalibrationProbe,
   GEAR, DMG, BG, GEAR_K_C, CHARS, ABIL, ownerOf, ELEM, LEADER, LABEL,
   RENRI_CAP, RENRI_MAX, TENYA_FROM, IFISHANT_MIN_CD,
   WEAPON_MASTER, SUMMON_REGISTRY, ENEMY_REGISTRY, CHAR_REGISTRY,
