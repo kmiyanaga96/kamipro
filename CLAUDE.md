@@ -116,7 +116,7 @@ npm run preview              # dist を http 配信 → ブラウザで探索/�
   - エジソン英霊武器追加ダメ: 2.5倍/80万 (アビ枠・onBurst実装済み)
   - ヤマト1アシ バーストダメージプラス: +10万/stack・味方全体のバースト対象 (C8)
   - ナイツサプレス(エレイン3): バーストダメ+20%・非累積(refresh)・2T (C11)
-- **バックログ状態**: C1=open / C2=open / C3=investigating / C4=fixed / C5=fixed / C6=wontfix / C7=deferred / C8=fixed / C9=fixed / C10=Phase5昇格 / C11=fixed / C12=fixed (案C＝ビーム多様性枠で定石枝を保持、④b＝tenyaをatomicとreに分割しinterleave化、②定石タイブレーク) / **C13=fixed（リプレイ往復スキップ=tenya_re・commit済）/ C14=fixed（①funki解禁バグ＝毎ターン化を恒久実装・C15較正とセット確定）/ C15=fixed（探索rolloutポリシー脆弱性＝案(c)自動較正を production 実装＝§6。judg×pactcore×effond 3変数較正・joint最適で+18.3%）**。現ゴールデン値=**raw 174,253,492 / calibrated（自動較正 {judg:145,pactcore:1,effond:100}）206,180,726**（SEARCH_ROLLOUT_DESIGN.md §6）。
+- **バックログ状態**: C1=open / C2=open / C3=investigating / C4=fixed / C5=fixed / C6=wontfix / C7=deferred / C8=fixed / C9=fixed / C10=Phase5昇格 / C11=fixed / C12=fixed (案C＝ビーム多様性枠で定石枝を保持、④b＝tenyaをatomicとreに分割しinterleave化、②定石タイブレーク) / **C13=fixed（リプレイ往復スキップ=tenya_re・commit済）/ C14=fixed（①funki解禁バグ＝毎ターン化を恒久実装・C15較正とセット確定）/ C15=closed（探索rolloutポリシー脆弱性＝案(c)自動較正を production 実装＝§6。judg×pactcore×effond 3変数較正＋粗→細2段＋step調整/gear汎化まで完了・joint最適で+18.3%。**次セッション=演算高速化**）**。現ゴールデン値=**raw 174,253,492 / calibrated（自動較正 {judg:145,pactcore:1,effond:100}）206,180,726**（SEARCH_ROLLOUT_DESIGN.md §6）。
 
 ---
 

@@ -281,9 +281,11 @@ proxy 段で「粗grid採点→粗winner周辺の細grid採点」を行い、両
   | abiGear(abi_dmg/cap/spec) | `{judg:145,pactcore:1,effond:100}` | 263,293,095 | +18.1% | 5 |
 - **粗→細がギア適応に寄与**: burstGear は judg=122・effond=93 と**fine 点**を採用＝ズレた最適を粗→細で回収。grid レンジも十分（fine が effond 86〜114 を探索するため境界張り付きなし）。∴ **gear特徴に応じた grid 自動生成は不要**（粗→細＋config別再fit で汎化を達成）。
 
-### 6.11 残課題
+### 6.11 残課題（**C15 はクローズ・2026-07-02**）
+C15（探索rolloutポリシー脆弱性）は本レポートの案(c)自動較正で production 化・多パラメータ/粗→細/step調整/gear汎化まで完了しクローズ。以下は将来の任意課題：
 - **4変数以上は却下**（ユーザー決定・複雑さ対効果）。他レバー（tenya/sleur/absolute 等）は effond と排他でなく将来 effond を置換/追加する余地はあるが 3変数枠内で要取捨。
 - **実ギア較正の実測**: 診断は generic＋合成ギア。ユーザーの実ギアでの override・利得は未計測（config別に自動再fit されるため機構上は追従・実測すれば裏取り可能）。
+- **▶ 次セッション＝演算高速化**: 較正phase（shortlist の full-verify・worker分散）と探索本体のコスト削減が主題。関連台帳＝`archive/PERF_NOTES.md`。較正コストの現状＝1探索あたり shortlist(≤6)×単一ビームfull を worker 分散（config キャッシュで再探索はskip）。
 
 ---
 
