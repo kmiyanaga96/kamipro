@@ -151,9 +151,13 @@ let ABIL_KEYS = [], ABIL_KC = {}, ABIL_CANDS = {}, ABIL_BASE_S = {};
 // s を config ごとに機械的に fit した結果をここへ載せて ABIL_BASE_S に反映する。
 // **空(既定)では ABIL_BASE_S が自然値と完全一致＝挙動/golden 不変**（inert by default）。
 let S_OVERRIDE = {};
-// C15 案(c) runtime 較正: 掃引 grid（judg 1次元・診断§4の主レバー）と config別採用overrideのキャッシュ。
+// C15 案(c) runtime 較正: 掃引 grid（多パラメータ機構・直積を proxy で絞り full-verify）と config別採用overrideのキャッシュ。
+// null=そのkeyは上書きしない(自然値)。**judg が唯一の有効レバー**（診断§4）。generic で judg 120〜140 が
+// プラトー(=191,141,005)・その外は低下のため 120/140 を細grid点として保持（非genericギアの解像度向上）。
+// ⚠ funki は較正候補として検証したが override は常に悪化（自然値s=150が最適・§6.6）＝grid から除外。
+// 機構は多パラメータ対応のまま（有効な param が見つかれば `key:[null,...]` を1行足すだけ）。
 // config署名(hero/kamihime/gear/subs/enemy/n)→override。同configの再探索は較正phaseをskipする。
-const CALIB_GRID = { judg: [null, 100, 130, 160, 200] };
+const CALIB_GRID = { judg: [null, 100, 120, 130, 140, 160, 200] };
 const _calibCache = new Map();
 // CHAR_SIM_STATES: 編成キャラの state フィールドを合流させたマスター初期値。
 // Sim の constructor/snap/clone がこれを参照して自動管理する。
@@ -282,55 +286,58 @@ function getStaticOverride(){ return {...S_OVERRIDE}; }
 function _calProxyDmg(n){ const s=new Sim(); s.totalTurns=n; s.planDepth=2; for(let t=1;t<=n;t++) s.greedyTakeTurn(t); return s.dmg; }
 function _calFullDmg(n){  const s=new Sim(); s.totalTurns=n; for(let t=1;t<=n;t++) s.takeTurn(t); return s.dmg; }
 
+// grid の直積で override 候補を列挙（多パラメータ較正）。各 key の値配列で null=そのkeyを上書きしない。
+// 例 {judg:[null,130], funki:[null,30]} → [{}, {funki:30}, {judg:130}, {judg:130,funki:30}]（重複排除）。
+function _calibCombos(grid){
+  let combos=[{}];
+  for(const k of Object.keys(grid)){
+    const next=[];
+    for(const base of combos) for(const v of grid[k]) next.push(v==null ? base : {...base, [k]:v});
+    combos=next;
+  }
+  const seen=new Set(); const out=[];
+  for(const c of combos){ const t=JSON.stringify(c); if(!seen.has(t)){ seen.add(t); out.push(c); } }
+  return out;
+}
+
 // runtime 較正の分割API（worker分散用）:
-//  - calibrationShortlist: 安価proxyで grid を採点し、full-verify すべき override 候補（baseline{}を必ず含む）を返す。
+//  - calibrationShortlist: 安価proxyで grid直積 を採点し、full-verify すべき override 候補（baseline{}を必ず含む）を返す。
 //  - _runCalibrationProbe: 1 override を適用し単一ビームfullで採点（worker が並列に回す・返り値=総ダメージ）。
 // runSim は shortlist を worker へ分散採点→最大dmgの override を採用（baseline含むため退行しない）。
 function calibrationShortlist(n=10, grid, opts={}){
-  grid = grid ?? { judg:[null, 100, 130, 160, 200] };
-  const K = opts.shortlistK ?? 2;
-  const pk = Object.keys(grid)[0];
-  const toOv = v => (v==null ? {} : { [pk]: v });
+  grid = grid ?? CALIB_GRID;
+  const K = opts.shortlistK ?? 3;
+  const combos = _calibCombos(grid);
   const saved = getStaticOverride();
   try{
-    const scored = grid[pk].map(v=>{ setStaticOverride(toOv(v)); return {v, s:_calProxyDmg(n)}; });
+    const scored = combos.map(ov=>{ setStaticOverride(ov); return {ov, s:_calProxyDmg(n)}; });
     scored.sort((a,b)=>b.s-a.s);
     const out=[]; const seen=new Set();
-    const add=v=>{ const ov=toOv(v); const t=JSON.stringify(ov); if(!seen.has(t)){ seen.add(t); out.push(ov); } };
-    add(null);                                     // baseline{} を必ず full-verify（単調安全の要）
-    for(let i=0;i<K && i<scored.length;i++) add(scored[i].v);
+    const add=ov=>{ const t=JSON.stringify(ov); if(!seen.has(t)){ seen.add(t); out.push(ov); } };
+    add({});                                       // baseline{} を必ず full-verify（単調安全の要）
+    for(let i=0;i<K && i<scored.length;i++) add(scored[i].ov);
     return out;
   } finally { setStaticOverride(saved); }
 }
 function _runCalibrationProbe(override, n){ setStaticOverride(override||{}); return _calFullDmg(n); }
 
-// 静的スコアの config別自動較正（proxy-shortlist + full-verify・**単調安全**）。
-// grid: {abilityKey:[null, v1, v2, ...]}（null=baseline維持=上書きなし）。既定は judg 1次元（診断の主レバー）。
-// 手順: (1) 安価proxy(≈20ms/点)で全候補を採点し shortlist へ（proxy上位K＋**baseline null を必ず含む**）。
+// 静的スコアの config別自動較正（proxy-shortlist + full-verify・**単調安全**・多パラメータ対応）。
+// grid: {abilityKey:[null, v1, ...], ...}（null=そのkeyは上書きしない）。既定は module 定数 CALIB_GRID。
+// 手順: (1) 安価proxy(≈20ms/点)で grid直積の全 combo を採点し shortlist へ（proxy上位K＋**baseline{} を必ず含む**）。
 //       (2) shortlist のみ単一ビームfull で採点し最大を採用（baseline を必ず含むため現行以上＝**退行しない**）。
-// 返り値 {override, proxy, full}。override は setStaticOverride にそのまま渡せる形（{}=baseline維持）。
+// 返り値 {override, shortlist, full}。override は setStaticOverride にそのまま渡せる形（{}=baseline維持）。
 // この関数は測定後に呼び出し前の override を必ず復元する（呼び出し側が選択 override を明示適用する）。
-// 多次元較正は grid の直積を shortlist 化して拡張（コスト管理のため proxy 段で強く絞る）。
 function calibrateStaticScores(n=10, grid, opts={}){
-  grid = grid ?? { judg:[null, 100, 130, 160, 200] };
-  const K = opts.shortlistK ?? 2;
-  const keys = Object.keys(grid);
+  grid = grid ?? CALIB_GRID;
+  const shortlist = calibrationShortlist(n, grid, opts);
   const saved = getStaticOverride();
   try{
-    // 現状は単一パラメータ較正（keys[0]）。多次元は下記コメントの直積へ拡張。
-    const pk = keys[0];
-    const cands = grid[pk];
-    const toOv = v => (v==null ? {} : { [pk]: v });
-    const proxy = cands.map(v=>{ setStaticOverride(toOv(v)); return {v, s:_calProxyDmg(n)}; });
-    const proxySorted = [...proxy].sort((a,b)=>b.s-a.s);
-    const short=[]; const seen=new Set();
-    const add=v=>{ const t=String(v); if(!seen.has(t)){ seen.add(t); short.push(v); } };
-    add(null);                                   // baseline を必ず full-verify（単調安全の要）
-    for(let i=0;i<K && i<proxySorted.length;i++) add(proxySorted[i].v);
-    const full = short.map(v=>{ setStaticOverride(toOv(v)); return {v, s:_calFullDmg(n)}; });
-    const fullSorted = [...full].sort((a,b)=>b.s-a.s);
-    const best = fullSorted[0];
-    return { override: best.v==null ? {} : toOv(best.v), proxy, full, best:best.v };
+    const full = shortlist.map(ov=>{ setStaticOverride(ov); return {ov, s:_calFullDmg(n)}; });
+    full.sort((a,b)=>b.s-a.s);
+    const best = full[0];
+    // 同dmgタイは baseline{} を優先（無駄な上書き回避・安定）。
+    const tieBase = full.find(f=>f.s===best.s && Object.keys(f.ov).length===0);
+    return { override: tieBase ? tieBase.ov : best.ov, shortlist, full };
   } finally { setStaticOverride(saved); }
 }
 

@@ -21,9 +21,10 @@ const t0 = Date.now();
 const r = calibrateStaticScores(N);
 const secs = ((Date.now() - t0) / 1000).toFixed(1);
 
+const ovStr = ov => Object.keys(ov).length ? JSON.stringify(ov) : 'base';
 console.log(`[calibrate] N=${N}  baseline(full)=${fmt(baseline)}`);
-console.log(`  proxy: ${r.proxy.map(p => `${p.v ?? 'base'}=${fmt(p.s)}`).join('  ')}`);
-console.log(`  full : ${r.full.map(p => `${p.v ?? 'base'}=${fmt(p.s)}`).join('  ')}`);
+console.log(`  shortlist(proxy絞込・${r.shortlist.length}): ${r.shortlist.map(ovStr).join('  ')}`);
+console.log(`  full-verify: ${r.full.map(p => `${ovStr(p.ov)}=${fmt(p.s)}`).join('  ')}`);
 console.log(`  => 採用 override = ${JSON.stringify(r.override)}  (${secs}s)`);
 
 // 採用 override を適用して最終 full を確認（＝production が実行する探索の総ダメージ）。

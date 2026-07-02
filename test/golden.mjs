@@ -4,8 +4,9 @@
 // C15 案(c) 自動較正の production 化(2026-07-02)に伴い golden を更新:
 //  - raw(較正なし・①funki修正モデル)     = 174,253,492  … ダメージモデルの回帰アンカー
 //  - calibrated(自動較正 {judg:130} 適用)  = 191,141,005  … production が出荷する探索の値
-// 本番 runSim は calibrateStaticScores で {judg:130} を選び root分散探索する。golden は単一ビーム
-// (takeTurn) で決定的に同 override を明示適用して検証する(毎回の較正走行を避ける・SEARCH_ROLLOUT_DESIGN §6/§7.5)。
+// 本番 runSim は calibrateStaticScores で judg 120〜140 プラトー(いずれも同値 191,141,005)から選ぶ。
+// golden は単一ビーム(takeTurn)で決定的に代表点 {judg:130} を明示適用して検証する(毎回の較正走行を避ける・
+// プラトーのためどの点でも同値・SEARCH_ROLLOUT_DESIGN §6.5/§6.6)。
 // 実行: npm run test:golden  （node test/golden.mjs）
 import { Sim, buildFormation, setStaticOverride } from '../src/app.js';
 
