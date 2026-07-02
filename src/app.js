@@ -272,6 +272,15 @@ function buildReplayNameMap(){
       if(!m[alias]) m[alias]=abilKeys[i];
     }
   }
+  // カスタムチップの完全一致往復: sim.use 非経由で別キーのラベルを表示するアビ(例: tenya_re=「ヤマト2(再-40)」)を
+  // 自キーへ復元する。parseReplayToken は full-token を先に照合するため、末尾()剥がしで誤って初回キー(tenya)へ
+  // 化ける前にここで捕捉される。表示ラベルは不変(往復のみ修正)。
+  for(const charKey of CHARS){
+    const cands=CHAR_REGISTRY[charKey].cands||{};
+    for(const [key,cand] of Object.entries(cands)){
+      if(cand.refireOf) m[`${LABEL[cand.refireOf]}${cand.refireSuffix||''}`]=key;
+    }
+  }
   return m;
 }
 

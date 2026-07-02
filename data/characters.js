@@ -130,7 +130,10 @@ const CHAR_REGISTRY = {
       // 天矢乱舞 再発動(C12-④b): 初回tenya後に T.tenya<3 かつ g>=40 で発動可。40消費＋追加バースト。
       // sim.use は呼ばず(=アビ計数/onAbility/CD設定なし＝旧atomic re-fireと同一挙動)、ord へ専用エントリを push。
       // cd=0 のまま guard(T.tenya<3) で同ターン最大2回に頭打ち。T.tenya はターン頭に0初期化(T init)。
-      tenya_re: { s:90, burstTrigger:true,
+      // refireOf/refireSuffix: リプレイ往復用の宣言。この候補は sim.use 非経由で「初回tenyaのラベル＋接尾辞」
+      // を表示チップに出すため、末尾()剥がしのトークン照合では別キー(tenya)へ化ける。buildReplayNameMap が
+      // ここから完全一致「ヤマト2(再-40)」→tenya_re を登録し、表示は変えずに正しく往復させる(exec の push と一致必須)。
+      tenya_re: { s:90, burstTrigger:true, refireOf:'tenya', refireSuffix:'(再-40)',
         guard:(sim,T,t)=>(T.tenya||0)>=1 && (T.tenya||0)<3 && sim.g[ownerOf('tenya')]>=40,
         exec:(sim,T,ord,bset)=>{
           const me=ownerOf('tenya');
