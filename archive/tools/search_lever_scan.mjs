@@ -11,10 +11,10 @@ const N = +(process.env.POC_N ?? 10);
 const proxy = () => { const s = new Sim(); s.totalTurns = N; s.planDepth = 2; for (let t = 1; t <= N; t++) s.greedyTakeTurn(t); return s.dmg; };
 const fmt = x => Math.round(x).toLocaleString();
 
-const base = { judg: 130 };
+const base = { judg: 145, pactcore: 1 };   // ③ 第3レバー探索: joint 最適を base に
 setStaticOverride(base); const bP = proxy();
 const vals = [1, 30, 60, 100, 150, 200, 300, 400];
-const keys = Object.keys(ABIL).filter(k => k !== 'judg');
+const keys = Object.keys(ABIL).filter(k => k !== 'judg' && k !== 'pactcore');
 const rows = [];
 for (const k of keys) {
   let lo = bP, hi = bP, bestP = bP, bestV = null;
@@ -28,7 +28,7 @@ for (const k of keys) {
 }
 setStaticOverride({});
 rows.sort((a, b) => b.span - a.span);
-console.log(`[lever_scan] N=${N}  base={judg:130} proxy=${fmt(bP)}`);
+console.log(`[lever_scan] N=${N}  base=${JSON.stringify(base)} proxy=${fmt(bP)}`);
 console.log(`  (span=proxy変動幅 / gain=base超え proxy最大差・>0なら full-verify 候補)`);
 for (const r of rows) console.log(`  ${r.k.padEnd(12)} span=${fmt(r.span).padStart(13)}  bestOverride=${String(r.bestV ?? '-').padStart(4)}  gain=${r.gain > 0 ? '+' + fmt(r.gain) : '0'}`);
 const cand = rows.filter(r => r.gain > 0).map(r => `${r.k}:${r.bestV}`);

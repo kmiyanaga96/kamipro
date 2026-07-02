@@ -152,11 +152,11 @@ let ABIL_KEYS = [], ABIL_KC = {}, ABIL_CANDS = {}, ABIL_BASE_S = {};
 // **空(既定)では ABIL_BASE_S が自然値と完全一致＝挙動/golden 不変**（inert by default）。
 let S_OVERRIDE = {};
 // C15 案(c) runtime 較正: 掃引 grid（多パラメータ機構・直積を proxy で絞り full-verify）と config別採用overrideのキャッシュ。
-// null=そのkeyは上書きしない(自然値)。有効レバー＝**judg と pactcore**（§6.6/§6.8）。両者に強い相互作用があり、
-// pactcore を下げる(s=1)と judg 最適が 130→143〜150 へシフトし generic で 201,260,545(raw比+15.5%) へ伸びる。
-// grid は judg-only 最適(130)と joint 最適(145,pactcore:1)の双方を含む。⚠ funki は検証の上棄却(自然値最適・§6.6)。
-// 機構は多パラメータ対応（有効 param 追加は `key:[null,...]` を1行）。config署名→override をキャッシュし再探索はskip。
-const CALIB_GRID = { judg: [null, 100, 130, 145, 160, 200], pactcore: [null, 1] };
+// null=そのkeyは上書きしない(自然値)。有効レバー＝**judg・pactcore・effond の3変数**（§6.7/§6.10・強い相互作用）。
+// pactcore を下げると judg 最適が 143〜150 へシフト、さらに effond≈100 で generic 206,180,726(raw比+18.3%) へ。
+// ⚠ funki は検証の上棄却(自然値最適・§6.6)。3変数まで（4変数以上はユーザー決定で却下）。
+// 機構は多パラメータ+粗→細対応（§6.8）。config署名→override をキャッシュし再探索はskip。
+const CALIB_GRID = { judg: [null, 100, 130, 145, 160, 200], pactcore: [null, 1], effond: [null, 100, 120] };
 const _calibCache = new Map();
 // CHAR_SIM_STATES: 編成キャラの state フィールドを合流させたマスター初期値。
 // Sim の constructor/snap/clone がこれを参照して自動管理する。
@@ -321,30 +321,28 @@ function _fineGridAround(winner, coarseGrid){
 
 // runtime 較正の分割API（worker分散用）:
 //  - calibrationShortlist: 安価proxyで grid直積を採点し、full-verify すべき override 候補（baseline{}を必ず含む）を返す。
-//    §6.8 粗→細: proxy 段で「粗grid採点→粗winner周辺の細grid採点」を行い、両者の proxy 上位から shortlist を作る
-//    （proxy は ~20ms/点で安価なため2段でも軽い）。full-verify(worker分散)は shortlist のみ＝runSim配線は不変。
+//    §6.8 粗→細: proxy 段で「粗grid採点→粗winner周辺の細grid採点」を行う（proxy ~20ms/点で安価）。
+//    ⚠ 多変数で proxy が粗winner をズラすと fine 点が shortlist を占拠し真の最適 coarse 領域を押し出す（§6.10）。
+//    よって shortlist は【粗の上位 Kc】と【細の上位 Kf】を別枠で確保し粗の多様性を保証する。full-verify(worker
+//    分散)は shortlist のみ＝runSim配線は不変。
 //  - _runCalibrationProbe: 1 override を適用し単一ビームfullで採点（worker が並列に回す・返り値=総ダメージ）。
 // runSim は shortlist を worker へ分散採点→最大dmgの override を採用（baseline含むため退行しない）。
 function calibrationShortlist(n=10, grid, opts={}){
   grid = grid ?? CALIB_GRID;
-  const K = opts.shortlistK ?? 4;
+  const Kc = opts.coarseK ?? 4;   // 粗の上位枠（真の最適 coarse 領域を確保）
+  const Kf = opts.fineK ?? 3;     // 細の上位枠（粗winner 周辺の解像度）
   const saved = getStaticOverride();
   try{
     const score = combos => combos.map(ov=>{ setStaticOverride(ov); return {ov, s:_calProxyDmg(n)}; });
-    const coarse = score(_calibCombos(grid));                 // 粗段
-    const coarseWin = coarse.reduce((a,b)=>b.s>a.s?b:a).ov;
-    let pool = coarse;
-    if(Object.keys(coarseWin).length){                        // 細段（粗winner が空でなければ周辺を細grid採点）
-      pool = coarse.concat(score(_calibCombos(_fineGridAround(coarseWin, grid))));
-    }
-    // override 単位で dedup（同一 override は proxy 最大を採用）→ proxy 降順ソート
-    const best=new Map();
-    for(const e of pool){ const t=JSON.stringify(e.ov); if(!best.has(t)||best.get(t).s<e.s) best.set(t,e); }
-    const ranked=[...best.values()].sort((a,b)=>b.s-a.s);
+    const coarse = score(_calibCombos(grid)).sort((a,b)=>b.s-a.s);   // 粗段
+    const coarseWin = coarse[0].ov;
+    const fine = Object.keys(coarseWin).length                       // 細段（粗winner 周辺）
+      ? score(_calibCombos(_fineGridAround(coarseWin, grid))).sort((a,b)=>b.s-a.s) : [];
     const out=[]; const seen=new Set();
     const add=ov=>{ const t=JSON.stringify(ov); if(!seen.has(t)){ seen.add(t); out.push(ov); } };
     add({});                                       // baseline{} を必ず full-verify（単調安全の要）
-    for(let i=0;i<K && i<ranked.length;i++) add(ranked[i].ov);
+    for(let i=0;i<Kc && i<coarse.length;i++) add(coarse[i].ov);   // 粗の上位枠
+    for(let i=0;i<Kf && i<fine.length;i++)   add(fine[i].ov);     // 細の上位枠
     return out;
   } finally { setStaticOverride(saved); }
 }

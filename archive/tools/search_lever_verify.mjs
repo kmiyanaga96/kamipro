@@ -1,17 +1,17 @@
-// 有効レバー探索の第2段: proxy候補を full-verify(単一ビーム)。base={judg:130}=191,141,005 を超えるか。
+// 有効レバー探索の第2段: proxy候補を full-verify(単一ビーム)。base を超える第3レバーがあるか。
 import { Sim, buildFormation, setStaticOverride } from '../../src/app.js';
 buildFormation('edison', ['yamato', 'hecate', 'tetra', 'elaine']);
 const N = +(process.env.POC_N ?? 10);
 const full = () => { const s = new Sim(); s.totalTurns = N; for (let t = 1; t <= N; t++) s.takeTurn(t); return s.dmg; };
 const fmt = x => Math.round(x).toLocaleString();
-const base = { judg: 130 };
+const base = { judg: 145, pactcore: 1 };   // ③ 第3レバー探索: joint 最適を base に
 const cands = [
-  {}, // = base {judg:130}
-  { pactcore: 1 }, { tenya: 60 }, { tenya_re: 60 }, { effond: 100 }, { knights: 1 },
-  { sleur: 100 }, { puvoir: 150 }, { droid: 100 }, { amplifa: 100 }, { alone: 150 },
+  {}, // = base
+  { effond: 100 }, { tenya: 60 }, { tenya_re: 60 }, { inori: 1 }, { amplifa: 1 },
+  { ifishant: 1 }, { divinus: 1 }, { helix: 1 }, { absolute: 1 }, { puvoir: 100 }, { sleur: 100 },
 ];
 setStaticOverride(base); const b = full();
-console.log(`[lever_verify] N=${N}  base={judg:130}=${fmt(b)}`);
+console.log(`[lever_verify] N=${N}  base=${JSON.stringify(base)}=${fmt(b)}`);
 const hits = [];
 for (const extra of cands) {
   setStaticOverride({ ...base, ...extra });
@@ -22,4 +22,4 @@ for (const extra of cands) {
   if (d > b) hits.push({ extra, d });
 }
 setStaticOverride({});
-console.log(hits.length ? `  => full で base 超え: ${hits.map(h => JSON.stringify(h.extra) + '=' + fmt(h.d)).join(', ')}` : `  => full で base を超える候補なし（judg のみが有効レバー）`);
+console.log(hits.length ? `  => full で base 超え: ${hits.map(h => JSON.stringify(h.extra) + '=' + fmt(h.d)).join(', ')}` : `  => full で base を超える第3レバー候補なし`);

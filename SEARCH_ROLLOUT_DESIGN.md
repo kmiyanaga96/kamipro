@@ -245,7 +245,7 @@ funki は黄アビ＝`use()` で `T.ability` を+1 → `T.ability%12` の proc�
 
 ### 6.5 golden・funki修正の確定（Increment 2・実施済）
 - ①funki 修正（§1.1-A/§2）を `data/characters.js` へ**恒久実装**（state=`funki_recasts`/`funki_carryover`・onAbility/turnEnd）。C14=fixed。
-- golden 新値（§6.7 の pactcore 発見で更新）: **raw（較正なし）174,253,492 / calibrated（`{judg:145,pactcore:1}`）201,260,545**。`test/golden.mjs` は決定的検証のため `setStaticOverride({judg:145,pactcore:1})` を明示適用して両値をアサート（毎回の較正走行を回避）。CLAUDE.md/AGENTS.md の検証ゲートも更新。
+- golden 新値（§6.9 の3変数化で更新）: **raw（較正なし）174,253,492 / calibrated（`{judg:145,pactcore:1,effond:100}`）206,180,726**。`test/golden.mjs` は決定的検証のため `setStaticOverride({judg:145,pactcore:1,effond:100})` を明示適用して両値をアサート（毎回の較正走行を回避）。CLAUDE.md/AGENTS.md の検証ゲートも更新。
 
 ### 6.6 多パラメータ較正への一般化と funki 棄却（2026-07-02 セッション5）
 `calibrateStaticScores`/`calibrationShortlist` を **grid 直積の多パラメータ較正**へ一般化（`_calibCombos`・proxy で絞り full-verify・単調安全は不変）。診断§4 が挙げた funki を候補追加して検証したが棄却：
@@ -264,16 +264,23 @@ proxy 段で「粗grid採点→粗winner周辺の細grid採点」を行い、両
 - 効果: 固定粗grid の点間に埋もれた最適を回収＝**特に非genericギア**（粗点からズレた最適）に効く。generic は 143〜150 プラトーのため採用値・golden 不変（201,260,545）だが、shortlist に fine 点(145/150/155…)が入り解像度向上を確認。
 - 単調安全は不変（baseline{} を必ず shortlist に含む）。shortlistK=4 に調整（fine 点ぶんの余裕）。
 
-### 6.9 残課題
-- **第3レバー探索（次段・§③）**: 新 base `{judg:145,pactcore:1}` で lever_scan/verify を再実行し、相互作用で出現する第3レバーを探す（**3変数まで・4変数以上は却下＝ユーザー決定**）。
-- **gear特徴に応じた grid 自動生成**: アイデアが曖昧・overfit リスクありで優先度低（粗→細で大半は代替可能）。実ギアで粗→細でも伸び切らない場合に再検討。
+### 6.9 第3レバー effond の発見・shortlist 枯渇修正・3変数 joint（2026-07-02 セッション8・**+2.4%上積み**）
+新 base `{judg:145,pactcore:1}` で lever 再探索（`search_lever_scan`→`search_lever_verify`）。**effond が最有力**（他に tenya/tenya_re/sleur/absolute/puvoir も base 超え・effond が最大）。3変数上限（ユーザー決定・4変数以上却下）のため effond を採用：
+- **3変数 joint 最適 `{judg:145,pactcore:1,effond:100}`=206,180,726（raw比 +18.32%・2変数201.26Mを +2.4%）**。effond ピークは s≈100 の鋭い山（80=効果なし/120=203.6M/150=198.7M）、judg は 145〜200 でほぼ 206M。
+- **⚠ shortlist 枯渇バグを修正**: 粗→細を素朴に「pool=粗∪細を proxy 上位K」とすると、多変数で proxy が粗winner をズラした際に**細点が全枠を占拠し真の最適 coarse 領域を押し出す**（3変数初回で判明＝採用 200.7M と取りこぼし）。修正＝shortlist を【粗の上位 `coarseK`(=4)】と【細の上位 `fineK`(=3)】の**別枠**で確保し粗の多様性を保証（`calibrationShortlist`）。再検証で `{judg:145,pactcore:1,effond:100}`=206,180,726 を自力捕捉。
+- `CALIB_GRID={judg:[null,100,130,145,160,200], pactcore:[null,1], effond:[null,100,120]}`。golden 更新（206,180,726）。
+
+### 6.10 残課題
+- **gear 汎化**: 数値は全て generic gear（config別に自動再fit 済）。実ギアで指数が伸び切らない場合は粗→細の step 調整や grid 拡張を検討。
+- **4変数以上は却下**（ユーザー決定・複雑さ対効果）。他レバー（tenya/sleur/absolute 等）は effond と排他でなく将来 effond を置換/追加する余地はあるが 3変数枠内で要取捨。
+- **gear特徴に応じた grid 自動生成**: アイデア曖昧・overfit リスクで優先度低（粗→細で大半代替可能）。
 
 ---
 
 ## 7. 未確定・持ち越し
 - **ブラウザ実機検証（済・2026-07-02）**: Increment 2 の runtime 配線をユーザーが `npm run preview` で確認＝「較正中」表示・再探索高速化(キャッシュ)・中断すべてOK。実ギアで火力指数 A(124.0)（generic 126.2 との差は gear 由来・config別再fit 済）。
-- **多パラメータ較正（済・§6.6/§6.7）**: 機構は多パラメータ対応済。funki は棄却（自然値最適）だが **pactcore を第2レバーとして発見**＝judg×pactcore の joint 最適 `{judg:145,pactcore:1}`=201,260,545（+15.5%）。較正機構が自力発見・golden 更新。
-- **gear 汎化・grid設計**: 実ギアで指数が伸び切らない場合、judg/pactcore 細grid拡張（粗→細2段）や gear特徴に応じた grid 生成を検討（§6.8）。3変数以上の相互作用は未探索。
+- **多パラメータ較正（済・§6.6〜§6.9）**: 機構は多パラメータ+粗→細対応。funki 棄却／**pactcore(第2)・effond(第3)を発見**＝3変数 joint 最適 `{judg:145,pactcore:1,effond:100}`=206,180,726（raw比+18.3%）。較正機構が自力発見・golden 更新。**3変数まで（4変数以上ユーザー却下）**。
+- **gear 汎化・grid設計**: 実ギアで指数が伸び切らない場合、粗→細 step 調整・grid 拡張を検討（§6.10）。gear特徴に応じた grid 自動生成は優先度低。
 - **(b)/(a) は保留**: (b) 実ダメージ採点の浅ビームは毎探索コストが重く (c) 優先。(a) εタイブレークは主レバーに触れず改善小のため見送り。
 - **③ ヘカテー mobius 空振り**: 次セッション・**実ギア（ユーザーのスクショ編成の GEAR 設定）待ち**で切り分け。
 - **overfit 注意**: 本レポートの数値は全て generic gear。実ギアでは最適 order も改善幅も異なる。STEP2 は「特定 s 値」ではなく「自己適応の仕組み」を目指すこと。

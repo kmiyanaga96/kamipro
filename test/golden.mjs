@@ -2,11 +2,11 @@
 // src/app.js を ESM import し、既定編成の10ターン総ダメージ／FullBurst をアサートする。
 //
 // C15 案(c) 自動較正の production 化(2026-07-02)に伴い golden を更新:
-//  - raw(較正なし・①funki修正モデル)                    = 174,253,492  … ダメージモデルの回帰アンカー
-//  - calibrated(自動較正 {judg:145,pactcore:1} 適用)     = 201,260,545  … production が出荷する探索の値
-// 本番 runSim は calibrateStaticScores で judg×pactcore を較正し joint 最適 {judg:145,pactcore:1} を選ぶ
-// (judg と pactcore に相互作用: pactcore を下げると judg 最適が 143〜150 へシフト・§6.8)。golden は単一ビーム
-// (takeTurn)で決定的に同 override を明示適用して検証する(毎回の較正走行を避ける・SEARCH_ROLLOUT_DESIGN §6.5/§6.8)。
+//  - raw(較正なし・①funki修正モデル)                          = 174,253,492  … ダメージモデルの回帰アンカー
+//  - calibrated(自動較正 {judg:145,pactcore:1,effond:100} 適用) = 206,180,726  … production が出荷する探索の値
+// 本番 runSim は calibrateStaticScores で judg×pactcore×effond の3変数を較正し joint 最適
+// {judg:145,pactcore:1,effond:100} を選ぶ(3者に相互作用・§6.7/§6.10)。golden は単一ビーム(takeTurn)で
+// 決定的に同 override を明示適用して検証する(毎回の較正走行を避ける・SEARCH_ROLLOUT_DESIGN §6.5/§6.10)。
 // 実行: npm run test:golden  （node test/golden.mjs）
 import { Sim, buildFormation, setStaticOverride } from '../src/app.js';
 
@@ -19,12 +19,12 @@ setStaticOverride({});
 const raw = run10T();
 const rawOk = raw.dmg === 174253492 && raw.fb === 10;
 
-// 自動較正 override（本編成の calibrateStaticScores 選択結果 = {judg:145,pactcore:1}）を適用した production 値
-setStaticOverride({ judg: 145, pactcore: 1 });
+// 自動較正 override（本編成の calibrateStaticScores 選択結果 = {judg:145,pactcore:1,effond:100}）を適用した production 値
+setStaticOverride({ judg: 145, pactcore: 1, effond: 100 });
 const cal = run10T();
 setStaticOverride({});
-const calOk = cal.dmg === 201260545 && cal.fb === 10;
+const calOk = cal.dmg === 206180726 && cal.fb === 10;
 
 const ok = rawOk && calOk;
-console.log(`[golden] raw=${raw.dmg} FB=${raw.fb}/10 | calibrated=${cal.dmg} FB=${cal.fb}/10 => ${ok ? 'OK' : 'MISMATCH (expect raw 174253492 / calibrated 201260545 / 10)'}`);
+console.log(`[golden] raw=${raw.dmg} FB=${raw.fb}/10 | calibrated=${cal.dmg} FB=${cal.fb}/10 => ${ok ? 'OK' : 'MISMATCH (expect raw 174253492 / calibrated 206180726 / 10)'}`);
 process.exit(ok ? 0 : 1);
