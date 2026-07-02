@@ -146,6 +146,11 @@ let CHARS, LEADER, JP, JP_SHORT, GCLS, ABIL, CHAR_DEF, LABEL_SUFFIX, LABEL, CD_S
 // ABIL_KC[key]=契晶コスト, ABIL_CANDS[key]=CHAR_REGISTRY[owner].cands[key](無ければundefined),
 // ABIL_BASE_S[key]=静的スコア(関数sのみnull→走査時評価/定数sおよびcomputeBaseScore結果は事前確定)。
 let ABIL_KEYS = [], ABIL_KC = {}, ABIL_CANDS = {}, ABIL_BASE_S = {};
+// 案(c) STEP2 自動較正（C15）: config別に rollout ポリシーの静的スコア s を定数で上書きするマップ（key→数値）。
+// 診断(SEARCH_ROLLOUT_DESIGN §4)で「探索の準最適性の根本＝静的sがモデル/ギア依存で脆い」と判明したため、
+// s を config ごとに機械的に fit した結果をここへ載せて ABIL_BASE_S に反映する。
+// **空(既定)では ABIL_BASE_S が自然値と完全一致＝挙動/golden 不変**（inert by default）。
+let S_OVERRIDE = {};
 // CHAR_SIM_STATES: 編成キャラの state フィールドを合流させたマスター初期値。
 // Sim の constructor/snap/clone がこれを参照して自動管理する。
 let CHAR_SIM_STATES = {};
@@ -197,7 +202,9 @@ function buildFormation(heroKey, kamihimeKeys) {
     const cand = CHAR_REGISTRY[owner]?.cands?.[key];
     ABIL_CANDS[key] = cand;
     // s が関数のものだけ走査時評価(null)。定数sおよび未定義(computeBaseScore)は事前確定。
-    ABIL_BASE_S[key] = cand ? (typeof cand.s==='function' ? null : (cand.s ?? computeBaseScore(key,cand))) : null;
+    const nat = cand ? (typeof cand.s==='function' ? null : (cand.s ?? computeBaseScore(key,cand))) : null;
+    // 案(c) 自動較正: S_OVERRIDE[key] があれば静的sを定数上書き（関数sも定数へ差替え）。空なら nat＝golden不変。
+    ABIL_BASE_S[key] = (key in S_OVERRIDE) ? S_OVERRIDE[key] : nat;
   }
   CHAR_DEF = {};
   for(const c of CHARS) CHAR_DEF[c]=CHAR_REGISTRY[c].def;
@@ -250,6 +257,55 @@ function computeBaseScore(key, cand) {
   if (cd >= 10) s += 5;            // 長CDアビ: 早く使うほど次回使用機会が増える
   if (cd === 0)  s -= 10;          // CD=0 即再使用アビ: 引きつけ可能なためやや後回し
   return Math.max(s, 1);
+}
+
+// ===== 案(c) STEP2 静的スコア自動較正（C15・SEARCH_ROLLOUT_DESIGN §6） =====
+
+// 静的スコア上書きを設定し、buildFormation 済みの ABIL_BASE_S へ即時反映する。
+// ov=空/未指定 で自然値へ戻す（＝golden不変の既定へ復帰）。探索/rollout は ABIL_BASE_S を参照するため、
+// これで rollout ポリシーの s（診断のレバー）を差替えられる。走査順・比較規律は不変（定数化のみ）。
+function setStaticOverride(ov){
+  S_OVERRIDE = ov ? {...ov} : {};
+  if(ABIL_KEYS.length) for(const key of ABIL_KEYS){
+    const cand=ABIL_CANDS[key];
+    const nat = cand ? (typeof cand.s==='function' ? null : (cand.s ?? computeBaseScore(key,cand))) : null;
+    ABIL_BASE_S[key] = (key in S_OVERRIDE) ? S_OVERRIDE[key] : nat;
+  }
+}
+function getStaticOverride(){ return {...S_OVERRIDE}; }
+
+// 較正用スコアラ: 純static greedy（安価proxy・planDepth=2）／単一ビームfull（takeTurn）の N ターン総ダメージ。
+function _calProxyDmg(n){ const s=new Sim(); s.totalTurns=n; s.planDepth=2; for(let t=1;t<=n;t++) s.greedyTakeTurn(t); return s.dmg; }
+function _calFullDmg(n){  const s=new Sim(); s.totalTurns=n; for(let t=1;t<=n;t++) s.takeTurn(t); return s.dmg; }
+
+// 静的スコアの config別自動較正（proxy-shortlist + full-verify・**単調安全**）。
+// grid: {abilityKey:[null, v1, v2, ...]}（null=baseline維持=上書きなし）。既定は judg 1次元（診断の主レバー）。
+// 手順: (1) 安価proxy(≈20ms/点)で全候補を採点し shortlist へ（proxy上位K＋**baseline null を必ず含む**）。
+//       (2) shortlist のみ単一ビームfull で採点し最大を採用（baseline を必ず含むため現行以上＝**退行しない**）。
+// 返り値 {override, proxy, full}。override は setStaticOverride にそのまま渡せる形（{}=baseline維持）。
+// この関数は測定後に呼び出し前の override を必ず復元する（呼び出し側が選択 override を明示適用する）。
+// 多次元較正は grid の直積を shortlist 化して拡張（コスト管理のため proxy 段で強く絞る）。
+function calibrateStaticScores(n=10, grid, opts={}){
+  grid = grid ?? { judg:[null, 100, 130, 160, 200] };
+  const K = opts.shortlistK ?? 2;
+  const keys = Object.keys(grid);
+  const saved = getStaticOverride();
+  try{
+    // 現状は単一パラメータ較正（keys[0]）。多次元は下記コメントの直積へ拡張。
+    const pk = keys[0];
+    const cands = grid[pk];
+    const toOv = v => (v==null ? {} : { [pk]: v });
+    const proxy = cands.map(v=>{ setStaticOverride(toOv(v)); return {v, s:_calProxyDmg(n)}; });
+    const proxySorted = [...proxy].sort((a,b)=>b.s-a.s);
+    const short=[]; const seen=new Set();
+    const add=v=>{ const t=String(v); if(!seen.has(t)){ seen.add(t); short.push(v); } };
+    add(null);                                   // baseline を必ず full-verify（単調安全の要）
+    for(let i=0;i<K && i<proxySorted.length;i++) add(proxySorted[i].v);
+    const full = short.map(v=>{ setStaticOverride(toOv(v)); return {v, s:_calFullDmg(n)}; });
+    const fullSorted = [...full].sort((a,b)=>b.s-a.s);
+    const best = fullSorted[0];
+    return { override: best.v==null ? {} : toOv(best.v), proxy, full, best:best.v };
+  } finally { setStaticOverride(saved); }
 }
 
 // ===== リプレイモード =====
@@ -1318,6 +1374,7 @@ export function setCurrentSubs(v){ CURRENT_SUBS = v; }
 export {
   Sim, buildFormation, applyGear, applyEnemy, recalcGearK,
   _runRootPlan, _runBaselinePlan, enumerateRootPrefixes, _selectRootPrefixes,
+  setStaticOverride, getStaticOverride, calibrateStaticScores,
   GEAR, DMG, BG, GEAR_K_C, CHARS, ABIL, ownerOf, ELEM, LEADER, LABEL,
   RENRI_CAP, RENRI_MAX, TENYA_FROM, IFISHANT_MIN_CD,
   WEAPON_MASTER, SUMMON_REGISTRY, ENEMY_REGISTRY, CHAR_REGISTRY,

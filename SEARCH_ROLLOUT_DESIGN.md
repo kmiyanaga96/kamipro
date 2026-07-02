@@ -211,7 +211,46 @@ funki は黄アビ＝`use()` で `T.ability` を+1 → `T.ability%12` の proc�
 
 ---
 
-## 6. 未確定・持ち越し
+## 6. 案(c) production 設計（自動較正の本実装・2026-07-02 セッション4〜）
+
+**方針**: rollout の静的スコア s を config ごとに機械的に較正し、探索本体の前段で1回だけ走らせ、結果を config キーでキャッシュする。**Increment 1（機構＋較正関数＋Node検証・golden中立）＝実装済**／**Increment 2（funki修正恒久化＋runtime配線＋golden更新）＝要ユーザー承認・未着手**。
+
+### 7.1 s-override 機構（Increment 1・実装済）
+- `S_OVERRIDE`（`src/app.js`・key→定数）を `buildFormation` の `ABIL_BASE_S` 構築へ統合。**空(既定)なら自然値＝golden不変**（inert by default・golden 175,023,298 で確認）。
+- `setStaticOverride(ov)`: 上書きを設定し `ABIL_BASE_S` へ即時反映（buildFormation 再実行不要）。`getStaticOverride()` で取得。
+- rollout(`_stepStatic`)・beam(`_candidates`) はともに `ABIL_BASE_S[key]` を参照するため、これで **rollout policy の s（診断§4の主レバー）を差替え**。走査順・厳密 `>` 比較は不変（定数化のみ・ゴールデン規律維持）。
+
+### 7.2 較正アルゴリズム（Increment 1・実装済）: `calibrateStaticScores(n, grid)`
+- **proxy-shortlist + full-verify・単調安全**:
+  1. 安価 proxy（pure static greedy・**~20ms/点**）で grid 全候補を採点し shortlist を作る（proxy 上位K ＋ **baseline(null) を必ず含む**）。
+  2. shortlist のみ単一ビーム full（`takeTurn`）で採点し最大を採用。**baseline を必ず含むため現行以上＝退行しない**（C12 多様性枠と同じ非退行設計）。
+- **proxy 単独が不可な理由**: §5.4 の blackout 反例（proxy→130 だが full→dyn）。proxy は myopic で full と逆順にミスランクしうる。∴ 最終判定は必ず full-verify。
+- **full-grid でなく shortlist な理由**: full は ~60s/点。proxy で強く絞り full を 2〜3 点に限定してコストを抑える。
+- 測定後は呼び出し前の override を必ず復元（呼び出し側が選択 override を明示適用）。harness=`archive/tools/search_calibrate.mjs`（POC-C env 不要＝本機構が置換）。
+
+### 7.3 実測（実機構・Increment 1 検証）
+| モデル | 較正結果 override | full 総ダメージ | 判定 |
+|---|---|---|---|
+| 現行(blackout) | `{}`（baseline維持） | 175,023,298 | 退行なし（機構は現行 config で安全に不作為） |
+| ①修正（一時足場A） | `{judg:130}` | 191,141,005 | **+9.6%**（手調整なしで真の最適へ到達） |
+
+### 7.4 runtime 統合（Increment 2・未実装）
+- `runSim`: `applyGear`→`buildFormation` の後、本探索（root分散）の前に**較正phase**を挿入。grid点の full 採点を **worker pool へ分散**（新 task type `calibrate` ＋ override payload）→ 選択 override を全 worker の init へ載せ、以降の root plan は較正済み s で探索（壁時間≈ full 1回）。
+- **キャッシュ**: `(heroKey, kamihimeKeys, gear signature)` をキーに選択 override をメモリ保持。同 config 再探索は較正 skip。
+- `_fallbackRunSim` / `src/worker.js` にも override 適用・較正を配線。UI は Phase5 進捗に「較正中」phase を追加。
+
+### 7.5 golden・funki修正の同時確定（Increment 2・要ユーザー承認）
+- ①funki 修正（§1.1-A/§2）を恒久化＝単独でも golden 変（174.25M）。∴ 較正有効化と**一括**。
+- golden config の新値＝**191,141,005**（①修正＋`{judg:130}` 較正）想定。`test/golden.mjs` 更新＋ユーザー承認。golden は単一ビームで決定的なので、テスト高速化のため**選択 override を golden 側で明示適用**（`setStaticOverride({judg:130})`）して検証する方式を推奨（毎回較正を走らせない）。
+
+### 7.6 残課題
+- **多パラメータ較正**: 現状 judg 1次元。funki 等の同時較正は grid 直積を proxy で強く絞ってから full-verify（コスト管理）。funki は s が定数評価だが **override 機構なら差替え可能**（env と違いプロセス分離不要）。
+- **gear 汎化**: 数値は全て generic gear。実ギア入手後に再較正で追従（機構は gear signature キーで自動再fit）。
+- **grid 設計**: 粗grid→best近傍の細grid の2段も検討。
+
+---
+
+## 7. 未確定・持ち越し
 - **STEP2 の次段＝案(c) の production 設計**: 最小 lookahead は不合格（§5.3）だが、**案(c) full-search 較正が合格**（§5.4・+9.6%かつ blackout 非退行）。次段は (c) の本実装設計＝**多パラメータ（judg 以外に funki 等）の較正範囲・grid 設計（粗→細）・s のキャッシュ場所（buildFormation 時に1回較正して保持）・N や gear 変更時の再f 方針**を詰める。検証は `archive/tools/search_autocal.mjs`（commit 済）＋スキャフォールド A（funki毎ターン化）＋C（judg-s env）を再適用。※ funki 掃引は s が定数評価のためプロセス分離が必要（B スキャフォールド＋`POC_FUNKI_S`）。
 - **(b)/(a) は保留**: (b) 実ダメージ採点の浅ビームは毎探索コストが重く (c) 優先。(a) εタイブレークは主レバー（judg 優先度の大変更）に触れず改善小のため見送り。
 - **① funki 修正の本実装**: STEP2 の探索改善とセットで確定（単独適用は golden 退行のため保留）。
