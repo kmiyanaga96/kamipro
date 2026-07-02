@@ -152,12 +152,11 @@ let ABIL_KEYS = [], ABIL_KC = {}, ABIL_CANDS = {}, ABIL_BASE_S = {};
 // **空(既定)では ABIL_BASE_S が自然値と完全一致＝挙動/golden 不変**（inert by default）。
 let S_OVERRIDE = {};
 // C15 案(c) runtime 較正: 掃引 grid（多パラメータ機構・直積を proxy で絞り full-verify）と config別採用overrideのキャッシュ。
-// null=そのkeyは上書きしない(自然値)。**judg が唯一の有効レバー**（診断§4）。generic で judg 120〜140 が
-// プラトー(=191,141,005)・その外は低下のため 120/140 を細grid点として保持（非genericギアの解像度向上）。
-// ⚠ funki は較正候補として検証したが override は常に悪化（自然値s=150が最適・§6.6）＝grid から除外。
-// 機構は多パラメータ対応のまま（有効な param が見つかれば `key:[null,...]` を1行足すだけ）。
-// config署名(hero/kamihime/gear/subs/enemy/n)→override。同configの再探索は較正phaseをskipする。
-const CALIB_GRID = { judg: [null, 100, 120, 130, 140, 160, 200] };
+// null=そのkeyは上書きしない(自然値)。有効レバー＝**judg と pactcore**（§6.6/§6.8）。両者に強い相互作用があり、
+// pactcore を下げる(s=1)と judg 最適が 130→143〜150 へシフトし generic で 201,260,545(raw比+15.5%) へ伸びる。
+// grid は judg-only 最適(130)と joint 最適(145,pactcore:1)の双方を含む。⚠ funki は検証の上棄却(自然値最適・§6.6)。
+// 機構は多パラメータ対応（有効 param 追加は `key:[null,...]` を1行）。config署名→override をキャッシュし再探索はskip。
+const CALIB_GRID = { judg: [null, 100, 130, 145, 160, 200], pactcore: [null, 1] };
 const _calibCache = new Map();
 // CHAR_SIM_STATES: 編成キャラの state フィールドを合流させたマスター初期値。
 // Sim の constructor/snap/clone がこれを参照して自動管理する。

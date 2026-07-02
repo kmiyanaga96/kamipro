@@ -245,24 +245,29 @@ funki は黄アビ＝`use()` で `T.ability` を+1 → `T.ability%12` の proc�
 
 ### 6.5 golden・funki修正の確定（Increment 2・実施済）
 - ①funki 修正（§1.1-A/§2）を `data/characters.js` へ**恒久実装**（state=`funki_recasts`/`funki_carryover`・onAbility/turnEnd）。C14=fixed。
-- golden 新値: **raw（較正なし）174,253,492 / calibrated（`{judg:130}`）191,141,005**。`test/golden.mjs` は決定的検証のため `setStaticOverride({judg:130})` を明示適用して両値をアサート（毎回の較正走行を回避）。CLAUDE.md/AGENTS.md の検証ゲートも更新。
+- golden 新値（§6.7 の pactcore 発見で更新）: **raw（較正なし）174,253,492 / calibrated（`{judg:145,pactcore:1}`）201,260,545**。`test/golden.mjs` は決定的検証のため `setStaticOverride({judg:145,pactcore:1})` を明示適用して両値をアサート（毎回の較正走行を回避）。CLAUDE.md/AGENTS.md の検証ゲートも更新。
 
-### 6.6 多パラメータ較正の検証（2026-07-02 セッション5・**funki 棄却・judg プラトー確定**）
-`calibrateStaticScores`/`calibrationShortlist` を **grid 直積の多パラメータ較正**へ一般化（`_calibCombos`・proxy で絞り full-verify・単調安全は不変）。診断§4 が挙げた 2 レバーのうち **funki を候補追加して検証したが棄却**：
-- **judg=130 最適点で funki override は全値で悪化**（generic gear・単一ビームfull）: `{judg:130}`=191,141,005 に対し funki を 30/60/90/120/200 に振ると 176.3M/165.4M/172.7M/184.1M/181.4M と一様に低下。**funki 自然値 s=150 が既に最適**＝有効レバーでない。∴ `CALIB_GRID` から funki を除外。
-- **judg は 120〜140 がプラトー**（すべて 191,141,005＝同一最適順序）・その外は低下（115→183.4M / 145→183.6M）。プラトー端 120/140 を細grid点として保持し、非generic ギアの解像度を上げる（generic は 130 と同値で golden 不変）。
-- **結論**: 有効レバーは **judg のみ**。多パラメータ**機構**は実装済（将来 param 追加は `CALIB_GRID` に 1 行）だが、現時点で有効な第2 param は未発見。
+### 6.6 多パラメータ較正への一般化と funki 棄却（2026-07-02 セッション5）
+`calibrateStaticScores`/`calibrationShortlist` を **grid 直積の多パラメータ較正**へ一般化（`_calibCombos`・proxy で絞り full-verify・単調安全は不変）。診断§4 が挙げた funki を候補追加して検証したが棄却：
+- **judg=130 最適点で funki override は全値で悪化**（generic gear・単一ビームfull）: `{judg:130}`=191,141,005 に対し funki 30/60/90/120/200 → 176.3M/165.4M/172.7M/184.1M/181.4M と一様低下。**funki 自然値 s=150 が既に最適**＝有効レバーでない。∴ `CALIB_GRID` から funki を除外。
 
-### 6.7 残課題
-- **gear 汎化・grid 設計**: 数値は全て generic gear（実ギアは指数124と別値＝config別に自動再fit 済）。実ギアで指数が伸び切らない場合は judg の細grid拡張（粗→細2段）や、gear特徴に応じた grid 自動生成を検討。
-- **多パラメータの再挑戦**: judg 以外の有効レバー探索（effond/sleur/puvoir 等の s 掃引）は未実施。診断は judg/funki のみ検証済。
+### 6.7 第2レバー pactcore の発見と joint 最適（2026-07-02 セッション6・**+5.3%上積み**）
+funki 棄却後も他レバーを探索（`search_lever_scan`→`search_lever_verify`：全アビの s を proxy で足切り→上位を full-verify）。**唯一 pactcore が base 超え**（`{judg:130,pactcore:1}`=192,475,022）。さらに **judg×pactcore に強い相互作用**を発見：
+- **pactcore を下げる（s≤30）と judg 最適が 130→143〜150 へシフト**。joint 最適 **`{judg:145,pactcore:1}`=201,260,545（raw比 +15.50%・judg単独191.14Mを +5.29%）**。judg 143〜150 がプラトー・152+ で 198M へ崖落ち（非単調・BEAM_SEARCH_DESIGN の崖と同種）。
+- pactcore 単独（judg 自然）は 190.6M で伸びず＝**judg と pactcore は同時較正が必須**（1次元順次では到達不能）。多パラメータ機構の価値を実証。
+- **較正機構は joint 最適を自力発見**：`CALIB_GRID={judg:[null,100,130,145,160,200], pactcore:[null,1]}` で proxy shortlist が `{judg:145,pactcore:1}` を正しく捕捉→full-verify で採用（201,260,545）。golden 更新。
+- 他の候補（tenya/effond/sleur/puvoir/droid/amplifa/alone/knights 等）は full-verify で base 超えなし。
+
+### 6.8 残課題
+- **gear 汎化・grid 設計**: 数値は全て generic gear（実ギアは指数124と別値＝config別に自動再fit 済）。実ギアで指数が伸び切らない場合は judg/pactcore の細grid拡張（粗→細2段）や、gear特徴に応じた grid 自動生成を検討。
+- **さらなるレバー・多次元探索**: 3変数以上の相互作用（judg×pactcore×他）は未探索。grid 直積の拡大はコスト増（proxy は安価だが full-verify の shortlist K を要調整）。
 
 ---
 
 ## 7. 未確定・持ち越し
 - **ブラウザ実機検証（済・2026-07-02）**: Increment 2 の runtime 配線をユーザーが `npm run preview` で確認＝「較正中」表示・再探索高速化(キャッシュ)・中断すべてOK。実ギアで火力指数 A(124.0)（generic 126.2 との差は gear 由来・config別再fit 済）。
-- **多パラメータ較正（済・§6.6）**: 機構は多パラメータ対応済。funki は検証の上棄却（自然値最適）・judg のみ有効。第2 レバー探索（effond/sleur 等）は未実施＝将来課題。
-- **gear 汎化・grid設計**: 実ギアで指数が伸び切らない場合、judg 細grid拡張（粗→細2段）や gear特徴に応じた grid 生成を検討（§6.7）。
+- **多パラメータ較正（済・§6.6/§6.7）**: 機構は多パラメータ対応済。funki は棄却（自然値最適）だが **pactcore を第2レバーとして発見**＝judg×pactcore の joint 最適 `{judg:145,pactcore:1}`=201,260,545（+15.5%）。較正機構が自力発見・golden 更新。
+- **gear 汎化・grid設計**: 実ギアで指数が伸び切らない場合、judg/pactcore 細grid拡張（粗→細2段）や gear特徴に応じた grid 生成を検討（§6.8）。3変数以上の相互作用は未探索。
 - **(b)/(a) は保留**: (b) 実ダメージ採点の浅ビームは毎探索コストが重く (c) 優先。(a) εタイブレークは主レバーに触れず改善小のため見送り。
 - **③ ヘカテー mobius 空振り**: 次セッション・**実ギア（ユーザーのスクショ編成の GEAR 設定）待ち**で切り分け。
 - **overfit 注意**: 本レポートの数値は全て generic gear。実ギアでは最適 order も改善幅も異なる。STEP2 は「特定 s 値」ではなく「自己適応の仕組み」を目指すこと。

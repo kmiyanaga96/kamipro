@@ -19,8 +19,8 @@ const N = +(process.env.POC_N ?? 10);
 const fmt = x => Math.round(x).toLocaleString();
 buildFormation('edison', ['yamato', 'hecate', 'tetra', 'elaine']);
 
-// --- 較正phase（worker分散を単一プロセスで模擬）---
-const shortlist = calibrationShortlist(N, { judg: [null, 100, 130, 160, 200] });
+// --- 較正phase（worker分散を単一プロセスで模擬・production の既定 CALIB_GRID を使う）---
+const shortlist = calibrationShortlist(N);
 const calib = shortlist.map(override => ({ override, dmg: _runCalibrationProbe(override, N) }));
 setStaticOverride({});                       // probe が残した override をクリア（worker init 相当）
 let best = calib[0];
@@ -43,7 +43,7 @@ setStaticOverride({});
 const idx = baseDmg > 0 ? (bestRoot.dmg / baseDmg * 100).toFixed(1) : '—';
 console.log(`  本探索(root分散)採用ルート = [${bestRoot.prefix.join(',') || '(空)'}]`);
 console.log(`  本探索 総ダメージ = ${fmt(bestRoot.dmg)}   baseline = ${fmt(baseDmg)}   火力指数 = ${idx}`);
-const okOverride = JSON.stringify(chosen) === JSON.stringify({ judg: 130 });
-const okDmg = Math.round(bestRoot.dmg) >= 191141005;   // root分散 ≥ 単一ビームfull(191,141,005)
-console.log(`  => 期待: override={judg:130} & 総dmg≥191,141,005  :  ${okOverride && okDmg ? 'OK' : 'NG'}`);
+const okOverride = JSON.stringify(chosen) === JSON.stringify({ judg: 145, pactcore: 1 });
+const okDmg = Math.round(bestRoot.dmg) >= 201260545;   // root分散 ≥ 単一ビームfull(201,260,545)
+console.log(`  => 期待: override={judg:145,pactcore:1} & 総dmg≥201,260,545  :  ${okOverride && okDmg ? 'OK' : 'NG'}`);
 process.exit(okOverride && okDmg ? 0 : 1);
