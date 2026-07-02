@@ -329,8 +329,8 @@ function _fineGridAround(winner, coarseGrid){
 // runSim は shortlist を worker へ分散採点→最大dmgの override を採用（baseline含むため退行しない）。
 function calibrationShortlist(n=10, grid, opts={}){
   grid = grid ?? CALIB_GRID;
-  const Kc = opts.coarseK ?? 4;   // 粗の上位枠（真の最適 coarse 領域を確保）
-  const Kf = opts.fineK ?? 3;     // 細の上位枠（粗winner 周辺の解像度）
+  const Kc = opts.coarseK ?? 3;   // 粗の上位枠（真の最適 coarse 領域を確保）
+  const Kf = opts.fineK ?? 2;     // 細の上位枠（粗winner 周辺の解像度）
   const saved = getStaticOverride();
   try{
     const score = combos => combos.map(ov=>{ setStaticOverride(ov); return {ov, s:_calProxyDmg(n)}; });

@@ -270,17 +270,28 @@ proxy 段で「粗grid採点→粗winner周辺の細grid採点」を行い、両
 - **⚠ shortlist 枯渇バグを修正**: 粗→細を素朴に「pool=粗∪細を proxy 上位K」とすると、多変数で proxy が粗winner をズラした際に**細点が全枠を占拠し真の最適 coarse 領域を押し出す**（3変数初回で判明＝採用 200.7M と取りこぼし）。修正＝shortlist を【粗の上位 `coarseK`(=4)】と【細の上位 `fineK`(=3)】の**別枠**で確保し粗の多様性を保証（`calibrationShortlist`）。再検証で `{judg:145,pactcore:1,effond:100}`=206,180,726 を自力捕捉。
 - `CALIB_GRID={judg:[null,100,130,145,160,200], pactcore:[null,1], effond:[null,100,120]}`。golden 更新（206,180,726）。
 
-### 6.10 残課題
-- **gear 汎化**: 数値は全て generic gear（config別に自動再fit 済）。実ギアで指数が伸び切らない場合は粗→細の step 調整や grid 拡張を検討。
+### 6.10 step調整・gear汎化の検証（2026-07-02 セッション9・**検証済**）
+ユーザーが「較正中の候補増（コスト増）」を実機で認識したため step調整、および gear汎化を検証：
+- **step調整（shortlist 8→6）**: 粗枠 `coarseK` 4→3、細枠 `fineK` 3→2 に削減。generic で真の最適 coarse 領域(judg=145)は proxy 粗ランク #2・fine 点は generic で勝たないため品質不変（採用 `{judg:145,pactcore:1,effond:100}`=206,180,726 維持・shortlist=6）。full-verify 回数を 25% 削減。
+- **gear汎化（`search_gear_probe.mjs`・GEAR 枠を Node で設定し3ギア較正）**: 較正が **per-gear で適応**し全ギアで +17〜18%・退行なしを確認。
+  | ギア | override | cal | 利得 | shortlist |
+  |---|---|---|---|---|
+  | generic | `{judg:145,pactcore:1,effond:100}` | 206,180,726 | +18.3% | 6 |
+  | burstGear(assault/elem/burst_dmg/cap) | `{judg:122,pactcore:1,effond:93}` | 234,122,786 | +17.1% | 6 |
+  | abiGear(abi_dmg/cap/spec) | `{judg:145,pactcore:1,effond:100}` | 263,293,095 | +18.1% | 5 |
+- **粗→細がギア適応に寄与**: burstGear は judg=122・effond=93 と**fine 点**を採用＝ズレた最適を粗→細で回収。grid レンジも十分（fine が effond 86〜114 を探索するため境界張り付きなし）。∴ **gear特徴に応じた grid 自動生成は不要**（粗→細＋config別再fit で汎化を達成）。
+
+### 6.11 残課題
 - **4変数以上は却下**（ユーザー決定・複雑さ対効果）。他レバー（tenya/sleur/absolute 等）は effond と排他でなく将来 effond を置換/追加する余地はあるが 3変数枠内で要取捨。
-- **gear特徴に応じた grid 自動生成**: アイデア曖昧・overfit リスクで優先度低（粗→細で大半代替可能）。
+- **実ギア較正の実測**: 診断は generic＋合成ギア。ユーザーの実ギアでの override・利得は未計測（config別に自動再fit されるため機構上は追従・実測すれば裏取り可能）。
 
 ---
 
 ## 7. 未確定・持ち越し
 - **ブラウザ実機検証（済・2026-07-02）**: Increment 2 の runtime 配線をユーザーが `npm run preview` で確認＝「較正中」表示・再探索高速化(キャッシュ)・中断すべてOK。実ギアで火力指数 A(124.0)（generic 126.2 との差は gear 由来・config別再fit 済）。
 - **多パラメータ較正（済・§6.6〜§6.9）**: 機構は多パラメータ+粗→細対応。funki 棄却／**pactcore(第2)・effond(第3)を発見**＝3変数 joint 最適 `{judg:145,pactcore:1,effond:100}`=206,180,726（raw比+18.3%）。較正機構が自力発見・golden 更新。**3変数まで（4変数以上ユーザー却下）**。
-- **gear 汎化・grid設計**: 実ギアで指数が伸び切らない場合、粗→細 step 調整・grid 拡張を検討（§6.10）。gear特徴に応じた grid 自動生成は優先度低。
+- **step調整・gear汎化（済・§6.10）**: shortlist 8→6（coarseK=3/fineK=2・品質不変）。3ギア診断で per-gear 適応＋全ギア+17〜18%・退行なし・レンジ十分を確認。gear特徴grid自動生成は不要と結論。
+- **残**: 4変数以上却下。実ギアでの実測較正は未取得（機構は追従）。
 - **(b)/(a) は保留**: (b) 実ダメージ採点の浅ビームは毎探索コストが重く (c) 優先。(a) εタイブレークは主レバーに触れず改善小のため見送り。
 - **③ ヘカテー mobius 空振り**: 次セッション・**実ギア（ユーザーのスクショ編成の GEAR 設定）待ち**で切り分け。
 - **overfit 注意**: 本レポートの数値は全て generic gear。実ギアでは最適 order も改善幅も異なる。STEP2 は「特定 s 値」ではなく「自己適応の仕組み」を目指すこと。
