@@ -258,9 +258,15 @@ funki 棄却後も他レバーを探索（`search_lever_scan`→`search_lever_ve
 - **較正機構は joint 最適を自力発見**：`CALIB_GRID={judg:[null,100,130,145,160,200], pactcore:[null,1]}` で proxy shortlist が `{judg:145,pactcore:1}` を正しく捕捉→full-verify で採用（201,260,545）。golden 更新。
 - 他の候補（tenya/effond/sleur/puvoir/droid/amplifa/alone/knights 等）は full-verify で base 超えなし。
 
-### 6.8 残課題
-- **gear 汎化・grid 設計**: 数値は全て generic gear（実ギアは指数124と別値＝config別に自動再fit 済）。実ギアで指数が伸び切らない場合は judg/pactcore の細grid拡張（粗→細2段）や、gear特徴に応じた grid 自動生成を検討。
-- **さらなるレバー・多次元探索**: 3変数以上の相互作用（judg×pactcore×他）は未探索。grid 直積の拡大はコスト増（proxy は安価だが full-verify の shortlist K を要調整）。
+### 6.8 粗→細2段較正（実装済・2026-07-02 セッション7）
+proxy 段で「粗grid採点→粗winner周辺の細grid採点」を行い、両者の proxy 上位から shortlist を作る（`_fineGridAround`＋`calibrationShortlist`）。**proxy は ~20ms/点で安価なため2段でも軽く、full-verify(worker分散)は shortlist のみ＝runSim/worker 配線は不変**。
+- `_fineGridAround(winner,coarseGrid)`: 粗winner の各 set-key について隣接粗点との間隔を ~6分割した step で v±2step の点を張る（非null候補が1つの軸=pactcore は細分化不能で据置）。
+- 効果: 固定粗grid の点間に埋もれた最適を回収＝**特に非genericギア**（粗点からズレた最適）に効く。generic は 143〜150 プラトーのため採用値・golden 不変（201,260,545）だが、shortlist に fine 点(145/150/155…)が入り解像度向上を確認。
+- 単調安全は不変（baseline{} を必ず shortlist に含む）。shortlistK=4 に調整（fine 点ぶんの余裕）。
+
+### 6.9 残課題
+- **第3レバー探索（次段・§③）**: 新 base `{judg:145,pactcore:1}` で lever_scan/verify を再実行し、相互作用で出現する第3レバーを探す（**3変数まで・4変数以上は却下＝ユーザー決定**）。
+- **gear特徴に応じた grid 自動生成**: アイデアが曖昧・overfit リスクありで優先度低（粗→細で大半は代替可能）。実ギアで粗→細でも伸び切らない場合に再検討。
 
 ---
 

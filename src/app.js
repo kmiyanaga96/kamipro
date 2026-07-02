@@ -299,22 +299,52 @@ function _calibCombos(grid){
   return out;
 }
 
+// 粗grid の勝者 override 周辺に「細grid」を生成（§6.8 粗→細2段）。粗winner の各 set-key について、
+// 粗grid の隣接点との間隔を ~6分割した step で v±2step の点を張る（非genericギアで点間に埋もれた最適を回収）。
+// 非null 候補が1つしかない軸（例 pactcore=[null,1]）は細分化不能のため [null,v] のまま。
+function _fineGridAround(winner, coarseGrid){
+  const fine={};
+  for(const k of Object.keys(winner)){
+    const v=winner[k];
+    const cs=(coarseGrid[k]||[]).filter(x=>x!=null).sort((a,b)=>a-b);
+    if(cs.length<2 || typeof v!=='number'){ fine[k]=[null, v]; continue; }
+    const idx=cs.indexOf(v);
+    const lo = idx>0 ? cs[idx-1] : v-(cs[1]-cs[0]);
+    const hi = idx<cs.length-1 ? cs[idx+1] : v+(cs[cs.length-1]-cs[cs.length-2]);
+    const step=Math.max(1, Math.round((hi-lo)/6));
+    const pts=new Set([null]);
+    for(let x=v-2*step; x<=v+2*step; x+=step) if(x>0) pts.add(x);
+    fine[k]=[...pts];
+  }
+  return fine;
+}
+
 // runtime 較正の分割API（worker分散用）:
-//  - calibrationShortlist: 安価proxyで grid直積 を採点し、full-verify すべき override 候補（baseline{}を必ず含む）を返す。
+//  - calibrationShortlist: 安価proxyで grid直積を採点し、full-verify すべき override 候補（baseline{}を必ず含む）を返す。
+//    §6.8 粗→細: proxy 段で「粗grid採点→粗winner周辺の細grid採点」を行い、両者の proxy 上位から shortlist を作る
+//    （proxy は ~20ms/点で安価なため2段でも軽い）。full-verify(worker分散)は shortlist のみ＝runSim配線は不変。
 //  - _runCalibrationProbe: 1 override を適用し単一ビームfullで採点（worker が並列に回す・返り値=総ダメージ）。
 // runSim は shortlist を worker へ分散採点→最大dmgの override を採用（baseline含むため退行しない）。
 function calibrationShortlist(n=10, grid, opts={}){
   grid = grid ?? CALIB_GRID;
-  const K = opts.shortlistK ?? 3;
-  const combos = _calibCombos(grid);
+  const K = opts.shortlistK ?? 4;
   const saved = getStaticOverride();
   try{
-    const scored = combos.map(ov=>{ setStaticOverride(ov); return {ov, s:_calProxyDmg(n)}; });
-    scored.sort((a,b)=>b.s-a.s);
+    const score = combos => combos.map(ov=>{ setStaticOverride(ov); return {ov, s:_calProxyDmg(n)}; });
+    const coarse = score(_calibCombos(grid));                 // 粗段
+    const coarseWin = coarse.reduce((a,b)=>b.s>a.s?b:a).ov;
+    let pool = coarse;
+    if(Object.keys(coarseWin).length){                        // 細段（粗winner が空でなければ周辺を細grid採点）
+      pool = coarse.concat(score(_calibCombos(_fineGridAround(coarseWin, grid))));
+    }
+    // override 単位で dedup（同一 override は proxy 最大を採用）→ proxy 降順ソート
+    const best=new Map();
+    for(const e of pool){ const t=JSON.stringify(e.ov); if(!best.has(t)||best.get(t).s<e.s) best.set(t,e); }
+    const ranked=[...best.values()].sort((a,b)=>b.s-a.s);
     const out=[]; const seen=new Set();
     const add=ov=>{ const t=JSON.stringify(ov); if(!seen.has(t)){ seen.add(t); out.push(ov); } };
     add({});                                       // baseline{} を必ず full-verify（単調安全の要）
-    for(let i=0;i<K && i<scored.length;i++) add(scored[i].ov);
+    for(let i=0;i<K && i<ranked.length;i++) add(ranked[i].ov);
     return out;
   } finally { setStaticOverride(saved); }
 }
