@@ -189,6 +189,44 @@ function storeResult(configSig, n, best, baseDmg, override){
   if(turnsKeys.some(k=>!Array.isArray(k))) return;
   _resultCache.set(_resultKey(configSig), { turnsKeys, dmg:best.dmg, prefix:best.prefix||[], baseDmg:baseDmg||0, override:override||{}, n });
 }
+
+// ===== C16 持続化 Increment 3: 越境（JSON入出力）=====
+// 現在の結果キャッシュを JSON 文字列へシリアライズ / 復元する。configSig は実UI実行が生成した本物を
+// そのまま持ち運ぶため、Increment2(プリコンピュート)のような configSig 再現問題が起きない（correct by construction）。
+// キーは `ENGINE_VERSION|configSig` 込みで保存＝別版のエントリは現行の tryResultCache と名前空間が合わず
+// 自然に無視される（＝古い版の混入で誤ヒットしない）。命中時は従来どおりリプレイ検証で最終担保。
+function exportResultCache(){
+  const entries=[]; for(const [k,v] of _resultCache) entries.push([k,v]);
+  return JSON.stringify({ kind:'kamipro-result-cache', engineVersion:ENGINE_VERSION, entries });
+}
+// 取込: JSON をパースし _resultCache へマージ。turnsKeys を持つ妥当エントリのみ採用。取込件数を返す。
+function importResultCache(jsonStr){
+  const obj=JSON.parse(jsonStr);
+  if(!obj || !Array.isArray(obj.entries)) throw new Error('形式不正（entries 配列なし）');
+  let n=0;
+  for(const pair of obj.entries){
+    if(!Array.isArray(pair) || pair.length!==2) continue;
+    const [k,v]=pair;
+    if(typeof k==='string' && v && Array.isArray(v.turnsKeys)){ _resultCache.set(k,v); n++; }
+  }
+  return n;
+}
+// UI glue（ブラウザのみ・onclick から呼ぶ）: キャッシュを .json でダウンロード / ファイルから取込。
+function downloadResultCache(){
+  const json=exportResultCache();
+  const blob=new Blob([json],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=`kamipro_cache_${ENGINE_VERSION}.json`;
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+function uploadResultCacheFile(input){
+  const f=input.files&&input.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{ try{ const n=importResultCache(String(r.result)); alert(`${n}件のキャッシュを取込みました`); }
+                 catch(e){ alert('取込失敗: '+(e&&e.message||e)); } input.value=''; };
+  r.readAsText(f);
+}
+
 // CHAR_SIM_STATES: 編成キャラの state フィールドを合流させたマスター初期値。
 // Sim の constructor/snap/clone がこれを参照して自動管理する。
 let CHAR_SIM_STATES = {};
@@ -1529,7 +1567,7 @@ export {
   Sim, buildFormation, applyGear, applyEnemy, recalcGearK,
   _runRootPlan, _runBaselinePlan, enumerateRootPrefixes, _selectRootPrefixes,
   setStaticOverride, getStaticOverride, calibrateStaticScores, calibrationShortlist, _runCalibrationProbe,
-  tryResultCache, storeResult, _resultCache, _resultKey, ENGINE_VERSION,
+  tryResultCache, storeResult, _resultCache, _resultKey, ENGINE_VERSION, exportResultCache, importResultCache,
   GEAR, DMG, BG, GEAR_K_C, CHARS, ABIL, ownerOf, ELEM, LEADER, LABEL,
   RENRI_CAP, RENRI_MAX, TENYA_FROM, IFISHANT_MIN_CD,
   WEAPON_MASTER, SUMMON_REGISTRY, ENEMY_REGISTRY, CHAR_REGISTRY,
@@ -1542,6 +1580,7 @@ export {
 if (typeof window !== 'undefined') {
   Object.assign(window, {
     runSim, clearSim, cancelSim, toggleCard, toggleReplayPanel, runReplay,
+    downloadResultCache, uploadResultCacheFile,
     saveTokenAndInit, loadSlotById, overwriteSlotById, deleteSlotById, saveNewSlot, syncSlots
   });
 }

@@ -260,6 +260,10 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
       <input type="number" id="turns-n" value="10" min="1" max="30">
       <button class="btn btn-primary" onclick="runSim()">▶ シミュレーション実行</button>
       <button class="btn btn-secondary" onclick="clearSim()">✕ クリア</button>
+      <!-- C16 持続化 Increment3: 結果キャッシュの越境（JSON入出力）。別端末/別ブラウザへ計算済み結果を持ち運ぶ。 -->
+      <button class="btn btn-secondary btn-sm" onclick="downloadResultCache()" title="計算済み結果キャッシュをJSONで書き出し（別端末へ）">⬇ キャッシュ書出</button>
+      <button class="btn btn-secondary btn-sm" onclick="document.getElementById('cache-import-file').click()" title="別端末で書き出したキャッシュJSONを取込">⬆ キャッシュ取込</button>
+      <input type="file" id="cache-import-file" accept="application/json,.json" style="display:none;" onchange="uploadResultCacheFile(this)">
     </div>
     <div id="summary-bar" style="display:none;"></div>
     <div id="sim-loading" class="sim-loading">
