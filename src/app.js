@@ -797,7 +797,14 @@ function _initSimProgress(n){
 // ※立ち絵は未DB化のため現状は JP_SHORT の名前バッジ。B2で立ち絵に差し替え予定(点灯ロジックは流用)。
 function _renderProgChars(){
   const el=document.getElementById('sim-prog-chars'); if(!el) return;
-  el.innerHTML=(CHARS||[]).map(c=>`<span class="sim-char" data-c="${c}">${(JP_SHORT&&JP_SHORT[c])||c}</span>`).join('');
+  // B2 前方配線: public/portraits/<key>.png があれば立ち絵、無ければ名前バッジにフォールバック。
+  //   img.onload=名前を隠す / img.onerror=img除去(名前が残る)。画像未配置の間は現状(名前バッジ)と同一。
+  el.innerHTML=(CHARS||[]).map(c=>{
+    const nm=(JP_SHORT&&JP_SHORT[c])||c;
+    return `<span class="sim-char" data-c="${c}"><span class="sim-char-name">${nm}</span>`+
+           `<img class="sim-char-img" src="portraits/${c}.png" alt="${nm}" `+
+           `onload="this.previousElementSibling.style.display='none';this.parentElement.classList.add('has-img')" onerror="this.remove()"></span>`;
+  }).join('');
 }
 function _litProgChars(frac){
   const el=document.getElementById('sim-prog-chars'); if(!el) return;
