@@ -213,11 +213,14 @@ function importResultCache(jsonStr){
 }
 // UI glue（ブラウザのみ・onclick から呼ぶ）: キャッシュを .json でダウンロード / ファイルから取込。
 function downloadResultCache(){
+  const count=_resultCache.size;
+  if(count===0){ alert('キャッシュが空です。先にシミュレーションを1回以上実行してください（結果はメモリ上に保存され、リロードで消えます）。'); return; }
   const json=exportResultCache();
   const blob=new Blob([json],{type:'application/json'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a'); a.href=url; a.download=`kamipro_cache_${ENGINE_VERSION}.json`;
   document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  alert(`${count}件のキャッシュを書き出しました`);
 }
 function uploadResultCacheFile(input){
   const f=input.files&&input.files[0]; if(!f) return;
