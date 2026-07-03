@@ -153,7 +153,7 @@ let ABIL_KEYS = [], ABIL_KC = {}, ABIL_CANDS = {}, ABIL_BASE_S = {};
 let S_OVERRIDE = {};
 // C15 案(c) runtime 較正: 掃引 grid（多パラメータ機構・直積を proxy で絞り full-verify）と config別採用overrideのキャッシュ。
 // null=そのkeyは上書きしない(自然値)。有効レバー＝**judg・pactcore・effond の3変数**（§6.7/§6.10・強い相互作用）。
-// pactcore を下げると judg 最適が 143〜150 へシフト、さらに effond≈100 で generic 206,180,726(raw比+18.3%) へ。
+// pactcore を下げると judg 最適が 143〜150 へシフト、さらに effond≈100 で generic 206,622,997(raw比+18.3%) へ（C16: BW64値）。
 // ⚠ funki は検証の上棄却(自然値最適・§6.6)。3変数まで（4変数以上はユーザー決定で却下）。
 // 機構は多パラメータ+粗→細対応（§6.8）。config署名→override をキャッシュし再探索はskip。
 const CALIB_GRID = { judg: [null, 100, 130, 145, 160, 200], pactcore: [null, 1], effond: [null, 100, 120] };
