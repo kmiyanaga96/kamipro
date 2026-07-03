@@ -34,7 +34,7 @@
     * `def.onBurst(sim, atk, owner)`: 自身のバースト時
     * `def.turnEnd(sim, T)`: ターン終了時
 * **2段ルート選抜と新キャラ追加時の再検証 (品質維持)**:
-  * `runSim` は全開幕ルートを静的proxyで採点し、上位 `PREFIX_TOPK`(=10) 本のみを本選(BW64・C16で128→64)へ回します（`_selectRootPrefixes`）。
+  * `runSim` は全開幕ルートを静的proxyで採点し、上位 `PREFIX_TOPK`(=8・C16で10→8=PoC安全床) 本のみを本選(BW64・C16で128→64)へ回します（`_selectRootPrefixes`）。
   * **新キャラ追加や `abilities`/`cands` 変更時は、PoC（scratchpad `poc.js` 等で真値=BW64全探索 vs 静的/BW4 proxy 上位K）を再実行し、真の勝者ルートが上位Kから外れていないか（`PREFIX_TOPK` の余裕）を必ず再確認してください**（外れると静かに品質が落ちます）。詳細は [PERF_NOTES.md](../archive/PERF_NOTES.md) §4/§6。
 
 ### 2. Git 開発ワークフロー（強制ルール）

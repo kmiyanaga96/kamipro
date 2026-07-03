@@ -10,7 +10,7 @@ const FB_THR = 100; // フルバースト閾値（カスケードあり）
 const MACH_BG = 5;   // マシーンタクトゥ: ロボ作動1回あたりBG増加
 const KEIGYO_MAX = 15;  // 契晶最大値
 const BEAM_W = 64; // ビームサーチ幅（C16: 128→64。較正rollout改善後は幅が品質を買わず逆効果=非単調の崖。他ギア退行なし・両phase約1.4倍高速。BW64では較正が新winner{judg:122,effond:93}を再fit=production出荷値206,846,142）
-const PREFIX_TOPK = 10;  // 2段ルート選抜: 静的proxyで全prefixを採点し本選へ回す数
+const PREFIX_TOPK = 8;  // 2段ルート選抜: 静的proxyで全prefixを採点し本選へ回す数（C16: 10→8＝PoC実証の安全床。top-8 loss≤0.013%・BW64で0%損実測・golden不変。本探索タスク約18%減）
 const BEAM_DIVERSITY_K = 24; // ビーム多様性枠: 定石性(T.orthodoxy)上位の追加保護数
 const IFISHANT_MIN_CD = 3; // イフィシャント使用可の最小CD中アビ数
 const BG = {
