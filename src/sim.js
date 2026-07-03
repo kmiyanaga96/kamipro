@@ -379,11 +379,20 @@ class Sim {
     return beam[0]?.keys??[];
   }
 
-  greedyTakeTurn(t) {
+  // forcedKeys!=null のときはビーム探索せず与えられたアビキー列をそのまま実行する（C16 持続化の
+  // 決定的リプレイ用）。末尾の行組立は共通のため、返り値の行形状は通常探索と完全一致する。
+  // 同一エンジン/overrideなら全キーが有効候補として同順再生され、変化時は _execKey が no-op で
+  // skip→総ダメージ不一致となり呼び出し側の検証が破棄する（ヒント検証原則）。
+  greedyTakeTurn(t, forcedKeys=null) {
     this._beginTurn(t);
     // planDepth=0: 本ターン(フルビーム) / >=2: ロールアウト(静的greedy)。
     // ※greedyTakeTurnはdepth0(実ターン)か_objective内のdepth>=2クローンからのみ呼ばれ、depth1は構造上発生しない。
-    if(this.planDepth>=2){
+    let usedKeys=null;
+    if(forcedKeys){
+      this._primeLookaheads(t);
+      for(const key of forcedKeys) this._execKey(key);
+      usedKeys=forcedKeys.slice();
+    } else if(this.planDepth>=2){
       for(let i=0;i<300;i++) if(!this._stepStatic()) break;
     } else {
       this._primeLookaheads(t);
@@ -392,6 +401,7 @@ class Sim {
       const fp=(this.planDepth===0 && this._forcePrefix && t===this._forceTurn) ? this._forcePrefix : [];
       const keys=this._beamSearch(BEAM_W, fp);
       for(const key of keys) this._execKey(key);
+      usedKeys=keys.slice();  // 採用アビキー列を行へ保存（持続化キャッシュのリプレイ検証に使う）
     }
     const atk=this._attackPhase();
     const T=this.T, ord=this.ord;
@@ -402,7 +412,7 @@ class Sim {
     return {t,ord,atk,full:atk.length===5,burst:T.burst,ability:T.ability,ra:T.ra,ju:T.ju,
       mobius_this:T.mobius,rt,renri:this.renri,keigyo:this.keigyo,cum:this.cum,
       mooncode:this.mooncode,ycount:this.ycount,helix,droid:this.droid,banoshik_robot:this.banoshik_robot,
-      dmg:this.dmg,gauge:{...this.g},state:this.snap()};
+      dmg:this.dmg,gauge:{...this.g},state:this.snap(),keys:usedKeys};
   }
 
   _beginTurn(t){
@@ -499,6 +509,16 @@ function _runBaselinePlan(n, onTurn){
   return base.dmg;
 }
 
+// C16 持続化: 保存済みの per-turn アビキー列(turnsKeys)を現行エンジンで決定的にリプレイし {dmg, rows} を返す。
+// ビーム探索を張らず forcedKeys で確定再生するため n ターン≈数十ms(探索skip)。行形状は _runRootPlan と同一。
+// ⚠ ダメージは押し順で決まり静的スコア override 非依存(override は探索の舵のみ)ため、リプレイ検証に override 設定は不要。
+// 呼び出し側は現在の編成/ギア/敵(=configSig の対象)を buildFormation/applyGear 済みにしてから呼ぶこと。
+function _replayResult(turnsKeys, n){
+  const sim=new Sim(); sim.totalTurns=n;
+  const rows=[]; for(let t=1;t<=n;t++){ rows.push(sim.greedyTakeTurn(t, turnsKeys[t-1]||[])); }
+  return {dmg:sim.dmg, rows};
+}
+
 // 2段ルート選抜の安価proxy: 開幕prefixを強制したうえで全ターンを静的greedyで完遂し総ダメージを返す。
 // ビーム不使用(planDepth>=2相当)のため1prefix≈数ms。ロールアウト(_objective)内の静的挙動と同一手順。
 function _staticPrefixDmg(prefix, n){
@@ -527,4 +547,4 @@ function _selectRootPrefixes(n){
 }
 
 
-export { Sim, cmpVec, enumerateRootPrefixes, _runRootPlan, _runBaselinePlan, _staticPrefixDmg, _selectRootPrefixes };
+export { Sim, cmpVec, enumerateRootPrefixes, _runRootPlan, _runBaselinePlan, _staticPrefixDmg, _selectRootPrefixes, _replayResult };

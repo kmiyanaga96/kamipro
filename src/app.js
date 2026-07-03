@@ -10,7 +10,7 @@ import { ENEMY_REGISTRY } from '../data/enemies.js';
 import { CHAR_REGISTRY } from '../data/characters.js';
 
 import { RENRI_CAP, RENRI_MAX, JUDG_REACT, TENYA_FROM, FB_THR, MACH_BG, KEIGYO_MAX, BEAM_W, PREFIX_TOPK, BEAM_DIVERSITY_K, IFISHANT_MIN_CD, BG, DMG } from './constants.js';
-import { Sim, cmpVec, enumerateRootPrefixes, _runRootPlan, _runBaselinePlan, _staticPrefixDmg, _selectRootPrefixes } from './sim.js';
+import { Sim, cmpVec, enumerateRootPrefixes, _runRootPlan, _runBaselinePlan, _staticPrefixDmg, _selectRootPrefixes, _replayResult } from './sim.js';
 
 
 let CURRENT_ENEMY_KEY = 'default';
@@ -158,6 +158,37 @@ let S_OVERRIDE = {};
 // 機構は多パラメータ+粗→細対応（§6.8）。config署名→override をキャッシュし再探索はskip。
 const CALIB_GRID = { judg: [null, 100, 130, 145, 160, 200], pactcore: [null, 1], effond: [null, 100, 120] };
 const _calibCache = new Map();
+
+// ===== C16 持続化: 探索結果キャッシュ（ヒント検証・A+B の土台 / Increment 1）=====
+// 探索結果の per-turn アビキー列を config署名でキャッシュし、再探索を skip する。保存値は「ヒント」であり
+// 現行エンジンで決定的リプレイし総ダメージが記録と一致した時のみ信頼する（不一致=エンジン差/改ざん→破棄して再探索）。
+// ダメージは押し順で決まり静的スコア override 非依存のため、リプレイ検証に override は不要（勝者orderが override 効果を内包）。
+// ENGINE_VERSION: 探索/ダメージに影響する変更を入れたら必ず更新する（キャッシュ名前空間＝古い版を fast-reject）。
+//   ※正しさの最終担保はリプレイ検証（版更新忘れも総ダメージ不一致で捕捉）。版はあくまで高速化のための粗い無効化。
+// スリム保存（turnsKeys+dmg+prefix+baseDmg）＝レンダー用の重い行は保存せず、命中時にリプレイで再生成する。
+const ENGINE_VERSION = 'C16-bw64-ptk8-r1';
+const _resultCache = new Map();   // _resultKey(configSig) -> {turnsKeys, dmg, prefix, baseDmg, override, n}
+function _resultKey(configSig){ return ENGINE_VERSION + '|' + configSig; }
+
+// 命中時: 保存キー列を現行エンジンでリプレイし、総ダメージが記録と一致すれば {rows,dmg,prefix,baseDmg} を返す（探索skip）。
+// 不一致なら該当エントリを破棄し null（=呼び出し側が本探索へ）。buildFormation/applyGear は呼び出し前に config へ反映済みのこと。
+function tryResultCache(configSig, n){
+  const key=_resultKey(configSig);
+  const hit=_resultCache.get(key);
+  if(!hit) return null;
+  let rep;
+  try{ rep=_replayResult(hit.turnsKeys, n); }catch(e){ _resultCache.delete(key); return null; }
+  if(Math.round(rep.dmg)!==Math.round(hit.dmg)){ _resultCache.delete(key); return null; }  // ヒント検証
+  return { rows:rep.rows, dmg:hit.dmg, prefix:hit.prefix||[], baseDmg:hit.baseDmg };
+}
+
+// 本探索完了後: 採用ルートの per-turn キー列をスリム保存する。keys 欠落（万一 rollout 行等）なら保存しない。
+function storeResult(configSig, n, best, baseDmg, override){
+  if(!best || !Array.isArray(best.rows) || !best.rows.length) return;
+  const turnsKeys=best.rows.map(r=>r.keys);
+  if(turnsKeys.some(k=>!Array.isArray(k))) return;
+  _resultCache.set(_resultKey(configSig), { turnsKeys, dmg:best.dmg, prefix:best.prefix||[], baseDmg:baseDmg||0, override:override||{}, n });
+}
 // CHAR_SIM_STATES: 編成キャラの state フィールドを合流させたマスター初期値。
 // Sim の constructor/snap/clone がこれを参照して自動管理する。
 let CHAR_SIM_STATES = {};
@@ -766,6 +797,15 @@ function runSim(){
   // 既存プールを破棄して新規生成
   _terminateWorkerPool();
 
+  // C16 持続化: config署名。結果キャッシュ命中→リプレイ検証OKなら探索/較正を丸ごとskipして即描画。
+  const configSig=JSON.stringify([heroKey,kamihimeKeys,GEAR,[...CURRENT_SUBS],DMG.enemy_def,DMG.enemy_max_hp,n]);
+  const _cached=tryResultCache(configSig,n);
+  if(_cached){
+    prog.textContent='キャッシュ命中（リプレイ検証済）';
+    _finishSim({rows:_cached.rows, prefix:_cached.prefix}, _cached.baseDmg);
+    return;
+  }
+
   const prefixes=_selectRootPrefixes(n); // 2段選抜: 静的proxyで上位PREFIX_TOPK本に絞る(品質劣化≤0.013%・PERF_NOTES.md)
   const poolSize=Math.max(1,Math.min(navigator.hardwareConcurrency||4, prefixes.length+1));
 
@@ -788,7 +828,6 @@ function runSim(){
   // C15 案(c) 自動較正: 「較正phase→本探索phase」の2段。configキャッシュ命中なら較正skip。
   // 較正phase: 安価proxyで絞った override 候補を worker へ分散し単一ビームfullで採点、最大dmg(baseline{}含むため退行なし)を採用。
   // 較正列挙で例外が出ても override なし(=funki修正のみ)で本探索へ graceful fallback。
-  const configSig=JSON.stringify([heroKey,kamihimeKeys,GEAR,[...CURRENT_SUBS],DMG.enemy_def,DMG.enemy_max_hp,n]);
   let chosenOverride=_calibCache.get(configSig)||null;
   let calibTasks=[];
   if(!chosenOverride){
@@ -835,6 +874,7 @@ function runSim(){
     if(failed||_simCancelled) return;
     _workerPool=null;
     rootResults.sort((a,b)=>b.dmg-a.dmg);
+    storeResult(configSig, n, rootResults[0], baseDmg, chosenOverride);  // C16 持続化: 採用ルートをスリム保存
     _finishSim(rootResults[0], baseDmg);
   }
 
@@ -881,6 +921,9 @@ function _fallbackRunSim(heroKey,kamihimeKeys,n){
     buildFormation(heroKey,kamihimeKeys); applyGear();
     // C15 案(c): 非並列フォールバックでも自動較正を適用（同期・configキャッシュ）。例外時は override なしへ。
     const configSig=JSON.stringify([heroKey,kamihimeKeys,GEAR,[...CURRENT_SUBS],DMG.enemy_def,DMG.enemy_max_hp,n]);
+    // C16 持続化: 結果キャッシュ命中→リプレイ検証OKなら探索/較正を丸ごとskip。
+    const _cached=tryResultCache(configSig,n);
+    if(_cached){ prog.textContent='キャッシュ命中（リプレイ検証済）'; _finishSim({rows:_cached.rows,prefix:_cached.prefix}, _cached.baseDmg); return; }
     let chosenOverride=_calibCache.get(configSig);
     if(!chosenOverride){
       prog.textContent='較正中…';
@@ -909,6 +952,7 @@ function _fallbackRunSim(heroKey,kamihimeKeys,n){
       } else {
         const baseDmg=_runBaselinePlan(n,()=>{ completedSteps++; });
         _updateSimProgress(completedSteps, totalSteps, n, startTime);
+        storeResult(configSig, n, best, baseDmg, chosenOverride);  // C16 持続化: 採用ルートをスリム保存
         _finishSim(best, baseDmg);
         setStaticOverride({});   // C15: メインスレッドの override をリセット(次回探索/他処理へ漏らさない)
       }
@@ -1485,6 +1529,7 @@ export {
   Sim, buildFormation, applyGear, applyEnemy, recalcGearK,
   _runRootPlan, _runBaselinePlan, enumerateRootPrefixes, _selectRootPrefixes,
   setStaticOverride, getStaticOverride, calibrateStaticScores, calibrationShortlist, _runCalibrationProbe,
+  tryResultCache, storeResult, _resultCache, _resultKey, ENGINE_VERSION,
   GEAR, DMG, BG, GEAR_K_C, CHARS, ABIL, ownerOf, ELEM, LEADER, LABEL,
   RENRI_CAP, RENRI_MAX, TENYA_FROM, IFISHANT_MIN_CD,
   WEAPON_MASTER, SUMMON_REGISTRY, ENEMY_REGISTRY, CHAR_REGISTRY,
