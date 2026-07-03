@@ -791,15 +791,31 @@ function _initSimProgress(n){
   document.getElementById('sim-prog-eta').textContent='';
   wrap.style.display='flex';
 }
+
+// C16 体感改善 B1: ローディング内に編成キャラ(名前バッジ)を描画/点灯する。
+// 較正の進捗(_litProgChars(done/total))でグレー→点灯し、待ち時間を計算の進捗に同期させる。
+// ※立ち絵は未DB化のため現状は JP_SHORT の名前バッジ。B2で立ち絵に差し替え予定(点灯ロジックは流用)。
+function _renderProgChars(){
+  const el=document.getElementById('sim-prog-chars'); if(!el) return;
+  el.innerHTML=(CHARS||[]).map(c=>`<span class="sim-char" data-c="${c}">${(JP_SHORT&&JP_SHORT[c])||c}</span>`).join('');
+}
+function _litProgChars(frac){
+  const el=document.getElementById('sim-prog-chars'); if(!el) return;
+  const kids=el.children; const lit=Math.max(0,Math.min(kids.length,Math.ceil((frac||0)*kids.length)));
+  for(let i=0;i<kids.length;i++) kids[i].classList.toggle('lit', i<lit);
+}
 function _updateSimProgress(completedSteps, totalSteps, baselineTurn, startTime){
   const pct=totalSteps>0?Math.min(100,completedSteps/totalSteps*100):0;
   const fill=document.getElementById('sim-prog-fill');
   if(fill) fill.style.width=pct+'%';
   const bar=document.getElementById('sim-prog-bar');  // Phase5-S4: aria-valuenow を同期(読み上げ)
   if(bar) bar.setAttribute('aria-valuenow', Math.round(pct));
-  // ターンチップ: 代表ルート(baseline=空prefix)の到達ターンまでを done 表示(計画 §5.2-2)
+  // ターンチップ: 代表ルート(baseline=空prefix)の到達ターンまでを done 表示(計画 §5.2-2)。
+  // C16 体感改善 B1: 到達済みは done(点灯)、直後の計算中ターンを current(パルス)にして「順に光る」演出。
   const chips=document.getElementById('sim-prog-chips');
-  if(chips) for(const c of chips.children){ c.classList.toggle('done', (+c.dataset.t)<=baselineTurn); }
+  if(chips) for(const c of chips.children){ const t=+c.dataset.t;
+    c.classList.toggle('done', t<=baselineTurn);
+    c.classList.toggle('current', t===baselineTurn+1); }
   // ETA: 完了ステップあたり平均所要 × 残ステップ(計画 §5.2-3)
   const eta=document.getElementById('sim-prog-eta');
   if(eta && completedSteps>0){
@@ -831,6 +847,7 @@ function runSim(){
   document.getElementById('sim-results').innerHTML='';
   ld.classList.add('active');
   prog.textContent='準備中';
+  _renderProgChars(); _litProgChars(0);   // C16 体感改善 B1: 編成キャラをグレーで描画(較正進捗で点灯)
 
   SIM_ROWS=[];
   _simCancelled=false;  // Phase5-S3: 新規探索開始でリセット
@@ -892,6 +909,7 @@ function runSim(){
   const totalSteps=(prefixes.length+1)*n; let completedSteps=0; const turnByRoot={}; let startTime=performance.now();
   _initSimProgress(n);
   if(phase==='calib') prog.textContent=`較正中… (${calibTasks.length}候補)`;
+  else _litProgChars(1);   // C16 体感改善 B1: 較正skip(キャッシュ命中/override確定)時は全キャラ点灯で本探索へ
 
   const curTasks=()=>phase==='calib'?calibTasks:mainTasks;
   function dispatch(w){ const ts=curTasks(); if(nextTask<ts.length) w.postMessage(ts[nextTask++]); }
@@ -908,6 +926,7 @@ function runSim(){
     const tieBase=calibResults.find(r=>r.dmg===best.dmg && Object.keys(r.override).length===0);
     chosenOverride=tieBase?tieBase.override:best.override;
     _calibCache.set(configSig, chosenOverride);
+    _litProgChars(1);   // C16 体感改善 B1: 較正完了＝全キャラ点灯してから本探索(ターン点灯)へ
     startMainPhase();
   }
 
@@ -933,6 +952,7 @@ function runSim(){
       if(d.type==='calibResult'){
         calibResults.push(d); done++;
         prog.textContent=`較正中… ${done}/${calibTasks.length}`;
+        _litProgChars(done/calibTasks.length);   // C16 体感改善 B1: 較正進捗に同期して編成キャラを点灯
         if(done>=calibTasks.length){ finishCalib(); return; }
         dispatch(w); return;
       }
@@ -976,6 +996,7 @@ function _fallbackRunSim(heroKey,kamihimeKeys,n){
     // Phase5-S2: 進捗(非並列は同期実行のためターン単位のライブ描画は不可＝ルート境界で更新)。
     const totalSteps=(prefixes.length+1)*n; let completedSteps=0; const startTime=performance.now();
     _initSimProgress(n);
+    _renderProgChars(); _litProgChars(1);   // C16 体感改善 B1: 非並列較正は同期(incremental不可)のため全キャラ点灯で本探索へ
     let best=null;
     let i=0;
     function nextRoute(){

@@ -206,8 +206,16 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
   background-size:200% 100%;animation:progShimmer 1.4s linear infinite;}
 @keyframes progShimmer{to{background-position:-200% 0;}}
 .sim-prog-chips{display:flex;flex-wrap:wrap;gap:4px;justify-content:center;}
-.sim-prog-chip{font-size:10px;padding:2px 6px;border-radius:4px;background:var(--border);color:var(--muted);transition:background .2s ease,color .2s ease;}
-.sim-prog-chip.done{background:var(--green);color:#fff;}
+.sim-prog-chip{font-size:10px;padding:2px 6px;border-radius:4px;background:var(--border);color:var(--muted);transition:all .25s ease;}
+.sim-prog-chip.done{background:var(--green);color:#fff;box-shadow:0 0 7px rgba(34,197,94,.55);}
+.sim-prog-chip.current{background:var(--accent);color:#fff;animation:chipPulse 1s ease-in-out infinite;}
+@keyframes chipPulse{0%,100%{box-shadow:0 0 3px rgba(91,110,245,.5);}50%{box-shadow:0 0 15px rgba(91,110,245,.95);}}
+/* C16 体感改善 B1: 較正進捗に同期して編成キャラ(名前バッジ)がグレー→点灯。立ち絵はB2で差し替え予定。 */
+.sim-prog-chars{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:8px 0 2px;}
+.sim-char{font-size:11px;font-weight:600;padding:4px 11px;border-radius:14px;border:2px solid var(--border);
+  background:var(--card2);color:var(--muted);filter:grayscale(1);opacity:.4;transition:all .45s ease;}
+.sim-char.lit{filter:none;opacity:1;color:var(--text);border-color:var(--accent);
+  background:rgba(91,110,245,.12);box-shadow:0 0 12px rgba(91,110,245,.55);}
 .sim-prog-eta{font-size:11px;color:var(--muted);text-align:center;}
 .sim-cancel-btn{margin-top:4px;font-size:12px;padding:5px 16px;border:1px solid var(--border);
   border-radius:6px;background:transparent;color:var(--muted);cursor:pointer;}
@@ -276,6 +284,7 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
       <div class="spin"></div>
       <div class="spin-msg">最適押し順を計算中…</div>
       <div id="spin-progress" class="spin-sub" aria-live="polite">準備中</div>
+      <div id="sim-prog-chars" class="sim-prog-chars"></div>
       <div id="sim-prog-wrap" class="sim-prog-wrap" style="display:none;">
         <div id="sim-prog-bar" class="sim-prog-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="sim-prog-fill" class="sim-prog-fill"></div></div>
         <div id="sim-prog-chips" class="sim-prog-chips"></div>
