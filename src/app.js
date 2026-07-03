@@ -166,7 +166,7 @@ const _calibCache = new Map();
 // ENGINE_VERSION: 探索/ダメージに影響する変更を入れたら必ず更新する（キャッシュ名前空間＝古い版を fast-reject）。
 //   ※正しさの最終担保はリプレイ検証（版更新忘れも総ダメージ不一致で捕捉）。版はあくまで高速化のための粗い無効化。
 // スリム保存（turnsKeys+dmg+prefix+baseDmg）＝レンダー用の重い行は保存せず、命中時にリプレイで再生成する。
-const ENGINE_VERSION = 'C16-bw64-ptk8-r1';
+const ENGINE_VERSION = 'C16-bw64-ptk8-r2';  // r2: baseline を素直押し(自然s)へ＝火力指数の分母変更。旧キャッシュのbaseDmgは無効化。
 const _resultCache = new Map();   // _resultKey(configSig) -> {turnsKeys, dmg, prefix, baseDmg, override, n}
 function _resultKey(configSig){ return ENGINE_VERSION + '|' + configSig; }
 
@@ -991,11 +991,12 @@ function _fallbackRunSim(heroKey,kamihimeKeys,n){
           nextRoute();
         }, 0);
       } else {
+        setStaticOverride({});   // C16: baseline は素直押し=自然s（override無し）。分子(opt)のみ較正・分母は素直押し。
         const baseDmg=_runBaselinePlan(n,()=>{ completedSteps++; });
         _updateSimProgress(completedSteps, totalSteps, n, startTime);
         storeResult(configSig, n, best, baseDmg, chosenOverride);  // C16 持続化: 採用ルートをスリム保存
         _finishSim(best, baseDmg);
-        setStaticOverride({});   // C15: メインスレッドの override をリセット(次回探索/他処理へ漏らさない)
+        // override は既に上で {} 済み（次回探索/他処理へ漏らさない）。
       }
     }
     nextRoute();

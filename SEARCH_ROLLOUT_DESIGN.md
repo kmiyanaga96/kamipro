@@ -238,6 +238,7 @@ funki は黄アビ＝`use()` で `T.ability` を+1 → `T.ability%12` の proc�
 - `runSim`（`src/app.js`）: `applyGear`→`buildFormation` の後、本探索（root分散）の前に**較正phase**を挿入した2段構成。
   - 較正phase: `calibrationShortlist`（安価proxyで絞る・main thread ~20ms）→ 各 override を worker の **新 task type `calibrate`**（`_runCalibrationProbe`＝単一ビームfull）へ分散採点 → `finishCalib` が最大dmg（同dmgタイは baseline`{}`優先）を採用（壁時間≈ full 1回）。
   - 本探索phase: `root`/`baseline` タスクに採用 `override` を載せ、`src/worker.js` が `setStaticOverride(override)` してから `_runRootPlan`/`_runBaselinePlan`。
+  - **⚠ C16改訂（2026-07-03）**: `baseline` は override を適用せず**素直押し=自然s**で計算する（`_runBaselinePlan` 直前に `setStaticOverride({})`）。C15当初は「分母を較正後に揃える」ため baseline にも override を適用したが、火力指数の分母（`renderSim` の想定「素直押し=100」）に較正の恩恵を混ぜて指数を過小化していた（generic 分母 141.6M→184M・指数 123.6→112）。分子(opt)のみ較正・分母は素直押しに戻し、**火力指数=最適÷素直押し が較正の火力貢献も含む「最適化の全価値」**を表す（generic 146.1・S級）。ダメージ計算・golden ともに不変。
 - **キャッシュ**: `configSig=(heroKey, kamihimeKeys, GEAR, subs, enemy, n)` をキーに `_calibCache` へ採用 override を保持。同 config 再探索は較正 skip。
 - `_fallbackRunSim`（非並列）も同期較正（`calibrateStaticScores`・同キャッシュ）→ `setStaticOverride` して探索、完了後にメインスレッド override をリセット。
 - **graceful fallback**: 較正列挙で例外時は override なし（＝funki修正のみ・174.25M）で本探索へ。UI 進捗は較正中テキストを表示（バーは本探索phaseから）。

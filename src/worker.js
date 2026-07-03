@@ -36,7 +36,8 @@ self.onmessage = function(e){
     setStaticOverride(d.override||{});   // C15: 採用された較正 override を適用してから探索
     self.postMessage({type:'rootResult', rootId:d.rootId, ..._runRootPlan(d.prefix,d.n,(t)=>self.postMessage({type:'progress',rootId:d.rootId,t}))});
   } else if(d.type==='baseline'){
-    setStaticOverride(d.override||{});   // C15: baseline も同一 override で（比率の分母を較正後に揃える）
+    setStaticOverride({});   // C16: baseline は「素直押し」=自然s（override無し）。較正overrideは分子(opt)のみに効かせ、
+                             // 火力指数=最適÷素直押し が較正の火力貢献も含む「最適化の全価値」を表す（C15の分母揃えを逆転）。
     self.postMessage({type:'baselineResult', baseDmg:_runBaselinePlan(d.n,(t)=>self.postMessage({type:'progress',rootId:'baseline',t}))});
   }
 };
