@@ -1137,9 +1137,11 @@ function syncSlots(overrideVals){
     
     for (const [k,v] of kamihime) {
       const takenElsewhere = vals.some((v2, j) => j !== i && v2 === k);
-      if (!takenElsewhere || k === cur) {
-        sel.innerHTML += `<option value="${k}"${k === cur ? ' selected' : ''}>${v.jp}</option>`;
-      }
+      // UI-fix: 他スロットで選択済みのキャラは「除外」せず disabled で残す。除外すると select の
+      // 幅(=最広optionに追従)がスロット毎に変わり、サブ選択でメインの入力ボックスが伸縮する不具合になる。
+      // 全option常在＝最広optionが常に存在し幅が安定する（選択不可の担保は disabled が行う）。
+      const dis = (takenElsewhere && k !== cur) ? ' disabled' : '';
+      sel.innerHTML += `<option value="${k}"${k === cur ? ' selected' : ''}${dis}>${v.jp}</option>`;
     }
   });
   // メインスレッドかつUI変更時の場合、編成状態を即座に更新して上部の編成バッジを同期する
@@ -1194,13 +1196,13 @@ function renderGearPanel(){
           <option value="neu"${DMG.affinity===1.0?' selected':''}>中立（×1.0）</option>
           <option value="adv"${DMG.affinity===1.5?' selected':''}>有利（×1.5）</option>
         </select>
-        <span class="wpn-lbl" style="margin-left:8px;">英霊ランク</span>
+        <span class="wpn-lbl" style="margin-left:8px;">プレイヤーランク</span>
         <input type="number" id="hero-rank" value="165" min="1" max="300" step="1" style="width:65px">
       </div>
       <div class="gear-row" style="margin-bottom:8px;gap:12px;flex-wrap:wrap;">
-        <span class="wpn-lbl">幻獣ATK合計</span>
+        <span class="wpn-lbl">幻獣総合攻撃力</span>
         <input type="number" id="summon-atk-total" value="0" min="0" step="1" style="width:80px">
-        <span class="wpn-lbl" style="margin-left:8px;">幻獣HP合計</span>
+        <span class="wpn-lbl" style="margin-left:8px;">幻獣総合HP</span>
         <input type="number" id="summon-hp-total" value="0" min="0" step="1" style="width:80px">
         <span style="font-size:10px;color:var(--muted);">※編成画面のメイン+サブ幻獣の表示寄与合計</span>
       </div>

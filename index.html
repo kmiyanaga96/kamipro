@@ -221,6 +221,12 @@ body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,'Roboto',sans-
   border-radius:6px;padding:3px 6px;font-size:11px;}
 .gear-row input[type=number]{background:var(--bg);border:1px solid var(--border);
   border-radius:6px;padding:3px 6px;font-size:11px;}
+/* UI-fix: 敵/属性相性のプルダウンは flex:1 で全幅に伸びるため、内容(敵名称)幅に留める */
+#enemy-select,#dmg-affinity{flex:0 1 auto;width:auto;min-width:0;max-width:100%;}
+/* UI-fix: 装備パネルの数値入力はスピナー矢印を消し、直接入力のテキストボックス風に(turns-nは対象外) */
+.gear-card input[type=number]{-moz-appearance:textfield;appearance:textfield;}
+.gear-card input[type=number]::-webkit-outer-spin-button,
+.gear-card input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
 </style>
 </head>
 <body>
