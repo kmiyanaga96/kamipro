@@ -3,11 +3,12 @@
 //
 // C15 案(c) 自動較正の production 化(2026-07-02)に伴い golden を更新:
 //  - raw(較正なし・①funki修正モデル)                          = 174,697,325  … ダメージモデルの回帰アンカー
-//  - calibrated(自動較正 {judg:145,pactcore:1,effond:100} 適用) = 206,622,997  … production が出荷する探索の値
-// C16(2026-07-03): BEAM_W 128→64。較正rollout改善後は幅が品質を買わず逆効果(非単調の崖)。golden編成で
-//   raw/calibrated ともに微増(+0.26%/+0.22%)・他ギア退行なし・FB10/10維持・両phase約1.4倍高速(constants.js)。
+//  - calibrated(自動較正 {judg:122,pactcore:1,effond:93} 適用)  = 206,846,142  … production が出荷する探索の値
+// C16(2026-07-03): BEAM_W 128→64。較正rollout改善後は幅が品質を買わず逆効果(非単調の崖)。他ギア退行なし・
+//   FB10/10維持・両phase約1.4倍高速(constants.js)。⚠ BW64では較正が新winnerを選ぶ: 従来 {judg:145,effond:100}
+//   (206,622,997) より {judg:122,effond:93} が優位(+0.108% = 206,846,142)。∴ production出荷値は 206,846,142。
 // 本番 runSim は calibrateStaticScores で judg×pactcore×effond の3変数を較正し joint 最適
-// {judg:145,pactcore:1,effond:100} を選ぶ(3者に相互作用・§6.7/§6.10)。golden は単一ビーム(takeTurn)で
+// {judg:122,pactcore:1,effond:93} を選ぶ(3者に相互作用・§6.7/§6.10・BW64で再fit)。golden は単一ビーム(takeTurn)で
 // 決定的に同 override を明示適用して検証する(毎回の較正走行を避ける・SEARCH_ROLLOUT_DESIGN §6.5/§6.10)。
 // 実行: npm run test:golden  （node test/golden.mjs）
 import { Sim, buildFormation, setStaticOverride } from '../src/app.js';
@@ -21,12 +22,12 @@ setStaticOverride({});
 const raw = run10T();
 const rawOk = raw.dmg === 174697325 && raw.fb === 10;
 
-// 自動較正 override（本編成の calibrateStaticScores 選択結果 = {judg:145,pactcore:1,effond:100}）を適用した production 値
-setStaticOverride({ judg: 145, pactcore: 1, effond: 100 });
+// 自動較正 override（本編成の calibrateStaticScores 選択結果 = {judg:122,pactcore:1,effond:93}・BW64）を適用した production 値
+setStaticOverride({ judg: 122, pactcore: 1, effond: 93 });
 const cal = run10T();
 setStaticOverride({});
-const calOk = cal.dmg === 206622997 && cal.fb === 10;
+const calOk = cal.dmg === 206846142 && cal.fb === 10;
 
 const ok = rawOk && calOk;
-console.log(`[golden] raw=${raw.dmg} FB=${raw.fb}/10 | calibrated=${cal.dmg} FB=${cal.fb}/10 => ${ok ? 'OK' : 'MISMATCH (expect raw 174697325 / calibrated 206622997 / 10)'}`);
+console.log(`[golden] raw=${raw.dmg} FB=${raw.fb}/10 | calibrated=${cal.dmg} FB=${cal.fb}/10 => ${ok ? 'OK' : 'MISMATCH (expect raw 174697325 / calibrated 206846142 / 10)'}`);
 process.exit(ok ? 0 : 1);
