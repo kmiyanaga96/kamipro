@@ -4,7 +4,8 @@ buildFormation('edison', ['yamato', 'hecate', 'tetra', 'elaine']);
 const N = +(process.env.POC_N ?? 10);
 const full = () => { const s = new Sim(); s.totalTurns = N; for (let t = 1; t <= N; t++) s.takeTurn(t); return s.dmg; };
 const fmt = x => Math.round(x).toLocaleString();
-const base = { judg: 145, pactcore: 1 };   // ③ 第3レバー探索: joint 最適を base に
+// base は POC_BASE env(JSON) で指定可。既定=現行 production の較正winner（C17 第4レバー検討時に env 化）。
+const base = process.env.POC_BASE ? JSON.parse(process.env.POC_BASE) : { judg: 122, pactcore: 1, effond: 93 };
 const cands = [
   {}, // = base
   { effond: 100 }, { tenya: 60 }, { tenya_re: 60 }, { inori: 1 }, { amplifa: 1 },
