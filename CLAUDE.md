@@ -119,6 +119,7 @@ npm run preview              # dist を http 配信 → ブラウザで探索/�
   - ナイツサプレス(エレイン3): バーストダメ+20%・非累積(refresh)・2T (C11)
 - **バックログ状態**:
   - C1, C2: open
+  - C18: open (**ジャッジ即発動がターン内で未強制**＝探索がjudgを後方#12へ温存し実機の即発動と乖離＝シム推奨順が実機で再現不能。判帳簿/キャリーオーバーは正・発火位置のみ欠陥。sim02試行2取得中に判明・要design_report。詳細 CALIBRATION_ANALYSIS.md C18)
   - C3: investigating
   - C4, C5, C8, C9, C11, C12, C13, C14: fixed
   - C6: wontfix
