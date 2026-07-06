@@ -127,6 +127,7 @@ npm run preview              # dist を http 配信 → ブラウザで探索/�
   - C15: closed (自動較正 `{judg:122,pactcore:1,effond:93}` を適用)
   - C16: fixed (探索高速化・キャッシュ・UIキャッシュ入出力・火力指数分母修正完了)
   - C17: wontfix (第4較正レバー検討＝BW64新baseで再検証。full生存はsleur/puvoirのみ+0.4〜0.5%・joint掃引27点で相互作用なし=単独加算どまり・3変数が実質飽和点。工数対効果不成立で見送り。データはCALIBRATION_ANALYSIS.md C17)
+  - C18: open (エレイン3アビCT連動およびジャッジCD空転挙動の実機整合性検証・sim02データ待ち)
   * 現ゴールデン値: **raw 174,697,325 / calibrated 206,846,142** (C16にて再fit)
 
 ---
