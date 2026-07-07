@@ -117,3 +117,4 @@ HELIX後も基礎分（3倍/50万）が欠落していた。→ 差分計算を�
 
 > 新規乖離は PHASE4_PLAN.md §3 の駆動フロー（リプレイで起点特定→ここへ起票→`simNN/design_report.md`→`integrated_analysis.md`+修正+序数フィクスチャ）で追加する。
 
+
