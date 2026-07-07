@@ -57,9 +57,9 @@
    1. **総合比較**（2ルートのターン別・累計・手数を表で定量比較）
    2. **なぜその差が出たか（敗北要因）**（リソース制約・操作手数・発動順の構造で説明）
    3. **乖離分析（系統誤差の特定）**（cap/frame/倍率トリガーへ分解し数学的に検証）
-   4. **影響度検証（回帰）**（ゴールデン値 raw 174,697,325 / calibrated 206,846,142 への影響を予測・論証）
+   4. **影響度検証（回帰）**（ゴールデン値 raw 173,574,719 / calibrated 202,230,823 への影響を予測・論証）
    5. **引継ぎ（実装申し送り）**（適用すべき `DMG`/`CHAR_REGISTRY` の差分を diff 形式で明示）
-4. **自律修正とテスト**: 実装担当（主に Claude Code）が `design_report.md` を検証して `simNN/integrated_analysis.md`（較正案・回帰影響・Phase方針所見・結論）にまとめ、コードを修正し、テストを実行。期待値（`raw 174,697,325 / calibrated 206,846,142`）と追加テストケースの双方をアサートして完了する。
+4. **自律修正とテスト**: 実装担当（主に Claude Code）が `design_report.md` を検証して `simNN/integrated_analysis.md`（較正案・回帰影響・Phase方針所見・結論）にまとめ、コードを修正し、テストを実行。期待値（`raw 173,574,719 / calibrated 202,230,823`）と追加テストケースの双方をアサートして完了する。
 
 ### 4. ドキュメント・レガシーファイルの管理ルール
 AIエージェントのコンテキスト節約と古い仕様の誤認防止のため、以下のルールを遵守すること。
@@ -87,5 +87,5 @@ npm run test:golden      # = node test/golden.mjs（src/app.js を import し10T
 
 * **期待値**（C16 `BEAM_W` 128→64・演算高速化・2026-07-03 更新）:
   * FullBurst: `10/10`
-  * TotalDmg（raw・較正なし）: `174,697,325`
-  * TotalDmg（calibrated・自動較正 `{judg:122,pactcore:1,effond:93}`・BW64で再fit）: `206,846,142`
+  * TotalDmg（raw・較正なし）: `173,574,719`
+  * TotalDmg（calibrated・自動較正 `{judg:122,pactcore:1,effond:93}`・BW64で再fit）: `202,230,823`

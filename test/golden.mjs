@@ -7,6 +7,10 @@
 // C16(2026-07-03): BEAM_W 128→64。較正rollout改善後は幅が品質を買わず逆効果(非単調の崖)。他ギア退行なし・
 //   FB10/10維持・両phase約1.4倍高速(constants.js)。⚠ BW64では較正が新winnerを選ぶ: 従来 {judg:145,effond:100}
 //   (206,622,997) より {judg:122,effond:93} が優位(+0.108% = 206,846,142)。∴ production出荷値は 206,846,142。
+// C18(2026-07-07): ムーンコード実機較正＝「戦闘開始時またはヘカテー自身のアビ12回毎に発動・持続2T」
+//   (旧: パーティ全体アビ12回/ターン内カウント=実質常時ON)。effondバーストがON/OFF周期化し golden 更新:
+//   raw 174,697,325→173,574,719 / calibrated(再fit・override同値 {judg:122,pactcore:1,effond:93})
+//   206,846,142→202,230,823(+16.51% vs raw・単調安全OK)。受入=sim02試行2 T4実機トラブル(judg#12不可→13アビ目)再現。
 // 本番 runSim は calibrateStaticScores で judg×pactcore×effond の3変数を較正し joint 最適
 // {judg:122,pactcore:1,effond:93} を選ぶ(3者に相互作用・§6.7/§6.10・BW64で再fit)。golden は単一ビーム(takeTurn)で
 // 決定的に同 override を明示適用して検証する(毎回の較正走行を避ける・SEARCH_ROLLOUT_DESIGN §6.5/§6.10)。
@@ -20,14 +24,14 @@ buildFormation('edison', ['yamato', 'hecate', 'tetra', 'elaine']);
 // raw(較正なし)の回帰アンカー
 setStaticOverride({});
 const raw = run10T();
-const rawOk = raw.dmg === 174697325 && raw.fb === 10;
+const rawOk = raw.dmg === 173574719 && raw.fb === 10;
 
 // 自動較正 override（本編成の calibrateStaticScores 選択結果 = {judg:122,pactcore:1,effond:93}・BW64）を適用した production 値
 setStaticOverride({ judg: 122, pactcore: 1, effond: 93 });
 const cal = run10T();
 setStaticOverride({});
-const calOk = cal.dmg === 206846142 && cal.fb === 10;
+const calOk = cal.dmg === 202230823 && cal.fb === 10;
 
 const ok = rawOk && calOk;
-console.log(`[golden] raw=${raw.dmg} FB=${raw.fb}/10 | calibrated=${cal.dmg} FB=${cal.fb}/10 => ${ok ? 'OK' : 'MISMATCH (expect raw 174697325 / calibrated 206846142 / 10)'}`);
+console.log(`[golden] raw=${raw.dmg} FB=${raw.fb}/10 | calibrated=${cal.dmg} FB=${cal.fb}/10 => ${ok ? 'OK' : 'MISMATCH (expect raw 173574719 / calibrated 202230823 / 10)'}`);
 process.exit(ok ? 0 : 1);

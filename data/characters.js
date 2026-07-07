@@ -194,8 +194,11 @@ const CHAR_REGISTRY = {
     type: 'kamihime',
     jp: '[愛情と友情]ヘカテー', shortJp: 'ヘカテー', gcls: 'gh', elem: 'light',
     favWeapon: ['杖','魔導具'], baseAtk: 7800, baseHp: 1850,
-    // mobius_bcount: ヘカテー自身のバースト累計(4回毎に特殊攻撃UP) / mooncode: ムーンコード残T(初期2) / mburst: パーティバースト累計(モビウス5回毎にCDリセット)
-    state: { mobius_bcount: 0, mooncode: 2, mburst: 0 },
+    // mobius_bcount: ヘカテー自身のバースト累計(4回毎に特殊攻撃UP) / mooncode: ムーンコード残T / mburst: パーティバースト累計(モビウス5回毎にCDリセット)
+    // moon_acc: ヘカテー自身のアビ使用回数の戦闘通算(C18実機仕様: 12回毎にムーンコード再発動・累積カウンタは残らない周期制)
+    // mooncode初期0: 戦闘開始発動は onBattleStart(tick後・T1のみ)で2を付与＝T1,T2の2ターンをカバー。
+    // constructor初期値2だとT1頭のtickで-1されT2で切れる(実機はT2もON=sim02試行2 T2#12/#13 judg成立が証拠)。
+    state: { mobius_bcount: 0, mooncode: 0, mburst: 0, moon_acc: 0 },
     tickStates: ['mooncode'],  // ムーンコード残Tを毎ターン自動デクリメント
     abilities: {
       puvoir: ['y', 2, 0],
@@ -231,11 +234,19 @@ const CHAR_REGISTRY = {
       burst_coef_a: 5, burst_coef_b: 2500,  // ヘカテー: a=5.0 b=2500
       gmax: 100,  // =BG.other_max（即時評価のためリテラル。ロード順不変条件・冒頭注記参照）
       keigyoGain: 1,
-      // ムーンコード(ヘカテー固有): パーティ全体のアビ使用12回毎にムーンコードを再発動(残2T)。
-      // 旧 Sim.procR() のハードコードを移管。T.ability は use() で procR 前に++済のため %12 値は不変。
+      // ムーンコード(ヘカテー2アシ・C18実機較正 2026-07-07): 「戦闘開始時または自分がアビリティ12回使用する毎に発動・持続2T」。
+      // カウントはヘカテー自身のアビのみ・戦闘通算(moon_acc)。12回目の押下で即時発動＝use()フックがeffondの
+      // バースト判定(exec内 use後)より先に走るため、発動押下自身のeffondバーストにも効く(実機一致)。
+      // 旧実装(パーティ全体T.ability%12・毎ターンリセット)は誤り＝実質常時ONとなり実機のON/OFF交互パターン
+      // (sim02試行1 raw: T4/T6ヘカテー2バースト無し)を再現できなかった。根拠 CALIBRATION_ANALYSIS.md C18。
       onAbility: (sim, name, color, T) => {
-        if(T.ability>0 && T.ability%12===0) sim.mooncode=2;
+        if(ABIL.puvoir && ownerOf(name)===ownerOf('puvoir')){
+          sim.moon_acc++;
+          if(sim.moon_acc%12===0) sim.mooncode=2;
+        }
       },
+      // 戦闘開始時発動(持続2T=T1,T2)。_beginTurnはtick→onBattleStartの順のためT1のtickに食われない。
+      onBattleStart: (sim) => { sim.mooncode=2; },
       // モビウスムーンズ(ヘカテー固有): パーティバースト5回毎にヘカテー自身の全アビCDをリセット。
       // 旧 Sim.burst() のハードコードを移管。mburst の加算(累積)も含めヘカテー側で完結。
       // mburst++ を %5 判定の前に置くことで旧エンジン(burst()の加算→判定)と同順序を保持。

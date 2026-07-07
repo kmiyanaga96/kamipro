@@ -5,7 +5,7 @@
 
 ## ドキュメント体系（Antigravityエージェントとの共有用）
 - **CLAUDE.md**（本書）: 生きた開発ガイド。コード地図・開発ルール・確定仕様・検証方法・実機較正ステータス。**現状の一次情報**。
-- **.agents/AGENTS.md**: Antigravity（Gemini）エージェント用のルール／ガイドライン定義。開発不変条件（循環インポートにおける遅延評価規律・Worker用export）・Gitワークフロー・検証ゲート（raw 174,697,325 / calibrated 206,846,142）を規定。
+- **.agents/AGENTS.md**: Antigravity（Gemini）エージェント用のルール／ガイドライン定義。開発不変条件（循環インポートにおける遅延評価規律・Worker用export）・Gitワークフロー・検証ゲート（raw 173,574,719 / calibrated 202,230,823）を規定。
 - **archive/PERF_NOTES.md**: 探索エンジン高速化の調査・実装・採否判断の台帳（待ち時間の支配式・実装済み施策D/E/①-A・路線①PoC実測・WASMの位置づけ降格）。性能面の過去の一次台帳。
 - **BEAM_SEARCH_DESIGN.md**: 探索エンジンの**準最適性（C9）設計レポート**（5節構成）。ビーム幅32の枝刈り不足で「バフ/デバフ先・ダメージアビ後」最適枝を取りこぼす件の原因分析・実測台帳（greedy/BW32/64/128/C2比較・非単調の崖）・修正候補（②賢い枝刈り推奨）。索引は CALIBRATION_ANALYSIS.md C9。
 - **ORDER_OPTIMIZATION_DESIGN.md**: 押し順最適化の精緻化（**C12＝C9-②「賢い枝刈り」本設計**）。sim2押し順の5症状（amplifa表示/effond先行/judg空転/hecate順/tenya分割）の根本原因と設計案（僅差タイブレークに定石性スコア・tenya多段分割等）・段階実装計画。索引は CALIBRATION_ANALYSIS.md C12。
@@ -58,13 +58,14 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
 - **キャラ固有の反応・マイルストーン処理は汎用フックに記述**（エンジンに分岐を足さない）: `def.onAbility(sim,name,color,T)` / `def.onPartyBurst(sim,owner,T,atk)` / `def.onBurst(sim,atk,owner)` / `def.turnEnd(sim,T)`。フックは`CHARS`順で全キャラ走査され、不在編成では未宣言として自然スキップ。
 
 ### 2. 確定仕様・設計不変条件
-- **ジャッジ即発動**: cd.judg=0になり次第即発動。同ターン上限 `judgCap = 5 + (開始時cd===0?1:0)`。
-- **コヴァレント・アルカナ**: アビ12回 / バースト2回ごとにproc発火。連理魔力+1 ＆ ジャッジCD=0を同時付与。同ターン5回上限。
+- **ジャッジ再発動（C18で表現修正）**: proc で cd.judg=0 になれば**押下可能**（自動発火ではなく押す位置はプレイヤー/探索の裁量。セオリー上デバフ等を先行させうる）。同ターン上限 `judgCap = 5 + (開始時cd===0?1:0)`。
+- **コヴァレント・アルカナ**: アビ12回 / バースト2回ごとにproc発火（**メイン＋攻撃フェイズ両対象**・攻撃フェイズprocのcd.judg=0は次ターンへ持ち越し）。連理魔力+1 ＆ ジャッジCD=0を同時付与。同ターン5回上限。
 - **モビウスムーンズ**: パーティ全体のバースト5回ごとに、ヘカテーの全アビCDをリセット。
+- **ムーンコード（ヘカテー2アシ・C18実機較正 2026-07-07）**: 「戦闘開始時または**ヘカテー自身**がアビリティ**12回使用する毎**（戦闘通算 `moon_acc`）に発動・**持続2ターン**（開始時発動も同じ）」。12回目の押下で**即時**発動＝発動押下自身の effond バースト判定にも効く。effond は「ムーンコード発動時のみ即座にゲージ消費なしでバースト」。旧実装（パーティ全体アビ12回・ターン内カウント＝実質常時ON）は誤りで、sim02 試行1 raw の T4/T6「ヘカテー2バースト無し」交互パターン・試行2 T4 の judg#12 発動不能を再現できなかった（根拠 CALIBRATION_ANALYSIS.md C18）。
 - **イフィシャント早撃ち抑止**: `IFISHANT_MIN_CD = 3`（CD中アビが3つ未満は使用不可）。
 - **ロワ・クモンドの3枠加算**: 通常（`roy_na_frac`）、アビ（`roy_abi_frac`）、バースト（`roy_burst_frac`）をそれぞれ独自枠加算。
 - **ゲージ経済（実機確認済・2026-07-04／実装＝実機一致・乖離なし）**: 黄アビのBG付与（funki+10/legend+10/sleur+15/absolute+20/pactcore+100）・マシーンタクトゥ（ロボ反応1回あたり `MACH_BG=5`）は**すべて味方全体対象**（`addG(CHARS,…)`）。エジソンのバーストで攻撃ロボ/補助ロボ**両方のCDを−1**（`edison.def.onBurst`）＝ロボ3T稼働に対し3T周期の再設置が回りきり**常時稼働**しうる。∴ **中盤(T3〜)以降に全員ゲージ満量になるのは正しい帰結**（過去に「ロボ常時稼働はありえない／満量は不自然」と疑義が出たが、実機仕様として3点とも一致・アンプリファ×攻撃ロボの効果窓も整合＝再調査不要）。エジソン4(アンプリファ)の+10万は攻撃ロボ反応（`sim.droid>0` の赤アビ反応）にのみ加算。
-- **Phase3-1 事前計算マップ（ホットパス高速化・実装済）**: `buildFormation` で `ABIL_KEYS`/`ABIL_KC`/`ABIL_CANDS`/`ABIL_BASE_S` を一度だけ構築し、`_stepStatic`/`_candidates` が `Object.entries(ABIL)`・ネスト参照・`computeBaseScore` 再計算をせず `ABIL_KEYS` を1パス走査する。**⚠不変条件**: 走査順は `ABIL` 挿入順（=`Object.keys`順）でタイブレークは厳密 `>`（先頭最大）。キャラ追加・`abilities`/`cands` 変更時はこのマップ構築を経由するため自動追従するが、**走査順や `>` 比較を崩すと最適押し順の選択がズレる**（ゴールデン値 raw 174,697,325 / calibrated 206,846,142 で検証すること）。
+- **Phase3-1 事前計算マップ（ホットパス高速化・実装済）**: `buildFormation` で `ABIL_KEYS`/`ABIL_KC`/`ABIL_CANDS`/`ABIL_BASE_S` を一度だけ構築し、`_stepStatic`/`_candidates` が `Object.entries(ABIL)`・ネスト参照・`computeBaseScore` 再計算をせず `ABIL_KEYS` を1パス走査する。**⚠不変条件**: 走査順は `ABIL` 挿入順（=`Object.keys`順）でタイブレークは厳密 `>`（先頭最大）。キャラ追加・`abilities`/`cands` 変更時はこのマップ構築を経由するため自動追従するが、**走査順や `>` 比較を崩すと最適押し順の選択がズレる**（ゴールデン値 raw 173,574,719 / calibrated 202,230,823 で検証すること）。
 - **ESM Worker起動規律**: 旧 `_buildWorkerCode`（文字列 slice）は廃止済み。Worker は `new Worker(new URL('./worker.js', import.meta.url), {type:'module'})` で起動。**`src/app.js` の worker 用 export に必要な探索関数（`buildFormation`, `recalcGearK`, `Sim`, `_runRootPlan` 等）を含めること**。UI/DOM 依存は INIT の `if(typeof document!=='undefined')` ガード内・window ブリッジに隔離すること。
 - **2段ルート選抜（①-A・実装済）**: `runSim`/`_fallbackRunSim` は `enumerateRootPrefixes()` の全prefixを `_staticPrefixDmg`（静的greedy・約数ms）で安価採点し、上位 `PREFIX_TOPK`(=8・C16で10→8) 本のみ本選(BW64・C16で128→64)へ回す（`_selectRootPrefixes`）。空prefixは常に確保。**品質低下は PoC 実測で最大0.013%**（top-8が実証済み安全床・BW64で0%損実測）。新キャラ追加時は PoC（scratchpad `poc.js`）を再実行し `PREFIX_TOPK` の余裕を再確認する。
 
@@ -73,7 +74,7 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
   1. `git checkout main` で main に切り替え、`git pull origin main` を実行。
   2. 作業用ブランチを切って開発を開始。
 - **検証 (作業完了時)**
-  - 必ず `npm run test:golden`（期待値: raw 174,697,325 / calibrated 206,846,142）を実行しパスを確認。
+  - 必ず `npm run test:golden`（期待値: raw 173,574,719 / calibrated 202,230,823）を実行しパスを確認。
 - **反映・プッシュ**
   - コミット後、`main` に戻って `pull`、作業ブランチをマージし、再度検証テストをパスして `git push origin main`。不要な作業ブランチは削除。
 
@@ -82,7 +83,7 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
 1. **リプレイ照合**: 「リプレイモード」に実機手順を入力し、乖離の発生起点を特定。実測を `simNN/raw_data.md` に、replay画面は `simNN/replay_screenshots.md` へテキスト転記。
 2. **課題のDB化**: [CALIBRATION_ANALYSIS.md](file:///c:/Users/Kanta%20Miyanaga/kamipro/CALIBRATION_ANALYSIS.md) のバックログ（Cx）に追記。
 3. **計画・検証策定（Antigravity 主担当）**: 設計担当が原因特定し、`simNN/design_report.md` を**必須5節構成**（1.総合比較 / 2.敗北要因 / 3.乖離分析 / 4.影響度検証 / 5.引継ぎ）で作成。
-4. **自律修正とテスト**: 実装担当（Claude Code）が `design_report.md` を検証して `simNN/integrated_analysis.md` にまとめ、コード修正後テスト実行。期待値 `raw 174,697,325 / calibrated 206,846,142` と追加検証ケースのパスを確認。
+4. **自律修正とテスト**: 実装担当（Claude Code）が `design_report.md` を検証して `simNN/integrated_analysis.md` にまとめ、コード修正後テスト実行。期待値 `raw 173,574,719 / calibrated 202,230,823` と追加検証ケースのパスを確認。
 
 ---
 
@@ -94,10 +95,10 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
 npm run test:golden          # = node test/golden.mjs（src/app.js を import し10T総ダメージを検証）
 ```
 
-**期待値**（C15 案(c) 自動較正の production 化に伴い 2026-07-02 更新）:
+**期待値**（C18 ムーンコード実機較正に伴い 2026-07-07 更新）:
 - FullBurst: `10/10`
-- TotalDmg（raw・較正なし＝①funki修正モデル）: `174,697,325`
-- TotalDmg（**calibrated**・自動較正 `{judg:122,pactcore:1,effond:93}` 適用＝production 出荷値・BW64で再fit）: `206,846,142`
+- TotalDmg（raw・較正なし＝①funki修正＋C18ムーンコード修正モデル）: `173,574,719`
+- TotalDmg（**calibrated**・自動較正 `{judg:122,pactcore:1,effond:93}` 適用＝production 出荷値・C18後に再fit・override同値）: `202,230,823`
 
 > 探索は `runSim` 実行時に config別に静的スコア s を自動較正する（`calibrateStaticScores`・proxy-shortlist+full-verify・単調安全）。golden.mjs は決定的検証のため較正結果 `{judg:145,pactcore:1,effond:100}` を `setStaticOverride` で明示適用する（毎回の較正走行を避ける）。詳細 SEARCH_ROLLOUT_DESIGN.md §6。
 
@@ -119,7 +120,7 @@ npm run preview              # dist を http 配信 → ブラウザで探索/�
   - ナイツサプレス(エレイン3): バーストダメ+20%・非累積(refresh)・2T (C11)
 - **バックログ状態**:
   - C1, C2: open
-  - C18: open (**ジャッジ即発動がターン内で未強制**＝探索がjudgを後方#12へ温存し実機の即発動と乖離＝シム推奨順が実機で再現不能。判帳簿/キャリーオーバーは正・発火位置のみ欠陥。sim02試行2取得中に判明・要design_report。詳細 CALIBRATION_ANALYSIS.md C18)
+  - C18: fixed (**ムーンコードのモデル乖離**＝真因。旧「即発動未強制」診断は誤りで撤回。実機仕様=ヘカテー自身アビ累積12毎・持続2T・即時発動へ修正し、試行2 T4実機トラブル(judg#12不可→13アビ目)と試行1 T4/T6バースト無しパターンを再現。golden再fit。詳細 CALIBRATION_ANALYSIS.md C18)
   - C3: investigating
   - C4, C5, C8, C9, C11, C12, C13, C14: fixed
   - C6: wontfix
@@ -128,7 +129,7 @@ npm run preview              # dist を http 配信 → ブラウザで探索/�
   - C15: closed (自動較正 `{judg:122,pactcore:1,effond:93}` を適用)
   - C16: fixed (探索高速化・キャッシュ・UIキャッシュ入出力・火力指数分母修正完了)
   - C17: wontfix (第4較正レバー検討＝BW64新baseで再検証。full生存はsleur/puvoirのみ+0.4〜0.5%・joint掃引27点で相互作用なし=単独加算どまり・3変数が実質飽和点。工数対効果不成立で見送り。データはCALIBRATION_ANALYSIS.md C17)
-  * 現ゴールデン値: **raw 174,697,325 / calibrated 206,846,142** (C16にて再fit)
+  * 現ゴールデン値: **raw 173,574,719 / calibrated 202,230,823** (C18ムーンコード修正にて再fit・2026-07-07)
 
 ---
 
