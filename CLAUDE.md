@@ -18,7 +18,7 @@
 - **VITE_MIGRATION.md**: Phase 5 S5（Vite導入・A案）の**唯一の作業記録・引継ぎ書**。ビルドコマンドや協調ESM化の設計経緯・残タスク情報を収録。
 - **enemies/**: 敵DB intake ディレクトリ。`enemies/README.md`（命名・追加手順・スキーマ）＋ `TEMPLATE.md` ＋ `<key>.md`（実機詳細＝根拠）。`data/enemies.js` の `ENEMY_REGISTRY` がそこから蒸留した現在値。Phase4較正ボス `walpurgis_loki`（ヴァルプルギス・ロキ）を登録。
 - **simulation/**: Phase 4 の試行データ蓄積ディレクトリ。`simulation/README.md`（命名規約・ワークフロー・**較正カデンツ=turn-by-turnホライズン**・履歴管理の原則）＋ `TEMPLATE/`（新試行の雛形）＋ `simNN/`（1試行=1サブフォルダ: `raw_data.md`実機原本 / `replay_screenshots.md`シムreplay転記 / `design_report.md`設計レポート（設計担当＝主にAntigravity・**必須5節構成**）/ `integrated_analysis.md`統合分析（実装担当＝主にClaude Code・検証+回帰+Phase方針）/ `user_notes.md`ユーザー所感（仮説の種）/ `README.md`要約）。**新試行は `cp -r simulation/TEMPLATE simulation/simNN` で開始**。
-- **KILL_TURN_DESIGN.md**: **最速撃破モード（kill-turn 自動目標）の設計草案（未実装・2026-07-07 起草）**。ターン数指定を「選択した敵を最速で倒す」自動目標へ置き換える構想。前提依存（C7フェーズ倍率のモデル化昇格・C2絶対値精度）・目的関数案（kill_turn辞書式）・適応ホライズン・段階実装S1-S4・未決事項を収録。
+- **KILL_TURN_DESIGN.md**: **最速撃破モード（kill-turn 自動目標）の設計草案（未実装・2026-07-07 起草＋§7必要性検討）**。ターン数指定を「選択した敵を最速で倒す」自動目標へ置き換える構想。§7で「演算量は非障害・真のブロッカーは絶対値精度（実機比×2級）」と整理し、**S3保留・S1+S2はsim02試行2の絶対乖離実測をゲート**に着手判断。
 - **ROADMAP.md**: 長期ビジョン（敵行動・味方生存＝**Phase 6**・旧Phase5からリネーム）＋新キャラ導入ワークフロー構想。Phase 4 定義は PHASE4_PLAN.md、Phase 5（UX刷新）は PHASE5_PLAN.md が一次。
 - **archive/BRANCH_WORKFLOW.md**: ブランチ運用メモ。`main` を恒久トランク化し、節目で作業ブランチを集約・削除する手順と注意点（ブランチ乱立の防止）。
 - 参照ツール（非計画書）: `archive/tools/*.js`（T1較正スクリプト）。
