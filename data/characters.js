@@ -223,20 +223,24 @@ const CHAR_REGISTRY = {
       // ムーンコード発動時のみ即座にゲージ消費なしでバースト発動(burstはmooncode条件・ダメ/DOWNは常時)。
       effond: { s:70, burstTrigger:true,
                 exec:(sim,T,ord,bset)=>{ const db=sim._droidAbiBuf();
+                  // C18r2: ムーンコード判定は押下時点の状態で行う(実機=アビ終了後にmoon_acc判定のため、
+                  // 12回目押下がeffond自身の場合その押下のバーストには効かない。use()フックがmooncodeを
+                  // 立てる前にここで捕捉する)。
+                  const mcAtPress = sim.mooncode>0;
                   sim.dmg += sim._decay('abi', sim._naForAbi()*DMG.effond_mult*(1+GEAR.abi_dmg+db.dmg), DMG.effond_cap*(1+db.cap));
                   // C12-案C: 定石性報酬 — divinus(防御DOWN)先行中にeffondを撃てたら加点(divinus→effondの定石・ランキング用のみ)。
                   T.orthodoxy=(T.orthodoxy||0)+(sim.buf.divinus_def?.length?1:0);
                   (sim.buf.effond_def??=[]).push(DMG.dur_effond_def);
                   sim.use('effond',T,ord);
-                  if(sim.mooncode>0) sim.burst(ownerOf('effond'),bset,T); }},
+                  if(mcAtPress) sim.burst(ownerOf('effond'),bset,T); }},
     },
     def: {
       burst_coef_a: 5, burst_coef_b: 2500,  // ヘカテー: a=5.0 b=2500
       gmax: 100,  // =BG.other_max（即時評価のためリテラル。ロード順不変条件・冒頭注記参照）
       keigyoGain: 1,
       // ムーンコード(ヘカテー2アシ・C18実機較正 2026-07-07): 「戦闘開始時または自分がアビリティ12回使用する毎に発動・持続2T」。
-      // カウントはヘカテー自身のアビのみ・戦闘通算(moon_acc)。12回目の押下で即時発動＝use()フックがeffondの
-      // バースト判定(exec内 use後)より先に走るため、発動押下自身のeffondバーストにも効く(実機一致)。
+      // カウントはヘカテー自身のアビのみ・戦闘通算(moon_acc)。判定は**アビ終了後**(C18r2実機仕様)＝12回目の
+      // 押下自身には効かず、同一ターンの後続ヘカテーアビから有効(effond側はmcAtPressで押下時点の状態を捕捉)。
       // 旧実装(パーティ全体T.ability%12・毎ターンリセット)は誤り＝実質常時ONとなり実機のON/OFF交互パターン
       // (sim02試行1 raw: T4/T6ヘカテー2バースト無し)を再現できなかった。根拠 CALIBRATION_ANALYSIS.md C18。
       onAbility: (sim, name, color, T) => {

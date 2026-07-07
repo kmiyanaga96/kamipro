@@ -166,7 +166,7 @@ const _calibCache = new Map();
 // ENGINE_VERSION: 探索/ダメージに影響する変更を入れたら必ず更新する（キャッシュ名前空間＝古い版を fast-reject）。
 //   ※正しさの最終担保はリプレイ検証（版更新忘れも総ダメージ不一致で捕捉）。版はあくまで高速化のための粗い無効化。
 // スリム保存（turnsKeys+dmg+prefix+baseDmg）＝レンダー用の重い行は保存せず、命中時にリプレイで再生成する。
-const ENGINE_VERSION = 'C18-mooncode-r1';  // C18: ムーンコードをヘカテー自身アビ累積12毎・持続2Tへ較正。旧キャッシュの押し順/dmgは無効化。
+const ENGINE_VERSION = 'C18-mooncode-r2';  // C18: ムーンコードをヘカテー自身アビ累積12毎・持続2Tへ較正。旧キャッシュの押し順/dmgは無効化。
 const _resultCache = new Map();   // _resultKey(configSig) -> {turnsKeys, dmg, prefix, baseDmg, override, n}
 function _resultKey(configSig){ return ENGINE_VERSION + '|' + configSig; }
 
