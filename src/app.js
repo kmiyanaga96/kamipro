@@ -169,6 +169,11 @@ const _calibCache = new Map();
 const ENGINE_VERSION = 'C18-mooncode-r2';  // C18: ムーンコードをヘカテー自身アビ累積12毎・持続2Tへ較正。旧キャッシュの押し順/dmgは無効化。
 const _resultCache = new Map();   // _resultKey(configSig) -> {turnsKeys, dmg, prefix, baseDmg, override, n}
 function _resultKey(configSig){ return ENGINE_VERSION + '|' + configSig; }
+// config署名: 結果キャッシュ(tryResultCache/storeResult)と較正キャッシュ(_calibCache)の共通キー。
+// runSim(worker並列)と_fallbackRunSim(非並列)で完全同一であることが正しさ条件のためここに一元化する。
+function _configSig(heroKey,kamihimeKeys,n){
+  return JSON.stringify([heroKey,kamihimeKeys,GEAR,[...CURRENT_SUBS],DMG.enemy_def,DMG.enemy_max_hp,n]);
+}
 
 // 命中時: 保存キー列を現行エンジンでリプレイし、総ダメージが記録と一致すれば {rows,dmg,prefix,baseDmg} を返す（探索skip）。
 // 不一致なら該当エントリを破棄し null（=呼び出し側が本探索へ）。buildFormation/applyGear は呼び出し前に config へ反映済みのこと。
@@ -863,7 +868,7 @@ function runSim(){
   _terminateWorkerPool();
 
   // C16 持続化: config署名。結果キャッシュ命中→リプレイ検証OKなら探索/較正を丸ごとskipして即描画。
-  const configSig=JSON.stringify([heroKey,kamihimeKeys,GEAR,[...CURRENT_SUBS],DMG.enemy_def,DMG.enemy_max_hp,n]);
+  const configSig=_configSig(heroKey,kamihimeKeys,n);
   const _cached=tryResultCache(configSig,n);
   if(_cached){
     prog.textContent='キャッシュ命中（リプレイ検証済）';
@@ -988,7 +993,7 @@ function _fallbackRunSim(heroKey,kamihimeKeys,n){
   setTimeout(()=>{
     buildFormation(heroKey,kamihimeKeys); applyGear();
     // C15 案(c): 非並列フォールバックでも自動較正を適用（同期・configキャッシュ）。例外時は override なしへ。
-    const configSig=JSON.stringify([heroKey,kamihimeKeys,GEAR,[...CURRENT_SUBS],DMG.enemy_def,DMG.enemy_max_hp,n]);
+    const configSig=_configSig(heroKey,kamihimeKeys,n);
     // C16 持続化: 結果キャッシュ命中→リプレイ検証OKなら探索/較正を丸ごとskip。
     const _cached=tryResultCache(configSig,n);
     if(_cached){ prog.textContent='キャッシュ命中（リプレイ検証済）'; _finishSim({rows:_cached.rows,prefix:_cached.prefix}, _cached.baseDmg); return; }

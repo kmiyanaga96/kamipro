@@ -1,27 +1,28 @@
 # 神姫PROJECT R — バーストトラッカー 開発ガイド
 
 ## 概要
-バースト編成シミュレーター＆最適押し順トラッカー。**Phase5 S5（2026-06-30）で Vite/ESM モジュール構成へ移行**：`index.html`=薄いシェル、エンジン＝`src/app.js`、Worker＝`src/worker.js`、DB＝`data/*.js`（ESM）。開発は `npm run dev`、配布は `npm run build`→`dist/`（`npm run preview` で確認。**ESM は file:// 直開き不可＝要http**）。移行の一次情報は VITE_MIGRATION.md。
+バースト編成シミュレーター＆最適押し順トラッカー。**Phase5 S5（2026-06-30）で Vite/ESM モジュール構成へ移行**：`index.html`=薄いシェル、エンジン＝`src/app.js`、Worker＝`src/worker.js`、DB＝`data/*.js`（ESM）。開発は `npm run dev`、配布は `npm run build`→`dist/`（`npm run preview` で確認。**ESM は file:// 直開き不可＝要http**）。移行の一次情報は archive/VITE_MIGRATION.md。
 
 ## ドキュメント体系（Antigravityエージェントとの共有用）
+
+### 現役ドキュメント（ルート）
 - **CLAUDE.md**（本書）: 生きた開発ガイド。コード地図・開発ルール・確定仕様・検証方法・実機較正ステータス。**現状の一次情報**。
 - **.agents/AGENTS.md**: Antigravity（Gemini）エージェント用のルール／ガイドライン定義。開発不変条件（循環インポートにおける遅延評価規律・Worker用export）・Gitワークフロー・検証ゲート（raw 170,955,419 / calibrated 194,778,530）を規定。
-- **archive/PERF_NOTES.md**: 探索エンジン高速化の調査・実装・採否判断の台帳（待ち時間の支配式・実装済み施策D/E/①-A・路線①PoC実測・WASMの位置づけ降格）。性能面の過去の一次台帳。
-- **BEAM_SEARCH_DESIGN.md**: 探索エンジンの**準最適性（C9）設計レポート**（5節構成）。ビーム幅32の枝刈り不足で「バフ/デバフ先・ダメージアビ後」最適枝を取りこぼす件の原因分析・実測台帳（greedy/BW32/64/128/C2比較・非単調の崖）・修正候補（②賢い枝刈り推奨）。索引は CALIBRATION_ANALYSIS.md C9。
-- **ORDER_OPTIMIZATION_DESIGN.md**: 押し順最適化の精緻化（**C12＝C9-②「賢い枝刈り」本設計**）。sim2押し順の5症状（amplifa表示/effond先行/judg空転/hecate順/tenya分割）の根本原因と設計案（僅差タイブレークに定石性スコア・tenya多段分割等）・段階実装計画。索引は CALIBRATION_ANALYSIS.md C12。
-- **SEARCH_ROLLOUT_DESIGN.md**: 探索ロールアウトの**準最適性診断＋自己適応化設計（C13-C15）**。2026-07-02セッションの一次資料。①funki解禁バグ（C14）・②リプレイ往復スキップ（C13・修正済）・**探索rolloutポリシー脆弱性（C15＝本丸）**の全検証データ・再現手順（スキャフォールド編集＋`archive/tools/search_probe.mjs`/`search_validate.mjs`）・根本原因（静的スコアがモデル固有に手調整され脆い）・頑健解の方向（静的s非依存のlookaheadロールアウト＝STEP2次セッション）を収録。索引は CALIBRATION_ANALYSIS.md C13-C15。
-- **CALIBRATION_ANALYSIS.md**: 実機較正の確定値＆**根拠アーカイブ**（なぜその値・枠か）。較正・英霊武器は実装済み。
-- **archive/PHASE2_PLAN.md**: Phase 2（汎用化）完了計画（アーカイブ退避済み）。
-- **archive/PHASE3_PLAN.md**: Phase 3（高速化）**完了・クローズ**。Phase3-1（アロケフリー化）/D（死コード除去）/E（clone二重コピー排除）/①-A（2段ルート選抜）まで実装し準備時間を大幅短縮。性能の過去台帳は archive/PERF_NOTES.md。
-- **PHASE4_PLAN.md**: Phase 4（実機較正の反復＝**現行フェーズ**）の進め方台帳。**押し順優先**・序数比較ハーネス・「押し順は蓄積誤差に頑健、系統誤差だけを狙う」方針・乖離バックログ駆動を規定。§5.5 に Phase4で判明した重大エンジン改善（C8/C9）の履歴。
-- **PHASE5_PLAN.md**: Phase 5（**探索UX刷新＝待機画面の本格リニューアル**＋後半＝Vite/モジュール化）の計画台帳。前半S1-S4（進捗可視化・ETA・中断・演出）および後半S5（A案=フルVite化・複数モジュール分割）は**すべて実装・統合完了**。
-- **VITE_MIGRATION.md**: Phase 5 S5（Vite導入・A案）の**唯一の作業記録・引継ぎ書**。ビルドコマンドや協調ESM化の設計経緯・残タスク情報を収録。
-- **enemies/**: 敵DB intake ディレクトリ。`enemies/README.md`（命名・追加手順・スキーマ）＋ `TEMPLATE.md` ＋ `<key>.md`（実機詳細＝根拠）。`data/enemies.js` の `ENEMY_REGISTRY` がそこから蒸留した現在値。Phase4較正ボス `walpurgis_loki`（ヴァルプルギス・ロキ）を登録。
-- **simulation/**: Phase 4 の試行データ蓄積ディレクトリ。`simulation/README.md`（命名規約・ワークフロー・**較正カデンツ=turn-by-turnホライズン**・履歴管理の原則）＋ `TEMPLATE/`（新試行の雛形）＋ `simNN/`（1試行=1サブフォルダ: `raw_data.md`実機原本 / `replay_screenshots.md`シムreplay転記 / `design_report.md`設計レポート（設計担当＝主にAntigravity・**必須5節構成**）/ `integrated_analysis.md`統合分析（実装担当＝主にClaude Code・検証+回帰+Phase方針）/ `user_notes.md`ユーザー所感（仮説の種）/ `README.md`要約）。**新試行は `cp -r simulation/TEMPLATE simulation/simNN` で開始**。
-- **KILL_TURN_DESIGN.md**: **最速撃破モード（kill-turn 自動目標）の設計草案（未実装・2026-07-07 起草＋§7必要性検討）**。ターン数指定を「選択した敵を最速で倒す」自動目標へ置き換える構想。§7で「演算量は非障害・真のブロッカーは絶対値精度（実機比×2級）」と整理し、**S3保留・S1+S2はsim02試行2の絶対乖離実測をゲート**に着手判断。
-- **ROADMAP.md**: 長期ビジョン（敵行動・味方生存＝**Phase 6**・旧Phase5からリネーム）＋新キャラ導入ワークフロー構想。Phase 4 定義は PHASE4_PLAN.md、Phase 5（UX刷新）は PHASE5_PLAN.md が一次。
-- **archive/BRANCH_WORKFLOW.md**: ブランチ運用メモ。`main` を恒久トランク化し、節目で作業ブランチを集約・削除する手順と注意点（ブランチ乱立の防止）。
-- 参照ツール（非計画書）: `archive/tools/*.js`（T1較正スクリプト）。
+- **CALIBRATION_ANALYSIS.md**: 実機較正の確定値＆**根拠アーカイブ**（なぜその値・枠か）＋乖離バックログ（Cx）。較正・英霊武器は実装済み。
+- **PHASE4_PLAN.md**: Phase 4（実機較正の反復＝**現行フェーズ**）の進め方台帳。**押し順優先**・序数比較ハーネス・「押し順は蓄積誤差に頑健、系統誤差だけを狙う」方針・乖離バックログ駆動を規定。
+- **KILL_TURN_DESIGN.md**: **最速撃破モード（kill-turn 自動目標）の設計草案（未実装・2026-07-07 起草＋§7必要性検討）**。§7で「演算量は非障害・真のブロッカーは絶対値精度（実機比×2級）」と整理し、**S3保留・S1+S2はsim02試行2の絶対乖離実測をゲート**に着手判断。
+- **ROADMAP.md**: 長期ビジョン（敵行動・味方生存＝**Phase 6**）＋新キャラ導入ワークフロー構想。
+
+### 現役データディレクトリ
+- **enemies/**: 敵DB intake。`enemies/README.md`（命名・追加手順・スキーマ）＋ `TEMPLATE.md` ＋ `<key>.md`（実機詳細＝根拠）。`data/enemies.js` の `ENEMY_REGISTRY` がそこから蒸留した現在値。Phase4較正ボス `walpurgis_loki` を登録。
+- **simulation/**: Phase 4 の試行データ蓄積。`simulation/README.md`（命名規約・ワークフロー・**較正カデンツ=turn-by-turnホライズン**）＋ `TEMPLATE/` ＋ `simNN/`（1試行=1サブフォルダ: `raw_data.md`実機原本 / `replay_screenshots.md`シムreplay転記 / `design_report.md`設計レポート（Antigravity・必須5節構成）/ `integrated_analysis.md`統合分析（Claude Code）/ `user_notes.md`ユーザー所感 / `README.md`要約）。**新試行は `cp -r simulation/TEMPLATE simulation/simNN` で開始**。
+
+### archive/（クローズ済み・歴史台帳＝現状の一次情報ではない）
+完了・クローズした計画/設計レポート置き場。バックログ（Cx）行から旧パスで参照されている場合も実体はここ。
+- 設計レポート: `BEAM_SEARCH_DESIGN.md`（C9）/ `ORDER_OPTIMIZATION_DESIGN.md`（C12）/ `SEARCH_ROLLOUT_DESIGN.md`（C13-C15・自動較正§6含む）/ `OPTIMIZATION_ENGINE.md`（エンジン解説旧版）
+- 完了フェーズ台帳: `PHASE2_PLAN.md` / `PHASE3_PLAN.md` / `PHASE5_PLAN.md`（UX刷新+Vite化・完了）/ `VITE_MIGRATION.md`（S5作業記録）/ `PERF_NOTES.md`（高速化台帳）
+- 運用メモ: `BRANCH_WORKFLOW.md`（main恒久トランク運用）
+- `tools/`: 較正・探索ハーネス（`search_calibrate.mjs`＝自動較正の再fit実行・`search_probe.mjs`・T1較正スクリプト等。**現役で使用**）
 
 ---
 
@@ -101,7 +102,7 @@ npm run test:golden          # = node test/golden.mjs（src/app.js を import �
 - TotalDmg（raw・較正なし＝①funki修正＋C18ムーンコード修正モデル）: `170,955,419`
 - TotalDmg（**calibrated**・自動較正 `{judg:145,pactcore:1}` 適用＝production 出荷値・C18r2で再fit。effondレバーはタイミング修正で不要化し脱落）: `194,778,530`
 
-> 探索は `runSim` 実行時に config別に静的スコア s を自動較正する（`calibrateStaticScores`・proxy-shortlist+full-verify・単調安全）。golden.mjs は決定的検証のため較正結果 `{judg:145,pactcore:1,effond:100}` を `setStaticOverride` で明示適用する（毎回の較正走行を避ける）。詳細 SEARCH_ROLLOUT_DESIGN.md §6。
+> 探索は `runSim` 実行時に config別に静的スコア s を自動較正する（`calibrateStaticScores`・proxy-shortlist+full-verify・単調安全）。golden.mjs は決定的検証のため較正結果 `{judg:145,pactcore:1,effond:100}` を `setStaticOverride` で明示適用する（毎回の較正走行を避ける）。詳細 archive/SEARCH_ROLLOUT_DESIGN.md §6。
 
 補助検証（大きな構造変更・Worker/ビルド変更時）:
 ```bash
@@ -134,12 +135,12 @@ npm run preview              # dist を http 配信 → ブラウザで探索/�
 
 ---
 
-## 現在の進行状況（引き継ぎ用・2026-06-27）
+## 現在の進行状況（引き継ぎ用・2026-07-07 更新）
 - **現フェーズ**: Phase 4 = **turn-by-turn ホライズン較正（B案）**。
 - **較正ボス**: `walpurgis_loki`（ヴァルプルギス・ロキ・Lv160 ANONYMOUS）。
 - **sim02 進行中**（C1ホライズン拡張・T2〜）:
-  - 試行1=実機勘(Manual)押し順の実機データ=`raw_data.md`。
-  - 同一Manual順のシムreplay=`replay_screenshots.md`。
-  - ユーザー所感=`user_notes.md`。
-  - **試行2=シム推奨順の実機データ=取得中**。
+  - 試行1=実機勘(Manual)押し順の実機データ=`raw_data.md`／同一Manual順のシムreplay=`replay_screenshots.md`／ユーザー所感=`user_notes.md`。
+  - 旧試行2（旧エンジン推奨順）は**取得中に C18（ムーンコードモデル乖離）を発見**→修正・golden再fit済み（C18/C18r2＝fixed）。
+  - **試行2＝C18修正後エンジンの新推奨順で実機データを再取得中**（旧推奨順・旧キャッシュは ENGINE_VERSION 更新で無効）。
   - **総合分析(`integrated_analysis.md`)は最後**＝試行2の格納完了かつ全体矛盾なし確認後に着手（現状未着手）。
+- **待機中の判断**: KILL_TURN_DESIGN.md §7.4 のゲート＝試行2の実機vsシム絶対乖離の実測で最速撃破モード（S1+S2）の着手可否を判定。
