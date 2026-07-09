@@ -59,7 +59,16 @@ const CHAR_REGISTRY = {
                     }
                     return true;
                   },
-                  exec:(sim,T,ord)=>{ for(const k of Object.keys(sim.cd)) if(k!=='ifishant'&&sim.cd[k]>0) sim.cd[k]--; sim.use('ifishant',T,ord); }},
+                  exec:(sim,T,ord)=>{ for(const k of Object.keys(sim.cd)) if(k!=='ifishant'&&sim.cd[k]>0) sim.cd[k]--;
+                    // C20(2026-07-09 実機較正): 実機のエレインアビは全て CD=1。ifishant の全アビCD-1 が
+                    //   エレインの CD=1→0 を戻し、契晶が足りれば各アビ+1回リキャスト可(ターン内上限は増えず各アビ最大+1)。
+                    //   シムはエレインを cd=0＋クォータguardで表現し alone2回/legend契晶連動 等の基礎値を実機一致させて
+                    //   いる(cd=1へ置換すると alone が1回に落ち実機T2-T6の2回発動と矛盾)。∴等価表現として ifishant発動で
+                    //   各エレインアビのターン内上限を+1する枠(ifishantElaine)を付与する。契晶コストは既存 kc ゲートで消費。
+                    //   対象=エレイン全アビ(ユーザー確度90%・確実はエレイン4/pactcore)。knightsは nights-buff guard(C11)で
+                    //   同ターン再発動しない(refresh無駄)ため+1しても発火せず=実機整合。
+                    sim.T.ifishantElaine=(sim.T.ifishantElaine||0)+1;
+                    sim.use('ifishant',T,ord); }},
     },
     def: {
       burst_coef_a: 5, burst_coef_b: 3000,  // エジソン: a=5.0 b=3000
@@ -129,16 +138,22 @@ const CHAR_REGISTRY = {
           sim.use('tenya',T,ord); sim.burst(me,bset,T); T.tenya=1;
         }},
       // 天矢乱舞 再発動(C12-④b): 初回tenya後に T.tenya<3 かつ g>=40 で発動可。40消費＋追加バースト。
-      // sim.use は呼ばず(=アビ計数/onAbility/CD設定なし＝旧atomic re-fireと同一挙動)、ord へ専用エントリを push。
       // cd=0 のまま guard(T.tenya<3) で同ターン最大2回に頭打ち。T.tenya はターン頭に0初期化(T init)。
-      // refireOf/refireSuffix: リプレイ往復用の宣言。この候補は sim.use 非経由で「初回tenyaのラベル＋接尾辞」
-      // を表示チップに出すため、末尾()剥がしのトークン照合では別キー(tenya)へ化ける。buildReplayNameMap が
-      // ここから完全一致「ヤマト2(再-40)」→tenya_re を登録し、表示は変えずに正しく往復させる(exec の push と一致必須)。
+      // C19(2026-07-09 実機較正): 再発動も実機では**赤アビ使用扱い**＝(a)ロボ反応が発火(試行1 raw:
+      //   再発動分のヤマト2行にもロボ追撃)・(b)アビ12procにカウント(試行2 T2#12 で連理魔力+2 を実機確認)。
+      //   ∴ アビ計数(T.ability++)と onAbility フックを発火させる。use() を使わないのは表示ラベルを初回tenyaと
+      //   同一「ヤマト2(再-40)」に保つため(LABEL['tenya_re']は連番がズレる)＝カウント処理のみ手動複製する。
+      //   発火順は初回tenya(use→burst)に合わせ「反応→バースト」とする(ロボ反応がバースト前のバフで計算)。
+      // refireOf/refireSuffix: リプレイ往復用の宣言。この候補は「初回tenyaのラベル＋接尾辞」を表示チップに出すため、
+      //   末尾()剥がしのトークン照合では別キー(tenya)へ化ける。buildReplayNameMap が完全一致「ヤマト2(再-40)」→
+      //   tenya_re を登録し、表示は変えずに正しく往復させる(exec の push と一致必須)。
       tenya_re: { s:90, burstTrigger:true, refireOf:'tenya', refireSuffix:'(再-40)',
         guard:(sim,T,t)=>(T.tenya||0)>=1 && (T.tenya||0)<3 && sim.g[ownerOf('tenya')]>=40,
         exec:(sim,T,ord,bset)=>{
           const me=ownerOf('tenya');
-          sim.g[me]-=40; sim.burst(me,bset,T); T.tenya++;
+          sim.g[me]-=40;
+          sim._countAbilityUse('tenya_re','r');  // C19: 赤アビ使用扱い(アビ計数＋ロボ反応・連理arcana proc)
+          sim.burst(me,bset,T); T.tenya++;
           ord.push({text:`${LABEL.tenya}(再-40)`,color:'r'});
         }},
     },
@@ -377,10 +392,10 @@ const CHAR_REGISTRY = {
     labelSuffix: { legend:'(+10)' },
     cdShow: {},
     cands: {
-      alone:    { s:40, burstTrigger:true, guard:(sim,T)=>(T.alone||0)<2,
+      alone:    { s:40, burstTrigger:true, guard:(sim,T)=>(T.alone||0)<2+(T.ifishantElaine||0),  // C20: ifishantで+1
                   exec:(sim,T,ord,bset)=>{ T.alone=(T.alone||0)+1; sim.use('alone',T,ord); sim.burst(ownerOf('alone'),bset,T); }},
       legend:   { s:120, atkBuf:true, partyBG:true,
-                  guard:(sim,T)=>{ let lu=sim.cum>=1?2:1; for(const thr of [26,51,71,80]) if(sim.cum>=thr) lu++; return (T.legend||0)<lu; },
+                  guard:(sim,T)=>{ let lu=sim.cum>=1?2:1; for(const thr of [26,51,71,80]) if(sim.cum>=thr) lu++; return (T.legend||0)<lu+(T.ifishantElaine||0); },  // C20: ifishantで+1
                   exec:(sim,T,ord)=>{ T.legend=(T.legend||0)+1; (sim.buf.legend??=[]).push(DMG.dur_legend);
                     // アシスト閾値バフ(契晶獲得数cum依存・3T・refresh単発: 累積可ではない)
                     if(sim.cum>=10) sim.buf.leg_aslt=[DMG.dur_legend];
@@ -393,8 +408,8 @@ const CHAR_REGISTRY = {
       knights:  { s:85, atkBuf:true, guard:(sim,T)=>!T.knightsUsed && !(sim.buf.nights?.length),
                   exec:(sim,T,ord)=>{ T.knightsUsed=true; (sim.buf.nights??=[]).push(DMG.dur_nights); sim.use('knights',T,ord); }},
       pactcore: { s:(sim)=>{ const lk=Object.keys(ABIL).filter(k=>ownerOf(k)===LEADER); const n=lk.filter(k=>sim.cd[k]>0).length; return n>=3?150:n===2?110:n===1?70:20; }, atkBuf:true, partyBG:true,
-                  guard:(sim,T)=>{ if(T.pactcoreUsed||sim.g[LEADER]<100) return false; return Object.keys(ABIL).filter(k=>ownerOf(k)===LEADER).some(k=>sim.cd[k]>0); },
-                  exec:(sim,T,ord)=>{ T.pactcoreUsed=true; const lk=Object.keys(ABIL).filter(k=>ownerOf(k)===LEADER); for(const k of lk) if(sim.cd[k]>0) sim.cd[k]=Math.max(0,sim.cd[k]-1); sim.addG(CHARS,BG.pactcore); sim.use('pactcore',T,ord,'(全+100)'); }},
+                  guard:(sim,T)=>{ if((T.pactcoreN||0)>=1+(T.ifishantElaine||0)||sim.g[LEADER]<100) return false; return Object.keys(ABIL).filter(k=>ownerOf(k)===LEADER).some(k=>sim.cd[k]>0); },  // C20: ifishantで+1回
+                  exec:(sim,T,ord)=>{ T.pactcoreN=(T.pactcoreN||0)+1; const lk=Object.keys(ABIL).filter(k=>ownerOf(k)===LEADER); for(const k of lk) if(sim.cd[k]>0) sim.cd[k]=Math.max(0,sim.cd[k]-1); sim.addG(CHARS,BG.pactcore); sim.use('pactcore',T,ord,'(全+100)'); }},
     },
     def: {
       burst_coef_a: 5.5, burst_coef_b: 3000,  // エレイン: a=5.5 b=3000(スクショ確定)

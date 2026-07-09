@@ -180,6 +180,15 @@ class Sim {
     ord.push({text:LABEL[name]+(note||''), color});
   }
 
+  // C19: use() の「帳簿部分だけ」を発火する（CD設定・契晶消費・ord表示は呼び出し側が独自に行うケース用）。
+  // 天矢乱舞の再発動(tenya_re)が実機で赤アビ使用扱い＝アビ計数＋onAbility(ロボ反応・連理arcana proc)を
+  // 受けるため使用。発火内容(_naOwner→T.ability++→CHARS走査 onAbility)は use() 本体と厳密一致させること。
+  _countAbilityUse(name, color){
+    this._naOwner = ownerOf(name);
+    this.T.ability++;
+    for(const c of CHARS) CHAR_DEF[c].onAbility?.(this, name, color, this.T);
+  }
+
 
 
   // 公開API: ロールアウト探索エンジンへ委譲
@@ -420,7 +429,8 @@ class Sim {
     // クエスト開始時自動発動アシスト(テトラ1アシのspec+30%等)。tick後・T1のみ付与。
     if(t===1) for(const c of CHARS) CHAR_DEF[c].onBattleStart?.(this);
     this.T={ability:0,burst:0,proc:0,ra:0,tenya:0,
-            ju:0,mobius:0,legend:0,pactcoreUsed:false,alone:0,knightsUsed:false,
+            ju:0,mobius:0,legend:0,pactcoreN:0,alone:0,knightsUsed:false,
+            ifishantElaine:0,  // C20: ifishant発動でエレイン各アビのターン内上限に加算する+1リキャスト枠
             freyja_all:false,
             // C12-案C: 定石性スコア(ターンローカル・clone浅コピーで伝播)。ダメージ行動がバフ/デバフ
             // 有効中に撃たれた度合いを加点(報酬)。ビーム多様性枠の選抜キーのみに使い、_objectiveには入れない。
