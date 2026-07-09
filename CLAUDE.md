@@ -123,6 +123,8 @@ npm run preview              # dist を http 配信 → ブラウザで探索/�
 - **バックログ状態**:
   - C1, C2: open
   - C18: fixed (**ムーンコードのモデル乖離**＝真因。旧「即発動未強制」診断は誤りで撤回。実機仕様=ヘカテー自身アビ累積12毎・持続2T・即時発動へ修正し、試行2 T4実機トラブル(judg#12不可→13アビ目)と試行1 T4/T6バースト無しパターンを再現。golden再fit。詳細 CALIBRATION_ANALYSIS.md C18)
+  - C19: open (**tenya_re=実機ではアビ使用扱い**＝ロボ反応発火(試行1raw傍証)＋アビ12proc計数(試行2 T2#12二重リキャスト観測)。シムは非計数=ロボ追撃欠落＋proc点シフト。要design_report・golden再fit前提)
+  - C20: open (**エジソン3→エレインアビ+1回リキャスト未モデル化**＝実機はエレインCD=1でifishantのCD-1が効く(クォータ不変・各アビ最大+1回)。シムはcd=0でifishant無効。仕様確認3点→design_report)
   - C3: investigating
   - C4, C5, C8, C9, C11, C12, C13, C14: fixed
   - C6: wontfix
