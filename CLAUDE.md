@@ -124,7 +124,7 @@ npm run preview              # dist を http 配信 → ブラウザで探索/�
   - C1, C2: open
   - C18: fixed (**ムーンコードのモデル乖離**＝真因。旧「即発動未強制」診断は誤りで撤回。実機仕様=ヘカテー自身アビ累積12毎・持続2T・即時発動へ修正し、試行2 T4実機トラブル(judg#12不可→13アビ目)と試行1 T4/T6バースト無しパターンを再現。golden再fit。詳細 CALIBRATION_ANALYSIS.md C18)
   - C19: fixed (**tenya_re=実機ではアビ使用扱い**＝ロボ反応発火＋アビ12proc計数[T2#12連理+2で実機確認]。`Sim._countAbilityUse`新設しtenya_re.execで発火。golden再fit)
-  - C20: fixed (**エジソン3→エレインアビ+1回リキャスト**＝実機エレイン全アビCD=1。cd=1置換は alone2回/T[試行1raw]と矛盾のため棄却→ifishant発動で `T.ifishantElaine` を各エレインguard上限に+1加算する等価表現。対象全アビは確度90%。golden再fit)
+  - C20: fixed (**エジソン3→エレインアビ+1回リキャスト**＝実機エレイン全アビCD=1。cd=1置換は alone2回/T[試行1raw]と矛盾のため棄却→ifishant発動で `T.ifishantElaine` を各エレインguard上限に+1加算する等価表現。**実機裏取り済(2026-07-09): alone3回目が押せた=上限+1モデルが正・契晶不足は不可も一致**。対象全アビは確度90%[legend残]。golden再fit)
   - C3: investigating
   - C4, C5, C8, C9, C11, C12, C13, C14: fixed
   - C6: wontfix
