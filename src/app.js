@@ -51,7 +51,16 @@ const GEAR_BOXES = [
 ];
 const GEAR = Object.fromEntries(GEAR_BOXES.map(([k])=>[k,0]));
 
-const SUMMON_SLOTS = 2; // シミュ時に採用する幻獣枠数(重複可)
+// 幻獣スロット構成（実機・Phase6 2026-07-10）: メイン1 + サブ5 + サポート1 = 計7枠（重複可）。
+// メイン/サポートは mainEffect（加護 weapon_amp 含む）、サブは subEffect のみ発動（weapon_amp 禁止）。
+const SUMMON_LAYOUT = [
+  { role:'main',    label:'メイン',   n:1 },
+  { role:'sub',     label:'サブ',     n:5 },
+  { role:'support', label:'サポート', n:1 },
+];
+// 展開した区分配列 ['main','sub','sub','sub','sub','sub','support']（index=summon-i の枠区分）
+const SUMMON_ROLES = SUMMON_LAYOUT.flatMap(g=>Array(g.n).fill(g.role));
+const SUMMON_SLOTS = SUMMON_ROLES.length; // = 7
 
 // _na() ホットパス用: 押し順非依存の固定係数を事前畳み込み(GEAR変更時に再計算)
 let GEAR_K = 0;
@@ -1195,9 +1204,11 @@ function syncSlots(overrideVals){
 function renderGearPanel(){
   const sumOpts = '<option value="none">-- なし --</option>'+
     Object.entries(SUMMON_REGISTRY).map(([k,v])=>`<option value="${k}">${v.jp}</option>`).join('');
+  // メイン/サブ1-5/サポート のラベルを SUMMON_LAYOUT から生成
+  const summonLabels = SUMMON_LAYOUT.flatMap(g=>Array.from({length:g.n},(_,j)=>g.n>1?`${g.label}${j+1}`:g.label));
   const summonRows = Array.from({length:SUMMON_SLOTS},(_,i)=>`
     <div class="gear-row">
-      <span class="slot-num">幻獣${i+1}</span>
+      <span class="slot-num">${summonLabels[i]}</span>
       <select id="summon-${i}">${sumOpts}</select>
     </div>`).join('');
   const wOpts = '<option value="">-- 未装備 --</option>'+
@@ -1241,7 +1252,7 @@ function renderGearPanel(){
       </div>
       <div class="gear-grid">
         <div>
-          <div class="gear-sub">幻獣（${SUMMON_SLOTS}枠・重複可／ダメージ用）</div>${summonRows}
+          <div class="gear-sub">幻獣（メイン1+サブ5+サポート1・重複可／ダメージ用）</div>${summonRows}
           <div class="gear-sub" style="margin-top:10px;">ウェポン（メイン1＋サブ9）</div>${weaponRows}
         </div>
         <div>
@@ -1283,12 +1294,20 @@ function applyGear(){
   DMG.napo_burst_cd_reduce    = HERO_WEAPON_BASE.napo_burst_cd_reduce;
 
   // 幻獣のweapon_amp合計と直接ボックス補正を収集(ダメージ用。表示攻撃力の幻獣寄与は手動合計入力)
+  // スロット区分ゲート: main/support → mainEffect(加護 weapon_amp 含む), sub → subEffect のみ(weapon_amp 禁止)。
+  // トップレベル box は位置非依存として全枠共通で加算。
   let weaponAmp=0;
   const summonBoxes=[];
   for(let i=0;i<SUMMON_SLOTS;i++){
     const key=document.getElementById('summon-'+i)?.value;
     const s=SUMMON_REGISTRY[key]; if(!s) continue;
-    weaponAmp+=s.weapon_amp||0; summonBoxes.push(s.box);
+    const isMainSlot=(SUMMON_ROLES[i]!=='sub'); // main または support
+    if(s.box) summonBoxes.push(s.box); // 位置非依存
+    const eff = isMainSlot ? s.mainEffect : s.subEffect;
+    if(eff){
+      if(isMainSlot) weaponAmp+=eff.weapon_amp||0; // 加護はメイン幻獣効果=main/supportのみ
+      if(eff.box) summonBoxes.push(eff.box);
+    }
   }
 
   // ウェポンスキルからGEAR_BOXESを自動計算
@@ -1433,7 +1452,15 @@ function applyFormation(slot){
   ];
   syncSlots(overrideVals);
   renderGearPanel();
-  for(let i=0;i<SUMMON_SLOTS;i++){ const el=document.getElementById('summon-'+i); if(el) el.value = slot.summon?.[i]||'none'; }
+  // 旧length-2プリセット移行: 旧index1は加護源(実質サポート枠)だったため、7枠化に伴いサポート枠(末尾)へ寄せて加護を保存。
+  let summonSaved = slot.summon || [];
+  if(summonSaved.length<=2 && summonSaved.some(k=>k&&k!=='none')){
+    const migrated=Array(SUMMON_SLOTS).fill('none');
+    migrated[0]=summonSaved[0]||'none';                       // メイン
+    if(summonSaved[1]&&summonSaved[1]!=='none') migrated[SUMMON_SLOTS-1]=summonSaved[1]; // 旧サブ扱い→サポート
+    summonSaved=migrated;
+  }
+  for(let i=0;i<SUMMON_SLOTS;i++){ const el=document.getElementById('summon-'+i); if(el) el.value = summonSaved[i]||'none'; }
   for(let i=0;i<10;i++){ const el=document.getElementById('wslot-'+i); if(el) el.value = slot.weapons?.[i]||''; }
   for(const [k] of GEAR_BOXES){ const el=document.getElementById('wpn-'+k); if(el) el.value = slot.wpnBoxes?.[k]||'0'; }
   document.getElementById('dmg-affinity').value = slot.affinity||'neu';
