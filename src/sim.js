@@ -430,7 +430,9 @@ class Sim {
     if(t===1) for(const c of CHARS) CHAR_DEF[c].onBattleStart?.(this);
     this.T={ability:0,burst:0,proc:0,ra:0,tenya:0,
             ju:0,mobius:0,legend:0,pactcoreN:0,alone:0,knightsUsed:false,
-            ifishantElaine:0,  // C20: ifishant発動でエレイン各アビのターン内上限に加算する+1リキャスト枠
+            // C21: ifishant押下時点でクォータ消化済み(=実機CD中)だったエレインアビにのみ+1リキャスト枠。
+            // 発動可能な状態のアビには+1しない(実機較正 2026-07-11・sim02試行2 T2#25 alone3回目不可)。アビ別フラット変数。
+            ifAlone:0,ifLegend:0,ifPactcore:0,
             freyja_all:false,
             // C12-案C: 定石性スコア(ターンローカル・clone浅コピーで伝播)。ダメージ行動がバフ/デバフ
             // 有効中に撃たれた度合いを加点(報酬)。ビーム多様性枠の選抜キーのみに使い、_objectiveには入れない。

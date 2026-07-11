@@ -2,6 +2,8 @@ import { DMG, BG, RENRI_CAP, RENRI_MAX, TENYA_FROM, IFISHANT_MIN_CD } from '../s
 import { GEAR, CHARS, ABIL, ownerOf, ELEM, LEADER, LABEL } from '../src/app.js';
 const DEBUFF_KEYS = new Set(['consort_def', 'divinus_def', 'effond_def', 'nights', 'divinus_dot']);
 const buffCount = sim => Object.entries(sim.buf).reduce((a,[k,v])=>a+(DEBUFF_KEYS.has(k)?0:v.length),0);
+// エレイン2(legend)のターン内基礎上限(契晶累積獲得数の閾値で成長)。legend guard と ifishant の消化判定で共用。
+const legendCap = sim => { let lu=sim.cum>=1?2:1; for(const thr of [26,51,71,80]) if(sim.cum>=thr) lu++; return lu; };
 
 // ⚠ ロード順の不変条件: data/*.js は index.html のインライン定数(BG/DMG/GEAR)より「前」に読み込まれる。
 // そのため【オブジェクトリテラルの即時評価フィールド】(例: gmax)に BG/DMG/GEAR を参照してはならない
@@ -60,14 +62,16 @@ const CHAR_REGISTRY = {
                     return true;
                   },
                   exec:(sim,T,ord)=>{ for(const k of Object.keys(sim.cd)) if(k!=='ifishant'&&sim.cd[k]>0) sim.cd[k]--;
-                    // C20(2026-07-09 実機較正): 実機のエレインアビは全て CD=1。ifishant の全アビCD-1 が
-                    //   エレインの CD=1→0 を戻し、契晶が足りれば各アビ+1回リキャスト可(ターン内上限は増えず各アビ最大+1)。
-                    //   シムはエレインを cd=0＋クォータguardで表現し alone2回/legend契晶連動 等の基礎値を実機一致させて
-                    //   いる(cd=1へ置換すると alone が1回に落ち実機T2-T6の2回発動と矛盾)。∴等価表現として ifishant発動で
-                    //   各エレインアビのターン内上限を+1する枠(ifishantElaine)を付与する。契晶コストは既存 kc ゲートで消費。
-                    //   対象=エレイン全アビ(ユーザー確度90%・確実はエレイン4/pactcore)。knightsは nights-buff guard(C11)で
-                    //   同ターン再発動しない(refresh無駄)ため+1しても発火せず=実機整合。
-                    sim.T.ifishantElaine=(sim.T.ifishantElaine||0)+1;
+                    // C20/C21(実機較正 2026-07-09/07-11): 実機のエレインアビは全て CD=1。ifishant の全アビCD-1 は
+                    //   「CD中のアビを起こす」だけで、発動可能な状態のアビの使用可能回数は増やせない(C21・sim02試行2
+                    //   T2#25 alone3回目不可で確定。旧C20の無条件+1は過剰付与＝T2#15押下時点で alone 未使用のため実機は
+                    //   上限2のまま)。シムはエレインを cd=0＋クォータguardで表現しているため、等価表現として
+                    //   「押下時点でクォータ消化済み(=実機CD中)のアビにのみ」アビ別+1枠(ifAlone/ifLegend/ifPactcore)を
+                    //   付与する。押下時点で消化済み=CD中だった legend の3回目成立(試行2 T2#17実機通過)も同モデルで整合。
+                    //   契晶コストは既存 kc ゲートで消費。knightsは nights-buff guard(C11)で同ターン再発動しない=+1不要。
+                    if((T.alone||0)>=2) T.ifAlone=(T.ifAlone||0)+1;
+                    if((T.legend||0)>=legendCap(sim)) T.ifLegend=(T.ifLegend||0)+1;
+                    if((T.pactcoreN||0)>=1) T.ifPactcore=(T.ifPactcore||0)+1;
                     sim.use('ifishant',T,ord); }},
     },
     def: {
@@ -392,10 +396,10 @@ const CHAR_REGISTRY = {
     labelSuffix: { legend:'(+10)' },
     cdShow: {},
     cands: {
-      alone:    { s:40, burstTrigger:true, guard:(sim,T)=>(T.alone||0)<2+(T.ifishantElaine||0),  // C20: ifishantで+1
+      alone:    { s:40, burstTrigger:true, guard:(sim,T)=>(T.alone||0)<2+(T.ifAlone||0),  // C21: 押下時点CD中だった場合のみifishantで+1
                   exec:(sim,T,ord,bset)=>{ T.alone=(T.alone||0)+1; sim.use('alone',T,ord); sim.burst(ownerOf('alone'),bset,T); }},
       legend:   { s:120, atkBuf:true, partyBG:true,
-                  guard:(sim,T)=>{ let lu=sim.cum>=1?2:1; for(const thr of [26,51,71,80]) if(sim.cum>=thr) lu++; return (T.legend||0)<lu+(T.ifishantElaine||0); },  // C20: ifishantで+1
+                  guard:(sim,T)=>(T.legend||0)<legendCap(sim)+(T.ifLegend||0),  // C21: 押下時点CD中だった場合のみifishantで+1
                   exec:(sim,T,ord)=>{ T.legend=(T.legend||0)+1; (sim.buf.legend??=[]).push(DMG.dur_legend);
                     // アシスト閾値バフ(契晶獲得数cum依存・3T・refresh単発: 累積可ではない)
                     if(sim.cum>=10) sim.buf.leg_aslt=[DMG.dur_legend];
@@ -408,7 +412,7 @@ const CHAR_REGISTRY = {
       knights:  { s:85, atkBuf:true, guard:(sim,T)=>!T.knightsUsed && !(sim.buf.nights?.length),
                   exec:(sim,T,ord)=>{ T.knightsUsed=true; (sim.buf.nights??=[]).push(DMG.dur_nights); sim.use('knights',T,ord); }},
       pactcore: { s:(sim)=>{ const lk=Object.keys(ABIL).filter(k=>ownerOf(k)===LEADER); const n=lk.filter(k=>sim.cd[k]>0).length; return n>=3?150:n===2?110:n===1?70:20; }, atkBuf:true, partyBG:true,
-                  guard:(sim,T)=>{ if((T.pactcoreN||0)>=1+(T.ifishantElaine||0)||sim.g[LEADER]<100) return false; return Object.keys(ABIL).filter(k=>ownerOf(k)===LEADER).some(k=>sim.cd[k]>0); },  // C20: ifishantで+1回
+                  guard:(sim,T)=>{ if((T.pactcoreN||0)>=1+(T.ifPactcore||0)||sim.g[LEADER]<100) return false; return Object.keys(ABIL).filter(k=>ownerOf(k)===LEADER).some(k=>sim.cd[k]>0); },  // C21: 押下時点CD中だった場合のみifishantで+1回
                   exec:(sim,T,ord)=>{ T.pactcoreN=(T.pactcoreN||0)+1; const lk=Object.keys(ABIL).filter(k=>ownerOf(k)===LEADER); for(const k of lk) if(sim.cd[k]>0) sim.cd[k]=Math.max(0,sim.cd[k]-1); sim.addG(CHARS,BG.pactcore); sim.use('pactcore',T,ord,'(全+100)'); }},
     },
     def: {
