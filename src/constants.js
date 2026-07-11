@@ -120,6 +120,25 @@ const DMG = {
   elaine_burst_extra_cap: 800000, // 追加ダメージ減衰上限
   dur_sleur_def: 3,          // スリール防壁効果ターン
 
+  // ─── アリアンロッド(健美端麗) ───
+  arian_followup_mult: 3,        // 1アシ追撃(HP80%以上・バースト時)倍率3倍
+  arian_followup_cap: 500000,    // 追撃減衰上限50万
+  burst_arian: 5.0,              // 1アシ: 登場〜5T バースト係数増分(倍率5→10=+5)
+  arian_cap_boost: 1.0,          // 1アシ: 登場〜5T バースト特別減衰+100%(cap+100%)
+  bplus_arian: 100000,           // 1アビ: 味方光のバーストダメージプラス+10万/stack
+  dur_bplus_arian: 5,            // 1アビ効果ターン(5T)
+  spec_arian: 0.08,              // 2アビ: 特殊攻撃+8%/stack
+  acute_arian: 0.10,             // 2アビ: 急所倍率1.1倍≒急所+0.10/stack
+  dur_arian_miti: 3,             // 2アビ効果ターン(3T)
+  bcap_arian: 0.08,              // 2アシ: バーストダメージ上限+8%/stack
+  dur_arian_bcap: 3,             // 2アシ効果ターン(3T)
+  holy_hit_mult: 0.8,            // 1アビ: 8回光ダメージ倍率0.8倍
+  holy_hit_cap: 80000,           // 1アビ: 8回光ダメージ減衰上限8万
+  holy_hits: 8,                  // 1アビ: 光ダメージ回数
+  arian_holy_bg: 10,             // 1アビ: バーストゲージUP+10(味方光)
+  arian_overcome_bg: 40,         // 2アシ: バーストゲージUP+40(自分)
+  arian_last_turn: 5,            // 「登場から5ターン目まで」の境界
+
   // ─── 英霊武器専用強化 ───
   edison_burst_extra_mult: 0,      // OFF(0)=英霊武器なし。applyGear()でセット。
   edison_burst_extra_cap: 800000,  // 減衰上限80万(武器固定)
