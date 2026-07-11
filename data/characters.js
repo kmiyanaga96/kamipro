@@ -72,6 +72,7 @@ const CHAR_REGISTRY = {
                     if((T.alone||0)>=2) T.ifAlone=(T.ifAlone||0)+1;
                     if((T.legend||0)>=legendCap(sim)) T.ifLegend=(T.ifLegend||0)+1;
                     if((T.pactcoreN||0)>=1) T.ifPactcore=(T.ifPactcore||0)+1;
+                    if((T.knightsN||0)>=1) T.ifKnights=(T.ifKnights||0)+1;  // C21(A2): knightsも消化済みなら+1
                     sim.use('ifishant',T,ord); }},
     },
     def: {
@@ -409,8 +410,15 @@ const CHAR_REGISTRY = {
       // ナイツサプレス: 敵バースト攻撃耐性-20% ≒ 全バースト(誘発含む)+20%。契晶3消費。
       // 【非累積・refresh】(C11・実機確認2026-06-28): -20%は重ねがけ不可で2T持続するだけ。
       // guardで「nights有効中は再発動しない」を課し、2T毎(隔ターン)発動＝連続+20%・無駄な毎ターン連発を抑止。
-      knights:  { s:85, atkBuf:true, guard:(sim,T)=>!T.knightsUsed && !(sim.buf.nights?.length),
-                  exec:(sim,T,ord)=>{ T.knightsUsed=true; (sim.buf.nights??=[]).push(DMG.dur_nights); sim.use('knights',T,ord); }},
+      knights:  { s:85, atkBuf:true,
+                  // C11: 初回はnights有効中なら不要(refresh無駄)＝発動しない。C21(A2実機確認2026-07-11): ifishantは
+                  // knights(エレイン3)も対象＝押下時点で消化済み(1回使用済)なら+1回リキャスト可（nights有効中でも許可）。
+                  // 再発動はrefreshのみで無ダメだが、アビ計数(mooncode/arcana proc)＋契晶3消費に参入するため実機整合上モデル化。
+                  guard:(sim,T)=>{ const used=T.knightsN||0;
+                    if(used >= 1+(T.ifKnights||0)) return false;
+                    if(used===0) return !(sim.buf.nights?.length);  // 初回は従来どおり
+                    return true; },                                  // ifishant枠での再発動はbuff有効でも可
+                  exec:(sim,T,ord)=>{ T.knightsN=(T.knightsN||0)+1; (sim.buf.nights??=[]).push(DMG.dur_nights); sim.use('knights',T,ord); }},
       pactcore: { s:(sim)=>{ const lk=Object.keys(ABIL).filter(k=>ownerOf(k)===LEADER); const n=lk.filter(k=>sim.cd[k]>0).length; return n>=3?150:n===2?110:n===1?70:20; }, atkBuf:true, partyBG:true,
                   guard:(sim,T)=>{ if((T.pactcoreN||0)>=1+(T.ifPactcore||0)||sim.g[LEADER]<100) return false; return Object.keys(ABIL).filter(k=>ownerOf(k)===LEADER).some(k=>sim.cd[k]>0); },  // C21: 押下時点CD中だった場合のみifishantで+1回
                   exec:(sim,T,ord)=>{ T.pactcoreN=(T.pactcoreN||0)+1; const lk=Object.keys(ABIL).filter(k=>ownerOf(k)===LEADER); for(const k of lk) if(sim.cd[k]>0) sim.cd[k]=Math.max(0,sim.cd[k]-1); sim.addG(CHARS,BG.pactcore); sim.use('pactcore',T,ord,'(全+100)'); }},

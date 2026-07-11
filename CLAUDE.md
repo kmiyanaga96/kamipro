@@ -7,7 +7,7 @@
 
 ### 現役ドキュメント（ルート）
 - **CLAUDE.md**（本書）: 生きた開発ガイド。コード地図・開発ルール・確定仕様・検証方法・実機較正ステータス。**現状の一次情報**。
-- **.agents/AGENTS.md**: Antigravity（Gemini）エージェント用のルール／ガイドライン定義。開発不変条件（循環インポートにおける遅延評価規律・Worker用export）・Gitワークフロー・検証ゲート（raw 203,155,740 / calibrated 223,378,544）を規定。
+- **.agents/AGENTS.md**: Antigravity（Gemini）エージェント用のルール／ガイドライン定義。開発不変条件（循環インポートにおける遅延評価規律・Worker用export）・Gitワークフロー・検証ゲート（raw 203,723,485 / calibrated 218,902,146）を規定。
 - **CALIBRATION_ANALYSIS.md**: 実機較正の確定値＆**根拠アーカイブ**（なぜその値・枠か）＋乖離バックログ（Cx）。較正・英霊武器は実装済み。
 - **PHASE4_PLAN.md**: Phase 4（実機較正の反復＝**現行フェーズ**）の進め方台帳。**押し順優先**・序数比較ハーネス・「押し順は蓄積誤差に頑健、系統誤差だけを狙う」方針・乖離バックログ駆動を規定。
 - **KILL_TURN_DESIGN.md**: **最速撃破モード（kill-turn 自動目標）の設計草案（未実装・2026-07-07 起草＋§7必要性検討）**。§7で「演算量は非障害・真のブロッカーは絶対値精度（実機比×2級）」と整理し、**S3保留・S1+S2はsim02試行2の絶対乖離実測をゲート**に着手判断。ROADMAP の未確定Phase(ii)。
@@ -67,7 +67,7 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
 - **イフィシャント早撃ち抑止**: `IFISHANT_MIN_CD = 3`（CD中アビが3つ未満は使用不可）。
 - **ロワ・クモンドの3枠加算**: 通常（`roy_na_frac`）、アビ（`roy_abi_frac`）、バースト（`roy_burst_frac`）をそれぞれ独自枠加算。
 - **ゲージ経済（実機確認済・2026-07-04／実装＝実機一致・乖離なし）**: 黄アビのBG付与（funki+10/legend+10/sleur+15/absolute+20/pactcore+100）・マシーンタクトゥ（ロボ反応1回あたり `MACH_BG=5`）は**すべて味方全体対象**（`addG(CHARS,…)`）。エジソンのバーストで攻撃ロボ/補助ロボ**両方のCDを−1**（`edison.def.onBurst`）＝ロボ3T稼働に対し3T周期の再設置が回りきり**常時稼働**しうる。∴ **中盤(T3〜)以降に全員ゲージ満量になるのは正しい帰結**（過去に「ロボ常時稼働はありえない／満量は不自然」と疑義が出たが、実機仕様として3点とも一致・アンプリファ×攻撃ロボの効果窓も整合＝再調査不要）。エジソン4(アンプリファ)の+10万は攻撃ロボ反応（`sim.droid>0` の赤アビ反応）にのみ加算。
-- **Phase3-1 事前計算マップ（ホットパス高速化・実装済）**: `buildFormation` で `ABIL_KEYS`/`ABIL_KC`/`ABIL_CANDS`/`ABIL_BASE_S` を一度だけ構築し、`_stepStatic`/`_candidates` が `Object.entries(ABIL)`・ネスト参照・`computeBaseScore` 再計算をせず `ABIL_KEYS` を1パス走査する。**⚠不変条件**: 走査順は `ABIL` 挿入順（=`Object.keys`順）でタイブレークは厳密 `>`（先頭最大）。キャラ追加・`abilities`/`cands` 変更時はこのマップ構築を経由するため自動追従するが、**走査順や `>` 比較を崩すと最適押し順の選択がズレる**（ゴールデン値 raw 203,155,740 / calibrated 223,378,544 で検証すること）。
+- **Phase3-1 事前計算マップ（ホットパス高速化・実装済）**: `buildFormation` で `ABIL_KEYS`/`ABIL_KC`/`ABIL_CANDS`/`ABIL_BASE_S` を一度だけ構築し、`_stepStatic`/`_candidates` が `Object.entries(ABIL)`・ネスト参照・`computeBaseScore` 再計算をせず `ABIL_KEYS` を1パス走査する。**⚠不変条件**: 走査順は `ABIL` 挿入順（=`Object.keys`順）でタイブレークは厳密 `>`（先頭最大）。キャラ追加・`abilities`/`cands` 変更時はこのマップ構築を経由するため自動追従するが、**走査順や `>` 比較を崩すと最適押し順の選択がズレる**（ゴールデン値 raw 203,723,485 / calibrated 218,902,146 で検証すること）。
 - **ESM Worker起動規律**: 旧 `_buildWorkerCode`（文字列 slice）は廃止済み。Worker は `new Worker(new URL('./worker.js', import.meta.url), {type:'module'})` で起動。**`src/app.js` の worker 用 export に必要な探索関数（`buildFormation`, `recalcGearK`, `Sim`, `_runRootPlan` 等）を含めること**。UI/DOM 依存は INIT の `if(typeof document!=='undefined')` ガード内・window ブリッジに隔離すること。
 - **2段ルート選抜（①-A・実装済）**: `runSim`/`_fallbackRunSim` は `enumerateRootPrefixes()` の全prefixを `_staticPrefixDmg`（静的greedy・約数ms）で安価採点し、上位 `PREFIX_TOPK`(=8・C16で10→8) 本のみ本選(BW64・C16で128→64)へ回す（`_selectRootPrefixes`）。空prefixは常に確保。**品質低下は PoC 実測で最大0.013%**（top-8が実証済み安全床・BW64で0%損実測）。新キャラ追加時は PoC（scratchpad `poc.js`）を再実行し `PREFIX_TOPK` の余裕を再確認する。
 
@@ -76,7 +76,7 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
   1. `git checkout main` で main に切り替え、`git pull origin main` を実行。
   2. 作業用ブランチを切って開発を開始。
 - **検証 (作業完了時)**
-  - 必ず `npm run test:golden`（期待値: raw 203,155,740 / calibrated 223,378,544）を実行しパスを確認。
+  - 必ず `npm run test:golden`（期待値: raw 203,723,485 / calibrated 218,902,146）を実行しパスを確認。
 - **反映・プッシュ**
   - コミット後、`main` に戻って `pull`、作業ブランチをマージし、再度検証テストをパスして `git push origin main`。不要な作業ブランチは削除。
 
@@ -85,7 +85,7 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
 1. **リプレイ照合**: 「リプレイモード」に実機手順を入力し、乖離の発生起点を特定。実測を `simNN/raw_data.md` に、replay画面は `simNN/replay_screenshots.md` へテキスト転記。
 2. **課題のDB化**: [CALIBRATION_ANALYSIS.md](file:///c:/Users/Kanta%20Miyanaga/kamipro/CALIBRATION_ANALYSIS.md) のバックログ（Cx）に追記。
 3. **計画・検証策定（Antigravity 主担当）**: 設計担当が原因特定し、`simNN/design_report.md` を**必須5節構成**（1.総合比較 / 2.敗北要因 / 3.乖離分析 / 4.影響度検証 / 5.引継ぎ）で作成。
-4. **自律修正とテスト**: 実装担当（Claude Code）が `design_report.md` を検証して `simNN/integrated_analysis.md` にまとめ、コード修正後テスト実行。期待値 `raw 203,155,740 / calibrated 223,378,544` と追加検証ケースのパスを確認。
+4. **自律修正とテスト**: 実装担当（Claude Code）が `design_report.md` を検証して `simNN/integrated_analysis.md` にまとめ、コード修正後テスト実行。期待値 `raw 203,723,485 / calibrated 218,902,146` と追加検証ケースのパスを確認。
 
 ---
 
@@ -99,10 +99,10 @@ npm run test:golden          # = node test/golden.mjs（src/app.js を import �
 
 **期待値**（C21 実機較正に伴い 2026-07-11 更新）:
 - FullBurst: `10/10`
-- TotalDmg（raw・較正なし＝①funki修正＋C18ムーンコード＋C19 tenya_re＋C21 ifishant条件付きモデル）: `203,155,740`
-- TotalDmg（**calibrated**・自動較正 `{judg:160,pactcore:1}` 適用＝production 出荷値・C21で再fit。effondレバーは今回の再fitで脱落）: `223,378,544`
+- TotalDmg（raw・較正なし＝①funki修正＋C18ムーンコード＋C19 tenya_re＋C21 ifishant条件付きモデル）: `203,723,485`
+- TotalDmg（**calibrated**・自動較正 `{judg:130,pactcore:1}` 適用＝production 出荷値・C21で再fit。effondレバーは脱落・A2 knights対象化で judg最適が160→130へシフト）: `218,902,146`
 
-> 探索は `runSim` 実行時に config別に静的スコア s を自動較正する（`calibrateStaticScores`・proxy-shortlist+full-verify・単調安全）。golden.mjs は決定的検証のため較正結果 `{judg:160,pactcore:1}` を `setStaticOverride` で明示適用する（毎回の較正走行を避ける）。詳細 archive/SEARCH_ROLLOUT_DESIGN.md §6。
+> 探索は `runSim` 実行時に config別に静的スコア s を自動較正する（`calibrateStaticScores`・proxy-shortlist+full-verify・単調安全）。golden.mjs は決定的検証のため較正結果 `{judg:130,pactcore:1}` を `setStaticOverride` で明示適用する（毎回の較正走行を避ける）。詳細 archive/SEARCH_ROLLOUT_DESIGN.md §6。
 
 補助検証（大きな構造変更・Worker/ビルド変更時）:
 ```bash
@@ -135,7 +135,7 @@ npm run preview              # dist を http 配信 → ブラウザで探索/�
   - C15: closed (自動較正 `{judg:122,pactcore:1,effond:93}` を適用)
   - C16: fixed (探索高速化・キャッシュ・UIキャッシュ入出力・火力指数分母修正完了)
   - C17: wontfix (第4較正レバー検討＝BW64新baseで再検証。full生存はsleur/puvoirのみ+0.4〜0.5%・joint掃引27点で相互作用なし=単独加算どまり・3変数が実質飽和点。工数対効果不成立で見送り。データはCALIBRATION_ANALYSIS.md C17)
-  * 現ゴールデン値: **raw 203,155,740 / calibrated 223,378,544** (C21実機較正にて再fit・2026-07-11)
+  * 現ゴールデン値: **raw 203,723,485 / calibrated 218,902,146** (C21実機較正にて再fit・2026-07-11)
 
 ---
 
