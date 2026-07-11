@@ -5,6 +5,20 @@ const buffCount = sim => Object.entries(sim.buf).reduce((a,[k,v])=>a+(DEBUFF_KEY
 // エレイン2(legend)のターン内基礎上限(契晶累積獲得数の閾値で成長)。legend guard と ifishant の消化判定で共用。
 const legendCap = sim => { let lu=sim.cum>=1?2:1; for(const thr of [26,51,71,80]) if(sim.cum>=thr) lu++; return lu; };
 
+// アリアンロッド1アビ(ホーリーターボ)の効果適用。手動(cands.holy)/自動(onBurst・turnEnd)から共用。
+// 同ターン最大2回(手動+自動 共通上限＝仮定)。効果: バーストダメージプラス+10万(味方光・5T累積)＋
+// バーストゲージ+10(味方光)＋敵ランダム8回 光ダメージ(0.8倍/8万・アビ枠)。※CD/アビ計数はここでは行わない。
+function arianHolyFire(sim, T){
+  if((T.holy||0) >= 2) return;
+  T.holy = (T.holy||0) + 1;
+  const me = ownerOf('holy');  // =アリアンロッド
+  (sim.buf.arian_bplus ??= []).push(DMG.dur_bplus_arian);
+  sim.addG(CHARS, DMG.arian_holy_bg);
+  sim._naOwner = me;
+  for(let i=0;i<DMG.holy_hits;i++)
+    sim.dmg += sim._decay('abi', sim._na()*DMG.holy_hit_mult, DMG.holy_hit_cap);
+}
+
 // ⚠ ロード順の不変条件: data/*.js は index.html のインライン定数(BG/DMG/GEAR)より「前」に読み込まれる。
 // そのため【オブジェクトリテラルの即時評価フィールド】(例: gmax)に BG/DMG/GEAR を参照してはならない
 // (= ReferenceError でファイル全体が落ち、CHAR_REGISTRY 未定義→UI全消失する)。
@@ -439,6 +453,75 @@ const CHAR_REGISTRY = {
         for(let i=0; i<hits; i++)
           sim.dmg += sim._decay('abi', naB_e * DMG.elaine_burst_extra_mult, DMG.elaine_burst_extra_cap);
       },
+    },
+  },
+
+  // ─── アリアンロッド[健美端麗] ─── ヤマトタケル互換(バースト加速＋バーストバフ)。
+  // 実装メモ・仮定は simulation/arianrhod_impl_notes.md 参照(スペックの曖昧点の解釈を記録)。
+  arianrhod: {
+    type: 'kamihime',
+    jp: '[健美端麗]アリアンロッド', shortJp: 'アリアン', gcls: 'gan', elem: 'light',
+    favWeapon: ['銃','弓'], baseAtk: 9460, baseHp: 1320,
+    // arian_miti_uses: 2アビ戦闘通算(奇数回で味方全体化) / arian_bacc: 味方光バースト累計(2アシ・3回毎)
+    state: { arian_miti_uses: 0, arian_bacc: 0 },
+    abilities: {
+      holy:       ['y', 0, 0],  // 1アビ ホーリーターボ(実CD1・同ターン2回可＝cd0+quotaで表現)
+      miti:       ['y', 2, 0],  // 2アビ ミティゲートペイン
+      elegant:    ['r', 8, 0],  // 3アビ エレガントルミナス(初回オートバースト)
+      elegant_re: ['r', 0, 0],  // エレガント再発動(ヤマト tenya_re と同型)
+    },
+    labelSuffix: {},
+    cdShow: { holy:"ホーリーターボ", miti:"ミティゲートペイン", elegant:"エレガントルミナス", elegant_re:"エレガント(再)" },
+    cands: {
+      // 1アビ: バーストダメージプラス+10万(味方光・5T累積)＋バーストゲージ+10＋敵8回光ダメージ(0.8倍/8万)。
+      // 同ターン最大2回(手動+自動 共通上限＝arianHolyFire内で T.holy<2 をゲート)。実CD1は cd0+quota で表現。
+      holy: { s:130, atkBuf:true, partyBG:true, guard:(sim,T)=>(T.holy||0)<2,
+              exec:(sim,T,ord)=>{ arianHolyFire(sim,T); sim.use('holy',T,ord); }},
+      // 2アビ: 自分の特殊攻撃+8%・急所+0.10(3T累積)。奇数回目は味方全体化(シムのバフは全体扱いのため挙動同一・注記)。
+      miti: { s:80, atkBuf:true,
+              exec:(sim,T,ord)=>{ sim.arian_miti_uses=(sim.arian_miti_uses||0)+1;
+                (sim.buf.arian_spec??=[]).push(DMG.dur_arian_miti);
+                (sim.buf.arian_acute??=[]).push(DMG.dur_arian_miti); sim.use('miti',T,ord); }},
+      // 3アビ: ゲージ消費なしでオートバースト。初回のみCD8を設定(再発動は elegant_re)。
+      elegant: { s:90, burstTrigger:true,
+                 exec:(sim,T,ord,bset)=>{ const me=ownerOf('elegant'); sim.use('elegant',T,ord); sim.burst(me,bset,T); T.elegant=1; }},
+      // 3アビ再発動: 40消費で最大2回(登場ターンT1は3回)＝合計最大3(T1は4)バースト。ヤマト tenya_re と同型。
+      // ※ arianの再発動が実機で赤アビ計数されるか未確認のため _countAbilityUse は呼ばない(ヤマトはC19実機確定で呼ぶ・注記)。
+      elegant_re: { s:90, burstTrigger:true, refireOf:'elegant', refireSuffix:'(再-40)',
+                    guard:(sim,T,t)=>(T.elegant||0)>=1 && (T.elegant||0) < (t===1?4:3) && sim.g[ownerOf('elegant')]>=40,
+                    exec:(sim,T,ord,bset)=>{ const me=ownerOf('elegant'); sim.g[me]-=40; sim.burst(me,bset,T); T.elegant++;
+                      ord.push({text:`${LABEL.elegant}(再-40)`,color:'r'}); }},
+    },
+    def: {
+      burst_coef_a: 5, burst_coef_b: 2500,  // セイアッドショット: a=5.0 b=2500
+      gmax: 100,  // =BG.other_max（即時評価のためリテラル。ロード順不変条件・冒頭注記参照）
+      keigyoGain: 1,
+      // バースト効果＋1アシ: ① 追撃(HP80%以上=シムは常時フルHP前提で常時発動・3倍/50万・アビ枠)
+      //   ② 登場〜5T は自バースト毎に1アビ即発動(ホーリーターボ)。
+      onBurst: (sim) => {
+        sim.dmg += sim._decay('abi', sim._na()*DMG.arian_followup_mult, DMG.arian_followup_cap);
+        if(sim._t <= DMG.arian_last_turn) arianHolyFire(sim, sim.T);
+      },
+      // 1アシ: 登場〜5T バースト性能UP(倍率5→10=+5)。自バースト限定(burstBonus=オーナー限定)。
+      burstBonus: (sim) => sim._t <= DMG.arian_last_turn ? DMG.burst_arian : 0,
+      // 1アシ: 登場〜5T バースト特別減衰+100% ＋ 2アシ: バースト上限+8%/stack(3T累積)。
+      burstCapBonus: (sim) => (sim._t <= DMG.arian_last_turn ? DMG.arian_cap_boost : 0)
+                            + (sim.buf.arian_bcap?.length||0)*DMG.bcap_arian,
+      // 1アビ: バーストダメージプラス(味方光・全バースト共通の減衰外フラット。全編成光前提で全体近似)。
+      burstPartyPassive: (sim) => { const n=sim.buf.arian_bplus?.length||0; return n?{flat:n*DMG.bplus_arian}:null; },
+      // 2アシ(オーバーカムリターン): 味方光キャラが3回バースト毎に、自分の全アビCD-1・自ゲージ+40・バースト上限+8%(3T累積)。
+      onPartyBurst: (sim, owner) => {
+        if(ELEM[owner] !== 'light') return;
+        sim.arian_bacc = (sim.arian_bacc||0) + 1;
+        if(sim.arian_bacc % 3 === 0){
+          const me = ownerOf('holy');  // =アリアンロッド自キー
+          for(const k of Object.keys(ABIL)) if(ownerOf(k)===me) sim.cd[k]=Math.max(0, sim.cd[k]-1);
+          sim.addG([me], DMG.arian_overcome_bg);
+          (sim.buf.arian_bcap ??= []).push(DMG.dur_arian_bcap);
+        }
+      },
+      // 1アシ: 登場〜5T ターン終了時に1アビ即発動(ホーリーターボ)。
+      turnEnd: (sim, T) => { if(sim._t <= DMG.arian_last_turn) arianHolyFire(sim, T); },
     },
   },
 

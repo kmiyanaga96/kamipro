@@ -109,10 +109,12 @@ class Sim {
     const crit = critRate*D.crit_mult;
     // 急所枠: 光(puvoirはムーンコード時のみ/absolute/legend/pike_crit) + 装備
     const acute = nPuvAcute*D.acute_puvoir + nAbs*D.acute_absolute + nLeg*D.acute_legend
-                + nPikeCrit*D.acute_pike_crit + (b.refine_acute?.length?D.acute_refine:0) + G.acute;
+                + nPikeCrit*D.acute_pike_crit + (b.refine_acute?.length?D.acute_refine:0)
+                + (b.arian_acute?.length||0)*D.acute_arian + G.acute;
     // 特殊攻撃枠: leg_spec(光) + omni(テトラ1アシ・光) + 装備
     const spec = (b.leg_spec?D.spec_legend:0)+(b.omni?.length?D.spec_omni:0)
                + (b.mobius_spec?.length||0)*D.spec_mobius
+               + (b.arian_spec?.length||0)*D.spec_arian
                + (b.artemis_spec?.length?D.spec_artemis:0) + G.spec;
     // GEAR_K or per-character GEAR_K_C[owner] (武器マスタ設定時)
     const gk = (this._naOwner && GEAR_K_C[this._naOwner]) || GEAR_K;
@@ -433,6 +435,7 @@ class Sim {
             // C21: ifishant押下時点でクォータ消化済み(=実機CD中)だったエレインアビにのみ+1リキャスト枠。
             // 発動可能な状態のアビには+1しない(実機較正 2026-07-11・sim02試行2 T2#25 alone3回目不可)。アビ別フラット変数。
             ifAlone:0,ifLegend:0,ifPactcore:0,ifKnights:0,
+            holy:0,elegant:0,  // アリアンロッド: 1アビ(ホーリーターボ)ターン内発動数/3アビ(エレガントルミナス)ターン内バースト数
             freyja_all:false,
             // C12-案C: 定石性スコア(ターンローカル・clone浅コピーで伝播)。ダメージ行動がバフ/デバフ
             // 有効中に撃たれた度合いを加点(報酬)。ビーム多様性枠の選抜キーのみに使い、_objectiveには入れない。
