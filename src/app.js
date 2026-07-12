@@ -81,9 +81,10 @@ const SSR_LV_RELEASE = {
 // decompose(満凸WEAPON_MASTER + 得意補正 + SSR_LV_RELEASE)は target build 用途として温存し、
 // ここは現状の実機合わせ。{} なら従来どおり全キャラ calcDisplayAtk へフォールバック(現状維持)。
 const DISPLAY_ATK_OVERRIDE = {
-  // 検証編成・育成途中スクショ実測(エジソン + 光4・テトラのみLv90解放)。
+  // 検証編成・実機表示ATK読み値(エジソン + 光4・テトラのみLv90解放)。
   // 別編成に差し替える際はその編成の実機表示ATKに更新するか、行を消せば満凸推定へ戻る。
-  edison: 78306, yamato: 62999, hecate: 59226, tetra: 65436, elaine: 63537,
+  // 2026-07-12 sim02試行2の装備強化後の現在値へ更新(旧: 78306/62999/59226/65436/63537)。
+  edison: 92873, yamato: 72865, hecate: 70087, tetra: 76297, elaine: 73365,
 };
 
 // ゲーム画面の確定表示HPをキャラ毎に上書きする(ATK overrideと完全対称・0-fudge)。
