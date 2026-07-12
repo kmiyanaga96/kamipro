@@ -9,7 +9,7 @@
   - **C1（テトラHELIX後追撃cap）は sim02 の対象外**。HELIX は T6〜T7 到達が前提のため、ホライズンが
     そのターンに達する **≈sim06〜07 で自然確定**する。C1 確定用の逆算メソッド（会心相殺の証明つき）は
     `CALIBRATION_ANALYSIS.md` の C1 バックログへ退避済み（その時に使う）。
-- **状態**: **データ待ち**（T2較正フォーム用意済み）。
+- **状態**: **試行2データ取得完了・B3分析済み（2026-07-12）**。実機はT6撃破（9.8億/6T）。経済系（契晶/累計/連理）は全チェックポイントでシムと完全一致＝C22非再現。C7（与ダメ2フェーズ倍率）は逆証拠で要改訂・C23/C24を新規起票。残＝スカラ較正（表示ATK現在値の取得→def一意化）→統合分析。詳細 [b3_trial2_replay_analysis.md](b3_trial2_replay_analysis.md)。
   - ⚠ **2026-07-05〜07・試行2取得中に重大エンジン欠陥 C18 を発見→真因特定→修正完了**（[CALIBRATION_ANALYSIS.md](../../CALIBRATION_ANALYSIS.md) C18）:
     **真因＝ムーンコード（ヘカテー2アシ）のモデル乖離**。実機仕様は「戦闘開始時またはヘカテー自身のアビ12回毎（戦闘通算）に発動・持続2T・即時」だが、旧実装は「パーティ全体アビ12回・ターン内カウント」で実質常時ON。effondバースト有無がズレ→burst-2 proc位置がズレ→**judgのarmタイミングがズレ**→シム推奨順が実機で再現不能（T4は12アビ目テトラ1が撃てず13アビ目へ繰下がり）。決定的証拠は**本試行1 raw_data のヘカテー2バースト有無パターン**（T1/T2/T3/T5/T7=有・T4/T6=無）。※当初の「ジャッジ即発動未強制」診断はユーザー指摘（JDはarmされたら押下可・強制発火ではない）で撤回。修正・golden再fit（raw 173,574,719 / calibrated 202,230,823）・受入検証（T4実機トラブル再現）済み。**試行2は修正後エンジンの新推奨順で再取得**。
 
@@ -45,7 +45,12 @@ HELIX ターンに到達した時点で「前段が全て固定済み＝残差�
 ## ファイル（2026-06-27 データ成形で整理）
 | ファイル | 内容 |
 |---|---|
-| [raw_data.md](raw_data.md) | **実機データ原本**（試行1=実機勘Manual・T1〜T7・ユーザーpush）。試行2=シム順実機は後日追記 |
+| [raw_data.md](raw_data.md) | **実機データ原本・試行1**（実機勘Manual・T1〜T7・ユーザーpush） |
+| [raw_data2.md](raw_data2.md) | **実機データ原本・試行2**（C21エンジン推奨順の実機再生・T1〜T6撃破・契晶/連理/ゲージ読み値つき・ユーザーpush 2026-07-12） |
+| [kamipro_cache_C21-ifishant-conditional.json](kamipro_cache_C21-ifishant-conditional.json) | **試行2の結果キャッシュ**（推奨押し順10T・GEARスナップショット・サブアシ・シム正値 dmg=1,437,796,963） |
+| [b1_manual_replay_c21.md](b1_manual_replay_c21.md) | 試行1(Manual順)のC21エンジンreplay＆絶対乖離分析（B1・中間メモ）。※F1の蓄積悪化はB3でC7 de-cutアーティファクトと判明＝要再解釈 |
+| [b2_gear_model_split.md](b2_gear_model_split.md) | naB baseline の gear-vs-model 切り分け机上分析＋実機取得手順（B2・中間メモ） |
+| [b3_trial2_replay_analysis.md](b3_trial2_replay_analysis.md) | **試行2 実機vsシムreplay 突き合わせ分析（B3）**＝経済系完全一致・C7逆証拠・フラットスカラ≈0.65・C23/C24起票 |
 | [replay_screenshots.md](replay_screenshots.md) | **実機勘(Manual)順をシムでreplayしたシム値**（旧「Sim Opt」表記は誤記）。`raw_data.md` と同一順序＝直接比較可 |
 | [design_report.md](design_report.md) | Antigravity 設計レポート＋**Claude Code 監査メモ（自己訂正含む）** |
 | [user_notes.md](user_notes.md) | **ユーザー所感**（実機勘押し順・分析の仮説の種。測定原本とは分離） |
