@@ -142,6 +142,18 @@ function calcDisplayHp(charKey, slots, summonHpTotal, heroRank){
 // GEAR_Kには畳み込まず _na() の属性枠で (affinity + elem) として加算する。
 function recalcGearK(){ GEAR_K = DMG.base_atk*(1+GEAR.dmgup)*(1+GEAR.other)*DMG.misc/DMG.enemy_def; }
 recalcGearK();
+// per-char 表示ATKマップ → GEAR_K_C を再構築。UI(applyGear)とキャッシュ復元(結果キャッシュのdispAtk)で
+// 同一式を共有する（式の二重定義を避ける・affinityは_na()属性枠で加算/technicaはna_dmg枠）。
+// GEAR.dmgup/other と DMG.misc/enemy_def は呼び出し前に確定していること。
+function recalcGearKCFromDispAtk(dispAtkMap){
+  GEAR_K_C={}; DISPLAY_ATK_C={};
+  for(const [charKey,dispAtk] of Object.entries(dispAtkMap||{})){
+    if(dispAtk>0){
+      DISPLAY_ATK_C[charKey]=dispAtk;
+      GEAR_K_C[charKey]=dispAtk*(1+GEAR.dmgup)*(1+GEAR.other)*DMG.misc/DMG.enemy_def;
+    }
+  }
+}
 
 // 選択中サブメンバーのキー配列（UIで変更・applyGear()で反映）。
 const SUB_SLOTS = 2;  // サブ枠数(最大)
@@ -205,7 +217,10 @@ function storeResult(configSig, n, best, baseDmg, override){
   if(!best || !Array.isArray(best.rows) || !best.rows.length) return;
   const turnsKeys=best.rows.map(r=>r.keys);
   if(turnsKeys.some(k=>!Array.isArray(k))) return;
-  _resultCache.set(_resultKey(configSig), { turnsKeys, dmg:best.dmg, prefix:best.prefix||[], baseDmg:baseDmg||0, override:override||{}, n });
+  // dispAtk(per-char表示ATK)を同梱＝キャッシュだけで GEAR_K_C を完全再構成可能にする(C26 データ品質)。
+  // configSig は GEAR ボックス/def を含むが per-char ATK は含まないため、越境replay(headless分析)で
+  // 絶対値が再現できなかった課題への対処。UI の tryResultCache は live GEAR_K_C を使うため挙動不変。
+  _resultCache.set(_resultKey(configSig), { turnsKeys, dmg:best.dmg, prefix:best.prefix||[], baseDmg:baseDmg||0, override:override||{}, dispAtk:{...DISPLAY_ATK_C}, n });
 }
 
 // ===== C16 持続化 Increment 3: 越境（JSON入出力）=====
@@ -1370,17 +1385,15 @@ function applyGear(){
     const heroRank=parseInt(document.getElementById('hero-rank')?.value)||165;
     const sumAtkTotal=parseFloat(document.getElementById('summon-atk-total')?.value)||0;
     const sumHpTotal=parseFloat(document.getElementById('summon-hp-total')?.value)||0;
+    const dispAtkMap={};
     for(const charKey of CHARS){
       // 実機表示の直接指定があれば最優先(Lv上限解放/+99等を0-fudgeで内包)。無ければ満凸decompose推定。
       const dispAtk=DISPLAY_ATK_OVERRIDE[charKey]||calcDisplayAtk(charKey,slots,sumAtkTotal,heroRank);
       // 実機表示HPの直接指定があれば最優先(ATKと対称)。無ければ満凸decompose推定。
       const dispHp=DISPLAY_HP_OVERRIDE[charKey]||calcDisplayHp(charKey,slots,sumHpTotal,heroRank);
-      if(dispAtk>0){
-        DISPLAY_ATK_C[charKey]=dispAtk;
-        DISPLAY_HP_C[charKey]=dispHp;
-        GEAR_K_C[charKey]=dispAtk*(1+GEAR.dmgup)*(1+GEAR.other)*DMG.misc/DMG.enemy_def; // affinityは_na()属性枠で加算/technicaはna_dmg枠へ移動済み
-      }
+      if(dispAtk>0){ dispAtkMap[charKey]=dispAtk; DISPLAY_HP_C[charKey]=dispHp; }
     }
+    recalcGearKCFromDispAtk(dispAtkMap); // DISPLAY_ATK_C / GEAR_K_C を共有式で構築
   }
   // シミュは重い(ビームサーチ・数秒〜10秒)ため自動再実行しない。▶ボタンで明示実行する。
 }
@@ -1634,7 +1647,7 @@ export function setCurrentSubs(v){ CURRENT_SUBS = v; }
 // data/characters.js（フック遅延参照）・worker.js・test・window が参照する記号を公開。
 // let 宣言（CHARS/ABIL/ELEM/LEADER/LABEL 等）は buildFormation が再代入する live binding。
 export {
-  Sim, buildFormation, applyGear, applyEnemy, recalcGearK,
+  Sim, buildFormation, applyGear, applyEnemy, recalcGearK, recalcGearKCFromDispAtk,
   _runRootPlan, _runBaselinePlan, enumerateRootPrefixes, _selectRootPrefixes,
   setStaticOverride, getStaticOverride, calibrateStaticScores, calibrationShortlist, _runCalibrationProbe,
   tryResultCache, storeResult, _resultCache, _resultKey, ENGINE_VERSION, exportResultCache, importResultCache,
