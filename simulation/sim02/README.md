@@ -51,7 +51,8 @@ HELIX ターンに到達した時点で「前段が全て固定済み＝残差�
 | [b1_manual_replay_c21.md](b1_manual_replay_c21.md) | 試行1(Manual順)のC21エンジンreplay＆絶対乖離分析（B1・中間メモ）。※F1の蓄積悪化はB3でC7 de-cutアーティファクトと判明＝要再解釈 |
 | [b2_gear_model_split.md](b2_gear_model_split.md) | naB baseline の gear-vs-model 切り分け机上分析＋実機取得手順（B2・中間メモ） |
 | [b3_trial2_replay_analysis.md](b3_trial2_replay_analysis.md) | **試行2 実機vsシムreplay 突き合わせ分析（B3）**＝経済系完全一致・C7逆証拠・フラットスカラ≈0.65・C23/C24起票。※スカラ仮説はB4で棄却 |
-| [b4_component_split.md](b4_component_split.md) | **成分レベル分解＆スカラ仮説検証（B4）**＝新実機ATK注入・defスイープ棄却・streak完全一致→**C25（cap×会心順序）仮説**・**C26（エジソン追撃OFF探索）確定** |
+| [b4_component_split.md](b4_component_split.md) | **成分レベル分解＆スカラ仮説検証（B4）**＝新実機ATK注入・defスイープ棄却・streak完全一致→**C25（cap×会心順序）仮説**・**C26（エジソン追撃OFF探索）確定**。※C25仮説はB5で棄却 |
+| [b5_c25_quantitative_test.md](b5_c25_quantitative_test.md) | **C25定量テスト（B5）**＝「cap外し」試作モデル×実機24サンプル照合→**棄却・raw局在へ再定式化**（cap値/slope妥当・追撃はC5cap到達不能＝独立乖離）。決定打=非会心アンカー→sim03へ |
 | [replay_screenshots.md](replay_screenshots.md) | **実機勘(Manual)順をシムでreplayしたシム値**（旧「Sim Opt」表記は誤記）。`raw_data.md` と同一順序＝直接比較可 |
 | [design_report.md](design_report.md) | Antigravity 設計レポート＋**Claude Code 監査メモ（自己訂正含む）** |
 | [user_notes.md](user_notes.md) | **ユーザー所感**（実機勘押し順・分析の仮説の種。測定原本とは分離） |

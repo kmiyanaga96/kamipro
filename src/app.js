@@ -181,8 +181,11 @@ const _resultCache = new Map();   // _resultKey(configSig) -> {turnsKeys, dmg, p
 function _resultKey(configSig){ return ENGINE_VERSION + '|' + configSig; }
 // config署名: 結果キャッシュ(tryResultCache/storeResult)と較正キャッシュ(_calibCache)の共通キー。
 // runSim(worker並列)と_fallbackRunSim(非並列)で完全同一であることが正しさ条件のためここに一元化する。
+// C26: edison_burst_extra_mult/cap（英霊武器追撃・applyGearで可変）をキーに含める。
+// 旧キー形式のキャッシュエントリは以後マッチしない（英霊武器の有無だけ違う設定の衝突＝stale cacheハザードを解消）。
 function _configSig(heroKey,kamihimeKeys,n){
-  return JSON.stringify([heroKey,kamihimeKeys,GEAR,[...CURRENT_SUBS],DMG.enemy_def,DMG.enemy_max_hp,n]);
+  return JSON.stringify([heroKey,kamihimeKeys,GEAR,[...CURRENT_SUBS],DMG.enemy_def,DMG.enemy_max_hp,
+    DMG.edison_burst_extra_mult,DMG.edison_burst_extra_cap,n]);
 }
 
 // 命中時: 保存キー列を現行エンジンでリプレイし、総ダメージが記録と一致すれば {rows,dmg,prefix,baseDmg} を返す（探索skip）。
