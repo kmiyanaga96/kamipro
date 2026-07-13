@@ -52,11 +52,13 @@ HELIX ターンに到達した時点で「前段が全て固定済み＝残差�
 | [b2_gear_model_split.md](b2_gear_model_split.md) | naB baseline の gear-vs-model 切り分け机上分析＋実機取得手順（B2・中間メモ） |
 | [b3_trial2_replay_analysis.md](b3_trial2_replay_analysis.md) | **試行2 実機vsシムreplay 突き合わせ分析（B3）**＝経済系完全一致・C7逆証拠・フラットスカラ≈0.65・C23/C24起票。※スカラ仮説はB4で棄却 |
 | [b4_component_split.md](b4_component_split.md) | **成分レベル分解＆スカラ仮説検証（B4）**＝新実機ATK注入・defスイープ棄却・streak完全一致→**C25（cap×会心順序）仮説**・**C26（エジソン追撃OFF探索）確定**。※C25仮説はB5で棄却 |
+| [c23_judg_phase_findings.md](c23_judg_phase_findings.md) | **C23特定（judgフェーズ通算連続）**＝実機3/3裏取り・#19 re-armズレの根因・fix未実装(golden移動) |
+| [c24_gauge_diagnosis.md](c24_gauge_diagnosis.md) | **C24診断（ゲージ±5〜10）**＝赤反応は実機完全一致・残差は黄反応の計数差・エレイン1は逆符号で無関係・低severity・fixは実機ゲート |
 | [b5_c25_quantitative_test.md](b5_c25_quantitative_test.md) | **C25定量テスト（B5）**＝「cap外し」試作モデル×実機24サンプル照合→**棄却・raw局在へ再定式化**（cap値/slope妥当・追撃はC5cap到達不能＝独立乖離）。決定打=非会心アンカー→sim03へ |
 | [replay_screenshots.md](replay_screenshots.md) | **実機勘(Manual)順をシムでreplayしたシム値**（旧「Sim Opt」表記は誤記）。`raw_data.md` と同一順序＝直接比較可 |
 | [design_report.md](design_report.md) | Antigravity 設計レポート＋**Claude Code 監査メモ（自己訂正含む）** |
 | [user_notes.md](user_notes.md) | **ユーザー所感**（実機勘押し順・分析の仮説の種。測定原本とは分離） |
-| [integrated_analysis.md](integrated_analysis.md) | 統合分析（**未着手・最後に実施**＝試行2格納完了＋矛盾なし確認後） |
+| [integrated_analysis.md](integrated_analysis.md) | **統合分析（執筆済み・2026-07-12）**＝設計レポート検証・C22クローズ追認・kill-turnゲート回答 |
 
 > 旧 `raw_data.txt`（雛形）・`simdata02.md`（ユーザー原本の旧名）・Antigravity 再整形版 raw_data.md は
 > 重複/破損メタのため整理（原本は `raw_data.md` に統合・git履歴に保全）。
@@ -66,12 +68,10 @@ HELIX ターンに到達した時点で「前段が全て固定済み＝残差�
 ムーンコードで被弾無効化しソロ生存＝B のホライズン全域を1体でカバー。`applyEnemy('walpurgis_loki')` で
 **affinity=1.5（光→幻=有利・幻は相互有利・[実機]）**・def=10(暫定)・HP=9.8億(実機) を適用。均一×1.5は序数/成分比で相殺。
 
-### ★較正の必須注意：HP依存の2フェーズ被ダメ倍率（[web]確認・現行シム未モデル化）
-- **HP>50%（フェーズ1）= 常時30%カット → 我々の与ダメ ×0.7**。
-- **HP50%「ファントムリリース」後 = カット解除＋被ダメ+20% → ×1.2**（同時に敵が火力UP）。
-- 含意: 序数A/B・成分比は**同一フェーズなら相殺**。だが**フェーズを跨ぐ比較・絶対逆算（C1）はこの倍率を必ず除算**。
-  → 各測定ターンで**ボスHP%（50%超/未満）を必ず記録**（HELIXターンT6-7は境界を跨ぎうる）。
-- HP=9.8億は実機確定。**def=10は暫定**（実機データ複数回で確定予定）。絶対値較正の前に def を再確認。
+### 【撤回】HP依存の2フェーズ「与ダメ」倍率（×0.7/×1.2）— C7撤回済（2026-07-12）
+- 旧「HP>50%=×0.7 / HP50%後=×1.2」は**試行2実測（B3 §3）で非支持→撤回**（与ダメ側には掛からない・de-cutしない）。
+  詳細は `enemies/walpurgis_loki.md` §2 と CALIBRATION_ANALYSIS.md C7。
+- HP=9.8億は実機確定。**def=10は暫定**（C25=絶対値較正の本丸で再fit予定）。**ボスHP%の記録は継続**（敵行動/生存モデル・C25位相目印）。
 
 ## 必要データ（raw_data.md 参照）
 1. メタ：編成 / 装備 / 幻獣 / 初期契晶 / 敵=ヴァルプルギス・ロキ（def 確定は実機複数回・affinity=1.5確定）
