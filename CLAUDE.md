@@ -16,7 +16,7 @@
 
 ### 現役データディレクトリ
 - **enemies/**: 敵DB intake。`enemies/README.md`（命名・追加手順・スキーマ）＋ `TEMPLATE.md` ＋ `<key>.md`（実機詳細＝根拠）。`data/enemies.js` の `ENEMY_REGISTRY` がそこから蒸留した現在値。Phase4較正ボス `walpurgis_loki` を登録。
-- **simulation/**: Phase 4 の試行データ蓄積。`simulation/README.md`（命名規約・ワークフロー・**較正カデンツ=turn-by-turnホライズン**）＋ `TEMPLATE/` ＋ `simNN/`（1試行=1サブフォルダ: `raw_data.md`実機原本 / `replay_screenshots.md`シムreplay転記 / `design_report.md`設計レポート（Antigravity・必須5節構成）/ `integrated_analysis.md`統合分析（Claude Code）/ `user_notes.md`ユーザー所感 / `README.md`要約）。**新試行は `cp -r simulation/TEMPLATE simulation/simNN` で開始**。
+- **simulation/**: Phase 4 の試行データ蓄積。`simulation/README.md`（命名規約・ワークフロー・**較正カデンツ=統計的較正×反復可能ボス（2026-07-12転換）**）＋ `TEMPLATE/` ＋ `simNN/`。**sim03以降の新構造（ユーザー決定）**: `data/`（`config.json`基本情報JSON=探索キャッシュexport兼用 / `trialXX.md`実機原本）＋ `analysis/`（`quantitative_analysis.md`定量のみ=旧design_report後継 / `qualitative_analysis.md`定性のみ / `integrated_analysis.md`統合のみ）＋分類不能ファイルはsim直下。sim01/02は旧構造のまま凍結。**新試行は `cp -r simulation/TEMPLATE simulation/simNN` で開始**。
 
 ### archive/（クローズ済み・歴史台帳＝現状の一次情報ではない）
 完了・クローズした計画/設計レポート置き場。バックログ（Cx）行から旧パスで参照されている場合も実体はここ。
@@ -146,12 +146,16 @@ npm run preview              # dist を http 配信 → ブラウザで探索/�
 
 ---
 
-## 現在の進行状況（引き継ぎ用・2026-07-12 更新）
-- **現フェーズ**: Phase 4 = **turn-by-turn ホライズン較正（B案）**。**Antigravity はワークフロー除外（2026-07-12 ユーザー指示）**＝設計レポートも Claude Code 担当。
-- **較正ボス**: `walpurgis_loki`（ヴァルプルギス・ロキ・Lv160 ANONYMOUS）。
-- **sim02 完了（2026-07-12・統合分析済み）**:
-  - 試行1=実機勘Manual（`raw_data.md`）／試行2=C21エンジン推奨順の実機再生（`raw_data2.md`・**T6撃破9.8億**）＋結果キャッシュ（GEARスナップ同梱・`kamipro_cache_C21-ifishant-conditional.json`）。
-  - 分析: B1〜B4（`b1_manual_replay_c21.md`〜`b4_component_split.md`）→ 設計レポート第II部 → `integrated_analysis.md`（執筆済み）。
-  - **成果**: ①経済系（契晶/累計/連理）全10チェックポイント完全一致＝C18/C19/C21受入検証成立・**C22非再現でクローズ候補** ②**C7（与ダメ2フェーズ倍率）は逆証拠で要改訂** ③**C25起票＝減衰capが会心・急所の内側なのが構造誤りの疑い（絶対値較正の本丸）** ④**C26起票＝試行2探索がエジソン英霊武器追撃OFFで走っていた確定バグ**＋キャッシュキーのmult非含 ⑤C23/C24（judg re-arm位置・ゲージ微細乖離）起票 ⑥`DISPLAY_ATK_OVERRIDE`を実機現在値へ更新（golden不変を実測確認）。
-- **B5追記（2026-07-12・同日）**: C25の「cap外し」仮説を定量テストで**棄却・raw局在へ再定式化**（`b5_c25_quantitative_test.md`）。C26ユーザー回答=実機はランチャータンク装備済みだが**LB II未達・sim03までに充足予定**。`_configSig`にedison_burst_extra_mult/capを追加実装（golden不変）。**kill-turnは延期（ユーザー判断）**。
-- **次アクション優先順**: 1) **sim03 実測**（`simulation/sim03/README.md` 策定済み。開始ゲート=LB II充足＋追撃ONで再探索＋UI装備実機一致。中核=**非会心非急所のraw較正アンカー収集**＋バフ実stack記録） → 2) 受領後: raw枠帰属の確定→モデル修正→golden再fit・追撃cap再較正（C5/C3統合） → 3) C23/C24特定 → 4) def再fit→kill-turnゲート再判定（**延期中**） → 5) T3序数フィクスチャ固定。
+## 現在の進行状況（引き継ぎ用・2026-07-12 更新＝前セッション終了時点）
+- **現フェーズ**: Phase 4 = **統計的較正 × 反復可能ボス（2026-07-12 転換・PHASE4_PLAN §3.5.1）**。**Antigravity はワークフロー除外**＝全分析を Claude Code 担当。
+- **sim02 完了（旧構造・凍結）**: walpurgis_loki T2較正。成果=①経済系（契晶/累計/連理）全10チェックポイント完全一致（C18/C19/C21受入成立・C22クローズ候補） ②C7撤回（与ダメ2フェーズ倍率は非実在） ③C25再定式化（乖離はpre-cap rawに局在・cap/slope妥当・「cap外し」仮説はB5で棄却） ④C26 fixed（エジソン追撃OFF探索=UI設定忘れ・`_configSig`拡張済） ⑤**C23 fixed＝judgフェーズ戦闘通算連続へ是正（実機3/3裏取り・golden再fit raw 186,634,324 / cal 208,347,477・ENGINE_VERSION `C23-judgphase-continuous`）** ⑥C24診断済（ゲージ±5〜10=黄ロボ反応の計数差に局在・低severity・fixは実機ゲート）。詳細は sim02 の B1〜B5・c23/c24 findings・integrated_analysis。
+- **方針転換（2026-07-12 ユーザー決定・セッション末）**:
+  1. **較正対象を「回数制限のない反復可能ボスバトル」へ転換・統計的較正を導入**（合意済み。論理は PHASE4_PLAN §3.5.1 / simulation/README.md）。
+  2. **simフォルダ新構造（sim03以降）**: `data/`（config.json＋trialXX.md）＋`analysis/`（quantitative=定量のみ/qualitative=定性のみ/integrated=統合のみ）。TEMPLATE 改訂済み。
+  3. **kill-turn は延期継続**。walpurgis での追撃ON再探索は転換により不要化（新ボスで探索し直す）。
+- **次セッションの申し送り（優先順）**:
+  1. **候補ボスの敵DB登録（ユーザー依頼済み）**: 反復可能ボスを `enemies/` intake へ（有志データなし＝intake .mdが一次研究台帳・プレースホルダ→段階確定方式）。第1走は光有利（闇属性）・HP高めを推奨。
+  2. **sim03 開始ゲートの充足**: C23済みエンジンで新ボス探索→キャッシュexportを `sim03/data/config.json` へ（**storeResultはdispAtk同梱済み**＝再構成replayの1.7%問題解消）。
+  3. **sim03 第1走**（プロトコル= `simulation/sim03/README.md` §3）: 装備2config（full-crit決定的／crit-offマッチペア）×N試行。**§4に承認待ち改善提案P1〜P4あり＝ユーザー判断を仰ぐこと**。
+  4. 受領後: 会心/急所率実測・非会心アンカー→C25 raw枠帰属→モデル修正→golden再fit・C5追撃cap再較正（C3統合）→有利ボスアンカーで絶対レベル→def/耐性の定量化。
+  5. C24 の実機確認2点（補助ロボ黄反応のゲージ増分・エレイン1のゲージ仕様）は sim03 記録項目に組込済み。

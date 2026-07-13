@@ -1,0 +1,6 @@
+{
+  "_comment": "基本情報JSON: 編成・押し順・敵・GEAR・per-char表示ATK(dispAtk)をすべて記録。探索キャッシュexport(storeResultがdispAtk同梱・2026-07-12以降)をそのまま置くことを推奨。手書きする場合もキー構造はキャッシュ形式に合わせる。",
+  "kind": "kamipro-result-cache",
+  "engineVersion": "<ENGINE_VERSION>",
+  "entries": []
+}
