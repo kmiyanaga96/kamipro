@@ -135,7 +135,7 @@ npm run preview              # dist を http 配信 → ブラウザで探索/�
   - C3: investigating
   - C4, C5, C8, C9, C11, C12, C13, C14: fixed
   - C6: wontfix
-  - C7: **要改訂** (試行2=B3が逆証拠: 与ダメ2フェーズ倍率×0.7/×1.2は非支持。de-cutなしでフラット・リリース跨ぎ連続。B1のF1はde-cutアーティファクト)
+  - C7: **撤回・改訂済** (試行2=B3で与ダメ側2フェーズ倍率×0.7/×1.2は非実在と確定→モデル化も手補正もしない。de-cutなしでフラット・リリース跨ぎ連続・表示ダメ≒総HP。B1のF1はde-cutアーティファクト。[web]出典は敵被弾側の取り違え疑い＝再確認のみ保留。enemies/walpurgis_loki.md §2改訂済)
   - C10: Phase5昇格
   - C15: closed (自動較正 `{judg:122,pactcore:1,effond:93}` を適用)
   - C16: fixed (探索高速化・キャッシュ・UIキャッシュ入出力・火力指数分母修正完了)
