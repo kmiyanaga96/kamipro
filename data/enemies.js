@@ -31,6 +31,17 @@ const ENEMY_REGISTRY = {
     element:  'phantom',   // 幻属性（レイドボス）
     affinity: 1.5,         // 光→幻=有利×1.5 [実機]（幻は相互有利: 全属性⇄幻が互いに有利。等倍ではない）
   },
+  // ── sim03 較正ボス（統計的較正×反復可能ボスへの転換後・第1走。根拠 enemies/fimbulvetr.md）──
+  // 幻属性=相互有利→光→幻は有利×1.5（walpurgis_loki 実機確定則を適用）。黄昏のヴァルプルギスを限定行動に持つ同系統。
+  // ⚠ def / max_hp は未確定（実機データ複数回で確定予定・現状 placeholder）。強敵ゆえウェポンDGは非現実的。
+  //    バーストゲージDOWN ≈ −100（実機所感）・HP境界で敵行動が変わるためHP未実装は誤差要因（測定時にHP%併記）。
+  fimbulvetr: {
+    label:    'フィンブルヴェトル',
+    def:      10,          // 敵防御値 [不明→暫定10・実機データで確定予定]
+    max_hp:   1000000000,  // 敵最大HP [不明→placeholder 10億・7ターン撃破の実績・実機HP取得で確定予定]
+    element:  'phantom',   // 幻属性
+    affinity: 1.5,         // 光→幻=有利×1.5（幻は相互有利）
+  },
 };
 
 export { ENEMY_REGISTRY };

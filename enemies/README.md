@@ -34,3 +34,4 @@
 |---|---|---|---|
 | `default` | 汎用 placeholder | 抽象スケール基準（ゴールデン） | — |
 | [`walpurgis_loki`](walpurgis_loki.md) | ヴァルプルギス・ロキ | Phase4 較正ボス（T2〜C1） | **実機値待ち**（プレースホルダ登録済み） |
+| [`fimbulvetr`](fimbulvetr.md) | フィンブルヴェトル | sim03 較正ボス（統計的較正×反復可能ボス・第1走） | **def/HP未確定**（affinity=1.5確定・placeholder登録済み） |
