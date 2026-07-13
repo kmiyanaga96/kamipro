@@ -10,6 +10,10 @@ class Sim {
     this.cd=Object.fromEntries(Object.keys(ABIL).map(k=>[k,0]));
     // エンジン共通変数（キャラ非依存）
     this.keigyo=4; this.cum=4; this.renri=0;
+    // C23: judg(ジャッジメント)の3フェーズ循環(ph0敵全体/ph1バースト/ph2通常)は戦闘通算で連続する
+    //   (ターン毎リセットではない・実機3/3裏取り sim02 c23_judg_phase_findings.md)。
+    //   同ターン発動上限は別途 T.ju(毎ターン0リセット)が担う。フェーズは judgPhase%3。
+    this.judgPhase=0;
     this.totalTurns=10; this.planDepth=0;
     // 概算火力モデル: バフ期間管理辞書と総ダメージ累計
     // buf = {abilityKey: [remaining_turns, ...]}  スタック毎に残りターン数を管理。
@@ -453,7 +457,7 @@ class Sim {
     const cs={}; for(const k of CHAR_SIM_STATE_KEYS) cs[k]=this[k];
     const buf={}; for(const k in this.buf) buf[k]=this.buf[k].slice();
     return{g:{...this.g},cd:{...this.cd},keigyo:this.keigyo,cum:this.cum,
-      renri:this.renri,
+      renri:this.renri,judgPhase:this.judgPhase,
       dmg:this.dmg,buf,...cs};
   }
 
@@ -464,7 +468,7 @@ class Sim {
   clone(){
     const s=new Sim();
     s.g={...this.g}; s.cd={...this.cd};
-    s.keigyo=this.keigyo; s.cum=this.cum; s.renri=this.renri; s.dmg=this.dmg;
+    s.keigyo=this.keigyo; s.cum=this.cum; s.renri=this.renri; s.judgPhase=this.judgPhase; s.dmg=this.dmg;
     const buf={}; for(const k in this.buf) buf[k]=this.buf[k].slice(); s.buf=buf;
     for(const k of CHAR_SIM_STATE_KEYS) s[k]=this[k];
     s.totalTurns=this.totalTurns; s.planDepth=this.planDepth+1;
