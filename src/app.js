@@ -81,9 +81,10 @@ const SSR_LV_RELEASE = {
 // decompose(満凸WEAPON_MASTER + 得意補正 + SSR_LV_RELEASE)は target build 用途として温存し、
 // ここは現状の実機合わせ。{} なら従来どおり全キャラ calcDisplayAtk へフォールバック(現状維持)。
 const DISPLAY_ATK_OVERRIDE = {
-  // 検証編成・育成途中スクショ実測(エジソン + 光4・テトラのみLv90解放)。
+  // 検証編成・実機表示ATK読み値(エジソン + 光4・テトラのみLv90解放)。
   // 別編成に差し替える際はその編成の実機表示ATKに更新するか、行を消せば満凸推定へ戻る。
-  edison: 78306, yamato: 62999, hecate: 59226, tetra: 65436, elaine: 63537,
+  // 2026-07-12 sim02試行2の装備強化後の現在値へ更新(旧: 78306/62999/59226/65436/63537)。
+  edison: 92873, yamato: 72865, hecate: 70087, tetra: 76297, elaine: 73365,
 };
 
 // ゲーム画面の確定表示HPをキャラ毎に上書きする(ATK overrideと完全対称・0-fudge)。
@@ -180,8 +181,11 @@ const _resultCache = new Map();   // _resultKey(configSig) -> {turnsKeys, dmg, p
 function _resultKey(configSig){ return ENGINE_VERSION + '|' + configSig; }
 // config署名: 結果キャッシュ(tryResultCache/storeResult)と較正キャッシュ(_calibCache)の共通キー。
 // runSim(worker並列)と_fallbackRunSim(非並列)で完全同一であることが正しさ条件のためここに一元化する。
+// C26: edison_burst_extra_mult/cap（英霊武器追撃・applyGearで可変）をキーに含める。
+// 旧キー形式のキャッシュエントリは以後マッチしない（英霊武器の有無だけ違う設定の衝突＝stale cacheハザードを解消）。
 function _configSig(heroKey,kamihimeKeys,n){
-  return JSON.stringify([heroKey,kamihimeKeys,GEAR,[...CURRENT_SUBS],DMG.enemy_def,DMG.enemy_max_hp,n]);
+  return JSON.stringify([heroKey,kamihimeKeys,GEAR,[...CURRENT_SUBS],DMG.enemy_def,DMG.enemy_max_hp,
+    DMG.edison_burst_extra_mult,DMG.edison_burst_extra_cap,n]);
 }
 
 // 命中時: 保存キー列を現行エンジンでリプレイし、総ダメージが記録と一致すれば {rows,dmg,prefix,baseDmg} を返す（探索skip）。
