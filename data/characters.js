@@ -327,7 +327,7 @@ const CHAR_REGISTRY = {
       judg:     { s:(sim,T)=>{ if(T.ju>=T.judgCap) return 0;
         const robotReady=Object.entries(ABIL).some(([k])=>CHAR_REGISTRY[ABIL[k][0]]?.cands?.[k]?.deploysRobot&&sim.cd[k]===0);
         return robotReady ? 30 : 80; }, guard:(sim,T)=>T.ju<T.judgCap,
-                  exec:(sim,T,ord,bset)=>{ const ph=T.ju%3; sim.use('judg',T,ord); T.ju++;
+                  exec:(sim,T,ord,bset)=>{ const ph=sim.judgPhase%3; sim.use('judg',T,ord); T.ju++; sim.judgPhase++;  // C23: フェーズは戦闘通算(judgPhase)・T.juは同ターン上限用
                     // ジャッジ循環: ph0=敵全体10回ダメージ / ph1=バースト発動 / ph2=通常攻撃
                     if(ph===0){ const royAbi=sim.buf.roy?.length ? 10*sim._na()*DMG.roy_abi_frac[sim.roy_tier??0] : 0;
                       // アビダメ枠: ×(1+abi_dmg+droid)、1ヒット減衰 基準judg_cap×(1+droid)(超過は1/25で逓減)

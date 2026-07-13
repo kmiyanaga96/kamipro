@@ -8,8 +8,8 @@
 //    （毎回の較正走行を避ける・機構は archive/SEARCH_ROLLOUT_DESIGN.md §6）。
 // ⚠ ダメージモデルを変えたら: archive/tools/search_calibrate.mjs で再fitし、下の期待値と override、
 //    CLAUDE.md/.agents/AGENTS.md の検証ゲート、ENGINE_VERSION(src/app.js) を揃えて更新すること。
-// 現在値: C21(ifishant+1=押下時点CD中のエレインアビのみ・条件付き付与＋A2でknightsも対象化)実機較正で再fit
-//   （2026-07-11・override {judg:130,pactcore:1}）。
+// 現在値: C23(judgフェーズ戦闘通算連続=ターン毎リセットの是正・実機3/3裏取り)で再fit
+//   （2026-07-12・override {judg:160,pactcore:1}）。旧C21 raw 203,723,485 / cal 218,902,146。
 import { Sim, buildFormation, setStaticOverride } from '../src/app.js';
 
 function run10T(){ const s=new Sim(); let fb=0; for(let t=1;t<=10;t++){ const r=s.takeTurn(t); if(r.full) fb++; } return {dmg:Math.round(s.dmg), fb}; }
@@ -19,14 +19,14 @@ buildFormation('edison', ['yamato', 'hecate', 'tetra', 'elaine']);
 // raw(較正なし)の回帰アンカー
 setStaticOverride({});
 const raw = run10T();
-const rawOk = raw.dmg === 203723485 && raw.fb === 10;
+const rawOk = raw.dmg === 186634324 && raw.fb === 10;
 
-// 自動較正 override（本編成の calibrateStaticScores 選択結果 = {judg:130,pactcore:1}・C21）を適用した production 値
-setStaticOverride({ judg: 130, pactcore: 1 });
+// 自動較正 override（本編成の calibrateStaticScores 選択結果 = {judg:160,pactcore:1}・C23）を適用した production 値
+setStaticOverride({ judg: 160, pactcore: 1 });
 const cal = run10T();
 setStaticOverride({});
-const calOk = cal.dmg === 218902146 && cal.fb === 10;
+const calOk = cal.dmg === 208347477 && cal.fb === 10;
 
 const ok = rawOk && calOk;
-console.log(`[golden] raw=${raw.dmg} FB=${raw.fb}/10 | calibrated=${cal.dmg} FB=${cal.fb}/10 => ${ok ? 'OK' : 'MISMATCH (expect raw 203723485 / calibrated 218902146 / 10)'}`);
+console.log(`[golden] raw=${raw.dmg} FB=${raw.fb}/10 | calibrated=${cal.dmg} FB=${cal.fb}/10 => ${ok ? 'OK' : 'MISMATCH (expect raw 186634324 / calibrated 208347477 / 10)'}`);
 process.exit(ok ? 0 : 1);

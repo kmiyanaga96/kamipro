@@ -8,7 +8,7 @@
 ## 前提条件（開始ゲート）— 更新: 追撃ON再探索は受領済み（2026-07-12）
 
 1. ~~ランチャータンク最終限界突破IIの充足~~ → **解決**: LB II はエジソンのステータスUPで**追撃有無とは無関係**（C26真因＝純粋なシムUI設定忘れ）。
-2. **エジソン英霊武器追撃ONで再探索 → 受領済み**: `kamipro_cache_C21-ifishant-conditional_followupON.json`（dmg 1,565,048,890・override {judg:160,pactcore:1}・gear dmgup:0.09追加）。**これが sim03 の実機執行対象の押し順**。
+2. **エジソン英霊武器追撃ONで再探索 → 受領済み（但し★C23で無効化）**: `kamipro_cache_C21-ifishant-conditional_followupON.json`（dmg 1,565,048,890・ENGINE_VERSION `C21-ifishant-conditional`）。**⚠ 2026-07-12 の C23修正（judgフェーズ通算連続）で ENGINE_VERSION が `C23-judgphase-continuous` へ更新＝このキャッシュは無効化**。**sim03 実機取得前に、追撃ON＋C23適用済みエンジンで再々探索し新キャッシュを export すること**（押し順が変わる）。
 3. UI装備パネルは実機現在値と一致（表示ATK5値は `DISPLAY_ATK_OVERRIDE` 済み）。
 
 ### 再探索キャッシュの検証（2026-07-12・scratchpad replay6/diff/scale）

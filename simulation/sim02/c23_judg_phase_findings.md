@@ -39,7 +39,15 @@ judg は3フェーズ循環（ph0=敵全体10回ダメージ「アビリティ�
 - `T.ju` は**二重用途**: (a) フェーズ `ph=T.ju%3` (b) 同ターン上限ガード `T.ju < judgCap`（`judgCap=JUDG_REACT + (開始cd===0?1:0)`）。
   (b) はターン毎リセットで**正しい**（同ターン発動回数の上限）。誤っているのは (a) のみ。
 
-## 4. 修正方針（未実装・golden移動のため要ゴーサイン）
+## 4். 実装済（2026-07-12・ユーザーゴー）
+
+- **戦闘通算カウンタ `sim.judgPhase`** を新設（constructor で0・**ターンリセットしない**・snap/clone で伝播）。judg.exec で `const ph=sim.judgPhase%3; … T.ju++; sim.judgPhase++;`。`T.ju` は同ターン cap ガード用に据置。
+- **受入検証**: 旧sim02順の強制replay（新モデル）で **T4=[ph1,ph2]・T5=[ph0,…]・T6=[ph2,…]** と実機のフェーズ列に一致、T4 は judg 2回で #19相当が発火せず（実機の #19 不可を再現）。
+- **golden 再fit（決定的2回確認・FB10/10）**: raw 203,723,485→**186,634,324**（**-8.4%＝旧モデルが毎ターン ph0 リセットで ph1(バースト)判定を過剰計上していた水増しの是正**）／ 自動較正 override **{judg:160,pactcore:1}**（judg最適 130→160 へ再シフト）＝ calibrated 218,902,146→**208,347,477**。
+- **ENGINE_VERSION** `C21-ifishant-conditional`→**`C23-judgphase-continuous`**（旧キャッシュ無効化）。⚠ **sim03 の追撃ON再探索キャッシュ（`simulation/sim03/kamipro_cache_..._followupON.json`）も無効化＝sim03 実機取得前に追撃ONで再々探索が必要**。
+- test/golden.mjs・CLAUDE.md・.agents/AGENTS.md の検証ゲートを更新。
+
+### （参考）当初の修正方針
 
 - **戦闘通算の judg 押下カウンタ**（例 `sim.judgPhase`・constructor で0初期化・**ターンリセットしない**・clone/snap で伝播）を新設。
   フェーズを `ph = sim.judgPhase % 3` から導出し、judg 押下毎に `sim.judgPhase++`。
