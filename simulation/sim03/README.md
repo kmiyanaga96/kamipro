@@ -19,7 +19,7 @@
 | # | ゲート | 状態 |
 |---|---|---|
 | 1 | 候補ボスの敵DB登録 | **✅ 完了（2026-07-13）**: `fimbulvetr` を `ENEMY_REGISTRY`＋`enemies/fimbulvetr.md` へ登録。affinity=1.5確定・def/max_hp は placeholder（本sim03で推定）。 |
-| 2 | **C27適用済みエンジン（`C27-red-after-setup-refine`）**で**フィンブルヴェトル向けに探索**→キャッシュexportを `data/configA.json` へ | **未了**。※engine が C23→**C27**（2026-07-14・赤アビ後出しリファイン）へ更新済み＝探索はこの版で行う。※§3.1 のとおり**第1バッチの固定押し順はユーザー実績ライン**採用のため第1バッチ開始のブロッカーではない（replay照合に必要＝早期取得）。**推奨: ユーザーUIから実機の正確なgear/dispAtkでexport**（headless復元はUIスカラ未回収で絶対値±数%＝C26/C27 fidelity注記）。 |
+| 2 | **C27適用済みエンジン（`C27-red-after-setup-refine`）**で**フィンブルヴェトル向けに探索**→キャッシュexportを `data/configA.json` へ | **✅ 完了（2026-07-14・ユーザーUIからexport受領）**: C27版・敵=fimbulvetr（def10/HP10億placeholder）・T1で赤アビ後出し=C27発現・refine固定点確認・override `{judg:200,pactcore:1}`。装備の一次記録＝`data/configA_gear_panel.md`（パネル×1.8=GEAR全10枠一致を検証済み）。**⚠dispAtk鮮度乖離あり**（Lv上限95後の実機ATKはテトラ+3.3%/エレイン+8.6%上振れ→第2バッチ前にUI更新→再export推奨・第1バッチは固定順=実績ラインのため影響なし）。 |
 | 3 | UI装備パネル＝実機現在値一致（表示ATK・装備スキル%・幻獣・サブアシ・**英霊武器追撃ON**＝C26再発防止） | 試行開始時に毎回確認（trialメタヘッダに記録） |
 
 ※旧 walpurgis 追撃ONキャッシュ（`data/kamipro_cache_C21-ifishant-conditional_followupON.json`）は **C23で無効化済み・歴史保全のみ**。
@@ -152,7 +152,8 @@ v1 の汎用プロトコル（装備2config×2×2分離）は、本ボスの実�
 
 | パス | 内容 | 状態 |
 |---|---|---|
-| `data/configA.json` | 基本情報JSON（フィンブルヴェトル向け探索キャッシュexport・P1形式・**C27版**） | **未格納（ゲート2・UIからexport推奨）** |
+| `data/configA.json` | 基本情報JSON（フィンブルヴェトル向け探索キャッシュexport・P1形式・**C27版**） | **✅格納済（2026-07-14）** |
+| `data/configA_gear_panel.md` | 装備パネル転記＋実機表示ATK（Lv95後）＋×1.8整合検証＋dispAtk鮮度乖離の記録 | **✅格納済（2026-07-14）** |
 | `data/_recording_skeletons.md` | 第1バッチ記録スケルトン（K/Pモードのコピー用様式・§3.2準拠） | **✅整備済（2026-07-14）** |
 | `data/kamipro_cache_C23-judgphase-continuous.json` | ユーザー実gear・C23の探索キャッシュ（**敵=default def10/max_hp1億**＝fimbulvetr用ではない）。**C27（探索品質）の証拠**＝T1で赤アビがロボ設置/アンプリファに先行 | 精査用・保全（configA置換ではない） |
 | `data/kamipro_cache_C21-ifishant-conditional_followupON.json` | 旧walpurgis追撃ONキャッシュ | **C23で無効化・歴史保全** |
