@@ -9,7 +9,7 @@ import { SUMMON_REGISTRY } from '../data/summons.js';
 import { ENEMY_REGISTRY } from '../data/enemies.js';
 import { CHAR_REGISTRY } from '../data/characters.js';
 
-import { RENRI_CAP, RENRI_MAX, JUDG_REACT, TENYA_FROM, FB_THR, MACH_BG, KEIGYO_MAX, BEAM_W, PREFIX_TOPK, BEAM_DIVERSITY_K, IFISHANT_MIN_CD, BG, DMG } from './constants.js';
+import { RENRI_CAP, RENRI_MAX, JUDG_REACT, TENYA_FROM, FB_THR, MACH_BG, KEIGYO_MAX, BEAM_W, PREFIX_TOPK, BEAM_DIVERSITY_K, IFISHANT_MIN_CD, BG, DMG, DMG_DEFAULTS } from './constants.js';
 import { Sim, cmpVec, enumerateRootPrefixes, _runRootPlan, _runBaselinePlan, _staticPrefixDmg, _selectRootPrefixes, _replayResult, _refineRoute } from './sim.js';
 
 
@@ -159,17 +159,19 @@ function calcDisplayHp(charKey, slots, summonHpTotal, heroRank){
 
 // 属性相性(affinity)は属性枠の中に加算で入る(実機式: 属性枠=属性相性+属性値…)ため、
 // GEAR_Kには畳み込まず _na() の属性枠で (affinity + elem) として加算する。
-function recalcGearK(){ GEAR_K = DMG.base_atk*(1+GEAR.dmgup)*(1+GEAR.other)*DMG.misc/DMG.enemy_def; }
+// ATK→スケール係数の唯一の式（recalcGearK / recalcGearKCFromDispAtk が共有＝二重定義の解消・2026-07-14 D9）。
+// GEAR.dmgup/other と DMG.misc/enemy_def は呼び出し前に確定していること。
+function _gearKScale(atk){ return atk*(1+GEAR.dmgup)*(1+GEAR.other)*DMG.misc/DMG.enemy_def; }
+function recalcGearK(){ GEAR_K = _gearKScale(DMG.base_atk); }
 recalcGearK();
 // per-char 表示ATKマップ → GEAR_K_C を再構築。UI(applyGear)とキャッシュ復元(結果キャッシュのdispAtk)で
-// 同一式を共有する（式の二重定義を避ける・affinityは_na()属性枠で加算/technicaはna_dmg枠）。
-// GEAR.dmgup/other と DMG.misc/enemy_def は呼び出し前に確定していること。
+// _gearKScale を共有（affinityは_na()属性枠で加算/technicaはna_dmg枠）。
 function recalcGearKCFromDispAtk(dispAtkMap){
   GEAR_K_C={}; DISPLAY_ATK_C={};
   for(const [charKey,dispAtk] of Object.entries(dispAtkMap||{})){
     if(dispAtk>0){
       DISPLAY_ATK_C[charKey]=dispAtk;
-      GEAR_K_C[charKey]=dispAtk*(1+GEAR.dmgup)*(1+GEAR.other)*DMG.misc/DMG.enemy_def;
+      GEAR_K_C[charKey]=_gearKScale(dispAtk);
     }
   }
 }
@@ -934,14 +936,16 @@ function runSim(){
   } catch(err){ _fallbackRunSim(heroKey,kamihimeKeys,n); return; }
   _workerPool=workers;
 
+  // D10(2026-07-14): dmgBase は「applyGear/applyEnemy 等が上書きした DMG キーの自動diff」で全送信する。
+  // 旧実装は対象キーの手動列挙（新武器/新キャラの DMG 定数追加のたび追記が必要＝宣言漏れで worker だけ
+  // 旧値で走る C26 型のサイレント乖離の温床）。既定値スナップショット(DMG_DEFAULTS)との差分検出により
+  // 宣言漏れが構造的に発生しない。worker 側でも buildFormation が再計算するキー(streak_dmgup 等)が
+  // 含まれるが、同値適用後に buildFormation が走るため無害（冪等）。ネスト値は現状不変(全代入はトップレベル数値)。
+  const dmgDiff=Object.fromEntries(Object.entries(DMG).filter(([k,v])=>
+    typeof v==='object' ? JSON.stringify(v)!==JSON.stringify(DMG_DEFAULTS[k]) : v!==DMG_DEFAULTS[k]));
   const initMsg={type:'init',heroKey,kamihimeKeys,currentSubs:[...CURRENT_SUBS],gearState:{...GEAR},
     enemyState:{enemy_def:DMG.enemy_def,enemy_max_hp:DMG.enemy_max_hp},
-    gearKC:{...GEAR_K_C},dmgBase:{base_atk:DMG.base_atk,affinity:DMG.affinity,
-      streak_dmgup:DMG.streak_dmgup,
-      droid_react_mult:DMG.droid_react_mult,droid_react_cap:DMG.droid_react_cap,
-      edison_burst_extra_mult:DMG.edison_burst_extra_mult,edison_burst_extra_cap:DMG.edison_burst_extra_cap,
-      betaia_mult:DMG.betaia_mult,betaia_cap:DMG.betaia_cap,
-      napo_burst_cd_reduce:DMG.napo_burst_cd_reduce}};
+    gearKC:{...GEAR_K_C},dmgBase:dmgDiff};
   // C15 案(c) 自動較正: 「較正phase→本探索phase」の2段。configキャッシュ命中なら較正skip。
   // 較正phase: 安価proxyで絞った override 候補を worker へ分散し単一ビームfullで採点、最大dmg(baseline{}含むため退行なし)を採用。
   // 較正列挙で例外が出ても override なし(=funki修正のみ)で本探索へ graceful fallback。

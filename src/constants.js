@@ -217,7 +217,12 @@ const DMG = {
   enemy_max_hp: 100000000,
 };
 
+// DMG 既定値の凍結スナップショット（D10・2026-07-14）。applyGear/applyEnemy 等が上書きしたキーを
+// 「既定値との自動diff」で機械検出し worker へ全送信するための不変基準（手動列挙の宣言漏れ=C26型事故の封殺）。
+// 定義直後に取るため必ず素の既定値（モジュール読込順で最初に評価される葉モジュール）。
+const DMG_DEFAULTS = JSON.parse(JSON.stringify(DMG));
+
 export {
   RENRI_CAP, RENRI_MAX, JUDG_REACT, TENYA_FROM, FB_THR, MACH_BG, KEIGYO_MAX,
-  BEAM_W, PREFIX_TOPK, BEAM_DIVERSITY_K, IFISHANT_MIN_CD, BG, DMG
+  BEAM_W, PREFIX_TOPK, BEAM_DIVERSITY_K, IFISHANT_MIN_CD, BG, DMG, DMG_DEFAULTS
 };
