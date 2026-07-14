@@ -34,4 +34,5 @@
 |---|---|---|---|
 | `default` | 汎用 placeholder | 抽象スケール基準（ゴールデン） | — |
 | [`walpurgis_loki`](walpurgis_loki.md) | ヴァルプルギス・ロキ | Phase4 較正ボス（T2〜C1） | **実機値待ち**（プレースホルダ登録済み） |
-| [`fimbulvetr`](fimbulvetr.md) | フィンブルヴェトル | sim03 較正ボス（統計的較正×反復可能ボス・第1走） | **def/HP未確定**（affinity=1.5確定・placeholder登録済み） |
+| [`fimbulvetr`](fimbulvetr.md) | フィンブルヴェトル | ~~sim03 較正ボス~~ **無期限延期（2026-07-14）** | trial01全滅・7T討伐は偶然→較正対象外（エントリ保持） |
+| [`cath_palug`](cath_palug.md) | キャスパリーグ | **sim03 較正ボス（2026-07-14 緊急置換・第1走）** | **def/HP未確定**（闇=光有利×1.5確定・ライトレジスト=光非適用・2T討伐・placeholder登録済み） |
