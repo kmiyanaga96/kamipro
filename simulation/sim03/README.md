@@ -155,8 +155,7 @@ v1 の汎用プロトコル（装備2config×2×2分離）は、本ボスの実�
 | `data/configA.json` | 基本情報JSON（フィンブルヴェトル向け探索キャッシュexport・P1形式・**C27版**） | **✅格納済（2026-07-14）** |
 | `data/configA_gear_panel.md` | 装備パネル転記＋実機表示ATK（Lv95後）＋×1.8整合検証＋dispAtk鮮度乖離の記録 | **✅格納済（2026-07-14）** |
 | `data/_recording_skeletons.md` | 第1バッチ記録スケルトン（K/Pモードのコピー用様式・§3.2準拠） | **✅整備済（2026-07-14）** |
-| `data/kamipro_cache_C23-judgphase-continuous.json` | ユーザー実gear・C23の探索キャッシュ（**敵=default def10/max_hp1億**＝fimbulvetr用ではない）。**C27（探索品質）の証拠**＝T1で赤アビがロボ設置/アンプリファに先行 | 精査用・保全（configA置換ではない） |
-| `data/kamipro_cache_C21-ifishant-conditional_followupON.json` | 旧walpurgis追撃ONキャッシュ | **C23で無効化・歴史保全** |
+| ~~旧キャッシュ2本~~ | C27証拠キャッシュ（C23版・敵=default）と旧walpurgis追撃ONキャッシュ（C21版）は**2026-07-14 `archive/caches/` へ移設**（sim03試行データではないため。承認済みリポジトリ整理B2/B3） | 移設済み |
 | `data/trial01.md` 〜 `trial06.md` | 実機データ原本（第1バッチ: K×3＋P×3・`_recording_skeletons.md`からコピー・メタヘッダ必須） | 未取得（実機第1バッチ待ち） |
 | `analysis/quantitative_analysis.md` | 定量のみ（§3.4-1の予定テーブル） | **✅scaffold済**・受領後着手 |
 | `analysis/qualitative_analysis.md` | 定性のみ（所感整理・仮説台帳H1〜H4） | **✅scaffold済**・受領後着手 |

@@ -51,7 +51,7 @@
 ### 3. 実機乖離・最適順序不整合の改善フロー
 シミュレーターの計算値やアビ実行順序が実機と乖離した場合は、チャットでの細かな往復を避け、以下の手順でドキュメントをハブにして自律解決すること。各試行は **`simulation/simNN/` に蓄積**する（`simulation/README.md` の命名規約・テンプレに従う。新試行は `cp -r simulation/TEMPLATE simulation/simNN`）。
 1. **リプレイ照合**: ユーザー又はエージェントは `index.html` の「リプレイモード」に実機手順を入力し、乖離の発生起点（ターン・バフ・ロボ・ダメージ等）を特定する。実測は `simNN/raw_data.md`（実機ログ＝**ダメージ事象の正**・加工禁止／replayは全アビ押下を含むためダメージ行動で対応付ける）、リプレイ画面は `simNN/replay_screenshots.md` へテキスト転記する（画像バイナリは保存しない）。
-2. **課題のDB化**: 乖離の詳細（対象キャラ/アビ/ターン/実機挙動/シム誤挙動）を [CALIBRATION_ANALYSIS.md](file:///c:/Users/Kanta%20Miyanaga/kamipro/CALIBRATION_ANALYSIS.md) のバックログ（Cx）に追記する。
+2. **課題のDB化**: 乖離の詳細（対象キャラ/アビ/ターン/実機挙動/シム誤挙動）を [CALIBRATION_ANALYSIS.md](../CALIBRATION_ANALYSIS.md) のバックログ（Cx）に追記する。
 3. **計画・検証策定（あなた＝Antigravity の主担当）**: 設計担当が不整合の原因を特定し、`simNN/design_report.md` を作成する。
    **必ず以下の5節構成を徹底すること**（節の追加は可、削除・順序変更は不可。雛形=`simulation/TEMPLATE/design_report.md`）:
    1. **総合比較**（2ルートのターン別・累計・手数を表で定量比較）
@@ -63,8 +63,8 @@
 
 ### 4. ドキュメント・レガシーファイルの管理ルール
 AIエージェントのコンテキスト節約と古い仕様の誤認防止のため、以下のルールを遵守すること。
-* **生きたガイドへの集約**: 開発上の確定仕様や決定経緯（棚上げの理由など）は、[CLAUDE.md](file:///c:/Users/Kanta%20Miyanaga/kamipro/CLAUDE.md) に適宜要約して集約する。
-* **完了済み計画書の退避**: Phaseが完了し不要となった過去の計画書（例：`PHASE2_PLAN.md` など）は、プロジェクトルートに残さず、`archive/` ディレクトリ（例：[archive/PHASE2_PLAN.md](file:///c:/Users/Kanta%20Miyanaga/kamipro/archive/PHASE2_PLAN.md)）へ速やかに移動（退避）させる。
+* **生きたガイドへの集約**: 開発上の確定仕様や決定経緯（棚上げの理由など）は、[CLAUDE.md](../CLAUDE.md) に適宜要約して集約する。
+* **完了済み計画書の退避**: Phaseが完了し不要となった過去の計画書（例：`PHASE2_PLAN.md` など）は、プロジェクトルートに残さず、`archive/` ディレクトリ（例：[archive/PHASE2_PLAN.md](../archive/PHASE2_PLAN.md)）へ速やかに移動（退避）させる。
 
 ### 5. simNN試行の履歴管理（凍結スナップショット・現在値分離・前方ポインタ）
 較正の変更履歴は既に二重保全されている（コード差分＝`git`、意思決定・根拠＝`simulation/simNN/`）。
