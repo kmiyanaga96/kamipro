@@ -153,6 +153,7 @@ v1 の汎用プロトコル（装備2config×2×2分離）は、本ボスの実�
 | パス | 内容 | 状態 |
 |---|---|---|
 | `data/configA.json` | 基本情報JSON（フィンブルヴェトル向け探索キャッシュexport・P1形式） | **未格納（ゲート2）** |
+| `data/kamipro_cache_C23-judgphase-continuous.json` | ユーザー実gear・C23の探索キャッシュ（**敵=default def10/max_hp1億**＝fimbulvetr用ではない）。**C27（探索品質）の証拠**＝T1で赤アビがロボ設置/アンプリファに先行 | 精査用・保全（configA置換ではない） |
 | `data/kamipro_cache_C21-ifishant-conditional_followupON.json` | 旧walpurgis追撃ONキャッシュ | **C23で無効化・歴史保全** |
 | `data/trial01.md` 〜 | 実機データ原本（第1バッチ: K×3＋P×3・メタヘッダ必須） | 未取得 |
 | `analysis/quantitative_analysis.md` | 定量のみ（§3.4-1の予定テーブル） | 未着手 |
