@@ -51,6 +51,25 @@ const GEAR_BOXES = [
 ];
 const GEAR = Object.fromEntries(GEAR_BOXES.map(([k])=>[k,0]));
 
+// ウェポンスキル入力欄の【表示順のみ】を実機装備パネルの並びへ寄せる（UX・2026-07-14）。
+// ⚠ GEAR オブジェクトのキー順（=GEAR_BOXES 順）は _configSig の JSON.stringify(GEAR) に効くため**変更しない**
+//    （格納済みキャッシュ/結果署名を保つ）。ここは描画順の分離＝計算/署名/ゴールデンに一切影響しない純UI。
+// 実機パネル並び: 攻撃UP(assault)→旺盛(vigor)→通常dmg/上限(na)→アビdmg/上限(abi)→バーストdmg/上限(burst)→会心/急所。
+// パネル非掲載の枠(属性値/特殊攻撃/与ダメージ/その他)は末尾へ（多くの編成で0・使用頻度低）。
+const GEAR_DISPLAY_ORDER = [
+  'assault', 'vigor',
+  'na_dmg', 'na_cap', 'abi_dmg', 'abi_cap', 'burst_dmg', 'burst_cap',
+  'crit_rate', 'acute',
+  'elem', 'spec', 'dmgup', 'other',
+];
+// 表示順に並べた [key, 日本語ラベル] の配列（描画専用）。GEAR_BOXES を正とし、漏れ/重複があれば末尾に補完して安全側に倒す。
+const GEAR_BOXES_DISPLAY = (()=>{
+  const label = Object.fromEntries(GEAR_BOXES);
+  const ordered = GEAR_DISPLAY_ORDER.filter(k=>k in label).map(k=>[k, label[k]]);
+  for(const [k,jp] of GEAR_BOXES) if(!GEAR_DISPLAY_ORDER.includes(k)) ordered.push([k,jp]); // 未掲載キーの取りこぼし防止
+  return ordered;
+})();
+
 // 幻獣スロット構成（実機・Phase6 2026-07-10）: メイン1 + サブ5 + サポート1 = 計7枠（重複可）。
 // メイン/サポートは mainEffect（加護 weapon_amp 含む）、サブは subEffect のみ発動（weapon_amp 禁止）。
 const SUMMON_LAYOUT = [
@@ -1239,7 +1258,7 @@ function renderGearPanel(){
       <span class="slot-num" style="min-width:40px">${i===0?'メイン':'サブ'+i}</span>
       <select id="wslot-${i}">${wOpts}</select>
     </div>`).join('');
-  const wpnRows = GEAR_BOXES.map(([k,jp])=>`
+  const wpnRows = GEAR_BOXES_DISPLAY.map(([k,jp])=>`
     <div class="gear-row">
       <span class="wpn-lbl">${jp}</span>
       <input type="number" id="wpn-${k}" value="0" min="0" step="1" style="width:60px"> %
