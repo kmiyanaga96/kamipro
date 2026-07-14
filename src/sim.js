@@ -518,7 +518,42 @@ function _runRootPlan(prefix, n, onTurn){
   const sim=new Sim(); sim.totalTurns=n;
   if(prefix.length){ sim._forcePrefix=prefix; sim._forceTurn=1; }
   const rows=[]; for(let t=1;t<=n;t++){ rows.push(sim.greedyTakeTurn(t)); if(onTurn) onTurn(t); }
+  // C27 定石リファイン: 確定ルートに「赤アビは攻撃ロボ設置＋アンプリファ後に撃つ」局所改善を適用。
+  // ビームのgreedyロールアウト近似が赤アビ前出しを選ぶ系統ミス(C27)を、実ルート上で厳密改善のみ採用して補正。
+  const ref=_refineRoute(rows.map(r=>r.keys), n);
+  if(ref.improved){ const rep=_replayResult(ref.turnsKeys, n); return {prefix, dmg:rep.dmg, rows:rep.rows}; }
   return {prefix, dmg:sim.dmg, rows};
+}
+
+// C27 定石リファイン（whole-route 局所改善・単調安全）: 確定した per-turn キー列に対し、各ターン内で
+// 「攻撃ロボ設置(deploysRobot) or アンプリファ(prelude) より前に置かれた赤アビ(color 'r')」を、その最後の
+// setup 直後へ移し、10T総ダメージが**厳密に増える時のみ**採用する。ビームの目的関数(将来ターンを静的greedyで
+// 代理採点)は赤アビ前出しを damage-max と誤選択しうる(C27)が、実際の後続ターン(=このキー列)で replay 採点すると
+// 赤アビ後出しの方がロボ反応＋ダメージプラス(+10万)分だけ高い。改善のみ採用のため golden/総ダメは単調非減少。
+// タグ駆動(deploysRobot/prelude/色)でキャラ名リテラル不使用＝新キャラ/編成に自動追従。
+function _refineRoute(turnsKeys, n){
+  const redSet=new Set(ABIL_KEYS.filter(k=>ABIL[k]&&ABIL[k][1]==='r'));
+  const setupSet=new Set(ABIL_KEYS.filter(k=>{ const c=ABIL_CANDS[k]; return c&&(c.deploysRobot||c.prelude); }));
+  let cur=turnsKeys.map(a=>a.slice());
+  let curDmg=_replayResult(cur, n).dmg;
+  let improved=false;
+  for(let ti=0; ti<n; ti++){
+    let step=true;
+    while(step){ step=false;
+      const turn=cur[ti];
+      let lastSetup=-1;
+      for(let i=0;i<turn.length;i++){ if(setupSet.has(turn[i])) lastSetup=i; }
+      if(lastSetup<0) break;
+      for(let i=0;i<lastSetup;i++){
+        if(!redSet.has(turn[i])) continue;
+        const nt=turn.slice(); const [red]=nt.splice(i,1); nt.splice(lastSetup,0,red); // setup 直後へ移動
+        const trial=cur.map((a,k)=>k===ti?nt:a);
+        const d=_replayResult(trial, n).dmg;
+        if(d>curDmg+1e-6){ cur=trial; curDmg=d; improved=true; step=true; break; }
+      }
+    }
+  }
+  return { turnsKeys:cur, dmg:curDmg, improved };
 }
 
 // 基準シム(静的greedyのみ・planDepth=2で強制): 対基準比の分母に使う総ダメージを返す。
@@ -566,4 +601,4 @@ function _selectRootPrefixes(n){
 }
 
 
-export { Sim, cmpVec, enumerateRootPrefixes, _runRootPlan, _runBaselinePlan, _staticPrefixDmg, _selectRootPrefixes, _replayResult };
+export { Sim, cmpVec, enumerateRootPrefixes, _runRootPlan, _runBaselinePlan, _staticPrefixDmg, _selectRootPrefixes, _replayResult, _refineRoute };

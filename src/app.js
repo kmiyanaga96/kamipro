@@ -10,7 +10,7 @@ import { ENEMY_REGISTRY } from '../data/enemies.js';
 import { CHAR_REGISTRY } from '../data/characters.js';
 
 import { RENRI_CAP, RENRI_MAX, JUDG_REACT, TENYA_FROM, FB_THR, MACH_BG, KEIGYO_MAX, BEAM_W, PREFIX_TOPK, BEAM_DIVERSITY_K, IFISHANT_MIN_CD, BG, DMG } from './constants.js';
-import { Sim, cmpVec, enumerateRootPrefixes, _runRootPlan, _runBaselinePlan, _staticPrefixDmg, _selectRootPrefixes, _replayResult } from './sim.js';
+import { Sim, cmpVec, enumerateRootPrefixes, _runRootPlan, _runBaselinePlan, _staticPrefixDmg, _selectRootPrefixes, _replayResult, _refineRoute } from './sim.js';
 
 
 let CURRENT_ENEMY_KEY = 'default';
@@ -188,7 +188,7 @@ const _calibCache = new Map();
 // ENGINE_VERSION: 探索/ダメージに影響する変更を入れたら必ず更新する（キャッシュ名前空間＝古い版を fast-reject）。
 //   ※正しさの最終担保はリプレイ検証（版更新忘れも総ダメージ不一致で捕捉）。版はあくまで高速化のための粗い無効化。
 // スリム保存（turnsKeys+dmg+prefix+baseDmg）＝レンダー用の重い行は保存せず、命中時にリプレイで再生成する。
-const ENGINE_VERSION = 'C23-judgphase-continuous';  // C23 judgフェーズを戦闘通算連続へ(ターン毎リセットの是正)。ダメージ/押し順が変わるため旧キャッシュを無効化。
+const ENGINE_VERSION = 'C27-red-after-setup-refine';  // C27 確定ルートに赤アビ後出し(ロボ+アンプリファ後)の局所改善を追加(単調安全)。押し順が変わるため旧キャッシュを無効化。
 const _resultCache = new Map();   // _resultKey(configSig) -> {turnsKeys, dmg, prefix, baseDmg, override, n}
 function _resultKey(configSig){ return ENGINE_VERSION + '|' + configSig; }
 // config署名: 結果キャッシュ(tryResultCache/storeResult)と較正キャッシュ(_calibCache)の共通キー。
@@ -1648,7 +1648,7 @@ export function setCurrentSubs(v){ CURRENT_SUBS = v; }
 // let 宣言（CHARS/ABIL/ELEM/LEADER/LABEL 等）は buildFormation が再代入する live binding。
 export {
   Sim, buildFormation, applyGear, applyEnemy, recalcGearK, recalcGearKCFromDispAtk,
-  _runRootPlan, _runBaselinePlan, enumerateRootPrefixes, _selectRootPrefixes,
+  _runRootPlan, _runBaselinePlan, enumerateRootPrefixes, _selectRootPrefixes, _replayResult, _refineRoute,
   setStaticOverride, getStaticOverride, calibrateStaticScores, calibrationShortlist, _runCalibrationProbe,
   tryResultCache, storeResult, _resultCache, _resultKey, ENGINE_VERSION, exportResultCache, importResultCache,
   GEAR, DMG, BG, GEAR_K_C, CHARS, ABIL, ownerOf, ELEM, LEADER, LABEL,
