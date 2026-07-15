@@ -56,6 +56,12 @@ configA.json の `GEAR` はパネル%の**一様×1.8**（＝幻獣加護スケ�
 - 実機dispAtkでの同ルートreplay総ダメは cache dispAtk 比 **+0.77%**（headless実測）。
 - **推奨（第2バッチ前）**: UIの表示ATK入力を本表へ更新→再探索・再export（押し順が変わる可能性は小さいが、シム推奨順の採否判断はその版で行う）。第1バッチは固定押し順=実績ラインのため**影響なし＝開始可**。
 
+## 3.5 configA 再export（キャスパリーグ版・2026-07-14）
+- boss置換に伴い `configA.json` を**キャスパリーグ（闇/def10/max_hp1億placeholder）で再探索→re-export**（受領）。engine=C27。
+- **押し順はフィンブル版と同一**（max_hpは10T探索の押し順に無影響＝当然）。総ダメ1,633,835,778・prefix`["alone"]`・override`{judg:200,pactcore:1}`。
+- **⚠ dispAtk は旧スナップショットのまま**（本§3の実機Lv95値へ未更新＝テトラ/エレインが上振れ）。第1バッチは固定順のため影響なしだが、
+  **第2バッチ前にUIの表示ATKを§3表の実機値へ更新→再export**（絶対値較正の精度に直結）。
+
 ## 4. configA.json の検証結果（headless・2026-07-14）
 
 - **エンジン版**: `C27-red-after-setup-refine` ✅（敵=def10/max_hp10億=fimbulvetr placeholder・edison追撃2.5/80万ON・subs freyja_christmas+artemis）
