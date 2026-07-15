@@ -1,8 +1,15 @@
-# Phase 7：静的スコア s の機械学習化（設計台帳）
+# Phase 7：静的スコア s の機械学習化（設計台帳・**クローズ／archive**）
 
-**状態: 検討フェーズ（2026-07-15 起票）**。大規模Phase。ROADMAP §3 の一次情報。
+> [!NOTE]
+> **クローズ（2026-07-15・archive 移設）**: PoC×2（§6 phase-1 / §7 phase-2）で**安価サロゲートによる s の ML 最適化は
+> NO-GO**（proxy=不感かつ非転移・浅ビーム=full と反整合で退行・ビーム幅掃引で cal×beamW=64 が大域最良＝production は
+> 実用上限）と実測確定。**否定的結論を得た成果としてクローズ**し本書は歴史台帳（archive）へ。将来 grid 較正の飽和が
+> 崩れた兆候が出た場合のみ §5 の再開条件（`archive/tools/ml_fit_static_v2.mjs` を `SURR_MODE=fulln` で再測定）を検討する。
+> ハーネスは `archive/tools/ml_fit_static{,_v2}.mjs`（`npm run poc:ml`）・src の beamW 注入フックは inert のまま温存。
+
+**状態: クローズ（2026-07-15 起票→同日 PoC×2 完了→archive）**。ROADMAP §3 の歴史台帳。
 本書は「探索ヒューリスティック（静的スコア `s`）の直書き定数を、機械学習／最適化で fit した値に置き換える」構想の
-スコープ・レベル分け（A/B/C）・工数/リスク吟味・**レベルA PoCハーネス設計**を規定する。
+スコープ・レベル分け（A/B/C）・工数/リスク吟味・**レベルA PoCハーネス設計**と**PoC結果（§6/§7）**を記録する。
 
 > [!IMPORTANT]
 > **本Phaseが触るのは探索ヒューリスティックだけ**。実機との**絶対値乖離**（C25/C5 等）は**ダメージ式側**の問題であり、
@@ -155,7 +162,7 @@ No-go なら本Phase をクローズ（既存グリッド較正で十分と確�
 - G1&G2 同時充足で本採用。G1 未達 or G2 で退行 → 本Phase クローズ（記録のみ）。
 
 ### 4.6 コード配線（最小・inert-by-default）
-- **PoC 段は production 非改変**: 新規 `tools/ml_fit_static.mjs`（`test/golden.mjs`/`search_calibrate.mjs` と同様に
+- **PoC 段は production 非改変**: 新規 `archive/tools/ml_fit_static.mjs`（`test/golden.mjs`/`search_calibrate.mjs` と同様に
   `src/app.js` を import）が `setStaticOverride`／`calibrateStaticScores` の proxy/full を評価関数として呼ぶだけ。
   **本体 `src/*` への変更ゼロ**で上限測定できる（`setStaticOverride` は全キー任意スカラーを受ける既存API）。
 - **A1 へ進む場合のみ**の本体変更: `computeBaseScore` の定数を module 定数 `SCORE_W`（既定＝現行値）に括り出し、
@@ -164,7 +171,7 @@ No-go なら本Phase をクローズ（既存グリッド較正で十分と確�
   `npm run test:golden` 再fit（raw/cal 更新）→ ENGINE_VERSION 更新。
 
 ### 4.7 成果物
-- `tools/ml_fit_static.mjs`（オフライン fit ハーネス・配布外）。
+- `archive/tools/ml_fit_static.mjs`（オフライン fit ハーネス・配布外）。
 - PoC レポート（sim 様式）: config×手法の**現行 vs fit ダメージ表**・hold-out 汎化・**Go/No-go 判定**・
   （Go 時）本採用手順と golden 再fit 値。
 - 判定が Go の場合、B（模倣学習ポリシー）の着手可否を本レポートの上積み幅から決める。
@@ -177,10 +184,105 @@ No-go なら本Phase をクローズ（既存グリッド較正で十分と確�
 
 ---
 
+## 6. レベルA(A2) PoC 実行結果（2026-07-15・第1回）
+
+**ハーネス**: `archive/tools/ml_fit_static.mjs`（`npm run poc:ml`）。src/* 無改変。`N=10 dim=14 gen=30 λ=12 seed=1`。
+θ = constant/derived な s の14キー（`droid,banoshik,amplifa,inori,tenya,funki,tenya_re,effond,absolute,divinus,helix,alone,legend,knights`）。
+`judg/pactcore` は per-config アンカーとして固定（θ非対象）。訓練=golden・configA / hold-out=configA ギア ±30% 変種2。
+
+### 6.1 ハーネス健全性（sanity）
+- **golden config の base(prod) = 208,689,608**（＝現行 golden calibrated 値に厳密一致）。**FB=10/10 全config**。
+  → θ0（自然 s ＋ prodOverride）が production 較正を忠実に再現＝ハーネスの計測系は正しい。
+
+### 6.2 計測事実（性能）
+- proxy（静的greedy）≈**11ms** / full（単一ビーム）≈**4.5s(N=3)〜38s(N=10)**。∴ full を ES 内側に置くのは非現実的
+  （数百eval×数十s）。**ES 内側は proxy 一択**、full/prod は最終verifyのみ、が本harnessの構成。
+
+### 6.3 結果（prod = production 代表・単一ビーム+C27リファイン）
+| config | set | base(prod) | fit(prod) | Δ% | FB |
+|---|---|--:|--:|--:|:--:|
+| golden | train | 208,689,608 | 214,384,730 | **+2.729** | 10→10 |
+| configA | train | 1,474,833,558 | 1,423,344,091 | **−3.491** | 10→10 |
+| holdout_lo | HOLD-OUT | 1,176,365,292 | 1,175,232,810 | −0.096 | 10→10 |
+| holdout_hi | HOLD-OUT | 1,809,178,292 | 1,747,947,239 | **−3.384** | 10→10 |
+
+- proxy 集約 fitness は +0.39% で**即プラトー**（gen5 以降 succ=0/12）＝**静的greedy proxy は s 再重み付けにほぼ不感**。
+- **判定: HOLD**（正確には「共有θ×proxy代理」は不成立）。
+
+### 6.4 結論（第1回 PoC の学び）
+1. **proxy は目的と乖離**: proxy を上げた θ* が prod で golden を +2.7% にする一方 configA を **−3.5%** にする＝
+   PHASE7_ML_PLAN §4.8 の「proxy と full の不一致」を**実測で確認**。安価サロゲート proxy は s 最適化の目的関数に不適。
+2. **単一の共有 θ は異種 config を同時最適化できない**: golden と configA で最適 s 方向が逆符号。production が
+   **config 別 override**（`calibrateStaticScores` 逐次）を採る理由が裏取りされた。共有 θ は本質的に無理筋。
+3. **既存グリッド較正は既に強い**: 上積みは限定的で、素朴な共有re-weightは退行を生む＝C17「3変数実質飽和」と整合。
+
+### 6.5 次アクション候補（PoC-phase-2・優先順）
+- **(a) per-config 連続較正へ切替（最有力）**: 共有θを捨て、`calibrateStaticScores` の**グリッドを config 別の連続最適化**へ
+  一般化（＝A2 の正しい形）。目的関数は proxy でなく**full**必須だが、config 別なら候補数を絞れる。full が高価なので
+  **予算付き（低N最適化→N=10 verify・多restart）**が現実解。
+- **(b) 整合サロゲートの導入**: proxy(静的greedy) の代わりに**浅いビーム**（`BEAM_W` を小さく）を目的に。s に感応しつつ
+  full より桁安。ただし `BEAM_W` を per-call 注入するため **src の小改修**（定数→引数）が要る。
+- **(c) NO-GO 確定も選択肢**: (a)/(b) でも上積みが装備依存の系統誤差に埋もれる（序数不変）なら、本Phaseは
+  「既存グリッド較正で十分」＝クローズが妥当（C16/C17 の到達点と接続）。
+
+> **実行ログ全文**は本節 6.3 の表に集約（生ログは scratchpad・非永続）。再現は `npm run poc:ml`（`POC_VERIFY=0` で
+> proxyのみ高速スモーク／`POC_SEED`・`POC_GEN`・`POC_LAMBDA` で探索条件変更）。
+
+---
+
+## 7. PoC-phase-2 実行結果（2026-07-15・(a) per-config連続較正 × (b) 浅ビーム整合サロゲート）
+
+**ハーネス**: `archive/tools/ml_fit_static_v2.mjs`。**src改修**は §6.5(b) の beamW 注入フックのみ（`src/sim.js` `greedyTakeTurn`:
+`this._beamSearch(this.beamW??BEAM_W, fp)`・既定＝BEAM_W で **golden 完全不変** inert-by-default を確認済み）。
+
+### 7.1 (a)+(b) 結果（surrogate=浅ビーム beamW=8 N=6 / verify=full prod N=10・config別θ）
+| config | base(prod) | fit(prod) | full Δ% | surr Δ% | align |
+|---|--:|--:|--:|--:|:--:|
+| golden | 208,689,608 | 202,191,125 | **−3.114** | +11.007 | ✕ |
+| configA | 1,474,833,558 | 1,442,808,471 | **−2.171** | +2.809 | ✕ |
+| geartest_lo | 1,176,365,292 | 1,176,365,292 | 0.000 | 0.000 | ○ |
+| geartest_hi | 1,809,178,292 | 1,862,909,054 | +2.970 | +4.497 | ○ |
+
+- **浅ビームサロゲートは full と反整合**: 実 config（golden/configA）で surrogate を +11%/+2.8% 上げた θ* が
+  full を **−3.1%/−2.2% 退行**させた。s を「浅ビームの弱さの補償」に最適化するため full 幅探索を害する
+  ＝proxy（不感）より悪い（**能動的にミスリード**）。唯一の改善 geartest_hi(+3.0%) は合成ギア config で
+  代表性なし。∴ **(b) 浅ビームは s 最適化の整合サロゲートとして不成立**。
+
+### 7.2 副産物: ビーム幅×realized ダメージ 掃引（s固定・§6.5(b)フックの検証中に判明）
+production s 固定で beamW を掃引（golden同型・単一ビーム+C27リファイン）:
+| beamW | raw | cal({judg:160,pactcore:1}) |
+|---|--:|--:|
+| 4 | 201,291,200 | 207,737,975 |
+| 8 | 201,291,541 | 207,750,398 |
+| 16 | 201,491,252 | 207,750,398 |
+| 32 | 187,083,736 | 207,540,917 |
+| 64(=production) | 187,186,834 | **208,689,608** |
+
+- **raw では狭ビーム(≤16)が広ビームより高い**（+7.6%）＝ビーム目的関数が偏った代理採点（将来ターン静的greedy）
+  ゆえの古典的 beam pathology（C27 と同根）。
+- **しかし出荷は cal**: cal では **beamW=64 が全掃引の最大（208,689,608）**＝広ビームが最良。**較正override が
+  raw の beam-pathology を既に是正している**。∴ **ビーム幅を狭めても production は改善しない（フリーランチ無し）**。
+  production の (grid較正 s ＋ beamW=64) は本掃引の**大域最良**＝実用上限に位置する。
+
+### 7.3 統合結論（phase-1 §6 ＋ phase-2 §7）
+- **安価サロゲートによる s の最適化は NO-GO**: proxy=不感かつ非転移（§6）／浅ビーム=反整合で退行（§7.1）。
+  唯一 full と整合する目的関数は full N=10 自身（≈38s）で、ES 予算に載らない。
+- **production は実用上限**: cal×beamW=64 がビーム幅掃引の大域最良（§7.2）。既存 grid 較正が既に強い（C17「実質飽和」と整合）。
+- **推奨＝§6.5(c) park/close**: レベルA（安価サロゲート）はクローズ相当。残る唯一の未検証パスは
+  「**full 目的の per-config ES（高価）**」だが、§7.2 が示す上限余地の小ささから、**着手コストに見合う見込みは低い**。
+  レベルB/C（非線形モデル・RL）は本結論の下では**優先度を下げる**（ホットパス性能ゲートも未クリア）。
+- **資産保全**: 両ハーネス（`ml_fit_static.mjs`・`ml_fit_static_v2.mjs`）と beamW フックは温存。将来
+  「full 目的の予算付き per-config ES」を試すなら v2 を `SURR_MODE=fulln` で回すだけで再利用できる。
+
+---
+
 ## 5. 進め方（段階ゲート）
-1. **A2 PoC**（本設計・§4）→ Go/No-go。**← 次アクション**
-2. Go かつ汎化に難 → **A1**（`computeBaseScore` パラメータ化・新キャラ追従）。
-3. A で頭打ちだが上積み余地あり → **B**（極小モデル・ホットパス性能ゲート厳守）。
-4. C は記録のみ（非着手）。
+0. ~~**A2 PoC 第1回**（§4・共有θ×proxy）~~ → **実行済（§6）＝HOLD**（proxy不感・非転移）。
+1. ~~**PoC-phase-2**（§6.5 (a)per-config × (b)浅ビーム）~~ → **実行済（§7）＝NO-GO**（浅ビーム反整合で退行・
+   ビーム幅掃引で production が大域最良＝上限）。
+2. **現状の推奨＝§7.3: レベルA(安価サロゲート)クローズ相当・Phase 7 を park**。以降は着手しない（既存 grid 較正で十分）。
+3. **例外的に再開する条件**: 新キャラ/新ボスで grid 較正の飽和が崩れた兆候が出た場合のみ、`ml_fit_static_v2.mjs` を
+   **`SURR_MODE=fulln`（full目的・予算付き per-config ES）**で回して full 整合下の上積みを再測定する（唯一の未検証パス）。
+4. レベル A1/B/C は本結論の下で優先度を下げる（B のホットパス性能ゲートも未クリア・C は記録のみ）。
 
 各段は **golden 不変（inert-by-default）→ 採用時 Cx 再fit → 単調安全 full-verify** の規律を厳守する。
