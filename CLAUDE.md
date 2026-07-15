@@ -16,7 +16,7 @@
 
 ### 現役データディレクトリ
 - **enemies/**: 敵DB intake。`enemies/README.md`（命名・追加手順・スキーマ）＋ `TEMPLATE.md` ＋ `<key>.md`（実機詳細＝根拠）。`data/enemies.js` の `ENEMY_REGISTRY` がそこから蒸留した現在値。Phase4較正ボス `walpurgis_loki`・sim03較正ボス `fimbulvetr` を登録。
-- **simulation/**: Phase 4 の試行データ蓄積。`simulation/README.md`（命名規約・ワークフロー・**較正カデンツ=統計的較正×反復可能ボス（2026-07-12転換）**）＋ `TEMPLATE/` ＋ `simNN/`。**sim03以降の新構造（ユーザー決定）**: `data/`（`config.json`基本情報JSON=探索キャッシュexport兼用 / `trialXX.md`実機原本）＋ `analysis/`（`quantitative_analysis.md`定量のみ=旧design_report後継 / `qualitative_analysis.md`定性のみ / `integrated_analysis.md`統合のみ）＋分類不能ファイルはsim直下。sim01/02は旧構造のまま凍結。**新試行は `cp -r simulation/TEMPLATE simulation/simNN` で開始**。
+- **simulation/**: Phase 4 の試行データ蓄積。`simulation/README.md`（命名規約・ワークフロー・**較正カデンツ=統計的較正×反復可能ボス（2026-07-12転換）**）＋ `TEMPLATE/` ＋ `simNN/`。**sim03以降の新構造（ユーザー決定）**: `data/`（`config.json`基本情報JSON=探索キャッシュexport兼用 / **`record_skeleton.md`＝各simで唯一の記録テンプレ（コピー原本）** / `trialNN.md`実機原本＝record_skeletonを複製して作成）＋ `analysis/`（`quantitative_analysis.md`定量のみ=旧design_report後継 / `qualitative_analysis.md`定性のみ / `integrated_analysis.md`統合のみ）＋分類不能ファイルはsim直下。sim01/02は旧構造のまま凍結。**新試行は `cp -r simulation/TEMPLATE simulation/simNN` で開始**。**⚠テンプレは record_skeleton のみ・trialNN の複製とpushはユーザーが行う・sim内mdフォーマットは record_skeleton に統一必須（混同防止）**。
 
 ### archive/（クローズ済み・歴史台帳＝現状の一次情報ではない）
 完了・クローズした計画/設計レポート置き場。バックログ（Cx）行から旧パスで参照されている場合も実体はここ。
@@ -161,10 +161,10 @@ npm run preview              # dist を http 配信 → ブラウザで探索/�
   3. **プロトコルv3確定**（`simulation/sim03/README.md`）: ホライズン10T→**2T**・測定モードを**D（全深測定撃破・K/P統合）×5走**へ・**固定押し順は【要ユーザー確定・推奨シム推奨順】**（ゲージDOWNなしで実行不能リスク消失＝シム順が現実的＋序数検証も同時取得）。P1〜P3継続・P4延期継続。max_hp推定はT1終了HP%が鍵（2T=オーバーキル切断）。
 - **第1バッチ準備完了（2026-07-15 セッション末時点＝全ゲート充足）**:
   1. ✅ ゲート2完了: `sim03/data/configA.json`＝**キャスパリーグ版・C27エンジン**（refine固定点検証済・override `{judg:200,pactcore:1}`・装備一次記録=`configA_gear_panel.md`）。
-  2. ✅ ユーザー確定: **固定押し順=シム推奨順**（configAのT1 19手/T2 24手・`data/trial01.md`に採録済み）・**第1バッチ=D×5**。
-  3. ✅ 表示ATKをLv95後実機値へ更新済み（`DISPLAY_ATK_OVERRIDE`・app.js。新ATK下でも固定ルートはrefine固定点=順序影響なし。**バッチ途中で押し順を差し替えないこと**）。表示HPは未更新（必要時対応・ユーザー合意）。
+  2. ✅ ユーザー確定: **固定押し順=シム推奨順**（configAのT1 19手/T2 24手・`data/record_skeleton.md`に採録＝これを複製してtrial01〜05）・**第1バッチ=D×5**。
+  3. ✅ 表示ATKをLv95実機値へ更新→**configA再export受領（2026-07-15・dispAtk edison93489/yamato73346/hecate70664/tetra78824/elaine79696・総ダメ1,633,835,778→1,644,858,119）**。**⚠訂正: 旧claim「新ATKでも順序影響なし=refine固定点」は誤りで、再exportで最適ルートは微変化した**（例 T1: 旧banoshik→funki→droid… → 新banoshik→droid→funki…）。**未記録のため固定順を新exportへ差し替え済み**（configA.json/record_skeleton同期）。以後は**バッチ途中で差し替えない**。表示HPは未更新（必要時対応・ユーザー合意）。
 - **次セッションの申し送り（優先順）**:
-  1. **実機第1バッチ受領**（trial01〜05・D×5・様式=`sim03/data/trial01.md`と`_recording_skeletons.md`・全hit毎・**T1終了HP%必記**・メタヘッダ必須）→ 定量/定性/統合のフロー厳守で分析（**情報の多さと正確さ優先**・quantitativeは手法/スクリプト/入力の明記=P3）。モデル分業の推奨= `essays/MODEL_ROLE_GUIDE.md` §4.2（Sonnet一次集計→Fable統合分析→Opus実装・切替はセッション境界）。
+  1. **実機第1バッチ受領**（trial01〜05・D×5・様式=`sim03/data/record_skeleton.md`をユーザーが複製・全hit毎・**T1終了HP%必記**・メタヘッダ必須）→ 定量/定性/統合のフロー厳守で分析（**情報の多さと正確さ優先**・quantitativeは手法/スクリプト/入力の明記=P3）。モデル分業の推奨= `essays/MODEL_ROLE_GUIDE.md` §4.2（Sonnet一次集計→Fable統合分析→Opus実装・切替はセッション境界）。
   2. 中間分析ゲート（P間決定性・ボス挙動安定性・max_hp収束・ディスペル一貫性）→第2バッチ配分（序数A/B・追加走など）。
   3. 較正順: **絶対レベル（キャスパリーグ=ライトレジスト光非適用でボス耐性=1保証＝本命アンカー）**→C25 raw枠帰属→C5追撃cap再較正（C3統合）→def/耐性→golden再fit。C24の2点・C23追検証は sim03 §3.2 に組込済み。
   4. 第2バッチ前: UIのdispAtk入力をLv95実機値へ更新→configA再export（`configA_gear_panel.md` §3.5）。

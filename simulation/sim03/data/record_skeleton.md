@@ -1,23 +1,29 @@
-# trial01 — 実機データ原本（加工せず）／sim03 第1バッチ D×5 の第1走
+# trialNN — 実機データ原本（加工せず）／sim03 第1バッチ D×5
+
+<!--
+  ■ このファイルは記録スケルトン（コピー原本）。**複製して trial01.md〜trial05.md を作成**し実機値を記入する。
+  ■ フォーマットは sim03 全 trial で厳守（統一様式）。整形・解釈は analysis/ 側で行い、ここは加工しない。
+  ■ 記録項目の定義は sim03/README §3.2 ／ 記入のコツは §3.4。
+-->
 
 <!-- メタヘッダ（必須・§3.2） -->
-- 試行番号: 01
+- 試行番号: NN
 - 日付:
 - モード: D（全深測定撃破・T1〜T2 全hit毎記録）
 - 装備config名: configA（full-crit）
 - ENGINE_VERSION: C27-red-after-setup-refine
-- 使用キャッシュ: data/configA.json（キャスパリーグ版・総ダメ1,633,835,778・override {judg:200,pactcore:1}）
+- 使用キャッシュ: data/configA.json（キャスパリーグ版・総ダメ1,644,858,119・baseDmg1,151,462,227・prefix["alone"]・override {judg:200,pactcore:1}）
 - 敵: cath_palug（キャスパリーグ・闇/affinity1.5・def10/max_hp1億placeholder）
 - UI装備パネル一致確認（ゲート3・表示ATK5人分）: edison=____ / yamato=____ / hecate=____ / tetra=____ / elaine=____
-  ※configA同梱dispAtkは旧値(edison92873/yamato72865/hecate70087/tetra76297/elaine73365)＝Lv95更新前。実機で更新済みなら実値を記入。
+  ※configA同梱dispAtk（Lv95実機値・2026-07-15更新）= edison93489 / yamato73346 / hecate70664 / tetra78824 / elaine79696。UI表示と一致するか確認し実値を記入。
 - 固定押し順: シム推奨順（下記）。逸脱の有無と内容: なし / あり（内容:____）
 
 ---
 
-## 固定押し順（シム推奨順・全trial共通＝trial02〜05もこの順で）
+## 固定押し順（シム推奨順・全trial共通＝trial01〜05もこの順で）
 
-**T1（19手）**: banoshik → funki → droid → absolute → funki → divinus → amplifa → **effond(赤)** → **alone(赤)** → puvoir → sleur → judg → inori → funki → legend → legend → funki → judg → knights
-**T2（24手）**: judg → alone(赤) → alone(赤) → puvoir → legend → legend → effond(赤) → funki → sleur → judg → tenya → judg → judg → ifishant → legend → funki → tenya_re → tenya_re → puvoir → sleur → judg → alone(赤) → effond(赤) → judg
+**T1（19手）**: banoshik → droid → funki → divinus → amplifa → **effond(赤)** → **alone(赤)** → funki → absolute → puvoir → sleur → judg → inori → funki → legend → legend → funki → judg → knights
+**T2（24手）**: judg → alone(赤) → alone(赤) → puvoir → legend → legend → **effond(赤)** → funki → sleur → judg → tenya → judg → judg → ifishant → legend → funki → tenya_re → tenya_re → puvoir → sleur → judg → alone(赤) → effond(赤) → judg
 
 > ※キャスパリーグは2T討伐。万一T3へ続いた場合はconfigAのT3順で継続し、その旨と回避率UP(ハシルニャン・MISS要因)の有無を記録。
 
@@ -33,14 +39,14 @@
 | 押下# | key | 発生hit（成分・キャラ） | 値 | 会心 | 急所 |
 |---|---|---|---|---|---|
 | 1 | banoshik |  |  |  |  |
-| 2 | funki |  |  |  |  |
-| 3 | droid |  |  |  |  |
-| 4 | absolute |  |  |  |  |
-| 5 | funki |  |  |  |  |
-| 6 | divinus |  |  |  |  |
-| 7 | amplifa |  |  |  |  |
-| 8 | effond(赤) |  |  |  |  |
-| 9 | alone(赤) |  |  |  |  |
+| 2 | droid |  |  |  |  |
+| 3 | funki |  |  |  |  |
+| 4 | divinus |  |  |  |  |
+| 5 | amplifa |  |  |  |  |
+| 6 | effond(赤) |  |  |  |  |
+| 7 | alone(赤) |  |  |  |  |
+| 8 | funki |  |  |  |  |
+| 9 | absolute |  |  |  |  |
 | 10 | puvoir |  |  |  |  |
 | 11 | sleur |  |  |  |  |
 | 12 | judg（ph? 10hit?） |  |  |  |  |
