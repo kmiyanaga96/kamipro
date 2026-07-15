@@ -32,10 +32,15 @@ cp -r simulation/TEMPLATE simulation/sim04   # 次の試行を開始
 | `data/config.json` | **基本情報JSON**＝使用した編成・押し順・敵・GEAR・per-char表示ATK等をすべて記録（探索キャッシュexport兼用を推奨=dispAtk同梱） | 一次情報・不加工 |
 | `data/record_skeleton.md` | **記録スケルトン（各simで唯一のテンプレ・コピー原本）**。複製して `trialNN.md` を作る | 様式定義。sim内の全trialをこれに統一 |
 | `data/trialNN.md` | **実機データ原本**（`record_skeleton.md` を複製して作成・加工せず・冒頭にメタヘッダ） | 一次情報・不加工 |
-| `analysis/quantitative_analysis.md` | **定量分析のみ**: 定量データの集計・演算・操作など数学的な分析（旧 design_report の後継）。他は行わない | 所感・解釈・統合を書かない |
-| `analysis/qualitative_analysis.md` | **定性分析のみ**: 定性データの集計・整理（ユーザー実機所感・Claude Code所感など言語的な分析）。他は行わない | 演算・統合を書かない |
-| `analysis/integrated_analysis.md` | **統合分析のみ**: 定量・定性の両分析**のみ**に基づく統合。他は行わない | 新規集計・新規所感を持ち込まない（各analysisへ差し戻す） |
+| `analysis/per_trial/trialNN_quant.md` | **単trial定量（中間集計層）**: **trialNN.md 1本のみ**を入力に、そのtrial内の定量集計。命名=`trialNN_quant.md` | trial横断（平均/分散/決定性/max_hp収束）は書かない→rollup。所感・統合も不可 |
+| `analysis/per_trial/trialNN_quali.md` | **単trial定性（中間集計層）**: **trialNN.md の所感/観測**を入力に、そのtrialの定性整理。命名=`trialNN_quali.md` | trial横断テーマは書かない→rollup。数値演算・統合も不可 |
+| `analysis/quantitative_analysis.md` | **定量まとめ（rollup）**: **per_trial/*_quant 全trial**を入力に**trial横断**集計（決定性・分散・max_hp収束等） | 生trialを再オープンしない・所感/統合を書かない |
+| `analysis/qualitative_analysis.md` | **定性まとめ（rollup）**: **per_trial/*_quali 全trial**を入力に**trial横断**テーマ整理 | 数値演算・統合を書かない |
+| `analysis/integrated_analysis.md` | **統合分析のみ**: 上記2つの**rollupのみ**に基づく統合。他は行わない | 新規集計・新規所感を持ち込まない（各analysisへ差し戻す） |
 | `README.md` | その試行の1ページ要約（結論と次アクションへのインデックス） | — |
+
+> **分析2層構造（sim03以降・コンテキスト有界化）**: **生trial（大）を読むのは per_trial 層だけ**、rollup 以降は小さい per_trial ファイル群のみ読む。
+> `trial → per_trial/(trialNN_quant, trialNN_quali) → (quantitative, qualitative) → integrated` の map-reduce。**trial横断分析（決定性/分散/max_hp収束）は rollup 専用**（単trialでは測れないため per_trial には置かない）。
 
 > **sim01・sim02 は旧構造のまま凍結**（`raw_data.md`/`replay_screenshots.md`/`design_report.md` 5節構成/`integrated_analysis.md`）。
 > 旧構造・設計レポート5節構成の規定は git 履歴と各simのREADMEを参照。**Antigravity は 2026-07-12 にワークフロー除外済み＝全分析を Claude Code が担当**。
@@ -65,11 +70,12 @@ cp -r simulation/TEMPLATE simulation/sim04   # 次の試行を開始
 ## ワークフロー（1試行の流れ・新構造）
 1. `TEMPLATE/` をコピーして `simNN/` を作成。測定設計（必要データ・分離手段・前提）を `README.md` に先に固める。
 2. `data/config.json`（探索キャッシュexport）を格納 → `data/record_skeleton.md` を整備 → 実機試行毎に **record_skeleton を複製して `data/trialNN.md`** を追加（複製・push はユーザー）。
-3. `analysis/quantitative_analysis.md`: replay照合・成分集計・統計量（数学的分析のみ・手法とスクリプト参照を明記）。
-4. `analysis/qualitative_analysis.md`: 実機所感・観測メモの整理（言語的分析のみ）。
-5. `analysis/integrated_analysis.md`: 両analysisのみに基づく統合 → 較正案 → **golden への影響を scratchpad で実測** → 結論。
-6. 確定した較正は `DMG` / `CHAR_REGISTRY` の宣言的記述として実装し、`CALIBRATION_ANALYSIS.md` のバックログ（Cx）を更新。
-7. `simNN/README.md` に結論を1ページ要約。
+3. **per_trial（中間集計層・trial毎）**: 各 `data/trialNN.md` を入力に `analysis/per_trial/trialNN_quant.md`（数値のみ）と `analysis/per_trial/trialNN_quali.md`（言語のみ）を作成（**1 trial ずつ＝入力小**）。
+4. `analysis/quantitative_analysis.md`（rollup）: **per_trial/*_quant 全trial**を入力に**trial横断**集計（決定性・分散・max_hp収束・手法/スクリプト明記）。
+5. `analysis/qualitative_analysis.md`（rollup）: **per_trial/*_quali 全trial**を入力に**trial横断**テーマ整理。
+6. `analysis/integrated_analysis.md`: 上記2つの**rollupのみ**に基づく統合 → 較正案 → **golden への影響を scratchpad で実測** → 結論。
+7. 確定した較正は `DMG` / `CHAR_REGISTRY` の宣言的記述として実装し、`CALIBRATION_ANALYSIS.md` のバックログ（Cx）を更新。
+8. `simNN/README.md` に結論を1ページ要約。
 
 ## 試行一覧
 | 試行 | 形成 | 主題 | 結論 / 状態 |

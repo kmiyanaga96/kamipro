@@ -16,7 +16,7 @@
 
 ### 現役データディレクトリ
 - **enemies/**: 敵DB intake。`enemies/README.md`（命名・追加手順・スキーマ）＋ `TEMPLATE.md` ＋ `<key>.md`（実機詳細＝根拠）。`data/enemies.js` の `ENEMY_REGISTRY` がそこから蒸留した現在値。Phase4較正ボス `walpurgis_loki`・sim03較正ボス `fimbulvetr` を登録。
-- **simulation/**: Phase 4 の試行データ蓄積。`simulation/README.md`（命名規約・ワークフロー・**較正カデンツ=統計的較正×反復可能ボス（2026-07-12転換）**）＋ `TEMPLATE/` ＋ `simNN/`。**sim03以降の新構造（ユーザー決定）**: `data/`（`config.json`基本情報JSON=探索キャッシュexport兼用 / **`record_skeleton.md`＝各simで唯一の記録テンプレ（コピー原本）** / `trialNN.md`実機原本＝record_skeletonを複製して作成）＋ `analysis/`（`quantitative_analysis.md`定量のみ=旧design_report後継 / `qualitative_analysis.md`定性のみ / `integrated_analysis.md`統合のみ）＋分類不能ファイルはsim直下。sim01/02は旧構造のまま凍結。**新試行は `cp -r simulation/TEMPLATE simulation/simNN` で開始**。**⚠テンプレは record_skeleton のみ・trialNN の複製とpushはユーザーが行う・sim内mdフォーマットは record_skeleton に統一必須（混同防止）**。
+- **simulation/**: Phase 4 の試行データ蓄積。`simulation/README.md`（命名規約・ワークフロー・**較正カデンツ=統計的較正×反復可能ボス（2026-07-12転換）**）＋ `TEMPLATE/` ＋ `simNN/`。**sim03以降の新構造（ユーザー決定）**: `data/`（`config.json`基本情報JSON=探索キャッシュexport兼用 / **`record_skeleton.md`＝各simで唯一の記録テンプレ（コピー原本）** / `trialNN.md`実機原本＝record_skeletonを複製して作成）＋ `analysis/`（**2層構造・コンテキスト有界化**: `per_trial/trialNN_{quant,quali}.md`＝**単trial中間集計**[trialNN1本のみ入力] → `quantitative_analysis.md`/`qualitative_analysis.md`＝**trial横断rollup**[per_trial全trial入力・決定性/分散/max_hp収束はここ専用] → `integrated_analysis.md`＝統合[両rollupのみ]）＋分類不能ファイルはsim直下。sim01/02は旧構造のまま凍結。**新試行は `cp -r simulation/TEMPLATE simulation/simNN` で開始**。**⚠テンプレは record_skeleton のみ・trialNN の複製とpushはユーザーが行う・sim内mdフォーマットは record_skeleton に統一必須（混同防止）**。
 
 ### archive/（クローズ済み・歴史台帳＝現状の一次情報ではない）
 完了・クローズした計画/設計レポート置き場。バックログ（Cx）行から旧パスで参照されている場合も実体はここ。
