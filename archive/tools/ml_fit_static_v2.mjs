@@ -15,12 +15,12 @@
 //
 // SURR_MODE: 'shallow'(既定・beamW=SURR_W) / 'fulln'(BEAM_W維持・N短縮のみ・より整合だが高価)。
 // 環境変数: POC_N(10) SURR_N(6) SURR_W(8) POC_GEN(6) POC_LAMBDA(5) POC_SEED(1) POC_SIGMA(1.0) SURR_MODE(shallow)
-// 実行:     node tools/ml_fit_static_v2.mjs   （≈15分・background 推奨）
+// 実行:     node archive/tools/ml_fit_static_v2.mjs   （≈15分・background 推奨）
 // ============================================================================
 import {
   Sim, buildFormation, recalcGearK, recalcGearKCFromDispAtk,
   setStaticOverride, GEAR, DMG, ABIL_KEYS, ABIL_BASE_S, _refineRoute, _replayResult,
-} from '../src/app.js';
+} from '../../src/app.js';
 
 const N        = +(process.env.POC_N ?? 10);
 const SURR_N   = +(process.env.SURR_N ?? 6);

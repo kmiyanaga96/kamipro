@@ -11,8 +11,7 @@
 - **CALIBRATION_ANALYSIS.md**: 実機較正の確定値＆**根拠アーカイブ**（なぜその値・枠か）＋乖離バックログ（Cx）。較正・英霊武器は実装済み。
 - **PHASE4_PLAN.md**: Phase 4（実機較正の反復＝**現行フェーズ**）の進め方台帳。**押し順優先**・序数比較ハーネス・「押し順は蓄積誤差に頑健、系統誤差だけを狙う」方針・乖離バックログ駆動を規定。
 - **KILL_TURN_DESIGN.md**: **最速撃破モード（kill-turn 自動目標）の設計草案（未実装・2026-07-07 起草＋§7必要性検討）**。§7で「演算量は非障害・真のブロッカーは絶対値精度（実機比×2級）」と整理し、**S3保留・S1+S2はsim02試行2の絶対乖離実測をゲート**に着手判断。ROADMAP の未確定Phase(ii)。
-- **ROADMAP.md**: **Phase 一覧・採番の一次台帳（2026-07-09 再編・2026-07-15 採番改訂）**。Phase 6=幻獣システム拡張／**Phase 7=静的スコア s の機械学習化（新設・大規模Phase）**／**Phase 8=アクセ実装（旧Phase 7から繰り下げ）**／未確定Phase=敵行動・味方生存(i)・kill-turn(ii)・VM/ワークフロー(iii)。各Phase詳細は個別docへ委譲。
-- **PHASE7_ML_PLAN.md**: **Phase 7（静的スコア s の機械学習化）の設計台帳＋PoC結果（2026-07-15 起票・PoC×2完了→park推奨）**。`s`＝ダメージ非関与の探索ヒューリスティック（ロールアウト既定ポリシー＋タイブレーク）である前提の下、ML化のレベル分け（A=重み/定数のオフライン最適化・JS線形維持／B=極小GBDT/MLP既定ポリシー／C=RL方策・非推奨）と工数/リスクを規定。**PoC結論(§6/§7)＝安価サロゲートによる s 最適化はNO-GO**（proxyは不感かつ非転移・浅ビームは full と反整合で退行・ビーム幅掃引で cal×beamW=64 が大域最良＝production は実用上限）。ハーネス`tools/ml_fit_static.mjs`(phase-1)・`tools/ml_fit_static_v2.mjs`(phase-2・`npm run poc:ml`)は温存。**src改修は `src/sim.js` の beamW 注入フックのみ・golden不変(inert-by-default)**。★スコープ外＝絶対値乖離(C25/C5)はダメージ式問題で本Phase非対象。
+- **ROADMAP.md**: **Phase 一覧・採番の一次台帳（2026-07-09 再編・2026-07-15 採番改訂）**。Phase 6=幻獣システム拡張／**Phase 7=静的スコア s の機械学習化（クローズ・archive＝PoC×2で安価サロゲートNO-GO）**／**Phase 8=アクセ実装（旧Phase 7から繰り下げ）**／未確定Phase=敵行動・味方生存(i)・kill-turn(ii)・VM/ワークフロー(iii)。各Phase詳細は個別docへ委譲。
 - **CHARACTER_ANALYSIS.md**: キャラ個別評価＆採用論の生きた考察台帳（2026-07-11 起草）。ヤマトvsアリアンのホライズン別比較・ナポレオン評・併用仮説（暫定）。序数比較ベース＝新キャラ/較正確定のたびに更新。
 
 ### 現役データディレクトリ
@@ -22,9 +21,9 @@
 ### archive/（クローズ済み・歴史台帳＝現状の一次情報ではない）
 完了・クローズした計画/設計レポート置き場。バックログ（Cx）行から旧パスで参照されている場合も実体はここ。
 - 設計レポート: `BEAM_SEARCH_DESIGN.md`（C9）/ `ORDER_OPTIMIZATION_DESIGN.md`（C12）/ `SEARCH_ROLLOUT_DESIGN.md`（C13-C15・自動較正§6含む）/ `OPTIMIZATION_ENGINE.md`（エンジン解説旧版）
-- 完了フェーズ台帳: `PHASE2_PLAN.md` / `PHASE3_PLAN.md` / `PHASE5_PLAN.md`（UX刷新+Vite化・完了）/ `VITE_MIGRATION.md`（S5作業記録）/ `PERF_NOTES.md`（高速化台帳）
+- 完了フェーズ台帳: `PHASE2_PLAN.md` / `PHASE3_PLAN.md` / `PHASE5_PLAN.md`（UX刷新+Vite化・完了）/ `VITE_MIGRATION.md`（S5作業記録）/ `PERF_NOTES.md`（高速化台帳）/ **`PHASE7_ML_PLAN.md`（静的スコア s のML化・クローズ＝安価サロゲートNO-GO。§6/§7にPoC結果。`s`＝ダメージ非関与の探索ヒューリスティック前提・レベルA/B/C吟味・★スコープ外＝絶対値乖離C25/C5）**
 - 運用メモ: `BRANCH_WORKFLOW.md`（main恒久トランク運用）
-- `tools/`: 較正・探索ハーネス（`search_calibrate.mjs`＝自動較正の再fit実行・`search_probe.mjs`・`c27_refine_probe.mjs`＝C27定石リファイン監査等。**現役で使用**。旧pre-Vite CJSツール3本＝calib_t1/calib_t1_forced/t1_dumpは2026-07-14削除＝git履歴参照）
+- `tools/`: 較正・探索ハーネス（`search_calibrate.mjs`＝自動較正の再fit実行・`search_probe.mjs`・`c27_refine_probe.mjs`＝C27定石リファイン監査・**`ml_fit_static{,_v2}.mjs`＝Phase7 静的スコアML化PoC（`npm run poc:ml`・クローズ済だが再開用に温存）**等。**現役で使用**。旧pre-Vite CJSツール3本＝calib_t1/calib_t1_forced/t1_dumpは2026-07-14削除＝git履歴参照）
 - `caches/`: 無効化済み探索キャッシュの歴史保全置き場（C26 followupON・C27証拠キャッシュ。2026-07-14 sim03/data から移設）
 
 ---

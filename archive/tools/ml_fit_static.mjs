@@ -17,13 +17,13 @@
 //   proxy = 静的greedy(planDepth=2) / full = 単一ビーム(takeTurn) / prod = golden同型(takeTurn+_refineRoute)。
 //
 // 環境変数: POC_N(10) POC_GEN(40) POC_LAMBDA(12) POC_SEED(1) POC_SIGMA(1.0)
-// 実行:     node tools/ml_fit_static.mjs
+// 実行:     node archive/tools/ml_fit_static.mjs  （= npm run poc:ml）
 // ============================================================================
 import {
   Sim, buildFormation, recalcGearK, recalcGearKCFromDispAtk,
   setStaticOverride, GEAR, DMG,
   ABIL_KEYS, ABIL_BASE_S, _refineRoute, _replayResult,
-} from '../src/app.js';
+} from '../../src/app.js';
 
 const N       = +(process.env.POC_N ?? 10);
 const GEN     = +(process.env.POC_GEN ?? 40);
