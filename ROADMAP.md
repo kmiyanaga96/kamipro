@@ -26,7 +26,7 @@
 | **4** | **実機較正の反復＋最適押し順改善** | **← 現行フェーズ** | `PHASE4_PLAN.md`・`CALIBRATION_ANALYSIS.md` |
 | 5 | 探索UX刷新（待機画面）＋ Vite/ESM 化 | 完了・クローズ | `archive/PHASE5_PLAN.md`・`archive/VITE_MIGRATION.md` |
 | **6** | **幻獣システム拡張**（メイン/サブ・召喚時効果） | 未着手（設計骨子あり・本書 §2） | 本書 §2 |
-| **7** | **静的スコア s の機械学習化**（探索ヒューリスティックの学習最適化） | 未着手・検討フェーズ（**大規模Phase**・2026-07-15 新設） | `PHASE7_ML_PLAN.md`・本書 §3 |
+| **7** | **静的スコア s の機械学習化**（探索ヒューリスティックの学習最適化） | **PoC×2完了→park推奨**（安価サロゲートNO-GO・既存grid較正で飽和・2026-07-15） | `PHASE7_ML_PLAN.md`・本書 §3 |
 | **8** | **アクセサリー実装**（新規装備系統） | 未着手（本書 §3.5・**詳細は次セッション**） | 本書 §3.5 |
 | 未確定 | 敵行動・味方生存 ／ 最速撃破 ／ VM・ワークフロー | 採番待ち（本書 §4） | 本書 §4・`KILL_TURN_DESIGN.md` |
 
@@ -145,11 +145,14 @@ someSummon: {
   - **C**: ビームをRL方策で置換（数ヶ月・非推奨・記録のみ）。
 - **不変条件**: 既定＝現行定数と完全一致（inert-by-default）で golden 不変／採用時のみ Cx 再fit／単調安全（現行以上でのみ採用）／
   タグ駆動でキャラ名リテラル不使用。
-- **進捗**: **レベルA(A2) PoC 実行済（2026-07-15・`tools/ml_fit_static.mjs`／`npm run poc:ml`・本体無改変）＝判定HOLD**。
-  共有θ×proxy代理は不成立（proxyが目的と乖離・単一θは異種config同時最適化不能・既存グリッド較正が既に強い）と実測確定。
-  ハーネス健全性は sanity 一致（golden base=208,689,608・FB10/10）。詳細 `PHASE7_ML_PLAN.md` §6。
-- **次アクション**: **PoC-phase-2**（`PHASE7_ML_PLAN.md` §6.5）＝(a) per-config 連続較正（full目的・予算付き）／
-  (b) 浅ビーム整合サロゲート（要 `BEAM_W` 注入の小改修）。上積みが序数不変誤差に埋もれるなら (c) クローズも妥当。
+- **進捗（2026-07-15・本体はbeamW注入フックのみ・golden不変）**: レベルA の安価サロゲート路線を2回のPoCで検証し尽くした。
+  - **phase-1（`ml_fit_static.mjs`・共有θ×proxy）＝HOLD**: proxyは s に不感かつ full へ非転移（`PHASE7_ML_PLAN.md` §6）。
+  - **phase-2（`ml_fit_static_v2.mjs`・per-config × 浅ビーム）＝NO-GO**: 浅ビームサロゲートは full と**反整合**（実configで
+    surrogate +11%/+2.8% の θ* が full を −3.1%/−2.2% 退行）。副産物のビーム幅掃引で **cal×beamW=64 が大域最良
+    (208,689,608)** ＝ production は実用上限（§7）。
+  - **結論**: 安価サロゲートによる s の ML 最適化は **NO-GO**、既存 grid 較正で飽和。**Phase 7 は park 推奨**。
+- **次アクション**: 原則 **着手しない**（park）。新キャラ/新ボスで grid 較正の飽和が崩れた時のみ、`ml_fit_static_v2.mjs` を
+  `SURR_MODE=fulln`（full目的・予算付き per-config ES）で再測定（唯一の未検証パス・`PHASE7_ML_PLAN.md` §5）。
 
 ---
 

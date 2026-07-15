@@ -414,7 +414,9 @@ class Sim {
       // forcePrefix: ルート分散ワーカーが本ターン(t===_forceTurn)の開幕だけ強制する。
       // 内部ロールアウトのクローンには伝播しない(clone()がコピーしない独自フィールドのため)。
       const fp=(this.planDepth===0 && this._forcePrefix && t===this._forceTurn) ? this._forcePrefix : [];
-      const keys=this._beamSearch(BEAM_W, fp);
+      // this.beamW 未設定(既定)なら BEAM_W＝production 幅で完全不変(inert-by-default・golden影響なし)。
+      // Phase7 PoC の「浅ビーム整合サロゲート」がオフラインで小さい幅を注入するためのフック(§6.5b)。
+      const keys=this._beamSearch(this.beamW??BEAM_W, fp);
       for(const key of keys) this._execKey(key);
       usedKeys=keys.slice();  // 採用アビキー列を行へ保存（持続化キャッシュのリプレイ検証に使う）
     }
