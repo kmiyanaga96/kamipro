@@ -23,7 +23,7 @@
 | # | ゲート | 状態 |
 |---|---|---|
 | 1 | 候補ボスの敵DB登録 | **✅ 完了（2026-07-14）**: `cath_palug` を `ENEMY_REGISTRY`＋`enemies/cath_palug.md` へ登録。element=dark・affinity=1.5確定・ライトレジストは光非適用・def/max_hp は placeholder（本sim03で推定）。 |
-| 2 | **C27適用済みエンジン（`C27-red-after-setup-refine`）**で**キャスパリーグ向けに探索**→キャッシュexportを `data/configA.json` へ | **✅ 完了（2026-07-14・ユーザーUIから再export受領）**: C27版・敵=キャスパリーグ（def10/HP1億placeholder）・T1で赤アビ後出し=C27発現・prefix `["alone"]`・override `{judg:200,pactcore:1}`・総ダメ1,633,835,778。装備不変（`configA_gear_panel.md`）。**⚠dispAtkは旧スナップショットのまま**（edison92873…=Lv95更新前・第1バッチは固定順のため影響なし・第2バッチ前に更新推奨）。**シム推奨順のT1/T2＝固定押し順**（§3.1・`data/trial01.md`に採録）。 |
+| 2 | **C27適用済みエンジン（`C27-red-after-setup-refine`）**で**キャスパリーグ向けに探索**→キャッシュexportを `data/configA.json` へ | **✅ 完了→Lv95 dispAtk更新後の再export受領（2026-07-15）**: C27版・敵=キャスパリーグ（def10/HP1億placeholder）・T1で赤アビ後出し=C27発現・prefix `["alone"]`・override `{judg:200,pactcore:1}`・**総ダメ1,644,858,119**（baseDmg1,151,462,227）。**dispAtk=Lv95実機値**（edison93489/yamato73346/hecate70664/tetra78824/elaine79696）。装備不変（`configA_gear_panel.md`）。**シム推奨順のT1(19手)/T2(24手)＝固定押し順**（§3.1・`data/record_skeleton.md`に採録）。 |
 | 3 | UI装備パネル＝実機現在値一致（表示ATK・装備スキル%・幻獣・サブアシ・**英霊武器追撃ON**＝C26再発防止） | 試行開始時に毎回確認（trialメタヘッダに記録）。装備は前回と同一（`configA_gear_panel.md`）。 |
 
 ## 3. 測定プロトコル v3（キャスパリーグ具体化）
@@ -58,7 +58,7 @@
 **1走まるごと（T1〜T2）を hit毎精密記録**（§3.2）＝撃破反復と深測定を1モードで両立。
 
 **固定押し順（第1バッチ）＝シム推奨順に確定（2026-07-14 ユーザー決定）**:
-- キャスパリーグはゲージDOWNなし＝シム推奨順の実行不能リスクが消失したため採用。configA（`data/configA.json`）の**T1（19手）/T2（24手）**を固定順とする（`data/trial01.md` に採録）。boss は2T討伐のためT1/T2のみ実行（T3以降はシム上の残りで実機では起きない）。
+- キャスパリーグはゲージDOWNなし＝シム推奨順の実行不能リスクが消失したため採用。configA（`data/configA.json`）の**T1（19手）/T2（24手）**を固定順とする（`data/record_skeleton.md` に採録＝これを複製して trial01〜05 を作る）。boss は2T討伐のためT1/T2のみ実行（T3以降はシム上の残りで実機では起きない）。**押し順はLv95 dispAtk更新後の再export順（2026-07-15・総ダメ1,644,858,119）に更新済み**。
 - 効果: (a) replay照合が slot単位で完全対応＝精度最大 (b) **オプティマイザ自体の序数検証**（シムが並べた順が実機で本当に強いか）が第1バッチで同時に取れる。
 - **統計要件（不変）**: 全trial（trial01〜05）を**同一のこのシム順**で回すこと（試行間のブレを会心/急所RNG＋敵行動のみに限定＝分散分解の前提）。逸脱時はメタヘッダに記録。
 
@@ -124,8 +124,8 @@
 
 | パス | 内容 | 状態 |
 |---|---|---|
-| `data/configA.json` | 基本情報JSON（探索キャッシュexport・C27版） | **⚠ フィンブル版＝要再export（キャスパリーグで再探索）** |
+| `data/configA.json` | 基本情報JSON（探索キャッシュexport・C27版・キャスパリーグ） | ✅**Lv95 dispAtk更新後の再export（2026-07-15・総ダメ1,644,858,119・prefix["alone"]・override{judg:200,pactcore:1}）** |
 | `data/configA_gear_panel.md` | 装備パネル転記＋実機ATK（Lv95後）＋×1.8整合検証 | ✅有効（装備は不変・継続利用） |
-| `data/_recording_skeletons.md` | 記録スケルトン（Dモードは K/P の統合様式で運用） | ✅整備済（メタヘッダのモード=Dで運用） |
-| `data/trial01.md` 〜 | 実機データ原本（第1バッチ: D×5・メタヘッダ必須） | 未取得（実機第1バッチ待ち・フィンブルtrial01は全滅＝無効） |
+| `data/record_skeleton.md` | **記録スケルトン（唯一のテンプレ・コピー原本）**＝Dモード・固定押し順採録 | ✅整備済（複製して trialNN を作る・複製/pushはユーザー） |
+| `data/trialNN.md`（trial01〜05） | 実機データ原本（第1バッチ: D×5・メタヘッダ必須・record_skeletonを複製） | 未取得（実機第1バッチ待ち・フィンブルtrial01は全滅＝無効） |
 | `analysis/…` | 定量/定性/統合（scaffold済） | 受領後着手 |

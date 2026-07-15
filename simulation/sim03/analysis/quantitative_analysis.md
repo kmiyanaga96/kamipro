@@ -4,7 +4,7 @@
 > （所感→qualitative / 統合→integrated へ）。再現性のため「手法・使用スクリプト（scratchpad名）・入力データ」を必ず記す。
 
 ## 1. 入力データ
-- data/config.json / data/trialXX.md（対象試行の列挙）
+- data/config.json / data/trialNN.md（対象試行の列挙）
 
 ## 2. 集計・照合（例: replay忠実度・成分別集計・統計量）
 

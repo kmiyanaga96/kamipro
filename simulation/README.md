@@ -30,7 +30,8 @@ cp -r simulation/TEMPLATE simulation/sim04   # 次の試行を開始
 | パス | 役割 | 責務の境界 |
 |---|---|---|
 | `data/config.json` | **基本情報JSON**＝使用した編成・押し順・敵・GEAR・per-char表示ATK等をすべて記録（探索キャッシュexport兼用を推奨=dispAtk同梱） | 一次情報・不加工 |
-| `data/trialXX.md` | **実機データ原本**（試行XX・加工せず・冒頭にメタヘッダ） | 一次情報・不加工 |
+| `data/record_skeleton.md` | **記録スケルトン（各simで唯一のテンプレ・コピー原本）**。複製して `trialNN.md` を作る | 様式定義。sim内の全trialをこれに統一 |
+| `data/trialNN.md` | **実機データ原本**（`record_skeleton.md` を複製して作成・加工せず・冒頭にメタヘッダ） | 一次情報・不加工 |
 | `analysis/quantitative_analysis.md` | **定量分析のみ**: 定量データの集計・演算・操作など数学的な分析（旧 design_report の後継）。他は行わない | 所感・解釈・統合を書かない |
 | `analysis/qualitative_analysis.md` | **定性分析のみ**: 定性データの集計・整理（ユーザー実機所感・Claude Code所感など言語的な分析）。他は行わない | 演算・統合を書かない |
 | `analysis/integrated_analysis.md` | **統合分析のみ**: 定量・定性の両分析**のみ**に基づく統合。他は行わない | 新規集計・新規所感を持ち込まない（各analysisへ差し戻す） |
@@ -40,7 +41,7 @@ cp -r simulation/TEMPLATE simulation/sim04   # 次の試行を開始
 > 旧構造・設計レポート5節構成の規定は git 履歴と各simのREADMEを参照。**Antigravity は 2026-07-12 にワークフロー除外済み＝全分析を Claude Code が担当**。
 
 ## データ成型の原則（再利用性）
-- **生データ（`data/trialXX.md`・`data/config.json`）は不可侵**: 実機測定・設定の原本。verbatim 保全（整形・解釈は analysis/ 側）。
+- **生データ（`data/trialNN.md`・`data/config.json`）は不可侵**: 実機測定・設定の原本。verbatim 保全（整形・解釈は analysis/ 側）。**テンプレは `record_skeleton.md` のみ**＝trialNN はこれを複製して作成（複製・push はユーザーが行う）。**sim内のmdフォーマットは record_skeleton に統一必須**。
 - **スクショは転記する**: 画像はリポジトリ肥大化と grep 不能のため保存しない。テキスト化すると diff・フィクスチャ化・他試行比較が可能。
 - **統計で語る**: 反復試行の平均・分散・実測率を主指標に（会心RNGはアンサンブルで隔離）。序数（A vs B の符号）も反復で直接測る。
 
@@ -63,7 +64,7 @@ cp -r simulation/TEMPLATE simulation/sim04   # 次の試行を開始
 
 ## ワークフロー（1試行の流れ・新構造）
 1. `TEMPLATE/` をコピーして `simNN/` を作成。測定設計（必要データ・分離手段・前提）を `README.md` に先に固める。
-2. `data/config.json`（探索キャッシュexport）を格納 → 実機試行毎に `data/trialXX.md` を追加。
+2. `data/config.json`（探索キャッシュexport）を格納 → `data/record_skeleton.md` を整備 → 実機試行毎に **record_skeleton を複製して `data/trialNN.md`** を追加（複製・push はユーザー）。
 3. `analysis/quantitative_analysis.md`: replay照合・成分集計・統計量（数学的分析のみ・手法とスクリプト参照を明記）。
 4. `analysis/qualitative_analysis.md`: 実機所感・観測メモの整理（言語的分析のみ）。
 5. `analysis/integrated_analysis.md`: 両analysisのみに基づく統合 → 較正案 → **golden への影響を scratchpad で実測** → 結論。
