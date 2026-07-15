@@ -145,8 +145,11 @@ someSummon: {
   - **C**: ビームをRL方策で置換（数ヶ月・非推奨・記録のみ）。
 - **不変条件**: 既定＝現行定数と完全一致（inert-by-default）で golden 不変／採用時のみ Cx 再fit／単調安全（現行以上でのみ採用）／
   タグ駆動でキャラ名リテラル不使用。
-- **次アクション**: **レベルA（A2）PoCハーネス**（`tools/ml_fit_static.mjs`・`setStaticOverride` 流用・本体非改変で上限測定）で
-  Go/No-go 判定（`PHASE7_ML_PLAN.md` §4）。
+- **進捗**: **レベルA(A2) PoC 実行済（2026-07-15・`tools/ml_fit_static.mjs`／`npm run poc:ml`・本体無改変）＝判定HOLD**。
+  共有θ×proxy代理は不成立（proxyが目的と乖離・単一θは異種config同時最適化不能・既存グリッド較正が既に強い）と実測確定。
+  ハーネス健全性は sanity 一致（golden base=208,689,608・FB10/10）。詳細 `PHASE7_ML_PLAN.md` §6。
+- **次アクション**: **PoC-phase-2**（`PHASE7_ML_PLAN.md` §6.5）＝(a) per-config 連続較正（full目的・予算付き）／
+  (b) 浅ビーム整合サロゲート（要 `BEAM_W` 注入の小改修）。上積みが序数不変誤差に埋もれるなら (c) クローズも妥当。
 
 ---
 

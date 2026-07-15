@@ -177,10 +177,58 @@ No-go なら本Phase をクローズ（既存グリッド較正で十分と確�
 
 ---
 
+## 6. レベルA(A2) PoC 実行結果（2026-07-15・第1回）
+
+**ハーネス**: `tools/ml_fit_static.mjs`（`npm run poc:ml`）。src/* 無改変。`N=10 dim=14 gen=30 λ=12 seed=1`。
+θ = constant/derived な s の14キー（`droid,banoshik,amplifa,inori,tenya,funki,tenya_re,effond,absolute,divinus,helix,alone,legend,knights`）。
+`judg/pactcore` は per-config アンカーとして固定（θ非対象）。訓練=golden・configA / hold-out=configA ギア ±30% 変種2。
+
+### 6.1 ハーネス健全性（sanity）
+- **golden config の base(prod) = 208,689,608**（＝現行 golden calibrated 値に厳密一致）。**FB=10/10 全config**。
+  → θ0（自然 s ＋ prodOverride）が production 較正を忠実に再現＝ハーネスの計測系は正しい。
+
+### 6.2 計測事実（性能）
+- proxy（静的greedy）≈**11ms** / full（単一ビーム）≈**4.5s(N=3)〜38s(N=10)**。∴ full を ES 内側に置くのは非現実的
+  （数百eval×数十s）。**ES 内側は proxy 一択**、full/prod は最終verifyのみ、が本harnessの構成。
+
+### 6.3 結果（prod = production 代表・単一ビーム+C27リファイン）
+| config | set | base(prod) | fit(prod) | Δ% | FB |
+|---|---|--:|--:|--:|:--:|
+| golden | train | 208,689,608 | 214,384,730 | **+2.729** | 10→10 |
+| configA | train | 1,474,833,558 | 1,423,344,091 | **−3.491** | 10→10 |
+| holdout_lo | HOLD-OUT | 1,176,365,292 | 1,175,232,810 | −0.096 | 10→10 |
+| holdout_hi | HOLD-OUT | 1,809,178,292 | 1,747,947,239 | **−3.384** | 10→10 |
+
+- proxy 集約 fitness は +0.39% で**即プラトー**（gen5 以降 succ=0/12）＝**静的greedy proxy は s 再重み付けにほぼ不感**。
+- **判定: HOLD**（正確には「共有θ×proxy代理」は不成立）。
+
+### 6.4 結論（第1回 PoC の学び）
+1. **proxy は目的と乖離**: proxy を上げた θ* が prod で golden を +2.7% にする一方 configA を **−3.5%** にする＝
+   PHASE7_ML_PLAN §4.8 の「proxy と full の不一致」を**実測で確認**。安価サロゲート proxy は s 最適化の目的関数に不適。
+2. **単一の共有 θ は異種 config を同時最適化できない**: golden と configA で最適 s 方向が逆符号。production が
+   **config 別 override**（`calibrateStaticScores` 逐次）を採る理由が裏取りされた。共有 θ は本質的に無理筋。
+3. **既存グリッド較正は既に強い**: 上積みは限定的で、素朴な共有re-weightは退行を生む＝C17「3変数実質飽和」と整合。
+
+### 6.5 次アクション候補（PoC-phase-2・優先順）
+- **(a) per-config 連続較正へ切替（最有力）**: 共有θを捨て、`calibrateStaticScores` の**グリッドを config 別の連続最適化**へ
+  一般化（＝A2 の正しい形）。目的関数は proxy でなく**full**必須だが、config 別なら候補数を絞れる。full が高価なので
+  **予算付き（低N最適化→N=10 verify・多restart）**が現実解。
+- **(b) 整合サロゲートの導入**: proxy(静的greedy) の代わりに**浅いビーム**（`BEAM_W` を小さく）を目的に。s に感応しつつ
+  full より桁安。ただし `BEAM_W` を per-call 注入するため **src の小改修**（定数→引数）が要る。
+- **(c) NO-GO 確定も選択肢**: (a)/(b) でも上積みが装備依存の系統誤差に埋もれる（序数不変）なら、本Phaseは
+  「既存グリッド較正で十分」＝クローズが妥当（C16/C17 の到達点と接続）。
+
+> **実行ログ全文**は本節 6.3 の表に集約（生ログは scratchpad・非永続）。再現は `npm run poc:ml`（`POC_VERIFY=0` で
+> proxyのみ高速スモーク／`POC_SEED`・`POC_GEN`・`POC_LAMBDA` で探索条件変更）。
+
+---
+
 ## 5. 進め方（段階ゲート）
-1. **A2 PoC**（本設計・§4）→ Go/No-go。**← 次アクション**
-2. Go かつ汎化に難 → **A1**（`computeBaseScore` パラメータ化・新キャラ追従）。
+0. ~~**A2 PoC 第1回**（§4）~~ → **実行済（§6）＝HOLD**。共有θ×proxy代理は不成立と実測確定。
+1. **PoC-phase-2**（§6.5）: **(a) per-config 連続較正**（full目的・予算付き）を第一候補、**(b) 浅ビーム整合サロゲート**
+   （要 `BEAM_W` 注入の小改修）を代替。**← 次アクション**。
+2. (a)/(b) で上積み確認 → **A1**（`computeBaseScore` パラメータ化・新キャラ追従）。
 3. A で頭打ちだが上積み余地あり → **B**（極小モデル・ホットパス性能ゲート厳守）。
-4. C は記録のみ（非着手）。
+4. C は記録のみ（非着手）。**上積みが序数不変の系統誤差に埋もれるなら §6.5(c) クローズも妥当**。
 
 各段は **golden 不変（inert-by-default）→ 採用時 Cx 再fit → 単調安全 full-verify** の規律を厳守する。
