@@ -1,10 +1,10 @@
-# qualitative_analysis — 定性分析（言語的分析のみ）
+# qualitative_analysis — 定性まとめ（trial横断・言語的分析のみ）
 
-> **責務**: 定性データの集計・整理（ユーザーの実機所感・Claude Code の所感など）言語的な分析のみを行う。
-> 数値演算・統合判断は書かない（→quantitative / integrated へ）。
+> **責務（rollup 層）**: **`analysis/per_trial/trialNN_quali.md`（全trial）のみ**を入力に、**trial横断**の定性テーマを整理する。
+> 数値演算（→quantitative）・統合判断（→integrated）は書かない。生 trial の再オープンはスポット確認のみ。
 
-## 1. ユーザー実機所感（原文の整理・出典を明記）
+## 1. 横断テーマ（複数trialに共通する所感・観測の束ね）
 
-## 2. Claude Code 所感（観測メモ・仮説の種）
+## 2. ユーザー実機所感の統合（出典=各 trialNN_quali）
 
 ## 3. 論点の整理（未検証の主張・確認したい実機仕様）

@@ -102,16 +102,20 @@
 
 ### 3.4 分析フロー（新構造・責務厳守＝**情報の多さと正確さを最優先**・v2から不変）
 
-> **フロー厳守**: 定量↔定性の相互混入禁止。統合は両analysisのみを入力とし、新規集計・新規所感は各analysisへ差し戻す。
-> **情報量の原則**: 要約より網羅。集計表は全数掲載（曖昧な値も確度タグ付きで残す）。乖離は選別せず全件列挙。すべての数値に出典（trialXX・slot）を付す。
+> **フロー厳守**: 定量↔定性の相互混入禁止。統合は両rollupのみを入力とし、新規集計・新規所感は各analysisへ差し戻す。
+> **情報量の原則**: 要約より網羅。集計表は全数掲載（曖昧な値も確度タグ付きで残す）。乖離は選別せず全件列挙。すべての数値に出典（trialNN・slot）を付す。
+> **2層構造（コンテキスト有界化・2026-07-15 ユーザー決定）**: `trial → per_trial/(trialNN_quant, trialNN_quali) → (quantitative, qualitative) rollup → integrated`。
+> 生trial（大）を読むのは per_trial 層だけ・rollup 以降は小さい per_trial ファイルのみ。**trial横断分析（決定性/分散/max_hp収束）は rollup 専用**。
 
-1. **`analysis/quantitative_analysis.md`（定量のみ・P3形式厳守）**: 各節に**手法・スクリプト参照・入力データ（trialXX）を明記**。
-   予定テーブル: 決定性突合（D走間slot対slot全数）／replay照合（固定順のシム再生 vs 実機・全slot）／絶対レベル推定／
-   成分別rawアンカー表（vs シム同slot・C25）／追撃hit値表（vs cap・C5/C3）／max_hp回帰／経済チェックポイント／judgフェーズ予実／C24ゲージ2点。
-2. **`analysis/qualitative_analysis.md`（定性のみ）**: 実機所感・観測メモ・仮説台帳（H2旺盛×HP結合／回避UP発動時のMISS挙動／ディスペル観測）。演算を書かない。
-3. **`analysis/integrated_analysis.md`（統合のみ）**: 両analysisのみに基づく統合→較正案→**goldenへの影響を scratchpad で実測**→
+1. **per_trial（trial毎・中間集計）**: 各 `data/trialNN.md` を入力に
+   - `analysis/per_trial/trialNN_quant.md`（数値のみ）: そのtrialの成分別集計／ターン別実ダメ合計（全hit＋DOT＋反撃）／HP%↔ダメ整合（単trial max_hp点推定）／会心急所率／judgフェーズ予実／経済チェックポイント／ゲージ。
+   - `analysis/per_trial/trialNN_quali.md`（言語のみ）: そのtrialの所感・観測メモ・仮説の種。
+2. **`analysis/quantitative_analysis.md`（rollup・定量まとめ・P3厳守）**: **per_trial/*_quant 全trial**を入力に**trial横断**。予定テーブル:
+   決定性突合（D走間slot対slot全数）／絶対レベル推定／成分別rawアンカー表（vs シム同slot・C25）／追撃hit値表（vs cap・C5/C3）／max_hp収束／経済チェックポイント集約／judgフェーズ予実／C24ゲージ。各節に**手法・スクリプト参照・入力（=どのper_trial）**を明記。
+3. **`analysis/qualitative_analysis.md`（rollup・定性まとめ）**: per_trial/*_quali 全trialを入力に横断テーマ（H2旺盛×HP結合／回避UP発動時のMISS挙動／ディスペル観測）。演算を書かない。
+4. **`analysis/integrated_analysis.md`（統合のみ）**: 両rollupのみに基づく統合→較正案→**goldenへの影響を scratchpad で実測**→
    モデル修正（C25 raw帰属→C5/C3追撃→絶対レベル→def/耐性スカラ）→golden再fit→ kill-turnゲート再判定（延期中）。
-4. 確定した較正は `DMG`/`CHAR_REGISTRY` へ宣言的に実装し、CALIBRATION_ANALYSIS.md の Cx を更新。sim03/README に1ページ要約。
+5. 確定した較正は `DMG`/`CHAR_REGISTRY` へ宣言的に実装し、CALIBRATION_ANALYSIS.md の Cx を更新。sim03/README に1ページ要約。
 
 ## 4. 改善提案の裁定（2026-07-13 ユーザー承認・v3も継続）
 
@@ -127,6 +131,9 @@
 |---|---|---|
 | `data/configA.json` | 基本情報JSON（探索キャッシュexport・C27版・キャスパリーグ） | ✅**Lv95 dispAtk更新後の再export（2026-07-15・総ダメ1,644,858,119・prefix["alone"]・override{judg:200,pactcore:1}）** |
 | `data/configA_gear_panel.md` | 装備パネル転記＋実機ATK（Lv95後）＋×1.8整合検証 | ✅有効（装備は不変・継続利用） |
-| `data/record_skeleton.md` | **記録スケルトン（唯一のテンプレ・コピー原本）**＝Dモード・固定押し順採録 | ✅整備済（複製して trialNN を作る・複製/pushはユーザー） |
-| `data/trialNN.md`（trial01〜05） | 実機データ原本（第1バッチ: D×5・メタヘッダ必須・record_skeletonを複製） | 未取得（実機第1バッチ待ち・フィンブルtrial01は全滅＝無効） |
-| `analysis/…` | 定量/定性/統合（scaffold済） | 受領後着手 |
+| `data/record_skeleton.md` | **記録スケルトン（唯一のテンプレ・コピー原本）**＝Dモード・固定押し順T1/T2/T3採録 | ✅整備済（複製して trialNN を作る・複製/pushはユーザー） |
+| `data/trialNN.md`（trial01〜05） | 実機データ原本（第1バッチ: D×5・メタヘッダ必須・record_skeletonを複製） | **trial01=✅受領（実測3T討伐 T3#16）／trial02〜05=待ち** |
+| `analysis/per_trial/trialNN_quant.md` | **単trial定量（中間集計層）**: trialNN 1本のみ入力・数値のみ | trial01=scaffold済／分析未着手 |
+| `analysis/per_trial/trialNN_quali.md` | **単trial定性（中間集計層）**: trialNN 所感/観測入力・言語のみ | trial01=scaffold済／分析未着手 |
+| `analysis/quantitative_analysis.md` / `qualitative_analysis.md`（rollup） | per_trial 全trialを入力に**trial横断**集計/整理 | scaffold済（受領後着手） |
+| `analysis/integrated_analysis.md` | 両rollupのみに基づく統合 | scaffold済（受領後着手） |
