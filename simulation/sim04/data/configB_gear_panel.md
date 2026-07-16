@@ -53,7 +53,7 @@ configB の `GEAR` はパネル%の**一様×1.8**（＝幻獣加護スケール
 | エレイン | **82,248** | **11,513** | 79,696 / 8,345 |
 
 - `DISPLAY_ATK_OVERRIDE` / `DISPLAY_HP_OVERRIDE`（src/app.js）へ反映済み（2026-07-16）。
-- **⚠ configB.json の同梱 dispAtk は旧値（93489/73346/70664/78824/79696）のまま**＝export が override 更新前の UI で実行されたため。含意:
+- **⚠ configB.json の同梱 dispAtk は旧値（93489/73346/70664/78824/79696）のまま**。これは**仕様上の構造的制約**: 表示ATK/HPはUIから入力するものではなく**コード側で自動決定**（`DISPLAY_ATK_OVERRIDE`/`DISPLAY_HP_OVERRIDE` 優先→満凸推定フォールバック）されるため、exportには**当時デプロイされていたコードの値**が必然的に同梱される（ユーザー操作では変更不可・手順ミスではない）。含意:
   1. **M走（押し順自由）には影響なし**（実機測定は sim と独立・sim側突合時に新ATKの GEAR_K_C を使えばよい）。
   2. **configB.json 内の推奨順（turnsKeys）は旧ATKスケールで探索された順**。序数diff（sim04/README §6-5）の「較正前基準順」としては、**Opusセッション冒頭で新ATK＋configB GEARの headless 再探索で取り直すのが正**（ユーザー作業不要・src/app.js は更新済みのため import して探索するだけ）。総ダメ絶対値も同様（キャッシュ値 1,692,225,745 は旧ATK）。
 

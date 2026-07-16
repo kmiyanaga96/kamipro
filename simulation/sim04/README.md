@@ -36,7 +36,7 @@
 3. ✅ **表示ATK/HPスナップ**: edison96,756/12,252・yamato75,898/9,668・hecate73,727/10,495・tetra81,887/10,870・elaine82,248/11,513 → `DISPLAY_ATK_OVERRIDE`/`DISPLAY_HP_OVERRIDE` 更新済み（2026-07-16）。
 4. ✅ **固定押し順の採録**: configB 推奨順（T1 19手/T2 24手/T3 25手）を record_skeleton にコメント採録。
 
-> **⚠ 残注意（Opusセッション冒頭タスク）**: configB.json の同梱 dispAtk は**旧値のまま**（export が override 更新前のUIで実行された）＝**キャッシュ内の推奨順・総ダメは旧ATKスケール計算**。M走（押し順自由）には影響しないが、**序数diff（§6-5）の「較正前基準順」は新ATK＋configB GEAR で headless 再探索して取り直す**こと（src/app.js は更新済みのため import して探索するだけ・ユーザー作業不要）。詳細 `data/configB_gear_panel.md` §3。
+> **⚠ 残注意（Opusセッション冒頭タスク）**: configB.json の同梱 dispAtk は**旧値のまま**（表示ATK/HPはUI入力ではなくコード側自動決定＝exportは当時ビルドの値を同梱する構造的制約・ユーザー操作では変更不可）＝**キャッシュ内の推奨順・総ダメは旧ATKスケール計算**。M走（押し順自由）には影響しないが、**序数diff（§6-5）の「較正前基準順」は新ATK＋configB GEAR で headless 再探索して取り直す**こと（src/app.js は更新済みのため import して探索するだけ・ユーザー作業不要）。詳細 `data/configB_gear_panel.md` §3。
 
 > **⚠ 環境の二重性（sim03 データとの混用ルール）**: sim03 第1バッチのアンカー表（quantitative §4・実機/sim ×1.430 等）は**configA（旧装備）ペアで閉じた有効データ**＝fit入力として使い続けてよい（表の値を正とし、sim側Δの再実行はしない）。**sim04 の新規測定（M走）はすべて configB ペア**。1つのfitの中で「実機=旧装備 × sim=新装備」のような**環境跨ぎの突合は禁止**。
 

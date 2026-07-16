@@ -13,6 +13,7 @@
 - **KILL_TURN_DESIGN.md**: **最速撃破モード（kill-turn 自動目標）の設計草案（未実装・2026-07-07 起草＋§7必要性検討）**。§7で「演算量は非障害・真のブロッカーは絶対値精度（実機比×2級）」と整理し、**S3保留・S1+S2はsim02試行2の絶対乖離実測をゲート**に着手判断。ROADMAP の未確定Phase(ii)。
 - **ROADMAP.md**: **Phase 一覧・採番の一次台帳（2026-07-09 再編・2026-07-15 採番改訂）**。Phase 6=幻獣システム拡張／**Phase 7=静的スコア s の機械学習化（クローズ・archive＝PoC×2で安価サロゲートNO-GO）**／**Phase 8=アクセ実装（旧Phase 7から繰り下げ）**／未確定Phase=敵行動・味方生存(i)・kill-turn(ii)・VM/ワークフロー(iii)。各Phase詳細は個別docへ委譲。
 - **CHARACTER_ANALYSIS.md**: キャラ個別評価＆採用論の生きた考察台帳（2026-07-11 起草）。ヤマトvsアリアンのホライズン別比較・ナポレオン評・併用仮説（暫定）。序数比較ベース＝新キャラ/較正確定のたびに更新。
+- **ARIANROD_REGISTRATION.md**: **アリアンロッド登録較正の規定＋記録欄（2026-07-16 起草・実施待ち）**。実機入手に伴う9仮定（archive/arianrhod_impl_notes.md）の実機確定メニュー A0〜A9。**simではない小規模キャラ登録較正＝root一般フロー（完了後archiveへ移動）**・sim04と並行可（絶対値fitのみsim04後）。新キャラ登録較正の先例フォーマット。
 
 ### 現役データディレクトリ
 - **enemies/**: 敵DB intake。`enemies/README.md`（命名・追加手順・スキーマ）＋ `TEMPLATE.md` ＋ `<key>.md`（実機詳細＝根拠）。`gamedata/enemies.js` の `ENEMY_REGISTRY` がそこから蒸留した現在値。Phase4較正ボス `walpurgis_loki`・sim03較正ボス `fimbulvetr` を登録。
@@ -173,4 +174,5 @@ npm run preview              # dist を http 配信 → ブラウザで探索/�
 - **次セッションの申し送り（優先順）**:
   1. ✅ **sim04 開始ゲート充足（2026-07-16 configB受領）**: `sim04/data/config.json` 格納・パネル整合10/10枠一致（`configB_gear_panel.md`）・`DISPLAY_ATK_OVERRIDE`/`DISPLAY_HP_OVERRIDE` 新値更新済み（ATK 96756/75898/73727/81887/82248・HP 12252/9668/10495/10870/11513）。**⚠configB同梱dispAtkは旧値＝キャッシュ内推奨順は旧ATK探索**（M走非影響・序数diff基準順はOpusセッション冒頭にheadless再探索で取り直す＝sim04/README §2注記）。
   2. **sim04 実施（Opusセッション）**: 読み順は sim04/README §0。冒頭で較正前基準順のheadless再探索→構造修正（C31〜C35）→M走データ取得→fit（C25→C5/C3→C30）→golden/override再fit→新推奨順export＋序数diff記録。**構造修正とスカラfitの間でセッションを切らない**。
-  3. **sim04 完了後**: 序数A/B検証（旧sim03第2バッチ案）を較正済みエンジン×新環境で再設計するか要否をユーザーと確定。C24（ゲージ）はM走相乗りデータで診断更新。
+  3. **アリアンロッド登録較正（sim04と並行可）**: 実機入手に伴う9仮定の確定＝`ARIANROD_REGISTRATION.md` の A0〜A9 メニュー（root一般フロー・完了後archiveへ）。スカラ非依存観測（回数/対象/文言）は即実施可・**絶対値fitのみsim04後**。DB反映時は golden不変＋アリアン編成10T無クラッシュを確認。
+  4. **sim04 完了後**: 序数A/B検証（旧sim03第2バッチ案）を較正済みエンジン×新環境で再設計するか要否をユーザーと確定。C24（ゲージ）はM走相乗りデータで診断更新。CHARACTER_ANALYSIS §2（ヤマトvsアリアン）はアリアン登録較正の結果と合わせて再測。
