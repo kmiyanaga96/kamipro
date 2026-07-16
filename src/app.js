@@ -102,12 +102,12 @@ const SSR_LV_RELEASE = {
 // decompose(満凸WEAPON_MASTER + 得意補正 + SSR_LV_RELEASE)は target build 用途として温存し、
 // ここは現状の実機合わせ。{} なら従来どおり全キャラ calcDisplayAtk へフォールバック(現状維持)。
 const DISPLAY_ATK_OVERRIDE = {
-  // 検証編成・実機表示ATK読み値(エジソンLv20 + ヤマトLv80/ヘカテーLv80/テトラLv95/エレインLv95)。
-  // 別編成に差し替える際はその編成の実機表示ATKに更新するか、行を消せば満凸推定へ戻る。
-  // 2026-07-15 Lv上限95引き上げアップデート後の実機値へ更新(旧2026-07-12: 92873/72865/70087/76297/73365)。
-  // ⚠ この更新は絶対値スケール(GEAR_K_C)のみに効く。sim03第1バッチの固定押し順はconfigA(旧ATK時点の探索)で
-  //    確定済み＝バッチ途中で順序を差し替えないこと(再探索すると微差の別順が出うる・簡易検証で総ダメ+0.8%/順序影響なし)。
-  edison: 93489, yamato: 73346, hecate: 70664, tetra: 78824, elaine: 79696,
+  // 検証編成・実機表示ATK読み値。別編成に差し替える際はその編成の実機表示ATKに更新するか、行を消せば満凸推定へ戻る。
+  // 2026-07-16 sim04開始ゲート: 装備強化後(configB)の実機値へ更新(旧2026-07-15 Lv95時点: 93489/73346/70664/78824/79696)。
+  // ⚠ configB(simulation/sim04/data/config.json)の同梱dispAtkは旧値のままexportされた(UI更新前)＝
+  //    そのキャッシュの探索ルートは旧ATKスケール計算。M走(押し順自由)には非影響・
+  //    序数diffの較正前基準順はheadless再探索で取り直す(sim04/README §2 注記)。
+  edison: 96756, yamato: 75898, hecate: 73727, tetra: 81887, elaine: 82248,
 };
 
 // ゲーム画面の確定表示HPをキャラ毎に上書きする(ATK overrideと完全対称・0-fudge)。
@@ -116,8 +116,9 @@ const DISPLAY_ATK_OVERRIDE = {
 // +99/育成途中/placeholder武器/Lv上限解放を全て内包した実測値で calcDisplayHp(満凸推定) を上書きする。
 // 空 {} なら従来どおり全キャラ calcDisplayHp へフォールバック(現状維持・挙動不変)。
 const DISPLAY_HP_OVERRIDE = {
-  // 検証編成・育成途中スクショ実測(DISPLAY_ATK_OVERRIDEと同一編成・同一出典)。
-  edison: 9689, yamato: 7628, hecate: 8332, tetra: 8332, elaine: 8345,
+  // 検証編成・実機表示HP(DISPLAY_ATK_OVERRIDEと同一編成・同一出典)。
+  // 2026-07-16 sim04開始ゲート: 装備強化後(configB)の実機値へ更新(旧: 9689/7628/8332/8332/8345)。
+  edison: 12252, yamato: 9668, hecate: 10495, tetra: 10870, elaine: 11513,
 };
 
 // 表示攻撃力算出: 武器ATK×得意補正 + 幻獣ATK合計 + キャラ基本ATK(神姫) or 英霊基本値

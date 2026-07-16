@@ -14,10 +14,16 @@
 - 装備config名: configB（強化後装備・§2ゲート）
 - **装備変更の有無（M2bのみ）**: なし / あり（外した武器:____ → 終了後の復元確認: 済/未）
 - ENGINE_VERSION: <構造修正前の測定なら C27-red-after-setup-refine のまま・修正後検証走なら新版を記入>
-- 使用キャッシュ: data/config.json（configB export・総ダメ/baseDmg/prefix/override を併記・未格納なら「N/A」）
-- 敵: cath_palug（キャスパリーグ・闇/affinity1.5・def10/max_hp=400,000,000 確定）
-- UI装備パネル一致確認（表示ATK5人分・configB同梱dispAtkと一致）: edison=____ / yamato=____ / hecate=____ / tetra=____ / elaine=____
-- 押し順: M走は自由（実際に押した順を§1に全記録）。固定順検証走の場合のみ: configB シム推奨順（逸脱: なし/あり ____）
+- 使用キャッシュ: data/config.json（configB・2026-07-16受領。総ダメ1,692,225,745 / baseDmg1,181,258,810 / prefix["alone"] / override {judg:200,pactcore:1}）
+- 敵: cath_palug（キャスパリーグ・闇/affinity1.5・def10/max_hp=400,000,000 確定・署名済み）
+- UI装備パネル一致確認（表示ATK5人分・**DISPLAY_ATK_OVERRIDE 新値と一致**を確認。⚠configB同梱dispAtkは旧値＝configB_gear_panel.md §3）:
+  edison=96,756 / yamato=75,898 / hecate=73,727 / tetra=81,887 / elaine=82,248 → 実測時パネル読み: ____ / ____ / ____ / ____ / ____
+- 押し順: M走は自由（実際に押した順を§1に全記録）。固定順検証走の場合のみ下記「参考順」またはOpusセッションで取り直した較正前基準順を明記（逸脱: なし/あり ____）
+
+<!-- 参考: configB シム推奨順（⚠旧ATKスケールで探索された順＝configB_gear_panel.md §3-2。序数diffの正式基準はheadless再探索で取り直す） -->
+<!-- T1(19手): banoshik→droid→funki→absolute→funki→divinus→amplifa→effond(赤)→alone(赤)→puvoir→sleur→judg→inori→funki→legend→legend→funki→judg→knights -->
+<!-- T2(24手): judg→alone(赤)→alone(赤)→puvoir→legend→legend→effond(赤)→funki→sleur→judg→tenya(赤)→judg→judg→ifishant→legend→funki→tenya_re(赤)→tenya_re(赤)→puvoir→sleur→judg→alone(赤)→effond(赤)→judg -->
+<!-- T3(25手): knights→puvoir→funki→sleur→legend→legend→funki→legend→tenya(赤)→tenya_re(赤)→sleur→judg→puvoir→funki→tenya_re(赤)→judg→alone(赤)→alone(赤)→judg→effond(赤)→puvoir→judg→sleur→effond(赤)→judg -->
 
 ---
 

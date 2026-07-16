@@ -6,7 +6,7 @@
 
 - **主題**: ダメージ式の構造修正（C31〜C35）＋絶対レベル較正（C25/C5/C3/C30）のための単独データ取得（M走）と再fit・golden/override 再fit・新推奨順の確定
 - **較正ボス**: キャスパリーグ `cath_palug`（続投。闇/affinity1.5・**光編成に隠れ耐性スカラ非適用がゲーム内記述で保証**＝クリーンアンカー・max_hp=400,000,000 確定・敵DB反映済み）
-- **状態**: 準備中（開始ゲート未充足＝§2。実測・コード修正とも未着手）
+- **状態**: **開始ゲート充足（2026-07-16 configB受領・§2）**。実測（M走）・コード修正（構造修正）とも未着手＝Opusセッション待ち
 - **規模**: 小規模（Mメニュー×2〜3走・従来のD走より軽い）だが、**エンジンの式構造と golden/override を書き換える較正の本丸**
 
 ## 0. 新セッション（Opus）への読み順
@@ -29,12 +29,14 @@
 | C34 | バーストダメUP合計に+500%上限: `coef_a + min(バフ+ウェポン合計,5.0) + selfBonus`（大幅UP=selfBonus は上限外のまま） | シム過大方向 | C25 の枠帰属に必須（＝baseline不足の露呈） |
 | C35 | 軽微3点: (a)恐傷を与ダメUP枠へ同枠加算 (b)final_dmg を減衰後適用へ (c)急所に有利属性ゲート | — | 現編成・現ボスで実害0だが式整合 |
 
-## 2. 開始ゲート（ユーザー作業・全充足まで実測に入らない）
+## 2. 開始ゲート（全充足・2026-07-16 configB受領）
 
-1. **configB export**: 強化後の実機装備で UI 再入力 → キャスパリーグ再探索 → export を `data/config.json`（=configB）として格納。
-2. **装備パネル転記**: `data/configB_gear_panel.md` を新規作成（sim03 の `configA_gear_panel.md` と同形式＝実機パネル%全行転記＋GEAR整合検証。**C26型「UI設定忘れ」の検出はこの突合が唯一の防衛線**）。
-3. **表示ATK/HPスナップ**: 強化後の5人分実機表示値を報告 → `DISPLAY_ATK_OVERRIDE`/`DISPLAY_HP_OVERRIDE`（src/app.js）更新 → export に dispAtk 同梱を確認。
-4. **固定押し順の採録**: M走は押し順自由（§4）だが、受入検証用に configB のシム推奨順を record_skeleton へ採録。
+1. ✅ **configB export**: `data/config.json` に格納（総ダメ1,692,225,745・prefix["alone"]・override {judg:200,pactcore:1}・**max_hp=400M署名済み**）。
+2. ✅ **装備パネル転記**: `data/configB_gear_panel.md`＝パネル%×1.8=GEAR **全10枠一致**（C26型「UI設定忘れ」なし）。burst_dmg=5.22（単独で+500%超え＝C34修正後は装備だけで恒常飽和）・abi_dmg=2.52（M2判別感度は十分）。
+3. ✅ **表示ATK/HPスナップ**: edison96,756/12,252・yamato75,898/9,668・hecate73,727/10,495・tetra81,887/10,870・elaine82,248/11,513 → `DISPLAY_ATK_OVERRIDE`/`DISPLAY_HP_OVERRIDE` 更新済み（2026-07-16）。
+4. ✅ **固定押し順の採録**: configB 推奨順（T1 19手/T2 24手/T3 25手）を record_skeleton にコメント採録。
+
+> **⚠ 残注意（Opusセッション冒頭タスク）**: configB.json の同梱 dispAtk は**旧値のまま**（export が override 更新前のUIで実行された）＝**キャッシュ内の推奨順・総ダメは旧ATKスケール計算**。M走（押し順自由）には影響しないが、**序数diff（§6-5）の「較正前基準順」は新ATK＋configB GEAR で headless 再探索して取り直す**こと（src/app.js は更新済みのため import して探索するだけ・ユーザー作業不要）。詳細 `data/configB_gear_panel.md` §3。
 
 > **⚠ 環境の二重性（sim03 データとの混用ルール）**: sim03 第1バッチのアンカー表（quantitative §4・実機/sim ×1.430 等）は**configA（旧装備）ペアで閉じた有効データ**＝fit入力として使い続けてよい（表の値を正とし、sim側Δの再実行はしない）。**sim04 の新規測定（M走）はすべて configB ペア**。1つのfitの中で「実機=旧装備 × sim=新装備」のような**環境跨ぎの突合は禁止**。
 
