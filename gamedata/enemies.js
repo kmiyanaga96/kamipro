@@ -1,4 +1,4 @@
-// data/enemies.js — 敵DB（ランタイム ENEMY_REGISTRY）
+// gamedata/enemies.js — 敵DB（ランタイム ENEMY_REGISTRY）
 // ※ 各エントリの「根拠・実機詳細」は enemies/<key>.md（intake）を正とし、本ファイルは
 //    シムが読む現在値（distilled runtime）。新規追加の手順・命名は enemies/README.md 参照。
 //

@@ -1,7 +1,7 @@
 # 神姫PROJECT R — バーストトラッカー 開発ガイド
 
 ## 概要
-バースト編成シミュレーター＆最適押し順トラッカー。**Phase5 S5（2026-06-30）で Vite/ESM モジュール構成へ移行**：`index.html`=薄いシェル、エンジン＝`src/app.js`、Worker＝`src/worker.js`、DB＝`data/*.js`（ESM）。開発は `npm run dev`、配布は `npm run build`→`dist/`（`npm run preview` で確認。**ESM は file:// 直開き不可＝要http**）。移行の一次情報は archive/VITE_MIGRATION.md。
+バースト編成シミュレーター＆最適押し順トラッカー。**Phase5 S5（2026-06-30）で Vite/ESM モジュール構成へ移行**：`index.html`=薄いシェル、エンジン＝`src/app.js`、Worker＝`src/worker.js`、DB＝`gamedata/*.js`（ESM。**旧 `data/`＝2026-07-16 に sim内 `data/` との混同防止でリネーム**）。開発は `npm run dev`、配布は `npm run build`→`dist/`（`npm run preview` で確認。**ESM は file:// 直開き不可＝要http**）。移行の一次情報は archive/VITE_MIGRATION.md。
 
 ## ドキュメント体系（Antigravityエージェントとの共有用）
 
@@ -15,7 +15,7 @@
 - **CHARACTER_ANALYSIS.md**: キャラ個別評価＆採用論の生きた考察台帳（2026-07-11 起草）。ヤマトvsアリアンのホライズン別比較・ナポレオン評・併用仮説（暫定）。序数比較ベース＝新キャラ/較正確定のたびに更新。
 
 ### 現役データディレクトリ
-- **enemies/**: 敵DB intake。`enemies/README.md`（命名・追加手順・スキーマ）＋ `TEMPLATE.md` ＋ `<key>.md`（実機詳細＝根拠）。`data/enemies.js` の `ENEMY_REGISTRY` がそこから蒸留した現在値。Phase4較正ボス `walpurgis_loki`・sim03較正ボス `fimbulvetr` を登録。
+- **enemies/**: 敵DB intake。`enemies/README.md`（命名・追加手順・スキーマ）＋ `TEMPLATE.md` ＋ `<key>.md`（実機詳細＝根拠）。`gamedata/enemies.js` の `ENEMY_REGISTRY` がそこから蒸留した現在値。Phase4較正ボス `walpurgis_loki`・sim03較正ボス `fimbulvetr` を登録。
 - **simulation/**: Phase 4 の試行データ蓄積。`simulation/README.md`（命名規約・ワークフロー・**較正カデンツ=統計的較正×反復可能ボス（2026-07-12転換）**）＋ `TEMPLATE/` ＋ `simNN/`。**sim03以降の新構造（ユーザー決定）**: `data/`（`config.json`基本情報JSON=探索キャッシュexport兼用 / **`record_skeleton.md`＝各simで唯一の記録テンプレ（コピー原本）** / `trialNN.md`実機原本＝record_skeletonを複製して作成）＋ `analysis/`（**2層構造・コンテキスト有界化**: `per_trial/trialNN_{quant,quali}.md`＝**単trial中間集計**[trialNN1本のみ入力] → `quantitative_analysis.md`/`qualitative_analysis.md`＝**trial横断rollup**[per_trial全trial入力・決定性/分散/max_hp収束はここ専用] → `integrated_analysis.md`＝統合[両rollupのみ]）＋分類不能ファイルはsim直下。sim01/02は旧構造のまま凍結。**新試行は `cp -r simulation/TEMPLATE simulation/simNN` で開始**。**⚠テンプレは record_skeleton のみ・trialNN の複製とpushはユーザーが行う・sim内mdフォーマットは record_skeleton に統一必須（混同防止）**。
 
 ### archive/（クローズ済み・歴史台帳＝現状の一次情報ではない）
@@ -37,11 +37,12 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
 - `package.json` / `vite.config.mjs`: Viteビルド、依存モジュール、Workerバンドル設定。
 - `test/golden.mjs`: ローカルNode.js環境から `src/app.js` を読み込み、10ターンのシミュレーション結果アサートを行う回帰テスト用ハーネス。
 
-### 2. `data/` 配下 (データ層 / ESM)
-- `data/weapons.js`: 武器マスターDB (`WEAPON_MASTER`)
-- `data/summons.js`: 幻獣マスターDB (`SUMMON_REGISTRY`)
-- `data/enemies.js`: 敵DB (`ENEMY_REGISTRY`)
-- `data/characters.js`: 統一キャラDB (`CHAR_REGISTRY`、`DEBUFF_KEYS`/`buffCount` 同梱)。`src/app.js` からの循環インポートを持つが、関数内での遅延評価に限定することでTDZを回避。
+### 2. `gamedata/` 配下 (データ層 / ESM。旧 `data/`＝2026-07-16 リネーム・sim内 `data/` との混同防止)
+- `gamedata/weapons.js`: 武器マスターDB (`WEAPON_MASTER`)
+- `gamedata/summons.js`: 幻獣マスターDB (`SUMMON_REGISTRY`)
+- `gamedata/enemies.js`: 敵DB (`ENEMY_REGISTRY`)
+- `gamedata/characters.js`: 統一キャラDB (`CHAR_REGISTRY`、`DEBUFF_KEYS`/`buffCount` 同梱)。`src/app.js` からの循環インポートを持つが、関数内での遅延評価に限定することでTDZを回避。
+- `gamedata/damage_frames.txt`: **ダメージ枠（バフ/ウェポンスキルの乗り方）の一次情報**（ユーザー提供・2026-07-16・原文ママ）。エンジンとの突合結果は CALIBRATION_ANALYSIS.md C31〜C35。
 
 ### 3. `src/` 配下 (エンジン・UI層 / ESM)
 - `src/constants.js`: ゲーム定数と、乗算補正および減衰上限などを管理する定数 `DMG`。他モジュールへの依存を持たない葉モジュール。
@@ -54,8 +55,8 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
 ## 開発ルール & 不変条件
 
 ### 1. キャラクター追加・変更の原則
-- **`CHAR_REGISTRY`（data/characters.js）が唯一の編集先。** エンジン本体（`class Sim`）にキャラ名リテラルを記述しない。
-- **⚠ 循環参照回避ルール**: `data/characters.js` のオブジェクトリテラルの**トップレベル即時評価フィールド**（例: `gmax`）で `BG`/`DMG`/`GEAR` を直接参照してはならない（TDZ / 循環死によるUI全消失の原因）。ゲージ上限は素の数値で持つ（100=`BG.other_max`）。**関数本体（`cands.exec`/`def`フック）内の参照は遅延評価のため安全**。
+- **`CHAR_REGISTRY`（gamedata/characters.js）が唯一の編集先。** エンジン本体（`class Sim`）にキャラ名リテラルを記述しない。
+- **⚠ 循環参照回避ルール**: `gamedata/characters.js` のオブジェクトリテラルの**トップレベル即時評価フィールド**（例: `gmax`）で `BG`/`DMG`/`GEAR` を直接参照してはならない（TDZ / 循環死によるUI全消失の原因）。ゲージ上限は素の数値で持つ（100=`BG.other_max`）。**関数本体（`cands.exec`/`def`フック）内の参照は遅延評価のため安全**。
 - キャラ固有状態は `state` に宣言（Simが snap/clone/init で自動同期）。
 - 累積アサルトやバーストプラス等の状態は、クローン時の参照共有を防ぐため、オブジェクトではなく**フラットな数値変数**として `state` に宣言すること。
 - **毎ターン自動デクリメントする残ターン系state**（ロボ残T・ムーンコード等）は `tickStates: ['key', ...]` を宣言（`buildFormation`が`TICK_STATES`へ集約し`tick()`が汎用処理）。
@@ -144,6 +145,7 @@ npm run preview              # dist を http 配信 → ブラウザで探索/�
   - C16: fixed (探索高速化・キャッシュ・UIキャッシュ入出力・火力指数分母修正完了)
   - C17: wontfix (第4較正レバー検討＝BW64新baseで再検証。full生存はsleur/puvoirのみ+0.4〜0.5%・joint掃引27点で相互作用なし=単独加算どまり・3変数が実質飽和点。工数対効果不成立で見送り。データはCALIBRATION_ANALYSIS.md C17)
   - C27: **fixed** (探索品質。真因＝ビーム目的関数が将来ターンを静的greedyで代理採点＝赤アビ前出しを damage-max と誤選択。修正＝確定ルートへ whole-route 局所改善 `_refineRoute`(赤アビ color 'r' を同ターンの`deploysRobot`+`prelude`後へ・厳密改善のみ＝単調安全・タグ駆動でキャラ名リテラル無)を`_runRootPlan`(production/worker)とgolden.mjsに結線。golden再fit raw→**187,186,834**/cal→**208,689,608**・FB10/10・冪等(固定点)確認。ENGINE_VERSION `C27-red-after-setup-refine`。実gear損失は既定gearの8〜9×[T1約450〜490万]。全設定の履歴は CALIBRATION_ANALYSIS.md C27)
+  - C31〜C35: open (**2026-07-16 `gamedata/damage_frames.txt`（ダメージ枠一次情報・ユーザー提供）とエンジンの突合で起票**。C31=アビダメUPが乗算実装（実機は倍率へ加算）＝**C30真因候補・pre-cap×1.84過大** / C32=旺盛上限が一律100%クランプ（実機はウェポン100%+合計200%）＝**C25寄与候補・シム過小方向** / C33=weapons.jsの`box:'technica'`がGEAR_BOXES不在で黙殺（configAは手入力で実害なし） / C34=バーストダメUP+500%上限未実装（シム過大方向＝baseline不足の証左） / C35=軽微3点（恐傷同枠加算・final_dmg減衰後適用・急所の有利属性ゲート）。いずれも修正は較正セッション（golden/override再fit）ゲート)
   * 現ゴールデン値: **raw 187,186,834 / calibrated 208,689,608** (C27 赤アビ後出しリファインにて再fit・2026-07-14)
 
 ---
@@ -166,7 +168,8 @@ npm run preview              # dist を http 配信 → ブラウザで探索/�
 - **sim03 第1バッチ完了（2026-07-16 本セッション）＝受領D×5→per_trial→rollup→統合まで全分析完了**:
   1. 成果物: `sim03/analysis/` の rollup 3書＋P3集計器2本（`rollup_xtrial.mjs`=slot×hit5走突合／`sim_slot_dump.mjs`=configA復元headlessリプレイでシム側slot値）。要約は `sim03/README.md` §6。
   2. 主要結果: ①**max_hp=400,000,000確定・敵DB反映済み**（ceil表示規約×オーバーキル交差） ②**絶対レベルアンカー取得**＝実機/sim 全体×1.430・バースト系×1.30→×1.78成長・深飽和(streak/DOT)一致=pre-cap raw局在再確認（C25前進） ③追撃cap×1.6〜3.3過小の数値確定（C5/C3） ④経済15/15・judgフェーズ15/15一致＝**C22クローズ・C23追検証パス** ⑤新規起票 **C28**(per-hitダメージロールRNG・低優先)/**C29**(通常DA/TA未モデル・低優先)/**C30**(judg ph0シム過大×1.3・override結合注意) ⑥ディスペル5走不発＝stack=0アンカーはこの編成では構造的に取れない（限定行動1T1個仮説・enemies/cath_palug.md注記）。
+- **ダメージ枠一次情報の受領・突合＋gamedataリネーム（2026-07-16 本セッション）**: ①ユーザー提供のダメージ枠まとめを `gamedata/damage_frames.txt` に格納（原文ママ・一次情報） ②sim内 `data/` との混同防止で **`data/`→`gamedata/` リネーム**（import/ドキュメント参照更新済み・golden不変） ③エンジン突合で **C31〜C35 起票**（C31 アビダメUP乗算→加算＝C30真因候補・C32 旺盛クランプ＝C25寄与候補・C34 バーストcap未実装＝逆符号でbaseline不足を裏付け）。**修正はいずれも較正セッションゲート**（押し順・override・golden に波及するためsim03バッチ運用と衝突させない）。
 - **次セッションの申し送り（優先順）**:
   1. **第2バッチ前の再export（ユーザー作業込み）**: max_hp 400M反映で `_configSig` が変わり configA キャッシュは自然ミス→UI で cath_palug 再探索→configA再export（dispAtk はLv95更新済み・表示HPは未更新のまま=ユーザー合意）。
   2. **第2バッチ＝序数A/Bへ転換（integrated §5 提案・要ユーザー確定）**: D追加走は不要（イベント列決定的・hit値はロールRNGで平均吸収）。シム推奨順(新export) vs 反実仮想順を各2〜3走。record_skeleton 任意欄の追記候補=敵フェイズ前後ゲージ(C24)・ヘカテーリキャスト発生押下#。
-  3. **較正セッション（ユーザーゲート・golden再fit必至）**: 絶対レベル（sim03アンカー表=quantitative §4 を入力）→C25 raw枠帰属（stack=0不発のため T1枠回帰で baseline/成長分離）→C5/C3 追撃cap（rawとセット・cap単独fit早計）→**C30 judg ph0**（唯一のシム過大・override {judg} と結合＝押し順変化に要警戒）→def/耐性→golden再fit＋override再fit。
+  3. **較正セッション（ユーザーゲート・golden再fit必至）**: 絶対レベル（sim03アンカー表=quantitative §4 を入力）→C25 raw枠帰属（stack=0不発のため T1枠回帰で baseline/成長分離）→C5/C3 追撃cap（rawとセット・cap単独fit早計）→**C30 judg ph0**（唯一のシム過大・override {judg} と結合＝押し順変化に要警戒）→def/耐性→golden再fit＋override再fit。**実施手順・単独データ取得メニュー（M1無アビ素走/M2 judg単独/M3旺盛スタック等）・依存関係チェーンは `simulation/sim03/calibration_prep.md` に策定済み（2026-07-16）＝C31〜C35構造修正を先行させる順序が絶対**。
