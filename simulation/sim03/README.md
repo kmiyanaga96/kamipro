@@ -132,8 +132,19 @@
 | `data/configA.json` | 基本情報JSON（探索キャッシュexport・C27版・キャスパリーグ） | ✅**Lv95 dispAtk更新後の再export（2026-07-15・総ダメ1,644,858,119・prefix["alone"]・override{judg:200,pactcore:1}）** |
 | `data/configA_gear_panel.md` | 装備パネル転記＋実機ATK（Lv95後）＋×1.8整合検証 | ✅有効（装備は不変・継続利用） |
 | `data/record_skeleton.md` | **記録スケルトン（唯一のテンプレ・コピー原本）**＝Dモード・固定押し順T1/T2/T3採録 | ✅整備済（複製して trialNN を作る・複製/pushはユーザー） |
-| `data/trialNN.md`（trial01〜05） | 実機データ原本（第1バッチ: D×5・メタヘッダ必須・record_skeletonを複製） | **trial01=✅受領（実測3T討伐 T3#16）／trial02〜05=待ち** |
-| `analysis/per_trial/trialNN_quant.md` | **単trial定量（中間集計層）**: trialNN 1本のみ入力・数値のみ | trial01=scaffold済／分析未着手 |
-| `analysis/per_trial/trialNN_quali.md` | **単trial定性（中間集計層）**: trialNN 所感/観測入力・言語のみ | trial01=scaffold済／分析未着手 |
-| `analysis/quantitative_analysis.md` / `qualitative_analysis.md`（rollup） | per_trial 全trialを入力に**trial横断**集計/整理 | scaffold済（受領後着手） |
-| `analysis/integrated_analysis.md` | 両rollupのみに基づく統合 | scaffold済（受領後着手） |
+| `data/trialNN.md`（trial01〜05） | 実機データ原本（第1バッチ: D×5・メタヘッダ必須・record_skeletonを複製） | **✅全5走受領（実測3T討伐・撃破 T3#16×3走/T3#17×2走）** |
+| `analysis/per_trial/trialNN_quant.md` | **単trial定量（中間集計層）**: trialNN 1本のみ入力・数値のみ | ✅完了（`parse_trials.mjs --emit` 自動生成×5） |
+| `analysis/per_trial/trialNN_quali.md` | **単trial定性（中間集計層）**: trialNN 所感/観測入力・言語のみ | ✅完了（×5） |
+| `analysis/quantitative_analysis.md` / `qualitative_analysis.md`（rollup） | per_trial 全trialを入力に**trial横断**集計/整理 | **✅完了（2026-07-16）** |
+| `analysis/integrated_analysis.md` | 両rollupのみに基づく統合 | **✅完了（2026-07-16）** |
+| `analysis/rollup_xtrial.mjs` | **P3集計器**: slot×hit 5走突合・決定性/急所自然実験・max_hp区間（rollup §2/§3/§5 の生成元） | ✅（`node simulation/sim03/analysis/rollup_xtrial.mjs`） |
+| `analysis/sim_slot_dump.mjs` | **P3集計器**: configA復元 headlessリプレイ＝シム側slot値・実機5走平均との押下突合（rollup §4 の生成元） | ✅（`node simulation/sim03/analysis/sim_slot_dump.mjs`） |
+
+## 6. 第1バッチ結果要約（2026-07-16・詳細は analysis/ 3書）
+
+1. **決定性**: 発生イベント列（敵行動・経済・judgフェーズ・proc）は5走で完全決定的。**hit値は per-hit ダメージロールRNGで揺れる**（急所一致hitでも median3.5%/p90 12.4%・C28起票）＝較正は押下単位の複数走平均で吸収・**追加D走は不要**。
+2. **max_hp＝400,000,000 で確定**（オーバーキル上下界×HP% **ceil** 表示の全交差 (398.89M, 400.10M]・敵DB反映済み）。⚠ `_configSig` が変わるため**第2バッチ前に再探索→configA再export必須**。
+3. **絶対レベルアンカー取得（C25の中核成果）**: 耐性=1保証下で実機/sim 全体**×1.430**・バースト系×1.30→×1.78と戦闘内成長・judg ph0のみシム過大×0.77（C30起票）・深飽和成分（streak/DOT）は一致＝pre-cap raw局在を再確認。追撃系cap ×1.6〜3.3過小（C5/C3数値確定）。
+4. **回帰**: 経済15/15・judgフェーズ15/15一致＝C22クローズ・C23追検証パス。C24は新データで診断更新（+15一様/ヤマト−30逆符号）。
+5. **ディスペル（stack=0アンカー）は5走とも不発**＝「限定行動は1敵フェイズ1個・リスト順消化」仮説（この編成では構造的に取れない・enemies/cath_palug.md §2注記）。
+6. **第2バッチ提案**: D追加ではなく**序数A/B**へ（詳細 integrated §5）。

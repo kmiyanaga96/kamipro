@@ -148,7 +148,7 @@ npm run preview              # dist を http 配信 → ブラウザで探索/�
 
 ---
 
-## 現在の進行状況（引き継ぎ用・2026-07-13 更新）
+## 現在の進行状況（引き継ぎ用・2026-07-16 更新）
 - **現フェーズ**: Phase 4 = **統計的較正 × 反復可能ボス（2026-07-12 転換・PHASE4_PLAN §3.5.1）**。**Antigravity はワークフロー除外**＝全分析を Claude Code 担当。
 - **sim02 完了（旧構造・凍結）**: walpurgis_loki T2較正。成果=①経済系（契晶/累計/連理）全10チェックポイント完全一致（C18/C19/C21受入成立・C22クローズ候補） ②C7撤回（与ダメ2フェーズ倍率は非実在） ③C25再定式化（乖離はpre-cap rawに局在・cap/slope妥当・「cap外し」仮説はB5で棄却） ④C26 fixed（エジソン追撃OFF探索=UI設定忘れ・`_configSig`拡張済） ⑤**C23 fixed＝judgフェーズ戦闘通算連続へ是正（実機3/3裏取り・golden再fit raw 187,186,834 / cal 208,689,608・ENGINE_VERSION `C23-judgphase-continuous`）** ⑥C24診断済（ゲージ±5〜10=黄ロボ反応の計数差に局在・低severity・fixは実機ゲート）。詳細は sim02 の B1〜B5・c23/c24 findings・integrated_analysis。
 - **方針転換（2026-07-12 ユーザー決定・セッション末）**:
@@ -163,8 +163,10 @@ npm run preview              # dist を http 配信 → ブラウザで探索/�
   1. ✅ ゲート2完了: `sim03/data/configA.json`＝**キャスパリーグ版・C27エンジン**（refine固定点検証済・override `{judg:200,pactcore:1}`・装備一次記録=`configA_gear_panel.md`）。
   2. ✅ ユーザー確定: **固定押し順=シム推奨順**（configAのT1 19手/T2 24手・`data/record_skeleton.md`に採録＝これを複製してtrial01〜05）・**第1バッチ=D×5**。
   3. ✅ 表示ATKをLv95実機値へ更新→**configA再export受領（2026-07-15・dispAtk edison93489/yamato73346/hecate70664/tetra78824/elaine79696・総ダメ1,633,835,778→1,644,858,119）**。**⚠訂正: 旧claim「新ATKでも順序影響なし=refine固定点」は誤りで、再exportで最適ルートは微変化した**（例 T1: 旧banoshik→funki→droid… → 新banoshik→droid→funki…）。**未記録のため固定順を新exportへ差し替え済み**（configA.json/record_skeleton同期）。以後は**バッチ途中で差し替えない**。表示HPは未更新（必要時対応・ユーザー合意）。
+- **sim03 第1バッチ完了（2026-07-16 本セッション）＝受領D×5→per_trial→rollup→統合まで全分析完了**:
+  1. 成果物: `sim03/analysis/` の rollup 3書＋P3集計器2本（`rollup_xtrial.mjs`=slot×hit5走突合／`sim_slot_dump.mjs`=configA復元headlessリプレイでシム側slot値）。要約は `sim03/README.md` §6。
+  2. 主要結果: ①**max_hp=400,000,000確定・敵DB反映済み**（ceil表示規約×オーバーキル交差） ②**絶対レベルアンカー取得**＝実機/sim 全体×1.430・バースト系×1.30→×1.78成長・深飽和(streak/DOT)一致=pre-cap raw局在再確認（C25前進） ③追撃cap×1.6〜3.3過小の数値確定（C5/C3） ④経済15/15・judgフェーズ15/15一致＝**C22クローズ・C23追検証パス** ⑤新規起票 **C28**(per-hitダメージロールRNG・低優先)/**C29**(通常DA/TA未モデル・低優先)/**C30**(judg ph0シム過大×1.3・override結合注意) ⑥ディスペル5走不発＝stack=0アンカーはこの編成では構造的に取れない（限定行動1T1個仮説・enemies/cath_palug.md注記）。
 - **次セッションの申し送り（優先順）**:
-  1. **実機第1バッチ受領**（trial01〜05・D×5・様式=`sim03/data/record_skeleton.md`をユーザーが複製・全hit毎・**T1終了HP%必記**・メタヘッダ必須）→ 定量/定性/統合のフロー厳守で分析（**情報の多さと正確さ優先**・quantitativeは手法/スクリプト/入力の明記=P3）。モデル分業の推奨= `essays/MODEL_ROLE_GUIDE.md` §4.2（Sonnet一次集計→Fable統合分析→Opus実装・切替はセッション境界）。
-  2. 中間分析ゲート（P間決定性・ボス挙動安定性・max_hp収束・ディスペル一貫性）→第2バッチ配分（序数A/B・追加走など）。
-  3. 較正順: **絶対レベル（キャスパリーグ=ライトレジスト光非適用でボス耐性=1保証＝本命アンカー）**→C25 raw枠帰属→C5追撃cap再較正（C3統合）→def/耐性→golden再fit。C24の2点・C23追検証は sim03 §3.2 に組込済み。
-  4. 第2バッチ前: UIのdispAtk入力をLv95実機値へ更新→configA再export（`configA_gear_panel.md` §3.5）。
+  1. **第2バッチ前の再export（ユーザー作業込み）**: max_hp 400M反映で `_configSig` が変わり configA キャッシュは自然ミス→UI で cath_palug 再探索→configA再export（dispAtk はLv95更新済み・表示HPは未更新のまま=ユーザー合意）。
+  2. **第2バッチ＝序数A/Bへ転換（integrated §5 提案・要ユーザー確定）**: D追加走は不要（イベント列決定的・hit値はロールRNGで平均吸収）。シム推奨順(新export) vs 反実仮想順を各2〜3走。record_skeleton 任意欄の追記候補=敵フェイズ前後ゲージ(C24)・ヘカテーリキャスト発生押下#。
+  3. **較正セッション（ユーザーゲート・golden再fit必至）**: 絶対レベル（sim03アンカー表=quantitative §4 を入力）→C25 raw枠帰属（stack=0不発のため T1枠回帰で baseline/成長分離）→C5/C3 追撃cap（rawとセット・cap単独fit早計）→**C30 judg ph0**（唯一のシム過大・override {judg} と結合＝押し順変化に要警戒）→def/耐性→golden再fit＋override再fit。
