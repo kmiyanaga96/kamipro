@@ -19,7 +19,7 @@ function arianHolyFire(sim, T){
     sim.dmg += sim._decay('abi', sim._na()*DMG.holy_hit_mult, DMG.holy_hit_cap);
 }
 
-// ⚠ ロード順の不変条件: data/*.js は index.html のインライン定数(BG/DMG/GEAR)より「前」に読み込まれる。
+// ⚠ ロード順の不変条件: gamedata/*.js は src/ のモジュール定数(BG/DMG/GEAR)を遅延参照で読む（旧: index.htmlインライン時代の名残）。
 // そのため【オブジェクトリテラルの即時評価フィールド】(例: gmax)に BG/DMG/GEAR を参照してはならない
 // (= ReferenceError でファイル全体が落ち、CHAR_REGISTRY 未定義→UI全消失する)。
 // 関数本体(cands.exec / def フック)内での DMG/BG/GEAR 参照は「遅延評価」のため安全(シム実行時に解決)。

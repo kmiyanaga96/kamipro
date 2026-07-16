@@ -4,10 +4,10 @@
 // data 側の外部参照は全て関数本体＝遅延評価で TDZ に当たらない（ロード順不変条件）。
 // ⚠ 詳細・保守方針は VITE_MIGRATION.md を一次情報とすること。
 // ==========================================================================
-import { WEAPON_MASTER } from '../data/weapons.js';
-import { SUMMON_REGISTRY } from '../data/summons.js';
-import { ENEMY_REGISTRY } from '../data/enemies.js';
-import { CHAR_REGISTRY } from '../data/characters.js';
+import { WEAPON_MASTER } from '../gamedata/weapons.js';
+import { SUMMON_REGISTRY } from '../gamedata/summons.js';
+import { ENEMY_REGISTRY } from '../gamedata/enemies.js';
+import { CHAR_REGISTRY } from '../gamedata/characters.js';
 
 import { RENRI_CAP, RENRI_MAX, JUDG_REACT, TENYA_FROM, FB_THR, MACH_BG, KEIGYO_MAX, BEAM_W, PREFIX_TOPK, BEAM_DIVERSITY_K, IFISHANT_MIN_CD, BG, DMG, DMG_DEFAULTS } from './constants.js';
 import { Sim, cmpVec, enumerateRootPrefixes, _runRootPlan, _runBaselinePlan, _staticPrefixDmg, _selectRootPrefixes, _replayResult, _refineRoute } from './sim.js';
