@@ -172,4 +172,4 @@ npm run preview              # dist を http 配信 → ブラウザで探索/�
 - **次セッションの申し送り（優先順）**:
   1. **第2バッチ前の再export（ユーザー作業込み）**: max_hp 400M反映で `_configSig` が変わり configA キャッシュは自然ミス→UI で cath_palug 再探索→configA再export（dispAtk はLv95更新済み・表示HPは未更新のまま=ユーザー合意）。
   2. **第2バッチ＝序数A/Bへ転換（integrated §5 提案・要ユーザー確定）**: D追加走は不要（イベント列決定的・hit値はロールRNGで平均吸収）。シム推奨順(新export) vs 反実仮想順を各2〜3走。record_skeleton 任意欄の追記候補=敵フェイズ前後ゲージ(C24)・ヘカテーリキャスト発生押下#。
-  3. **較正セッション（ユーザーゲート・golden再fit必至）**: 絶対レベル（sim03アンカー表=quantitative §4 を入力）→C25 raw枠帰属（stack=0不発のため T1枠回帰で baseline/成長分離）→C5/C3 追撃cap（rawとセット・cap単独fit早計）→**C30 judg ph0**（唯一のシム過大・override {judg} と結合＝押し順変化に要警戒）→def/耐性→golden再fit＋override再fit。
+  3. **較正セッション（ユーザーゲート・golden再fit必至）**: 絶対レベル（sim03アンカー表=quantitative §4 を入力）→C25 raw枠帰属（stack=0不発のため T1枠回帰で baseline/成長分離）→C5/C3 追撃cap（rawとセット・cap単独fit早計）→**C30 judg ph0**（唯一のシム過大・override {judg} と結合＝押し順変化に要警戒）→def/耐性→golden再fit＋override再fit。**実施手順・単独データ取得メニュー（M1無アビ素走/M2 judg単独/M3旺盛スタック等）・依存関係チェーンは `simulation/sim03/calibration_prep.md` に策定済み（2026-07-16）＝C31〜C35構造修正を先行させる順序が絶対**。
