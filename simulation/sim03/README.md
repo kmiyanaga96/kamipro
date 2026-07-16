@@ -148,4 +148,4 @@
 4. **回帰**: 経済15/15・judgフェーズ15/15一致＝C22クローズ・C23追検証パス。C24は新データで診断更新（+15一様/ヤマト−30逆符号）。
 5. **ディスペル（stack=0アンカー）は5走とも不発**＝「限定行動は1敵フェイズ1個・リスト順消化」仮説（この編成では構造的に取れない・enemies/cath_palug.md §2注記）。
 6. **第2バッチ提案**: D追加ではなく**序数A/B**へ（詳細 integrated §5）。
-7. **追加較正の準備書（2026-07-16）**: sim04前に必要な較正セッションの実施順序（構造修正C31〜C35→スカラfit）と単独データ取得メニュー（M1無アビ素走・M2 judg単独・M3旺盛スタック・M4バーストcap・M5ゲージ読み）を [calibration_prep.md](calibration_prep.md) に策定。ダメージ枠一次情報は `gamedata/damage_frames.txt`。
+7. **sim03 クローズ（2026-07-16・第1バッチのみで終了）**: 実機装備が強化され configA と同等の環境ではなくなったため、第2バッチ（序数A/B・integrated §5-3）は本simでは実施しない（較正完了後に新環境で再設計）。追加較正（旧 calibration_prep.md）は **sim04 として丸ごと再定義**＝ [../sim04/README.md](../sim04/README.md) を正とする。第1バッチのアンカー表（quantitative §4）は configA ペアで閉じた有効データとして sim04 の fit 入力に使われる。ダメージ枠一次情報は `gamedata/damage_frames.txt`。
