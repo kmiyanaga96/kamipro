@@ -483,11 +483,14 @@ const CHAR_REGISTRY = {
       // 手動発動は同ターン最大2回(A2実機確定＝arianHolyFire に manual=true を渡し T.holy<2 をゲート)。実CD1は cd0+quota。
       holy: { s:130, atkBuf:true, partyBG:true, guard:(sim,T)=>(T.holy||0)<2,
               exec:(sim,T,ord)=>{ arianHolyFire(sim,T,true); sim.use('holy',T,ord); }},
-      // 2アビ: 自分の特殊攻撃+8%・急所+0.10(3T累積)。奇数回目は味方全体化(シムのバフは全体扱いのため挙動同一・注記)。
+      // 2アビ: 特殊攻撃+8%・急所+0.10(3T累積)。A5実機確定(2026-07-17): 奇数回目=味方全体 / 偶数回目=自分のみ。
+      //   → self枠(arian_*_self)は _na が _naOwner===アリアンのときだけ適用（sim.js _na 参照）。
       miti: { s:80, atkBuf:true,
-              exec:(sim,T,ord)=>{ sim.arian_miti_uses=(sim.arian_miti_uses||0)+1;
-                (sim.buf.arian_spec??=[]).push(DMG.dur_arian_miti);
-                (sim.buf.arian_acute??=[]).push(DMG.dur_arian_miti); sim.use('miti',T,ord); }},
+              exec:(sim,T,ord)=>{ const n=sim.arian_miti_uses=(sim.arian_miti_uses||0)+1;
+                const specKey = n%2===1 ? 'arian_spec' : 'arian_spec_self';
+                const acuteKey= n%2===1 ? 'arian_acute': 'arian_acute_self';
+                (sim.buf[specKey]??=[]).push(DMG.dur_arian_miti);
+                (sim.buf[acuteKey]??=[]).push(DMG.dur_arian_miti); sim.use('miti',T,ord); }},
       // 3アビ: ゲージ消費なしでオートバースト。初回のみCD8を設定(再発動は elegant_re)。
       elegant: { s:90, burstTrigger:true,
                  exec:(sim,T,ord,bset)=>{ const me=ownerOf('elegant'); sim.use('elegant',T,ord); sim.burst(me,bset,T); T.elegant=1; }},

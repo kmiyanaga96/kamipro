@@ -18,7 +18,7 @@
 2. ~~**1アビ即発動の上限（手動+自動 共通2回）**~~ → **【部分refute・確定/A2】**: **手動のみ**同ターン2回上限。自動発動（自バースト効果/アシスト）は**上限なし＆手動クォータ非消費**。`arianHolyFire(sim,T,manual)` で分岐（manual時のみ `T.holy<2`）へ修正済み。
 3. ~~**1アビ自動発動はアビ計数しない**~~ → **【refute・確定/A3】**: 自動発動も**アビ使用扱い**（テトラ同編成で連理魔力+を確認）。`arianHolyFire` 自動経路で `sim._countAbilityUse('holy','y')` を発火へ修正済み（手動は `use()` が計数）。
 4. ~~**3アビ再発動はアビ計数しない**~~ → **【refute・確定/A4】**: `elegant_re` も**赤アビ計数**（再発動直後の連理+を確認）。`sim._countAbilityUse('elegant_re','r')` を追加済み（ヤマト`tenya_re`/C19と同型）。
-5. **2アビの自分/味方全体（奇偶）区別なし** → **【refute・A5・未反映】**: **偶数回=自分のみ / 奇数回=全体**を実機確認。ただし現エンジンは spec/acute を全オーナー共有バフ（`sim.buf.arian_spec`）で**常時全体近似**。局所化は per-owner バフscoping の横断改修＝**要ユーザー判断で保留**。
+5. ~~**2アビの自分/味方全体（奇偶）区別なし**~~ → **【refute・確定/A5・反映済(2026-07-17)】**: **偶数回=自分のみ / 奇数回=全体**を実機確認。`miti.exec` で使用回数の奇偶により global枠(`arian_spec`/`arian_acute`)と self枠(`arian_spec_self`/`arian_acute_self`)へ振り分け、`_na()` は self枠を `_naOwner===ownerOf('holy')` のときだけ加算（`ABIL.holy?.[0]` で非編成ホットパス安全）。新bufキーは tick/clone が汎用処理。
 6. **バーストゲージ付与の対象** → **【confirm・A6】**: 1アビ+10=味方全体(`CHARS`)、2アシ+40=自分のみ(`[arianrhod]`)。修正なし。
 7. **1アビ バーストダメージプラス（味方光）の全体近似** → **【confirm・A7】**: 味方光の他キャラバーストにも適用を確認。修正なし。
 8. **急所倍率1.1倍 → acute+0.10** → **【未取得・A8保留】**: 非会心急所hitを分離できず≈1.1比を未取得。現行 acute+0.10 を維持し、将来のアリアン入り統計的較正で取得。
@@ -33,6 +33,7 @@
 
 ## 検証
 - 初版(2026-07-11): `npm run test:golden` raw 203,723,485 / cal 218,902,146 不変・`edison+arianrhod+hecate+tetra+elaine` 10T=201,654,712・FB10/10。
-- **A1〜A4 反映後(2026-07-17)**: `npm run test:golden` → **raw 187,186,834 / calibrated 208,689,608 不変**（arianrhod非編成＝inert・現行C27ゴールデン値）。
-  - 編成 `edison+arianrhod+hecate+tetra+elaine` 10T＝**299,564,655・FB10/10（無クラッシュ）**。旧201.6Mからの増分は追撃別枠2重＋自動1アビ/再発動のアビ計数化（proc/robot反応の追加）が主因＝実機確定挙動の反映。
-- ⚠ 絶対値/押し順の実機一致は**未検証**（A8保留・絶対値fitはsim04後）。A5局所化は未反映（ユーザー判断待ち）。
+- **A1〜A5 反映後(2026-07-17)**: `npm run test:golden` → **raw 187,186,834 / calibrated 208,689,608 不変**（arianrhod非編成＝inert・現行C27ゴールデン値）。
+  - 編成 `edison+arianrhod+hecate+tetra+elaine` 10T＝**284,325,153・FB10/10（無クラッシュ）**。旧201.6M→A1〜A4反映で299.6M（追撃別枠2重＋自動1アビ/再発動のアビ計数化）→A5反映で284.3M（2アビ偶数回buffを自分のみへ局所化＝過大分の是正）。
+  - ⚠ `npm run build` は本環境に vite 未導入で未実行。ただし変更は既存import済み `sim.js`/`characters.js` のロジックのみ（Worker用exportの追加なし）＝Worker伝播に構造影響なし。次に build 可能な環境で確認推奨。
+- ⚠ 絶対値/押し順の実機一致は**未検証**（A8保留・絶対値fitはsim04後）。

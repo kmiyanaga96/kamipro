@@ -111,14 +111,19 @@ class Sim {
     const critRate = Math.min(D.crit_rate_arrive + nAbs*D.crit_rate_absolute
                             + (nPikeCrit>0?D.crit_rate_pike:0) + mc*D.crit_rate_mooncode + G.crit_rate, 1.0);
     const crit = critRate*D.crit_mult;
+    // アリアンロッド2アビ(A5実機確定): 奇数回=味方全体(arian_spec/arian_acute)・偶数回=自分のみ(arian_*_self)。
+    // self枠は _naOwner がアリアン自身(ownerOf('holy'))のときだけ適用。ABIL.holy 不在編成では arSelf=0 で無害
+    // (?. で ownerOf 相当の ABIL['holy'][0] を安全参照＝arianrhod非編成の golden ホットパスを壊さない)。
+    const arAcuteSelf=b.arian_acute_self?.length||0, arSpecSelf=b.arian_spec_self?.length||0;
+    const arSelf = (arAcuteSelf||arSpecSelf) && this._naOwner===ABIL.holy?.[0] ? 1 : 0;
     // 急所枠: 光(puvoirはムーンコード時のみ/absolute/legend/pike_crit) + 装備
     const acute = nPuvAcute*D.acute_puvoir + nAbs*D.acute_absolute + nLeg*D.acute_legend
                 + nPikeCrit*D.acute_pike_crit + (b.refine_acute?.length?D.acute_refine:0)
-                + (b.arian_acute?.length||0)*D.acute_arian + G.acute;
+                + (b.arian_acute?.length||0)*D.acute_arian + arSelf*arAcuteSelf*D.acute_arian + G.acute;
     // 特殊攻撃枠: leg_spec(光) + omni(テトラ1アシ・光) + 装備
     const spec = (b.leg_spec?D.spec_legend:0)+(b.omni?.length?D.spec_omni:0)
                + (b.mobius_spec?.length||0)*D.spec_mobius
-               + (b.arian_spec?.length||0)*D.spec_arian
+               + (b.arian_spec?.length||0)*D.spec_arian + arSelf*arSpecSelf*D.spec_arian
                + (b.artemis_spec?.length?D.spec_artemis:0) + G.spec;
     // GEAR_K or per-character GEAR_K_C[owner] (武器マスタ設定時)
     const gk = (this._naOwner && GEAR_K_C[this._naOwner]) || GEAR_K;
