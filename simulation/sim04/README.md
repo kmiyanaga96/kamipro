@@ -36,7 +36,17 @@
 3. ✅ **表示ATK/HPスナップ**: edison96,756/12,252・yamato75,898/9,668・hecate73,727/10,495・tetra81,887/10,870・elaine82,248/11,513 → `DISPLAY_ATK_OVERRIDE`/`DISPLAY_HP_OVERRIDE` 更新済み（2026-07-16）。
 4. ✅ **固定押し順の採録**: configB 推奨順（T1 19手/T2 24手/T3 25手）を record_skeleton にコメント採録。
 
-> **⚠ 残注意（Opusセッション冒頭タスク）**: configB.json の同梱 dispAtk は**旧値のまま**（表示ATK/HPはUI入力ではなくコード側自動決定＝exportは当時ビルドの値を同梱する構造的制約・ユーザー操作では変更不可）＝**キャッシュ内の推奨順・総ダメは旧ATKスケール計算**。M走（押し順自由）には影響しないが、**序数diff（§6-5）の「較正前基準順」は新ATK＋configB GEAR で headless 再探索して取り直す**こと（src/app.js は更新済みのため import して探索するだけ・ユーザー作業不要）。詳細 `data/configB_gear_panel.md` §3。
+> **✅ 冒頭タスク完了（2026-07-17）**: 較正前基準順を headless 再探索で確定。詳細は下記「較正前基準順（確定）」。
+>
+> **⚠ 残注意（背景）**: configB.json の同梱 dispAtk は**旧値のまま**（表示ATK/HPはUI入力ではなくコード側自動決定＝exportは当時ビルドの値を同梱する構造的制約・ユーザー操作では変更不可）＝**キャッシュ内の推奨順・総ダメは旧ATKスケール計算**。M走（押し順自由）には影響しないが、**序数diff（§6-5）の「較正前基準順」は新ATK＋configB GEAR で headless 再探索して取り直す**（src/app.js は更新済みのため import して探索するだけ・ユーザー作業不要）。詳細 `data/configB_gear_panel.md` §3。
+
+### 較正前基準順（確定・2026-07-17・構造修正C31〜C35の【前】）
+
+- **取得**: `analysis/research_baseline_order.mjs`（production 探索 `_selectRootPrefixes→_runRootPlan` を新ATKで再実行）。全キー列は `analysis/baseline_order_prefix.json`（序数diff §6-5 の機械可読アンカー）。
+- **条件**: engine=`C27-red-after-setup-refine`／新ATK(DISPLAY_ATK_OVERRIDE: edison96756/yamato75898/hecate73727/tetra81887/elaine82248)／configB GEAR／override{judg:200,pactcore:1}／affinity1.5。
+- **結果**: prefix採用=**["amplifa","banoshik"]**・総ダメ(10T)=**1,628,169,621**。
+- **旧ATK(configB.json同梱)との差**: prefix ["alone"]→["amplifa","banoshik"]・総ダメ1,692,225,745→1,628,169,621・**全10ターンで押し順に差分あり**（新ATKで最適ルートが実質変化＝§2注記の裏取り）。
+- **∴ 序数diffの正式「較正前」基準はこの `baseline_order_prefix.json`**。`data/record_skeleton.md` の参考順（L24-26）は**旧ATK探索＝非正**（M走は押し順自由のため実害なし・比較には使わない）。較正後(§3-6)の新推奨順とこの JSON を突合して押し順バイアス(C31)を事後検証する。
 
 > **⚠ 環境の二重性（sim03 データとの混用ルール）**: sim03 第1バッチのアンカー表（quantitative §4・実機/sim ×1.430 等）は**configA（旧装備）ペアで閉じた有効データ**＝fit入力として使い続けてよい（表の値を正とし、sim側Δの再実行はしない）。**sim04 の新規測定（M走）はすべて configB ペア**。1つのfitの中で「実機=旧装備 × sim=新装備」のような**環境跨ぎの突合は禁止**。
 
