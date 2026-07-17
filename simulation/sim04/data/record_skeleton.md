@@ -1,0 +1,62 @@
+# trialNN — 実機データ原本（加工せず）／sim04 単独データ取得（M走）
+
+<!--
+  ■ 記録スケルトン（コピー原本・sim04 で唯一のテンプレ）。**複製して trial01.md〜 を作成**し実機値を記入する。
+  ■ フォーマットは sim04 全 trial で厳守。整形・解釈は analysis/ 側で行い、ここは加工しない。
+  ■ trial は測定メニュー横断の通し番号。メニューID（M1/M2a/M2b/M3/M4）はメタヘッダで判別する。
+  ■ 各メニューの手順・判別式は sim04/README §4。共通ルール（非会心アンカー・hit数・ceil・HP%）も §4 冒頭。
+-->
+
+<!-- メタヘッダ（必須） -->
+- 試行番号: NN
+- 日付:
+- **測定メニュー: <M1 無アビ素走 / M2a judg単独 / M2b judg単独(装備替え) / M3 旺盛 / M4 バーストcap>・同メニュー内の走番号: __/__**
+- 装備config名: configB（強化後装備・§2ゲート）
+- **装備変更の有無（M2bのみ）**: なし / あり（外した武器:____ → 終了後の復元確認: 済/未）
+- ENGINE_VERSION: <構造修正前の測定なら C27-red-after-setup-refine のまま・修正後検証走なら新版を記入>
+- 使用キャッシュ: data/config.json（configB・2026-07-16受領。総ダメ1,692,225,745 / baseDmg1,181,258,810 / prefix["alone"] / override {judg:200,pactcore:1}）
+- 敵: cath_palug（キャスパリーグ・闇/affinity1.5・def10/max_hp=400,000,000 確定・署名済み）
+- UI装備パネル一致確認（表示ATK5人分・**DISPLAY_ATK_OVERRIDE 新値と一致**を確認。⚠configB同梱dispAtkは旧値＝configB_gear_panel.md §3）:
+  edison=96,756 / yamato=75,898 / hecate=73,727 / tetra=81,887 / elaine=82,248 → 実測時パネル読み: ____ / ____ / ____ / ____ / ____
+- 押し順: M走は自由（実際に押した順を§1に全記録）。固定順検証走の場合のみ下記「参考順」またはOpusセッションで取り直した較正前基準順を明記（逸脱: なし/あり ____）
+
+<!-- 参考: configB シム推奨順（⚠旧ATKスケールで探索された順＝configB_gear_panel.md §3-2。序数diffの正式基準はheadless再探索で取り直す） -->
+<!-- T1(19手): banoshik→droid→funki→absolute→funki→divinus→amplifa→effond(赤)→alone(赤)→puvoir→sleur→judg→inori→funki→legend→legend→funki→judg→knights -->
+<!-- T2(24手): judg→alone(赤)→alone(赤)→puvoir→legend→legend→effond(赤)→funki→sleur→judg→tenya(赤)→judg→judg→ifishant→legend→funki→tenya_re(赤)→tenya_re(赤)→puvoir→sleur→judg→alone(赤)→effond(赤)→judg -->
+<!-- T3(25手): knights→puvoir→funki→sleur→legend→legend→funki→legend→tenya(赤)→tenya_re(赤)→sleur→judg→puvoir→funki→tenya_re(赤)→judg→alone(赤)→alone(赤)→judg→effond(赤)→puvoir→judg→sleur→effond(赤)→judg -->
+
+---
+
+## 0. 測定条件（押下前チェック）
+
+- 開始時ボスHP% / 味方HP%5人分: ____ / ____
+- **有効バフの確認（M3 は必須）**: absolute/legend/mooncode 等の旺盛ソースが切れていること: ____
+- droid スタック数（M2 の N）: ____
+- 開始時 契晶ストック/累計/連理魔力: ____ / ____ / ____
+
+## 1. 押下・hit ログ（時系列・全押下。ターンをまたぐ場合は行に T を明記）
+
+<!-- judg ph0 は10hitを個別に1行ずつ。通常攻撃は連撃hit数分の行（C29）。攻撃フェイズはバースト本体/追加ダメ/ストリークを成分別に。 -->
+| T | 押下# | key/イベント | judgフェーズ(ph0/1/2) | hit#(複数hit時) | 成分（通常/バースト本体/追加ダメ/ロボ追撃/judg/streak/その他） | キャラ | 値 | 会心 | 急所 | 備考 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 1 |  |  |  |  |  |  |  |  |  |
+| … |  |  |  |  |  |  |  |  |  |  |
+| 1 | (攻撃フェイズ) |  | — |  |  |  |  |  |  |  |
+
+**敵フェイズ／ターン終了時ダメージ**（各ターン・シム非モデル分の帰属分離用）
+- DOTダメージ（発数×値）: ____
+- 反撃ダメージ（キャラ/値/会心・急所）: ____
+- その他: ____
+
+## 2. ターン毎スナップ（各ターン終了時に1行）
+
+| T | 終了時ボスHP% | 味方HP%5人分 | 契晶/累計/連理 | ゲージ5人分（敵フェイズ前） | ゲージ5人分（敵フェイズ後）※C24任意 | 敵行動名/特記 |
+|---|---|---|---|---|---|---|
+| 1 |  |  |  |  |  |  |
+
+- ヘカテーCDリキャスト発生押下#（C24任意・発生時のみ）: ____
+- ムーンコード発動タイミング（M3 必須・押下#）: ____
+
+## 3. 所感（自由記入・qualitative へ転記される一次メモ）
+
+-

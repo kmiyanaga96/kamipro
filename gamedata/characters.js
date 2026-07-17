@@ -457,7 +457,7 @@ const CHAR_REGISTRY = {
   },
 
   // ─── アリアンロッド[健美端麗] ─── ヤマトタケル互換(バースト加速＋バーストバフ)。
-  // 実装メモ・仮定は simulation/arianrhod_impl_notes.md 参照(スペックの曖昧点の解釈を記録)。
+  // 実装メモ・仮定は archive/arianrhod_impl_notes.md 参照(スペックの曖昧点の解釈を記録)。
   arianrhod: {
     type: 'kamihime',
     jp: '[健美端麗]アリアンロッド', shortJp: 'アリアン', gcls: 'gan', elem: 'light',

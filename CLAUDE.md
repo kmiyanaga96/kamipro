@@ -13,6 +13,7 @@
 - **KILL_TURN_DESIGN.md**: **最速撃破モード（kill-turn 自動目標）の設計草案（未実装・2026-07-07 起草＋§7必要性検討）**。§7で「演算量は非障害・真のブロッカーは絶対値精度（実機比×2級）」と整理し、**S3保留・S1+S2はsim02試行2の絶対乖離実測をゲート**に着手判断。ROADMAP の未確定Phase(ii)。
 - **ROADMAP.md**: **Phase 一覧・採番の一次台帳（2026-07-09 再編・2026-07-15 採番改訂）**。Phase 6=幻獣システム拡張／**Phase 7=静的スコア s の機械学習化（クローズ・archive＝PoC×2で安価サロゲートNO-GO）**／**Phase 8=アクセ実装（旧Phase 7から繰り下げ）**／未確定Phase=敵行動・味方生存(i)・kill-turn(ii)・VM/ワークフロー(iii)。各Phase詳細は個別docへ委譲。
 - **CHARACTER_ANALYSIS.md**: キャラ個別評価＆採用論の生きた考察台帳（2026-07-11 起草）。ヤマトvsアリアンのホライズン別比較・ナポレオン評・併用仮説（暫定）。序数比較ベース＝新キャラ/較正確定のたびに更新。
+- **ARIANROD_REGISTRATION.md**: **アリアンロッド登録較正の規定＋記録欄（2026-07-16 起草・実施待ち）**。実機入手に伴う9仮定（archive/arianrhod_impl_notes.md）の実機確定メニュー A0〜A9。**simではない小規模キャラ登録較正＝root一般フロー（完了後archiveへ移動）**・sim04と並行可（絶対値fitのみsim04後）。新キャラ登録較正の先例フォーマット。
 
 ### 現役データディレクトリ
 - **enemies/**: 敵DB intake。`enemies/README.md`（命名・追加手順・スキーマ）＋ `TEMPLATE.md` ＋ `<key>.md`（実機詳細＝根拠）。`gamedata/enemies.js` の `ENEMY_REGISTRY` がそこから蒸留した現在値。Phase4較正ボス `walpurgis_loki`・sim03較正ボス `fimbulvetr` を登録。
@@ -169,7 +170,9 @@ npm run preview              # dist を http 配信 → ブラウザで探索/�
   1. 成果物: `sim03/analysis/` の rollup 3書＋P3集計器2本（`rollup_xtrial.mjs`=slot×hit5走突合／`sim_slot_dump.mjs`=configA復元headlessリプレイでシム側slot値）。要約は `sim03/README.md` §6。
   2. 主要結果: ①**max_hp=400,000,000確定・敵DB反映済み**（ceil表示規約×オーバーキル交差） ②**絶対レベルアンカー取得**＝実機/sim 全体×1.430・バースト系×1.30→×1.78成長・深飽和(streak/DOT)一致=pre-cap raw局在再確認（C25前進） ③追撃cap×1.6〜3.3過小の数値確定（C5/C3） ④経済15/15・judgフェーズ15/15一致＝**C22クローズ・C23追検証パス** ⑤新規起票 **C28**(per-hitダメージロールRNG・低優先)/**C29**(通常DA/TA未モデル・低優先)/**C30**(judg ph0シム過大×1.3・override結合注意) ⑥ディスペル5走不発＝stack=0アンカーはこの編成では構造的に取れない（限定行動1T1個仮説・enemies/cath_palug.md注記）。
 - **ダメージ枠一次情報の受領・突合＋gamedataリネーム（2026-07-16 本セッション）**: ①ユーザー提供のダメージ枠まとめを `gamedata/damage_frames.txt` に格納（原文ママ・一次情報） ②sim内 `data/` との混同防止で **`data/`→`gamedata/` リネーム**（import/ドキュメント参照更新済み・golden不変） ③エンジン突合で **C31〜C35 起票**（C31 アビダメUP乗算→加算＝C30真因候補・C32 旺盛クランプ＝C25寄与候補・C34 バーストcap未実装＝逆符号でbaseline不足を裏付け）。**修正はいずれも較正セッションゲート**（押し順・override・golden に波及するためsim03バッチ運用と衝突させない）。
+- **sim03クローズ＋sim04定義（2026-07-16 本セッション・ユーザー決定）**: **実機装備が強化され sim03（configA）と同等の環境ではなくなった**→ sim03 は第1バッチのみでクローズ（序数A/B第2バッチ案は較正後に新環境で再設計）。追加較正（旧 sim03/calibration_prep.md）は**丸ごと sim04 として再定義**し、テンプレ準拠で整備済み: `simulation/sim04/README.md`＝自己完結プロトコル（構造修正C31〜C35を先行させる依存チェーン・単独データ取得メニューM1〜M5・環境跨ぎ突合禁止ルール・受入基準）＋ `sim04/data/record_skeleton.md`＝Mメニュー対応記録様式。**sim04 実施は新セッションにて Opus と行う（ユーザー決定）**。ML導入（DQN等）は将来の選択肢として保留（編成・敵・アクセの組合せ爆発が現実化した時点で再検討＝模倣学習rollout蒸留→policy+value誘導ビームの順を推奨・本セッション議論）。
 - **次セッションの申し送り（優先順）**:
-  1. **第2バッチ前の再export（ユーザー作業込み）**: max_hp 400M反映で `_configSig` が変わり configA キャッシュは自然ミス→UI で cath_palug 再探索→configA再export（dispAtk はLv95更新済み・表示HPは未更新のまま=ユーザー合意）。
-  2. **第2バッチ＝序数A/Bへ転換（integrated §5 提案・要ユーザー確定）**: D追加走は不要（イベント列決定的・hit値はロールRNGで平均吸収）。シム推奨順(新export) vs 反実仮想順を各2〜3走。record_skeleton 任意欄の追記候補=敵フェイズ前後ゲージ(C24)・ヘカテーリキャスト発生押下#。
-  3. **較正セッション（ユーザーゲート・golden再fit必至）**: 絶対レベル（sim03アンカー表=quantitative §4 を入力）→C25 raw枠帰属（stack=0不発のため T1枠回帰で baseline/成長分離）→C5/C3 追撃cap（rawとセット・cap単独fit早計）→**C30 judg ph0**（唯一のシム過大・override {judg} と結合＝押し順変化に要警戒）→def/耐性→golden再fit＋override再fit。**実施手順・単独データ取得メニュー（M1無アビ素走/M2 judg単独/M3旺盛スタック等）・依存関係チェーンは `simulation/sim03/calibration_prep.md` に策定済み（2026-07-16）＝C31〜C35構造修正を先行させる順序が絶対**。
+  1. ✅ **sim04 開始ゲート充足（2026-07-16 configB受領）**: `sim04/data/config.json` 格納・パネル整合10/10枠一致（`configB_gear_panel.md`）・`DISPLAY_ATK_OVERRIDE`/`DISPLAY_HP_OVERRIDE` 新値更新済み（ATK 96756/75898/73727/81887/82248・HP 12252/9668/10495/10870/11513）。**⚠configB同梱dispAtkは旧値＝キャッシュ内推奨順は旧ATK探索**（M走非影響・序数diff基準順はOpusセッション冒頭にheadless再探索で取り直す＝sim04/README §2注記）。
+  2. **sim04 実施（Opusセッション）**: 読み順は sim04/README §0。冒頭で較正前基準順のheadless再探索→構造修正（C31〜C35）→M走データ取得→fit（C25→C5/C3→C30）→golden/override再fit→新推奨順export＋序数diff記録。**構造修正とスカラfitの間でセッションを切らない**。
+  3. **アリアンロッド登録較正（sim04と並行可）**: 実機入手に伴う9仮定の確定＝`ARIANROD_REGISTRATION.md` の A0〜A9 メニュー（root一般フロー・完了後archiveへ）。スカラ非依存観測（回数/対象/文言）は即実施可・**絶対値fitのみsim04後**。DB反映時は golden不変＋アリアン編成10T無クラッシュを確認。
+  4. **sim04 完了後**: 序数A/B検証（旧sim03第2バッチ案）を較正済みエンジン×新環境で再設計するか要否をユーザーと確定。C24（ゲージ）はM走相乗りデータで診断更新。CHARACTER_ANALYSIS §2（ヤマトvsアリアン）はアリアン登録較正の結果と合わせて再測。
