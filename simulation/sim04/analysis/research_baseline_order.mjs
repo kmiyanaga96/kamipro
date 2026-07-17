@@ -50,7 +50,7 @@ console.log(`- override=${JSON.stringify(OVERRIDE)} / prefix採用=${JSON.string
 console.log(`- 新ATK探索 総ダメ(10T)= ${fmt(best.dmg)}`);
 console.log(`- 旧ATK(configB.json同梱) 総ダメ= ${fmt(val.dmg)} / 旧prefix=${JSON.stringify(val.prefix||[])}`);
 console.log(`\n## 較正前基準順（新ATK・押し順キー）`);
-const keys=best.turnsKeys;
+const keys=best.rows.map(r=>r.keys);  // _runRootPlan の返りは {prefix,dmg,rows}＝per-turnキーは rows[t].keys
 for(let t=0;t<keys.length;t++) console.log(`- T${t+1} (${keys[t].length}手): ${keys[t].join(' ')}`);
 
 // 旧ATK順との差分（同ターン内のキー列比較・序数diffの一次材料）
