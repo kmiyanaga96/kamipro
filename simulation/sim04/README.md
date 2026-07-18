@@ -42,11 +42,12 @@
 
 ### 較正前基準順（確定・2026-07-17・構造修正C31〜C35の【前】）
 
-- **取得**: `analysis/research_baseline_order.mjs`（production 探索 `_selectRootPrefixes→_runRootPlan` を新ATKで再実行）。全キー列は `analysis/baseline_order_prefix.json`（序数diff §6-5 の機械可読アンカー）。
-- **条件**: engine=`C27-red-after-setup-refine`／新ATK(DISPLAY_ATK_OVERRIDE: edison96756/yamato75898/hecate73727/tetra81887/elaine82248)／configB GEAR／override{judg:200,pactcore:1}／affinity1.5。
-- **結果**: prefix採用=**["amplifa","banoshik"]**・総ダメ(10T)=**1,628,169,621**。
-- **旧ATK(configB.json同梱)との差**: prefix ["alone"]→["amplifa","banoshik"]・総ダメ1,692,225,745→1,628,169,621・**全10ターンで押し順に差分あり**（新ATKで最適ルートが実質変化＝§2注記の裏取り）。
-- **∴ 序数diffの正式「較正前」基準はこの `baseline_order_prefix.json`**。`data/record_skeleton.md` の参考順（L24-26）は**旧ATK探索＝非正**（M走は押し順自由のため実害なし・比較には使わない）。較正後(§3-6)の新推奨順とこの JSON を突合して押し順バイアス(C31)を事後検証する。
+- **正式アンカー = 実機UI export**（新ATKで再探索した production 結果）: `data/cache_newatk_20260717.json`（provenance原本）→ 機械可読 `analysis/baseline_order_prefix.json`（序数diff §6-5 用）。
+- **条件**: engine=`C27-red-after-setup-refine`／新ATK(DISPLAY_ATK_OVERRIDE: edison96756/yamato75898/hecate73727/tetra81887/elaine82248)／configB GEAR／**override=auto-cal `{judg:160,pactcore:1}`**／affinity1.5。
+- **結果**: prefix採用=**["alone"]**・総ダメ(10T)=**1,710,009,168**。
+- **旧configB.json(旧ATK・auto-cal {judg:200}・prefix["alone"]・1,692,225,745)との差**: **prefix は不変（["alone"]）**。新ATKで動いたのは **override（{judg:200}→{judg:160}）** と総ダメ（1,692→1,710M）と各ターンの押し順（ATK+override変化による）。
+  - ⚠ **訂正記録**: 当初 `research_baseline_order.mjs` が configB gate の stale override `{judg:200}` を固定していたため prefix ["amplifa","banoshik"]/1,628M と誤出力した。override は production と同じ **auto-calibration** で決めるのが正（新ATKでは `{judg:160}`）。ハーネスは auto-cal 化済み・出力は `baseline_reproduce_check.json`（再現検証用・正式アンカーは上記 export）。
+- **∴ 序数diffの正式「較正前」基準は `baseline_order_prefix.json`**（=実機export）。`data/record_skeleton.md` の参考順（L24-26）は**旧ATK探索＝非正**（M走は押し順自由のため実害なし・比較には使わない）。較正後(§3-6)の新推奨順とこの JSON を突合して押し順バイアス(C31)を事後検証する。
 
 > **⚠ 環境の二重性（sim03 データとの混用ルール）**: sim03 第1バッチのアンカー表（quantitative §4・実機/sim ×1.430 等）は**configA（旧装備）ペアで閉じた有効データ**＝fit入力として使い続けてよい（表の値を正とし、sim側Δの再実行はしない）。**sim04 の新規測定（M走）はすべて configB ペア**。1つのfitの中で「実機=旧装備 × sim=新装備」のような**環境跨ぎの突合は禁止**。
 

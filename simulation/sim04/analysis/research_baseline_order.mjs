@@ -9,7 +9,7 @@
 //   _selectRootPrefixes(n) → 各 prefix を _runRootPlan(prefix,n) → 最大dmgを採用、を再現する。
 import fs from 'fs';
 import { buildFormation, setCurrentSubs, recalcGearKCFromDispAtk, setStaticOverride,
-         _selectRootPrefixes, _runRootPlan, GEAR, DMG, ENGINE_VERSION } from '../../../src/app.js';
+         calibrateStaticScores, _selectRootPrefixes, _runRootPlan, GEAR, DMG, ENGINE_VERSION } from '../../../src/app.js';
 
 // configB シグネチャ（data/config.json の entries[0] キーから復元）
 const cache=JSON.parse(fs.readFileSync('simulation/sim04/data/config.json','utf8'));
@@ -19,7 +19,6 @@ const [hero,kami,gear,subs,def,maxhp,exMult,exCap]=sig;
 
 // 【新ATK】= src/app.js DISPLAY_ATK_OVERRIDE（configB実機値・line110）。configB.json同梱dispAtk（旧値）は使わない。
 const NEW_ATK={ edison:96756, yamato:75898, hecate:73727, tetra:81887, elaine:82248 };
-const OVERRIDE={ judg:200, pactcore:1 };  // configB export時の override（README §2-1）
 const N=10;
 
 // 環境復元（sim_slot_dump.mjs と同型・ただし dispAtk は新ATK）
@@ -30,9 +29,12 @@ DMG.enemy_def=def; DMG.enemy_max_hp=maxhp;
 DMG.edison_burst_extra_mult=exMult; DMG.edison_burst_extra_cap=exCap;
 DMG.affinity=1.5;                 // cath_palug 闇 vs 光編成＝有利（configSig非含のため明示・sim_slot_dump注記と同じ）
 recalcGearKCFromDispAtk(NEW_ATK);
-setStaticOverride(OVERRIDE);
 
+// ⚠ override は【production と同じ auto-calibration】で決める（旧: configB gate の {judg:200} を固定していたのは誤り＝
+//   新ATKでは auto-cal が {judg:160} を選ぶ。実機UI export が {judg:160}/prefix["alone"] で裏取り済み・2026-07-17）。
 const t0=Date.now();
+const OVERRIDE=calibrateStaticScores(N).override;
+setStaticOverride(OVERRIDE);
 const prefixes=_selectRootPrefixes(N);
 let best=null;
 for(const p of prefixes){
@@ -61,8 +63,9 @@ for(let t=0;t<Math.max(keys.length,oldK.length);t++){
   console.log(`- T${t+1}: ${a===b?'一致':'差分あり'}`);
   if(a!==b){ console.log(`    旧: ${a}`); console.log(`    新: ${b}`); }
 }
-// 機械可読JSONも保存（序数diff最終記録用）
-fs.writeFileSync('simulation/sim04/analysis/baseline_order_prefix.json',
+// 機械可読JSON（再現クロスチェック用）。⚠正式アンカーは baseline_order_prefix.json＝実機UI export
+//   （cache_newatk_20260717.json）を正とする。本ハーネスはそれを独立再現できるかの検証器。
+fs.writeFileSync('simulation/sim04/analysis/baseline_reproduce_check.json',
   JSON.stringify({engine:ENGINE_VERSION, newAtk:NEW_ATK, override:OVERRIDE, dmg:best.dmg,
     prefix:best.prefix||[], turnsKeys:keys}, null, 2));
-console.log(`\n(baseline_order_prefix.json を保存)`);
+console.log(`\n(baseline_reproduce_check.json を保存＝実機export baseline_order_prefix.json との突合用)`);
