@@ -64,14 +64,76 @@
 ### §2.1 各データのシム内呼称 ###
 
 - **ジャッジメント・デイ**: `judg`
-- **アブソリュートソヴリン**: `?`
+- **アブソリュートソヴリン**: `absolute`
 - **ディウィヌスイロージョン**: `divinus`
-- **[HELIX]テトラ**: `?`
-- **ゴッド・オムニポンテス**: `?`
-- **コヴァレント・アルカナ**: `?`
-- **フェイト・イモータル**: `?`
+- **[HELIX]テトラ**: `helix`
+- **ゴッド・オムニポンテス**: `omni`（バフキー。`def.onBattleStart` フックで付与・`helix` で再付与）
+- **コヴァレント・アルカナ**: `renri`（連理魔力リソース。`def.onAbility`/`def.onPartyBurst` フックで proc・同ターンカウンタ `T.proc`）
+- **フェイト・イモータル**: `milestones.renri:30`（HELIX解禁ゲートとしてのみ実装）
 
 ### §2.2 シム判明データ ###
 
--
+> 出所: `gamedata/js/characters.js`（`tetra` エントリ）＋ `src/constants.js`（`DMG`）に現在エンコード済みの値・挙動を配置（新規導出はしない）。
+
+#### 基本 ####
+
+- 定義キー: `tetra`（`type:'kamihime'` / `elem:'light'` / `gcls:'gt'`）
+- `baseAtk`/`baseHp`: 10110 / 1100（`lvCap:90`＝Lv90解放で +3900 ATK）
+- バースト係数: `burst_coef_a=5` / `burst_coef_b=2500`（スクショ確定）
+- 得意武器: 杖・魔導具
+
+#### ジャッジメント・デイ（`judg`・赤） ####
+
+- 定義: `['r', 10, 0]`（色=赤 / CD=10 / 初期CD=0）
+- ジャッジ倍率: `judg_mult=3`（通常比3倍） / 1ヒット減衰 `judg_cap=350000`（アビ枠）
+- 3フェーズ循環（`sim.judgPhase%3`・**戦闘通算で連続**／同ターン上限は `T.ju`＜`judgCap`）:
+  - ph0=敵全体10回ダメージ（アビ枠）／ ph1=バースト発動／ ph2=通常攻撃
+- 動的スコア `s`: 攻撃ロボ未起動（CD=0）なら 30、起動後は 80（ロボ先行を優先）
+
+#### アブソリュートソヴリン（`absolute`・黄） ####
+
+- 定義: `['y', 10, 0]`（黄 / CD=10）・効果ターン `dur_absolute=2` ・静的スコア `s=130`
+- 全体バーストゲージ付与 `BG.absolute=20`（`partyBG`・味方全体 `addG(CHARS,…)`）
+- シムがモデル化しているバフ（`absolute` バフ在中で加算）:
+  - 攻撃/アサルト `assault_absolute=+0.30`
+  - 旺盛 `vigor_absolute=+0.30`（基礎値36 → ×1.3）
+  - 会心発動率 `crit_rate_absolute=+0.25`
+  - 急所 `acute_absolute=+0.090`（急所倍率1.30換算）
+  - バーストダメージ `burst_dmg_absolute=+0.30`
+  - ※一次情報の防御+30%・通常/アビの+30%及び上限+20%・反逆/堅牢/忍耐は現状シム未モデル化
+
+#### ディウィヌスイロージョン（`divinus`・青） ####
+
+- 定義: `['b', 10, 0]`（青 / CD=10）
+- 敵防御-30%: `divinus_def` を `dur_divinus_def=2` ターン付与（後続全攻撃を底上げ）
+- DOT: `divinus_dot` を `dur_divinus_dot=2` ターン付与。`turnEnd` で `divinus_dot_types=4` 種 × `min(敵最大HP×10%, divinus_dot_cap=100000)` を概算加算（順序非依存）
+
+#### ［HELIX]テトラ（`helix`・黄） ####
+
+- 定義: `['y', 10, 0]`（黄 / CD=10）
+- guard: `sim.renri>=30 && !sim.helix_abil_used`（連理魔力30以上・戦闘中1回のみ）
+- 効果: 全体BG+100（`addG(CHARS,100)`）＋ `omni`（ゴッド・オムニポンテス）を再付与
+- HELIX解禁後（`helix_done`）はバースト追加ダメが強化（下記）
+
+#### バースト追加ダメージ（`def.onBurst`・アビ枠） ####
+
+- HELIX前: `tetra_burst_mult=3` / `tetra_burst_cap=1000000`
+- HELIX後: `tetra_burst_mult2=6` / `tetra_burst_cap2=1000000`
+- 自バースト時に自身の全アビCDを −1（HELIX後は −2）
+
+#### ゴッド・オムニポンテス（`omni`・アシスト1） ####
+
+- 特殊攻撃 `spec_omni=+0.30` ・効果ターン `dur_omni=1`
+- `def.onBattleStart` で戦闘開始時に光パーティへ自動付与・`helix` でも再付与
+
+#### コヴァレント・アルカナ（`renri`・アシスト2） ####
+
+- 連理魔力の総上限 `RENRI_MAX=30` ・同ターン proc 発動上限 `RENRI_CAP=5`
+- proc 条件: 光パーティのアビ12回毎（`onAbility`・`T.ability%12`）／バースト2回毎（`onPartyBurst`・`T.burst%2`）
+- 1 proc で連理魔力+1（`RENRI_MAX` で頭打ち）＆ ジャッジCDが0でなければ即0（`JUDG_REACT=RENRI_CAP`）
+
+#### フェイト・イモータル（アシスト3） ####
+
+- シムでは連理魔力30マイルストーン `milestones.renri:30`（＝HELIX解禁の検出ゲート `helix.reached`）としてのみ実装
+- 一次情報の全攻撃ダメージプラス・自動復活・防御3倍は現状シム未モデル化
 
