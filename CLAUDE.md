@@ -1,7 +1,7 @@
 # 神姫PROJECT R — バーストトラッカー 開発ガイド
 
 ## 概要
-バースト編成シミュレーター＆最適押し順トラッカー。**Phase5 S5（2026-06-30）で Vite/ESM モジュール構成へ移行**：`index.html`=薄いシェル、エンジン＝`src/app.js`、Worker＝`src/worker.js`、DB＝`gamedata/*.js`（ESM。**旧 `data/`＝2026-07-16 に sim内 `data/` との混同防止でリネーム**）。開発は `npm run dev`、配布は `npm run build`→`dist/`（`npm run preview` で確認。**ESM は file:// 直開き不可＝要http**）。移行の一次情報は archive/VITE_MIGRATION.md。
+バースト編成シミュレーター＆最適押し順トラッカー。**Phase5 S5（2026-06-30）で Vite/ESM モジュール構成へ移行**：`index.html`=薄いシェル、エンジン＝`src/app.js`、Worker＝`src/worker.js`、DB＝`gamedata/js/*.js`（ESM。**旧 `data/`＝2026-07-16 に sim内 `data/` との混同防止で `gamedata/` へリネーム→2026-07-19 に `gamedata/js/`（現在値）と `gamedata/md/`（一次情報）へ大別**）。開発は `npm run dev`、配布は `npm run build`→`dist/`（`npm run preview` で確認。**ESM は file:// 直開き不可＝要http**）。移行の一次情報は archive/VITE_MIGRATION.md。
 
 ## ドキュメント体系（Antigravityエージェントとの共有用）
 
@@ -19,7 +19,7 @@
 - **ARIANROD_REGISTRATION.md**: **アリアンロッド登録較正の規定＋記録欄（2026-07-16 起草・実施待ち）**。実機入手に伴う9仮定（archive/arianrhod_impl_notes.md）の実機確定メニュー A0〜A9。**simではない小規模キャラ登録較正＝root一般フロー（完了後archiveへ移動）**・sim04と並行可（絶対値fitのみsim04後）。新キャラ登録較正の先例フォーマット。
 
 ### 現役データディレクトリ
-- **enemies/**: 敵DB intake。`enemies/README.md`（命名・追加手順・スキーマ）＋ `TEMPLATE.md` ＋ `<key>.md`（実機詳細＝根拠）。`gamedata/enemies.js` の `ENEMY_REGISTRY` がそこから蒸留した現在値。Phase4較正ボス `walpurgis_loki`・sim03較正ボス `fimbulvetr` を登録。
+- **gamedata/md/敵/**（旧 `enemies/`＝2026-07-19 に `gamedata/md/` 配下へ移動）: 敵DB intake。`README.md`（命名・追加手順・スキーマ）＋ `TEMPLATE.md` ＋ `<key>.md`（実機詳細＝根拠）。`gamedata/js/enemies.js` の `ENEMY_REGISTRY` がそこから蒸留した現在値。Phase4較正ボス `walpurgis_loki`・sim03較正ボス `fimbulvetr` を登録。
 - **simulation/**: Phase 4 の試行データ蓄積。`simulation/README.md`（命名規約・ワークフロー・**較正カデンツ=統計的較正×反復可能ボス（2026-07-12転換）**）＋ `TEMPLATE/` ＋ `simNN/`。**sim03以降の新構造（ユーザー決定）**: `data/`（`config.json`基本情報JSON=探索キャッシュexport兼用 / **`record_skeleton.md`＝各simで唯一の記録テンプレ（コピー原本）** / `trialNN.md`実機原本＝record_skeletonを複製して作成）＋ `analysis/`（**2層構造・コンテキスト有界化**: `per_trial/trialNN_{quant,quali}.md`＝**単trial中間集計**[trialNN1本のみ入力] → `quantitative_analysis.md`/`qualitative_analysis.md`＝**trial横断rollup**[per_trial全trial入力・決定性/分散/max_hp収束はここ専用] → `integrated_analysis.md`＝統合[両rollupのみ]）＋分類不能ファイルはsim直下。sim01/02は旧構造のまま凍結。**新試行は `cp -r simulation/TEMPLATE simulation/simNN` で開始**。**⚠テンプレは record_skeleton のみ・trialNN の複製とpushはユーザーが行う・sim内mdフォーマットは record_skeleton に統一必須（混同防止）**。
 
 ### archive/（クローズ済み・歴史台帳＝現状の一次情報ではない）
@@ -41,12 +41,16 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
 - `package.json` / `vite.config.mjs`: Viteビルド、依存モジュール、Workerバンドル設定。
 - `test/golden.mjs`: ローカルNode.js環境から `src/app.js` を読み込み、10ターンのシミュレーション結果アサートを行う回帰テスト用ハーネス。
 
-### 2. `gamedata/` 配下 (データ層 / ESM。旧 `data/`＝2026-07-16 リネーム・sim内 `data/` との混同防止)
-- `gamedata/weapons.js`: 武器マスターDB (`WEAPON_MASTER`)
-- `gamedata/summons.js`: 幻獣マスターDB (`SUMMON_REGISTRY`)
-- `gamedata/enemies.js`: 敵DB (`ENEMY_REGISTRY`)
-- `gamedata/characters.js`: 統一キャラDB (`CHAR_REGISTRY`、`DEBUFF_KEYS`/`buffCount` 同梱)。`src/app.js` からの循環インポートを持つが、関数内での遅延評価に限定することでTDZを回避。
-- `gamedata/damage_frames.txt`: **ダメージ枠（バフ/ウェポンスキルの乗り方）の一次情報**（ユーザー提供・2026-07-16・原文ママ）。エンジンとの突合結果は CALIBRATION_ANALYSIS.md C31〜C35。
+### 2. `gamedata/` 配下 (データ層 / ESM。2026-07-19 に `js/`＝現在値・`md/`＝一次情報へ大別。旧 `data/`＝2026-07-16 リネーム)
+#### `gamedata/js/` (シムが読む現在値 / ESM)
+- `gamedata/js/weapons.js`: 武器マスターDB (`WEAPON_MASTER`)
+- `gamedata/js/summons.js`: 幻獣マスターDB (`SUMMON_REGISTRY`)
+- `gamedata/js/enemies.js`: 敵DB (`ENEMY_REGISTRY`)
+- `gamedata/js/characters.js`: 統一キャラDB (`CHAR_REGISTRY`、`DEBUFF_KEYS`/`buffCount` 同梱)。`src/app.js` からの循環インポートを持つが、関数内での遅延評価に限定することでTDZを回避。
+#### `gamedata/md/` (一次情報・基礎データ / source of record)
+- カテゴリ別サブフォルダ `神姫/` `英霊/` `幻獣/` `敵/` `その他/`（各 `README.md` に用途）。詳細は `gamedata/md/README.md`。md=根拠 / js=現在値。
+- `gamedata/md/敵/`: 敵DB intake（旧 `enemies/`）。`gamedata/js/enemies.js` の蒸留元。
+- `gamedata/md/その他/damage_frames.md`: **ダメージ枠（バフ/ウェポンスキルの乗り方）の一次情報**（ユーザー提供・2026-07-16・原文ママ。旧 `gamedata/damage_frames.txt`）。エンジンとの突合結果は CALIBRATION_ANALYSIS.md C31〜C35。
 
 ### 3. `src/` 配下 (エンジン・UI層 / ESM)
 - `src/constants.js`: ゲーム定数と、乗算補正および減衰上限などを管理する定数 `DMG`。他モジュールへの依存を持たない葉モジュール。
@@ -59,8 +63,8 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
 ## 開発ルール & 不変条件
 
 ### 1. キャラクター追加・変更の原則
-- **`CHAR_REGISTRY`（gamedata/characters.js）が唯一の編集先。** エンジン本体（`class Sim`）にキャラ名リテラルを記述しない。
-- **⚠ 循環参照回避ルール**: `gamedata/characters.js` のオブジェクトリテラルの**トップレベル即時評価フィールド**（例: `gmax`）で `BG`/`DMG`/`GEAR` を直接参照してはならない（TDZ / 循環死によるUI全消失の原因）。ゲージ上限は素の数値で持つ（100=`BG.other_max`）。**関数本体（`cands.exec`/`def`フック）内の参照は遅延評価のため安全**。
+- **`CHAR_REGISTRY`（gamedata/js/characters.js）が唯一の編集先。** エンジン本体（`class Sim`）にキャラ名リテラルを記述しない。
+- **⚠ 循環参照回避ルール**: `gamedata/js/characters.js` のオブジェクトリテラルの**トップレベル即時評価フィールド**（例: `gmax`）で `BG`/`DMG`/`GEAR` を直接参照してはならない（TDZ / 循環死によるUI全消失の原因）。ゲージ上限は素の数値で持つ（100=`BG.other_max`）。**関数本体（`cands.exec`/`def`フック）内の参照は遅延評価のため安全**。
 - キャラ固有状態は `state` に宣言（Simが snap/clone/init で自動同期）。
 - 累積アサルトやバーストプラス等の状態は、クローン時の参照共有を防ぐため、オブジェクトではなく**フラットな数値変数**として `state` に宣言すること。
 - **毎ターン自動デクリメントする残ターン系state**（ロボ残T・ムーンコード等）は `tickStates: ['key', ...]` を宣言（`buildFormation`が`TICK_STATES`へ集約し`tick()`が汎用処理）。
@@ -175,6 +179,7 @@ npm run preview              # dist を http 配信 → ブラウザで探索/�
 - **ダメージ枠一次情報の受領・突合＋gamedataリネーム（2026-07-16 本セッション）**: ①ユーザー提供のダメージ枠まとめを `gamedata/damage_frames.txt` に格納（原文ママ・一次情報） ②sim内 `data/` との混同防止で **`data/`→`gamedata/` リネーム**（import/ドキュメント参照更新済み・golden不変） ③エンジン突合で **C31〜C35 起票**（C31 アビダメUP乗算→加算＝C30真因候補・C32 旺盛クランプ＝C25寄与候補・C34 バーストcap未実装＝逆符号でbaseline不足を裏付け）。**修正はいずれも較正セッションゲート**（押し順・override・golden に波及するためsim03バッチ運用と衝突させない）。
 - **sim03クローズ＋sim04定義（2026-07-16 本セッション・ユーザー決定）**: **実機装備が強化され sim03（configA）と同等の環境ではなくなった**→ sim03 は第1バッチのみでクローズ（序数A/B第2バッチ案は較正後に新環境で再設計）。追加較正（旧 sim03/calibration_prep.md）は**丸ごと sim04 として再定義**し、テンプレ準拠で整備済み: `simulation/sim04/README.md`＝自己完結プロトコル（構造修正C31〜C35を先行させる依存チェーン・単独データ取得メニューM1〜M5・環境跨ぎ突合禁止ルール・受入基準）＋ `sim04/data/record_skeleton.md`＝Mメニュー対応記録様式。**sim04 実施は新セッションにて Opus と行う（ユーザー決定）**。ML導入（DQN等）は将来の選択肢として保留（編成・敵・アクセの組合せ爆発が現実化した時点で再検討＝模倣学習rollout蒸留→policy+value誘導ビームの順を推奨・本セッション議論）。
 - **リポジトリ規約の制定（2026-07-16 本セッション・ユーザー指示）**: `REPO_STANDARDS.md` 新設＝リクエスト振り分け表（Cx起票/simNN/キャラ登録Ax/仮説Hx/一次情報/dev/Phase/essays の8フロー・曖昧時はユーザーへフロー確認）・ID接頭辞レジストリ（Cx/Dx=全リポ一意、Ax/Mx/Hx=台帳文書内連番、B/F/P/S等の旧ローカルIDは凍結）・MD必須ヘッダ（種別/ゴール/完了条件/状態）・ライフサイクル規律（作成/クローズとCLAUDE.md台帳更新を同一コミット）。**既存MDへの遡及適用はしない**（次回大改訂時にヘッダ付与）。
+- **フォルダ構成の再編＋立ち絵コード削除（2026-07-19 本セッション・ユーザー指示）**: ①`public/`（`portraits/*.png` 未DB化の立ち絵置き場）を削除し、キャラ画像を表示するコード（`_renderProgChars` の `<img src="portraits/...">` フォールバック・index.html の `.sim-char-img`/`.sim-char.has-img` CSS）を撤去＝現状の名前バッジ表示のみに集約（挙動不変・立ち絵は未配置だった）。 ②`gamedata/` を **`gamedata/js/`（シムが読む現在値＝既存4 .js）** と **`gamedata/md/`（一次情報・source of record）** に大別。import 更新（`src/app.js`→`../gamedata/js/*.js`・`characters.js`→`../../src/*`）・golden 不変（raw 187,186,834 / cal 208,689,608）・build 成功。 ③`gamedata/md/` に `神姫/` `英霊/` `幻獣/` `敵/` `その他/` を新設（**今回は構造のみ＝各 README で用途明示・実際の一次情報 md は今後順次**）。ルート `enemies/` は `gamedata/md/敵/` へ移動（参照更新済み）。`damage_frames.txt` は `gamedata/md/その他/damage_frames.md` へ（原文ママ）。
 - **次セッションの申し送り（優先順）**:
   1. ✅ **sim04 開始ゲート充足（2026-07-16 configB受領）**: `sim04/data/config.json` 格納・パネル整合10/10枠一致（`configB_gear_panel.md`）・`DISPLAY_ATK_OVERRIDE`/`DISPLAY_HP_OVERRIDE` 新値更新済み（ATK 96756/75898/73727/81887/82248・HP 12252/9668/10495/10870/11513）。**⚠configB同梱dispAtkは旧値＝キャッシュ内推奨順は旧ATK探索**（M走非影響・序数diff基準順はOpusセッション冒頭にheadless再探索で取り直す＝sim04/README §2注記）。
   2. **sim04 実施（Opusセッション）**: 読み順は sim04/README §0。冒頭で較正前基準順のheadless再探索→構造修正（C31〜C35）→M走データ取得→fit（C25→C5/C3→C30）→golden/override再fit→新推奨順export＋序数diff記録。**構造修正とスカラfitの間でセッションを切らない**。

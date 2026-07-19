@@ -1,4 +1,4 @@
-// gamedata/weapons.js — 手持ちウェポンマスタ（src/app.js から ESM import）
+// gamedata/js/weapons.js — 手持ちウェポンマスタ（src/app.js から ESM import）
 // skills の box キーは GEAR_BOXES キーに対応（assault/elem/vigor/spec/dmgup/acute/crit_rate/
 //   other/technica/na_dmg/abi_dmg/burst_dmg/na_cap/abi_cap/burst_cap）。
 //   technica: 通常攻撃/アビには乗るがバーストからは除外される枠（実機: バースト=通常ダメ(テクニカ除く)基準）。

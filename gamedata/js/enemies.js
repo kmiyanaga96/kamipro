@@ -1,6 +1,6 @@
-// gamedata/enemies.js — 敵DB（ランタイム ENEMY_REGISTRY）
-// ※ 各エントリの「根拠・実機詳細」は enemies/<key>.md（intake）を正とし、本ファイルは
-//    シムが読む現在値（distilled runtime）。新規追加の手順・命名は enemies/README.md 参照。
+// gamedata/js/enemies.js — 敵DB（ランタイム ENEMY_REGISTRY）
+// ※ 各エントリの「根拠・実機詳細」は gamedata/md/敵/<key>.md（intake）を正とし、本ファイルは
+//    シムが読む現在値（distilled runtime）。新規追加の手順・命名は gamedata/md/敵/README.md 参照。
 //
 // エントリ・スキーマ:
 //   label   : 表示名（日本語可）
@@ -20,7 +20,7 @@ const ENEMY_REGISTRY = {
   },
   // ── Phase 4 較正ボス（PHASE4_PLAN §7 のPhase5前倒し・1体のみ）──
   // 採用理由: 幻属性=相互有利(全属性が幻に有利・幻も全属性に有利)→与ダメは有利×1.5 / ムーンコードで
-  //           被弾無効化しソロ生存 → turn-by-turn ホライズン全域(T2〜HELIXターン=C1)を1体でカバー。根拠は enemies/walpurgis_loki.md。
+  //           被弾無効化しソロ生存 → turn-by-turn ホライズン全域(T2〜HELIXターン=C1)を1体でカバー。根拠は gamedata/md/敵/walpurgis_loki.md。
   // ⚠ 較正メモ(エンジン未消費・絶対逆算時に手で補正): HP依存の2フェーズ被ダメ倍率を持つ。
   //    フェーズ1(HP>50%)=常時30%カット→与ダメ×0.7 / HP50%「ファントムリリース」後=カット解除+被ダメ+20%→×1.2。
   //    序数/成分比は同一フェーズで相殺。C1絶対逆算はフェーズ倍率を除算し、測定ターンのボスHP%を要記録。
@@ -31,7 +31,7 @@ const ENEMY_REGISTRY = {
     element:  'phantom',   // 幻属性（レイドボス）
     affinity: 1.5,         // 光→幻=有利×1.5 [実機]（幻は相互有利: 全属性⇄幻が互いに有利。等倍ではない）
   },
-  // ── 旧sim03較正ボス（2026-07-14 無期限延期。根拠 enemies/fimbulvetr.md 冒頭注記）──
+  // ── 旧sim03較正ボス（2026-07-14 無期限延期。根拠 gamedata/md/敵/fimbulvetr.md 冒頭注記）──
   // trial01でパーティ全滅（7T討伐は偶然と判明）→較正対象から除外・cath_palug へ緊急置換。エントリは将来の再挑戦用に保持。
   fimbulvetr: {
     label:    'フィンブルヴェトル',
@@ -40,7 +40,7 @@ const ENEMY_REGISTRY = {
     element:  'phantom',   // 幻属性
     affinity: 1.5,         // 光→幻=有利×1.5（幻は相互有利）
   },
-  // ── sim03 較正ボス（2026-07-14 緊急置換・第1走。根拠 enemies/cath_palug.md）──
+  // ── sim03 較正ボス（2026-07-14 緊急置換・第1走。根拠 gamedata/md/敵/cath_palug.md）──
   // 闇属性=光→闇 有利×1.5＝光有利アンカーの本命。「ライトレジスト」=光以外への耐性UP→光編成には
   // 隠れ耐性スカラ非適用が敵特性記述で保証=絶対レベル較正に理想。敵防御UP・味方ゲージDOWNなし=交絡少。
   // 実機3T討伐=確実に倒せる反復ボス（統計的較正のN確保が安い）。⚠ def は placeholder（絶対レベル較正と同時に確定）。

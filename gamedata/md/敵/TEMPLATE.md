@@ -1,7 +1,7 @@
 # <敵名> intake（key: <snake_case_slug>）
 
-> 実機詳細を「加工せず」記入する原本。ここから `data/enemies.js` の `ENEMY_REGISTRY[<key>]` へ蒸留する。
-> ファイル名 stem と `ENEMY_REGISTRY` のキーは一致させること（命名規約: enemies/README.md）。
+> 実機詳細を「加工せず」記入する原本。ここから `gamedata/js/enemies.js` の `ENEMY_REGISTRY[<key>]` へ蒸留する。
+> ファイル名 stem と `ENEMY_REGISTRY` のキーは一致させること（命名規約: gamedata/md/敵/README.md）。
 
 ## 1. 基本情報（ランタイムへ蒸留する値）
 - label（表示名）:

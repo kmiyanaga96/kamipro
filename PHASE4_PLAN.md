@@ -128,7 +128,7 @@
   早期撃破して観測不能・実機の生存敵は属性耐性で数値が歪むという制約が判明。**敵DB（Phase6）が較正に
   正のフィードバックを与えるケース**に該当するため、**較正ボス1体だけ**を前倒しで敵DB化した：
   `walpurgis_loki`（ヴァルプルギス・ロキ・幻属性・光有利・ムーンコードで被弾無効化しT7-8ソロ生存）。
-  全敵DB構築・敵AIは引き続き Phase 6。intake/スキーマは `enemies/README.md`、現在値は `data/enemies.js`。
+  全敵DB構築・敵AIは引き続き Phase 6。intake/スキーマは `gamedata/md/敵/README.md`、現在値は `gamedata/js/enemies.js`。
 
 ## 8. 次アクション
 

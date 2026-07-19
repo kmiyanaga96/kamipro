@@ -10,15 +10,15 @@
 ## 開発不変条件・ルール
 
 ### 1. キャラクター追加・変更の原則
-> ⚠ **Phase5 S5 で Vite/ESM モジュール構成へ移行済み**：`index.html` は薄いシェルになり、エンジンは `src/` 配下に物理分割され、`gamedata/*.js`（旧 `data/`・2026-07-16リネーム）は ESM として機能します。
+> ⚠ **Phase5 S5 で Vite/ESM モジュール構成へ移行済み**：`index.html` は薄いシェルになり、エンジンは `src/` 配下に物理分割され、`gamedata/js/*.js`（旧 `data/`・2026-07-16リネーム→2026-07-19 に `gamedata/js/`(現在値)・`gamedata/md/`(一次情報)へ大別）は ESM として機能します。
 
 * **キャラクター情報の編集先**:
-  * [gamedata/characters.js](../gamedata/characters.js)（`CHAR_REGISTRY`）が唯一の編集先です。
+  * [gamedata/js/characters.js](../gamedata/js/characters.js)（`CHAR_REGISTRY`）が唯一の編集先です。
   * エンジン本体（`src/` 配下）に、特定のキャラクター名のリテラルや個別処理を直接ハードコードしてはいけません。
 * **循環importの制限 (ReferenceError/TDZ 回避)**:
-  * `gamedata/characters.js` は `../src/app.js` から `DMG`/`BG`/`GEAR`/`CHARS`/`ABIL`/`ownerOf` 等を **import** します（`app.js` も `gamedata` を import しており相互循環関係にあります）。
+  * `gamedata/js/characters.js` は `../../src/app.js` から `DMG`/`BG`/`GEAR`/`CHARS`/`ABIL`/`ownerOf` 等を **import** します（`app.js` も `gamedata` を import しており相互循環関係にあります）。
   * この循環参照は**参照が全て関数本体（`cands.exec` や `def` フック）＝遅延評価**である限り、JavaScriptの仕様上安全に解決されます。
-  * そのため `gamedata/*.js` のオブジェクトリテラルの**トップレベル即時評価フィールド**（例: `gmax`）で `BG`/`DMG`/`GEAR` などの外部モジュール定数を直接参照してはなりません（TDZ / 循環死の原因となります）。必要な場合は素の数値（例: 100）で記述してください。
+  * そのため `gamedata/js/*.js` のオブジェクトリテラルの**トップレベル即時評価フィールド**（例: `gmax`）で `BG`/`DMG`/`GEAR` などの外部モジュール定数を直接参照してはなりません（TDZ / 循環死の原因となります）。必要な場合は素の数値（例: 100）で記述してください。
 * **Worker の実行制限**:
   * 旧 `_buildWorkerCode`（インライン文字列 slice ＋ `__FUNC__` 変換）は**撤廃済み**です。
   * Worker は `src/worker.js` をエントリポイントとし、Viteバンドラによって `new Worker(new URL('./worker.js', import.meta.url), {type:'module'})` でコンパイル・自動解決されます。
@@ -29,7 +29,7 @@
 * **自動進行ターン数管理**:
   * 毎ターン自動デクリメントする残ターン系状態（例: バフ残りターン、ロボ残ターン等）は、各キャラクター定義で `tickStates` 配列にキーを宣言し、エンジンの `tick()` で自動的かつ汎用的に処理されるようにしてください。
 * **汎用フックの利用**:
-  * キャラ固有の反応やマイルストーン処理は、以下の汎用フック（`gamedata/characters.js`）に記述してください：
+  * キャラ固有の反応やマイルストーン処理は、以下の汎用フック（`gamedata/js/characters.js`）に記述してください：
     * `def.onAbility(sim, name, color, T)`: アビリティ使用時
     * `def.onPartyBurst(sim, owner, T, atk)`: 全バースト発生時
     * `def.onBurst(sim, atk, owner)`: 自身のバースト時

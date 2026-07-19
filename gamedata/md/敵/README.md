@@ -1,25 +1,25 @@
 # 敵DB intake（実機詳細 → ランタイム登録）
 
-敵の実機詳細をテキストで受け渡し・保全し、`data/enemies.js`（シムが読むランタイム DB）へ反映するための置き場。
-較正方針は [PHASE4_PLAN.md](../PHASE4_PLAN.md)（§7 で Phase6 敵DBの前倒し条件を規定）、確定値は [CALIBRATION_ANALYSIS.md](../CALIBRATION_ANALYSIS.md)。
+敵の実機詳細をテキストで受け渡し・保全し、`gamedata/js/enemies.js`（シムが読むランタイム DB）へ反映するための置き場。
+較正方針は [PHASE4_PLAN.md](../../../PHASE4_PLAN.md)（§7 で Phase6 敵DBの前倒し条件を規定）、確定値は [CALIBRATION_ANALYSIS.md](../../../CALIBRATION_ANALYSIS.md)。
 
 ## 役割分担（mdとjsの分離・既存の履歴管理原則と同じ）
-- **`enemies/<key>.md`** … 実機詳細・根拠（intake／人間・エージェントが記入）。**source of record**。
-- **`data/enemies.js` の `ENEMY_REGISTRY[<key>]`** … そこから蒸留した**現在のランタイム値**（シムが読む唯一の正）。
+- **`gamedata/md/敵/<key>.md`** … 実機詳細・根拠（intake／人間・エージェントが記入）。**source of record**。
+- **`gamedata/js/enemies.js` の `ENEMY_REGISTRY[<key>]`** … そこから蒸留した**現在のランタイム値**（シムが読む唯一の正）。
 - 値の変更履歴は git。md は根拠、js は現在値。**別途の履歴MDは作らない**（simulation/README.md「履歴管理の原則」と同様）。
 
 ## 命名規約
 - **キー（`ENEMY_REGISTRY` のキー＝ファイル名 stem）**: 小文字 ASCII の snake_case スラッグ。
-  例: ヴァルプルギス・ロキ → `walpurgis_loki` → `enemies/walpurgis_loki.md` / `ENEMY_REGISTRY.walpurgis_loki`。
+  例: ヴァルプルギス・ロキ → `walpurgis_loki` → `gamedata/md/敵/walpurgis_loki.md` / `ENEMY_REGISTRY.walpurgis_loki`。
 - ファイル名とキーは**必ず一致**させる（相互参照のため）。
 
 ## 追加手順
-1. `cp enemies/TEMPLATE.md enemies/<key>.md` で intake を作成し、実機値を記入。
-2. 記入済みの値を `data/enemies.js` の `ENEMY_REGISTRY[<key>]` へ蒸留（def / max_hp / element / affinity / 任意フィールド）。
+1. `cp gamedata/md/敵/TEMPLATE.md gamedata/md/敵/<key>.md` で intake を作成し、実機値を記入。
+2. 記入済みの値を `gamedata/js/enemies.js` の `ENEMY_REGISTRY[<key>]` へ蒸留（def / max_hp / element / affinity / 任意フィールド）。
 3. 検証ワンライナー（ゴールデン 175,023,298）が**不変**であることを確認（applyEnemy 非経由のため通常不変）。
 4. 必要なら UI の敵セレクタ（`enemy-select`）に出ることを確認。
 
-## `ENEMY_REGISTRY` スキーマ（data/enemies.js 冒頭にも記載）
+## `ENEMY_REGISTRY` スキーマ（gamedata/js/enemies.js 冒頭にも記載）
 | フィールド | 必須 | 意味 |
 |---|---|---|
 | `label` | ○ | 表示名（日本語可） |

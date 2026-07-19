@@ -1,7 +1,7 @@
 # ヴァルプルギス・ロキ intake（key: walpurgis_loki）
 
 > Phase 4 較正ボス（PHASE4_PLAN §7 の Phase6 敵DB前倒し・1体のみ）。実機詳細を記入する原本。
-> ここから `data/enemies.js` の `ENEMY_REGISTRY.walpurgis_loki` へ蒸留する。
+> ここから `gamedata/js/enemies.js` の `ENEMY_REGISTRY.walpurgis_loki` へ蒸留する。
 > **検証ステータス凡例**: [web] = Web複数ソースで確認 / [有志・未確証] = ブログ/有志値のみ・公式wiki表は空欄。
 
 ## 採用理由（なぜこのボスか）

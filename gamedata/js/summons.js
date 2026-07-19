@@ -1,4 +1,4 @@
-// gamedata/summons.js — 幻獣マスターDB
+// gamedata/js/summons.js — 幻獣マスターDB
 // スロット区分別効果（Phase6・実機仕様 2026-07-10）:
 //   mainEffect … メイン枠/サポート枠でのみ発動（加護＝weapon_amp=ウェポンスキル効果量UP はメイン幻獣効果）
 //   subEffect  … サブ枠でのみ発動（weapon_amp は書かない）
