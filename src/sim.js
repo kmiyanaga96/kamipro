@@ -36,9 +36,11 @@ class Sim {
   }
 
   addG(targets, amt, excl=null) {
+    // バーストゲージ上昇量UP(汎用バフキー bg_gain_up・presence判定=非累積)。全ゲージ付与に一律乗算の近似。
+    const a = this.buf.bg_gain_up?.length ? amt*(1+DMG.bg_gain_up) : amt;
     for(const c of targets){
       if(excl&&excl.has(c)) continue;
-      this.g[c]=Math.min(this.g[c]+amt, this.gmax[c]);
+      this.g[c]=Math.min(this.g[c]+a, this.gmax[c]);
     }
   }
 

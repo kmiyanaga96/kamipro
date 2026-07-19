@@ -67,7 +67,7 @@
 - **ナイツサプレス**: `knights`（デバフキー `nights`）
 - **PactCore[エレイン]**: `pactcore`（同ターンカウンタ `T.pactcoreN`）
 - **グリフ・エレイン**: エンジン共通の契晶経済（`Sim.grif`/`keigyo`/`cum`・キャラキーなし）
-- **デバイス・エンブレム**: 契晶閾値バフ（`leg_aslt` 等＝legend押下時に反映）＋ 80以上の英霊BG+20（⚠実装位置はエジソン `def.turnEnd`）
+- **デバイス・エンブレム**: 契晶閾値バフ（`leg_aslt` 等＝legend押下時に反映）＋ 80以上の英霊BG+20（`def.turnEnd`）
 - **ARRIVE[エレイン]**: `def.burstPartyPassive`（`burst_dmg_arrive`/`bplus_arrive`）＋ `crit_rate_arrive`（バフキーなし・永続）
 
 ### §2.2 シム判明データ ###
@@ -126,7 +126,7 @@
 #### デバイス・エンブレム（2アシ） ####
 
 - 契晶閾値バフ（10+/70+/80+）は上記のとおり **legend押下時に反映**（実機は常時アシスト発動・シムはlegend経由の近似）
-- `cum>=80`: ターン終了時に英霊ゲージ+20（⚠実装位置はエジソン `def.turnEnd`＝`addG([LEADER],20)`。英霊がエジソン以外の編成では発動しない）
+- `cum>=80`: ターン終了時に英霊ゲージ+20（エレイン `def.turnEnd`＝`addG([LEADER],20)`。2026-07-19 にエジソンdefからの誤配置を移管＝英霊がエジソン以外でも発動）
 - ※防御+20%(30+)・被ダメージカット10%(50+)・英霊HP/状態異常回復は現状シム未モデル化
 
 #### ARRIVE[エレイン]（3アシ・`def.burstPartyPassive`） ####

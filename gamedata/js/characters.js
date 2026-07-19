@@ -41,7 +41,7 @@ const CHAR_REGISTRY = {
     type: 'hero',
     jp: 'エジソン', gcls: 'ge', elem: null,
     favWeapon: ['銃','魔導具'], lvUpAtk: 400,
-    state: { droid: 0, banoshik_robot: 0, ycount: 0 },  // droid: 攻撃ロボ残T / banoshik_robot: 補助ロボ残T / ycount: 黄アビ累計
+    state: { droid: 0, banoshik_robot: 0 },  // droid: 攻撃ロボ残T / banoshik_robot: 補助ロボ残T
     tickStates: ['droid', 'banoshik_robot'],  // 毎ターン自動デクリメント(ロボ残T)
     abilities: {
       droid:    ['y', 8, 0],
@@ -120,7 +120,6 @@ const CHAR_REGISTRY = {
         if(DMG.edison_burst_extra_mult > 0)
           sim.dmg += sim._decay('abi', sim._na()*DMG.edison_burst_extra_mult, DMG.edison_burst_extra_cap);
       },
-      turnEnd: (sim) => { if(sim.cum>=80) sim.addG([LEADER],20); },
     },
   },
 
@@ -130,7 +129,8 @@ const CHAR_REGISTRY = {
     favWeapon: ['剣','槍'], baseAtk: 10000, baseHp: 1100,
     // inori_p=現神の祈りの天矢乱舞解禁タイマー / yellow_acc=黄アビ累計(ターン跨ぎ・永続)
     // funki_recasts=同ターンの大和の奮起 即時解禁回数(0〜3・毎ターンリセット) / funki_carryover=4回目契機の翌ターン頭復活予約
-    state: { inori_p: null, yellow_acc: 0, funki_recasts: 0, funki_carryover: false },
+    // ycount=大和の奮起 発動累計(3の倍数回目で現神の祈りCD-1。旧: エジソンstateの間借り＝2026-07-19移管)
+    state: { inori_p: null, yellow_acc: 0, funki_recasts: 0, funki_carryover: false, ycount: 0 },
     abilities: {
       inori: ['y', 14, 0],
       tenya: ['r', 12, 0],
@@ -459,6 +459,9 @@ const CHAR_REGISTRY = {
         for(let i=0; i<hits; i++)
           sim.dmg += sim._decay('abi', naB_e * DMG.elaine_burst_extra_mult, DMG.elaine_burst_extra_cap);
       },
+      // デバイス・エンブレム(2アシ): 契晶累計80以上でターン終了時に英霊ゲージ+20。
+      // (旧: エジソンdef.turnEndに実装＝英霊がエジソン以外だと発動しない誤配置。2026-07-19エレインへ移管)
+      turnEnd: (sim) => { if(sim.cum>=80) sim.addG([LEADER],20); },
     },
   },
 
@@ -627,37 +630,35 @@ const CHAR_REGISTRY = {
     labelSuffix: { wish: '(バプラス100万)', happiness: '(全+100)', holiday: '(全体化)' },
     cdShow: { promise: "ミルキーウェイ", wish: "ウィッシュ", happiness: "ハピネス", holiday: "カインドネス" },
     cands: {
+      // カインドネス自体では1アシ(スターライトハーモニー)は付与されない(一次情報・2026-07-19修正=旧実装は自分へ+0.07を誤付与)。
       holiday: { s: 500, guard: (sim) => !sim.freyja_used, exec: (sim, T, ord) => {
         sim.freyja_used = true;
         sim.T.freyja_all = true;
-        const me = ownerOf('holiday');
-        sim['freyja_a_' + me] = (sim['freyja_a_' + me] || 0) + 0.07;
         sim.use('holiday', T, ord);
       }},
+      // 1アシ(スターライトハーモニー)は4アビ全体化時も「選択した単体+フレイヤ」のみ対象(一次情報・2026-07-19修正)。
+      // アビ本体効果(tgs)と1アシ対象([target,me])を分離する。
       happiness: { s: (sim) => sim.T.freyja_all ? 490 : 170, partyBG: true, exec: (sim, T, ord) => {
         const me = ownerOf('happiness');
         const target = CHARS.includes('yamato') ? 'yamato' : LEADER;
         const tgs = sim.T.freyja_all ? CHARS : [target, me];
         sim.addG(tgs, 100);
-        for (const c of tgs) sim['freyja_a_' + c] = (sim['freyja_a_' + c] || 0) + 0.07;
+        for (const c of [target, me]) sim['freyja_a_' + c] = (sim['freyja_a_' + c] || 0) + 0.07;
         sim.use('happiness', T, ord);
       }},
       wish: { s: (sim) => sim.T.freyja_all ? 480 : 150, atkBuf: true, exec: (sim, T, ord) => {
         const me = ownerOf('wish');
         const target = CHARS.includes('yamato') ? 'yamato' : LEADER;
         const tgs = sim.T.freyja_all ? CHARS : [target, me];
-        for (const c of tgs) {
-          sim['freyja_bp_' + c] = (sim['freyja_bp_' + c] || 0) + 1;
-          sim['freyja_a_' + c] = (sim['freyja_a_' + c] || 0) + 0.07;
-        }
+        for (const c of tgs) sim['freyja_bp_' + c] = (sim['freyja_bp_' + c] || 0) + 1;
+        for (const c of [target, me]) sim['freyja_a_' + c] = (sim['freyja_a_' + c] || 0) + 0.07;
         sim.use('wish', T, ord);
       }},
       promise: { s: 80, exec: (sim, T, ord) => {
         const me = ownerOf('promise');
         const target = CHARS.includes('yamato') ? 'yamato' : LEADER;
-        const tgs = sim.T.freyja_all ? CHARS : [target, me];
         (sim.buf.freyja_regen ??= []).push(4);
-        for (const c of tgs) sim['freyja_a_' + c] = (sim['freyja_a_' + c] || 0) + 0.07;
+        for (const c of [target, me]) sim['freyja_a_' + c] = (sim['freyja_a_' + c] || 0) + 0.07;
         sim.use('promise', T, ord);
       }}
     },
@@ -665,7 +666,10 @@ const CHAR_REGISTRY = {
       burst_coef_a: 5, burst_coef_b: 2500,
       gmax: 100,  // =BG.other_max（即時評価のためリテラル。ロード順不変条件・冒頭注記参照）
       keigyoGain: 1,
-      onBurst: (sim) => { (sim.buf.freyja_bg_up ??= []).push(4); },
+      // バースト効果: 味方全体のバーストゲージ上昇量+20%(バーストターン含め4T)。バフキーは汎用 bg_gain_up
+      // (エンジンaddG()が参照・キャラ名リテラル無し)。有効中の全ゲージ付与に×(1+DMG.bg_gain_up)。
+      // 非累積(presence判定)・pushはrefresh相当(旧 freyja_bg_up は実効未参照のquirk＝2026-07-19実装)。
+      onBurst: (sim) => { (sim.buf.bg_gain_up ??= []).push(DMG.dur_bg_gain_up); },
       onPartyBurst: (sim, owner) => {
         const k = 'freyja_bp_' + owner;
         if (sim[k] > 0) {

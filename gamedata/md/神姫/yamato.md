@@ -69,7 +69,7 @@
 - `baseAtk`/`baseHp`: 10000 / 1100
 - バースト係数: `burst_coef_a=5` / `burst_coef_b=2500`
 - 得意武器: 剣・槍 / `keigyoGain=1`（契晶: 光神姫バースト+1）
-- state: `inori_p`（天矢乱舞解禁タイマー）/ `yellow_acc`（黄アビ累計・戦闘通算）/ `funki_recasts`（同ターン奮起即時解禁数・毎ターンリセット）/ `funki_carryover`（4回目契機の翌ターン頭復活予約）
+- state: `inori_p`（天矢乱舞解禁タイマー）/ `yellow_acc`（黄アビ累計・戦闘通算）/ `funki_recasts`（同ターン奮起即時解禁数・毎ターンリセット）/ `funki_carryover`（4回目契機の翌ターン頭復活予約）/ `ycount`（大和の奮起 発動累計）
 
 #### バースト（草薙・白閃・`def.onBurst`） ####
 
@@ -96,7 +96,7 @@
 - 効果: 味方全体ゲージ+10（`BG.funki`）＋ `funki_burst` 付与（`dur_funki_burst=3`・累積可）
   - バーストダメージ `burst_funki=+0.15`/stack（`burstBonus`・自バーストのみ）
   - バースト上限 `burst_cap_funki=+0.10`/stack（`burstCapBonus`）
-- 3の倍数回目発動時に `cd.inori` を−1（発動累計は `sim.ycount` を使用。⚠この変数はエジソン `state` 宣言の間借り＝エジソン不在編成では未初期化）
+- 3の倍数回目発動時に `cd.inori` を−1（発動累計 state `ycount`。2026-07-19 にエジソン state の間借りを解消しヤマト自前宣言へ移管）
 
 #### 集いし願い（1アシ・`def.onAbility`/`turnEnd`） ####
 

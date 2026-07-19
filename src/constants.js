@@ -191,6 +191,10 @@ const DMG = {
   sub_burst_cap: 0,           // サブバースト上限UP
   final_dmg: 1.0,         // 最終倍率
 
+  // ─── バーストゲージ上昇量UP(汎用枠・現ソースはフレイヤ聖夜バースト) ───
+  bg_gain_up: 0.20,          // 有効中の全ゲージ付与に×(1+この値)。buf.bg_gain_up はpresence判定(非累積)
+  dur_bg_gain_up: 4,         // 効果ターン(バーストターン含め4T)
+
   // ─── アルテミス ───
   arrow_mult1: 3, arrow_cap1: 300000,
   arrow_mult2: 5, arrow_cap2: 500000,

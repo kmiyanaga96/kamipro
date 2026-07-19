@@ -93,7 +93,7 @@
 - `lvUpAtk`: 400（Lv20ボーナス攻撃+400）。アビダメ+8%×2（Lv20/MASTER）は `GEAR.abi_dmg` 側の装備入力で扱う
 - バースト係数: `burst_coef_a=5` / `burst_coef_b=3000`
 - 得意武器: 銃・魔導具 / `keigyoGain=3`（契晶: 光英霊バースト+3=基礎2+光1）/ `gmax=100`
-- state: `droid`（攻撃ロボ残T）/ `banoshik_robot`（補助ロボ残T）— 両方 `tickStates`（毎ターン自動デクリメント）/ `ycount`（黄アビ累計。⚠現状の参照はヤマト `funki` の発動計数のみ）
+- state: `droid`（攻撃ロボ残T）/ `banoshik_robot`（補助ロボ残T）— 両方 `tickStates`（毎ターン自動デクリメント）
 
 #### ドロイドアナバシス（`droid`・黄） ####
 
