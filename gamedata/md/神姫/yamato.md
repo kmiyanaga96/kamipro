@@ -52,13 +52,59 @@
 
 ### §2.1 各データのシム内呼称 ###
 
-- **現神の祈り**: `inori`
-- **天矢乱舞**: `tenya`
-- **大和の奮起**: `funki`
-- **集いし願い**: `?`
-- **大和の現神**: `?`
+- **現神の祈り**: `inori`（バフキー `inori_burst`・天矢乱舞解禁タイマー state `inori_p`）
+- **天矢乱舞**: `tenya`（初回）＋ `tenya_re`（再発動・独立候補。`refireOf:'tenya'`/接尾辞 `(再-40)`）
+- **大和の奮起**: `funki`（バフキー `funki_burst`）
+- **集いし願い**: `yamato_bplus`（バフキー）＋ state `yellow_acc`/`funki_recasts`/`funki_carryover`（`def.onAbility`/`def.turnEnd` フック）
+- **大和の現神**: `gmax: 200`（ゲージ最大値のみ。バフキーなし）
+- バースト光属性攻撃UP: バフキー `yamato_elem`（`def.onBurst`）
 
 ### §2.2 シム判明データ ###
 
--
+> 出所: `gamedata/js/characters.js`（`yamato` エントリ）＋ `src/constants.js`（`DMG`/`BG`）に現在エンコード済みの値・挙動を配置（新規導出はしない）。
+
+#### 基本 ####
+
+- 定義キー: `yamato`（`type:'kamihime'` / `elem:'light'` / `gcls:'gy'`）
+- `baseAtk`/`baseHp`: 10000 / 1100
+- バースト係数: `burst_coef_a=5` / `burst_coef_b=2500`
+- 得意武器: 剣・槍 / `keigyoGain=1`（契晶: 光神姫バースト+1）
+- state: `inori_p`（天矢乱舞解禁タイマー）/ `yellow_acc`（黄アビ累計・戦闘通算）/ `funki_recasts`（同ターン奮起即時解禁数・毎ターンリセット）/ `funki_carryover`（4回目契機の翌ターン頭復活予約）/ `ycount`（大和の奮起 発動累計）
+
+#### バースト（草薙・白閃・`def.onBurst`） ####
+
+- 味方全体の光属性攻撃UP: `elem_yamato=+0.05`/stack・`dur_yamato_elem=3`（自バースト毎に累積）
+- 追加ダメージ（現神の祈り中のみ・アビ枠）: `burst_followup_mult=3` / `burst_followup_cap=1000000`（=祈り中の減衰100万・一次情報と一致）
+
+#### 現神の祈り（`inori`・黄） ####
+
+- 定義: `['y', 14, 0]`（CD=14・実質戦闘中1回）・静的スコア `s=160`
+- 効果: 自分ゲージ+100（`BG.inori=100`）＋ `inori_burst` 付与（`dur_inori_burst=3`）＝バースト係数 `burst_inori=+5.0`（倍率5→10・`def.burstBonus`・自バーストのみ）
+- 天矢乱舞解禁: `inori_p=0` を起点に `turnEnd` で加算、`inori_p===2` で `cd.tenya=0`（=2ターン目終了時に2アビ復活）
+- ※一次情報の「バースト減衰200万に変化」は現状シム未モデル化（`burstCapBonus` に祈り項なし。追加ダメ側の100万化は上記で一致）
+
+#### 天矢乱舞（`tenya`/`tenya_re`・赤） ####
+
+- `tenya`: `['r', 12, 0]`・guard `t>=TENYA_FROM=2`・ゲージ消費なしでバースト（初回1発・CD設定は初回のみ）
+- `tenya_re`: `['r', 0, 0]`・guard `1<=T.tenya<3 && g>=40`＝40消費で最大2回再発動（同ターン合計3バースト）
+- C19（実機較正）: 再発動も**赤アビ使用扱い**＝`_countAbilityUse` でアビ計数＋ロボ反応＋連理proc を発火
+- 旧atomic一括発火はC12-④bで分割済み（3発の間に他アビを挟める＝探索interleave可能）
+
+#### 大和の奮起（`funki`・黄） ####
+
+- 定義: `['y', 5, 0]`・静的スコア `s=150`
+- 効果: 味方全体ゲージ+10（`BG.funki`）＋ `funki_burst` 付与（`dur_funki_burst=3`・累積可）
+  - バーストダメージ `burst_funki=+0.15`/stack（`burstBonus`・自バーストのみ）
+  - バースト上限 `burst_cap_funki=+0.10`/stack（`burstCapBonus`）
+- 3の倍数回目発動時に `cd.inori` を−1（発動累計 state `ycount`。2026-07-19 にエジソン state の間借りを解消しヤマト自前宣言へ移管）
+
+#### 集いし願い（1アシ・`def.onAbility`/`turnEnd`） ####
+
+- ① ヤマト自身のアビ使用毎に `yamato_bplus` 付与（`bplus_yamato=+10万`/stack・`dur_bplus_yamato=3`）。**味方全体のバーストが対象**（C8実機確定・`burstPartyPassive` の減衰外フラット加算）
+- ② パーティ全体の黄アビ4回毎（`yellow_acc%4`・ターン跨ぎ累計）に大和の奮起を即時解禁（`cd.funki=0`）。同ターン最大3回（`funki_recasts`）、4回目契機は翌ターン頭で復活（`funki_carryover`・実機バグ挙動を再現）
+
+#### 大和の現神（2アシ） ####
+
+- ゲージ最大値200: `gmax: 200`（=`BG.yamato_max`・バースト消費は100のみ）
+- ※ゲージ上昇量+50%・バーストヒールは現状シム未モデル化
 

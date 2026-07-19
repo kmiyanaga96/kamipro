@@ -7,7 +7,7 @@
 //    override を自動較正するが、golden は決定的検証のためその選択結果を setStaticOverride で明示適用する
 //    （毎回の較正走行を避ける・機構は archive/SEARCH_ROLLOUT_DESIGN.md §6）。
 // ⚠ ダメージモデルを変えたら: archive/tools/search_calibrate.mjs で再fitし、下の期待値と override、
-//    CLAUDE.md/.agents/AGENTS.md の検証ゲート、ENGINE_VERSION(src/app.js) を揃えて更新すること。
+//    CLAUDE.md の検証ゲート、ENGINE_VERSION(src/app.js) を揃えて更新すること。
 // 現在値: C27(赤アビ後出しの局所リファイン・単調安全)で再fit（2026-07-14・override {judg:160,pactcore:1} 据置
 //   ＝overrideはルート選択を制御し、リファインは選択後の単調パスのため選択最適overrideは不変）。
 //   旧C23 raw 186,634,324 / cal 208,347,477（リファインで raw +552,510 / cal +342,131）。旧C21 raw 203,723,485。

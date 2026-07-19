@@ -58,14 +58,65 @@
 
 ### §2.1 各データのシム内呼称 ###
 
-- **エンチャントアロー**: `?`
-- **リファインメントエイド**: `?`
-- **マナポライトオペレーション**: `?`
-- **LinkSkill[アルテミス]**: `?`
-- **リンクスフェロー**: `?`
-- **AnotherLink[アルテミス]**: `?`
+- **エンチャントアロー**: `enchant`（部分消費探索の variants 合成キー `enchant_t1`〜`enchant_t5`・恐傷バフキー `kyosho`＋state `kyosho_amp`）
+- **リファインメントエイド**: `refine`（バフキー `refine_acute`/`refine_followup`）
+- **マナポライトオペレーション**: `manapolite`（バフキー `manapolite`）
+- **LinkSkill[アルテミス]**: `linkskill`（バフキー `artemis_spec`・state `artemis_link_used`）
+- **リンクスフェロー**: `def.onPartyBurst`（バフキー `artemis_bplus`）
+- **AnotherLink[アルテミス]**: `subAssists`（`burst_dmg`/`burst_cap`/`final_dmg`＝buildFormationが `DMG.sub_burst_dmg`/`sub_burst_cap`/`final_dmg` へ集約）
 
 ### §2.2 シム判明データ ###
 
--
+> 出所: `gamedata/js/characters.js`（`artemis` エントリ）＋ `src/constants.js`（`DMG`）に現在エンコード済みの値・挙動を配置（新規導出はしない）。
+
+#### 基本 ####
+
+- 定義キー: `artemis`（`type:'kamihime'` / `elem:'light'` / `gcls:'gar'`）
+- `baseAtk`/`baseHp`: 12440 / 3120
+- バースト係数: `burst_coef_a=5.5` / `burst_coef_b=3000`（ユーザー提供）
+- 得意武器: 銃・ハンマー / `keigyoGain=1` / `gmax=100`
+- state: `artemis_link_used`（4アビ戦闘中1回フラグ）/ `kyosho_amp`（恐傷の被ダメUP量・`_na` 参照）
+
+#### バースト（アルカディアコメット・`def.onBurst`） ####
+
+- 自身の全アビCD−1（自バーストのみ）
+
+#### エンチャントアロー（`enchant`・赤） ####
+
+- 定義: `['r', 7, 0]`・静的スコア `s=55`（低め＝火力駆動のビーム選択に委ねる）・guard: 自ゲージ26以上
+- ゲージ消費の段階ダメージ（`_spendGaugeAbi`・アビ枠・×(1+`GEAR.abi_dmg`+攻撃ロボバフ)）:
+  - tier1（消費1〜）: `arrow_mult1=3` / `arrow_cap1=30万`
+  - tier2（消費26〜）: `arrow_mult2=5` / `arrow_cap2=50万`
+  - tier3（消費51〜）: `arrow_mult3=7` / `arrow_cap3=70万`
+  - tier4（消費76〜）: `arrow_mult4=10` / `arrow_cap4=100万`
+  - tier5（消費100）: `arrow_mult5=12` / `arrow_cap5=150万`
+- 部分消費探索: `variants` で各帯の**最小消費量**を1候補ずつ展開（帯内の過剰消費は常に劣るため下限のみ・CDは共有）
+- tier5（消費100）で恐傷付与: `kyosho_amp = min(状態異常数×kyosho_per_ailment(0.02), kyosho_cap(0.30))`・状態異常数=2（冥闇+恐傷）+ディウィヌスDOT有効時4・`dur_kyosho=3`。`_na()` で全枠の外側に乗算（敵被ダメUP）
+- ※tier1〜4の付与効果（状態異常耐性/連続攻撃確率DOWN・冥闇・闇属性攻撃DOWN・与ダメージDOWN）は現状シム未モデル化（ダメージ段階と恐傷のみ）
+
+#### リファインメントエイド（`refine`・黄） ####
+
+- 定義: `['y', 8, 0]`・静的スコア `s=155`
+- `refine_acute`: 急所 `acute_refine=+0.09`（急所倍率1.3倍換算・refresh・`dur_refine=3`）
+- `refine_followup`: 追撃＝有効中は全バーストへ減衰外フラット `min(na×refine_followup_mult(3), refine_followup_cap(30万))`（`burstPartyPassive` 実装・アビ枠追加ダメの近似）
+
+#### マナポライトオペレーション（`manapolite`・黄） ####
+
+- 定義: `['y', 2, 0]`・静的スコア `s=140`
+- 味方全体ゲージ+10（`bg_manapolite`）＋ ストリークダメージ `streak_manapolite=+0.02`/stack（累積可・`dur_manapolite=10`・`_attackPhase` のストリーク係数に加算）
+
+#### LinkSkill[アルテミス]（`linkskill`・黄） ####
+
+- 定義: `['y', 1, 0]`・静的スコア `s=300`・guard: 戦闘中1回（`artemis_link_used`）
+- 特殊攻撃 `spec_artemis=+0.30`（`dur_artemis_spec=1`）＋ 味方全体ゲージ+100
+
+#### リンクスフェロー（1アシ・`def.onPartyBurst`） ####
+
+- 味方バースト毎（自分含む）: 自分ゲージ+15 ＋ `artemis_bplus` push（`bplus_artemis=+15万`/stack・`dur_artemis_bplus=3`・累積可）
+- バーストダメージプラスは**アルテミス自身のバーストのみ**加算（`burstPartyPassive` 内 `_naOwner` 判定）
+
+#### AnotherLink[アルテミス]（2アシ・`subAssists`） ####
+
+- `subAssists: { burst_dmg: 0.25, burst_cap: 0.10, final_dmg: 0.10 }`
+- buildFormation が**全員光属性編成のとき**に `DMG.sub_burst_dmg`（バーストダメ+25%）/ `DMG.sub_burst_cap`（バースト上限+10%）/ `DMG.final_dmg`（最終ダメージ×1.10・`_na` 最外殻）へ集約。サブメンバー時にも同経路で適用（メイン/サブ共通・1回だけ）
 
