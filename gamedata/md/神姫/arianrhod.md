@@ -52,13 +52,54 @@
 
 ### §2.1 各データのシム内呼称 ###
 
-- **ホーリーターボ**: `?`
-- **ミティゲートペイン**: `?`
-- **エレガントルミナス**: `?`
-- **トランジェントマイト**: `?`
-- **オーバーカムリターン**: `?`
+- **ホーリーターボ**: `holy`（共用実行関数 `arianHolyFire`・バフキー `arian_bplus`・同ターンカウンタ `T.holy`）
+- **ミティゲートペイン**: `miti`（バフキー: 全体 `arian_spec`/`arian_acute`・自分のみ `arian_spec_self`/`arian_acute_self`・state `arian_miti_uses`）
+- **エレガントルミナス**: `elegant`（初回）＋ `elegant_re`（再発動・独立候補。`refireOf:'elegant'`/接尾辞 `(再-40)`）
+- **トランジェントマイト**: `def.onBurst`（追撃②）＋ `def.burstBonus`/`burstCapBonus`（性能大幅UP）＋ `def.turnEnd`（自動ホーリーターボ）
+- **オーバーカムリターン**: `def.onPartyBurst`（state `arian_bacc`・バフキー `arian_bcap`）
 
 ### §2.2 シム判明データ ###
 
--
+> 出所: `gamedata/js/characters.js`（`arianrhod` エントリ）＋ `src/constants.js`（`DMG`）に現在エンコード済みの値・挙動を配置（新規導出はしない）。実装仮定の一次記録は archive/arianrhod_impl_notes.md・実機確定は ARIANROD_REGISTRATION.md（A1〜A5確定済み・絶対値fitはsim04後）。
+
+#### 基本 ####
+
+- 定義キー: `arianrhod`（`type:'kamihime'` / `elem:'light'` / `gcls:'gan'`）
+- `baseAtk`/`baseHp`: 9460 / 1320
+- バースト係数: `burst_coef_a=5` / `burst_coef_b=2500`（⚠一次情報はバースト倍率5.5/基礎値3000＝乖離。fitはsim04後）
+- 得意武器: 銃・弓 / `keigyoGain=1` / `gmax=100`
+- state: `arian_miti_uses`（2アビ戦闘通算・奇数/偶数判定）/ `arian_bacc`（味方光バースト累計・2アシ）
+
+#### バースト（セイアッドショット・`def.onBurst`） ####
+
+- A1実機確定: 追撃系は**別枠2本**＝①バースト効果「追加ダメージ」＋②1アシ「追撃」（HP80%以上条件はシム常時フルHP前提で常時発動）。両者とも `arian_followup_mult=3` / `arian_followup_cap=500000`（アビ枠）で近似
+- ③登場〜5T（`_t<=arian_last_turn=5`）は自バースト毎にホーリーターボを即時自動発動（`arianHolyFire`・manual=false）
+
+#### ホーリーターボ（`holy`・黄） ####
+
+- 定義: `['y', 0, 0]`（実機CD1を cd0＋ターン内クォータで表現）・静的スコア `s=130`
+- 手動発動は同ターン2回まで（`T.holy`・A2実機確定）。**自動発動**（バースト効果/1アシturnEnd）は上限なし・`T.holy` 非消費
+- 効果（`arianHolyFire` 共用）: `arian_bplus` push（バーストダメージプラス `bplus_arian=+10万`/stack・`dur_bplus_arian=5`・味方全バースト対象の減衰外フラット＝`burstPartyPassive`）＋ 味方全体ゲージ+10（`arian_holy_bg`）＋ 敵8回光ダメージ（`holy_hits=8`×`holy_hit_mult=0.8`倍/`holy_hit_cap=8万`・アビ枠）
+- A3実機確定: 自動発動も黄アビ使用扱い＝`_countAbilityUse` 発火（連理魔力・ロボ反応・proc計数）
+
+#### ミティゲートペイン（`miti`・黄） ####
+
+- 定義: `['y', 2, 0]`・静的スコア `s=80`
+- A5実機確定: 奇数回目=味方全体（`arian_spec`/`arian_acute`）・偶数回目=自分のみ（`arian_*_self`・`_naOwner` がアリアン自身のときだけ適用）
+- 特殊攻撃 `spec_arian=+0.08`/stack・急所 `acute_arian=+0.10`/stack（急所倍率1.1倍換算）・`dur_arian_miti=3`（累積可）
+
+#### エレガントルミナス（`elegant`/`elegant_re`・赤） ####
+
+- `elegant`: `['r', 8, 0]`・ゲージ消費なしでバースト（初回・CD設定は初回のみ）
+- `elegant_re`: `['r', 0, 0]`・guard `1<=T.elegant < (t===1?4:3) && g>=40`＝40消費で再発動。T1は合計4回・以降は合計3回（一次情報一致）
+- A4実機確定: 再発動も赤アビ使用扱い＝`_countAbilityUse` 発火（ヤマト `tenya_re` と同型）
+
+#### トランジェントマイト（1アシ） ####
+
+- 登場〜5T バースト性能大幅UP: バースト係数 `burst_arian=+5.0`（倍率5→10・`burstBonus`・自バーストのみ）＋ バースト特別減衰 `arian_cap_boost=+1.0`（cap+100%・`burstCapBonus`）
+- 追撃（②）とターン終了時の自動ホーリーターボ（`turnEnd`・登場〜5T）は上記のとおり
+
+#### オーバーカムリターン（2アシ・`def.onPartyBurst`） ####
+
+- 味方**光属性**キャラのバースト3回毎（`arian_bacc%3`・戦闘通算）に: 自分の全アビCD−1 ＋ 自分ゲージ+40（`arian_overcome_bg`）＋ `arian_bcap` push（バースト上限 `bcap_arian=+0.08`/stack・`dur_arian_bcap=3`・累積可）
 

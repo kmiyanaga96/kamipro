@@ -75,14 +75,69 @@
 
 ### §2.1 各データのシム内呼称 ###
 
-- **ドロイドアナバシス**: `droid`
-- **バノーシクベネフィット**: `banoshik`
-- **イフィシャントプラン**: `ifishant`
-- **アンプリファシステム**: `amplifa`
-- **マシーンタクトゥ**: `?`
-- **ラピデティチャージ**: `?`
+- **ドロイドアナバシス**: `droid`（攻撃ロボ残T state `droid`・反応バフキー `droid_buf`）
+- **バノーシクベネフィット**: `banoshik`（補助ロボ残T state `banoshik_robot`・反応バフキー `banoshik`）
+- **イフィシャントプラン**: `ifishant`（エレインクォータ加枠 `T.ifAlone`/`T.ifLegend`/`T.ifPactcore`/`T.ifKnights`）
+- **アンプリファシステム**: `amplifa`（バフキー `amplifa_buf`）
+- **マシーンタクトゥ**: `T.ra`（ロボ反応回数）× `MACH_BG`（`Sim._endBookkeep` 実装・キャラキーなし）
+- **ラピデティチャージ**: `def.onBurst`（droid/banoshik CD−1）
+- **英霊武器 ランチャータンク**: `gamedata/js/weapons.js` の `launcher_tank`（`droidUpgrade`/`burstHeroExtra`・applyGearが `DMG` を上書き）
 
 ### §2.2 シム判明データ ###
 
--
+> 出所: `gamedata/js/characters.js`（`edison` エントリ）＋ `src/constants.js`（`DMG`/`BG`/`MACH_BG`/`IFISHANT_MIN_CD`）＋ `gamedata/js/weapons.js`（`launcher_tank`）に現在エンコード済みの値・挙動を配置（新規導出はしない）。
+
+#### 基本 ####
+
+- 定義キー: `edison`（`type:'hero'` / `elem:null`＝メイン武器依存 / `gcls:'ge'`）
+- `lvUpAtk`: 400（Lv20ボーナス攻撃+400）。アビダメ+8%×2（Lv20/MASTER）は `GEAR.abi_dmg` 側の装備入力で扱う
+- バースト係数: `burst_coef_a=5` / `burst_coef_b=3000`
+- 得意武器: 銃・魔導具 / `keigyoGain=3`（契晶: 光英霊バースト+3=基礎2+光1）/ `gmax=100`
+- state: `droid`（攻撃ロボ残T）/ `banoshik_robot`（補助ロボ残T）— 両方 `tickStates`（毎ターン自動デクリメント）/ `ycount`（黄アビ累計。⚠現状の参照はヤマト `funki` の発動計数のみ）
+
+#### ドロイドアナバシス（`droid`・黄） ####
+
+- 定義: `['y', 8, 0]`・静的スコア `s=201`・タグ `deploysRobot`（ルート分散の開幕prefix列挙対象）
+- 設置: `sim.droid=3`（3T稼働）
+- 攻撃ロボ反応（`def.onAbility`・味方の**赤アビ**発動毎）:
+  - 敵全体に反応ダメージ（アビ枠）: `droid_react_mult=3.0` / `droid_react_cap=50万`（ランチャータンクメイン時 3.5 / 65万）＋アンプリファ有効時 +10万フラット
+  - 味方全体アビ性能バフ `droid_buf` push（`abi_dmg_droid=+0.03`/`abi_cap_droid=+0.02`/stack・`dur_droid_buf=5`・累積可）
+  - `T.ra`++（マシーンタクトゥ計数）
+
+#### バノーシクベネフィット（`banoshik`・黄） ####
+
+- 定義: `['y', 8, 0]`・静的スコア `s=200`・タグ `deploysRobot`
+- 設置: `sim.banoshik_robot=3`（3T稼働）
+- 補助ロボ反応（味方の**黄アビ**発動毎）: `banoshik` push＝アサルト `assault_banoshik=+0.10`/stack（`dur_banoshik=5`・上限なし累積）＋ `T.ra`++
+- ※防御+5%は現状シム未モデル化
+
+#### イフィシャントプラン（`ifishant`・黄） ####
+
+- 定義: `['y', 5, 0]`・動的スコア `s=(CD中アビ数)²`
+- 効果: 自分以外の全CD中アビ−1
+- guard（早撃ち抑止）: T2以降・CD中アビが `IFISHANT_MIN_CD=3` 個以上・かつ「即使用可能な基礎CD≥2のアビ」が残っている間は不可
+- C21（実機較正）: エレインアビは「押下時点でクォータ消化済み（=実機CD中）のもののみ」ターン内+1枠を付与（`T.ifAlone`/`T.ifLegend`/`T.ifPactcore`/`T.ifKnights`）。発動可能な状態のアビの使用可能回数は増やせない
+
+#### アンプリファシステム（`amplifa`・黄） ####
+
+- 定義: `['y', 7, 0]`・静的スコア `s=180`・タグ `prelude`（ロボ設置後に打つ定石＝C27リファイン対象）
+- `amplifa_buf` 付与（`dur_amplifa=3`）: **攻撃ロボ反応ダメージにのみ** `amplifa_flat=+10万` フラット加算（減衰外・実機較正済＝ジャッジ等のアビダメには乗らない）
+
+#### マシーンタクトゥ（1アシ・エンジン共通実装） ####
+
+- `Sim._endBookkeep`: ターン終了時 味方全体ゲージ+`MACH_BG(5)`×`T.ra`（ロボ稼働回数＝赤反応+黄反応の合計）
+- ※HP回復（基礎10%+稼働毎+3%）は現状シム未モデル化
+
+#### ラピデティチャージ（2アシ・`def.onBurst`） ####
+
+- エジソンのバースト時に `cd.droid`/`cd.banoshik` を各−1（3T稼働×3T周期で常時稼働が回る実機一致の帰結・CLAUDE.md ゲージ経済参照）
+
+#### 英霊武器 ランチャータンク（`launcher_tank`・銃/光） ####
+
+- `atk=4543` / `hp=272`。メインエジソン限定スキル（applyGearが検出し `DMG` を上書き）:
+  - 発明王の覇気+: 最終ダメージ `dmgup+5%`（属性攻撃UP側は%未確定でシム未反映・weapons.js TODO）
+  - プログラムアプティマイズ+（`droidUpgrade`）: 攻撃ロボ反応 3.0→3.5倍 / 50万→65万
+  - バースト追加ダメージ（`burstHeroExtra`）: `edison_burst_extra_mult=2.5` / `edison_burst_extra_cap=80万`（アビ枠・`def.onBurst`。未装備時は `edison_burst_extra_mult=0`=OFF。倍率2〜2.5の変動条件未確定のためmax2.5採用）
+- ステータスUP（アビダメ+5万・二段/三段+15%）は現状シム未モデル化
+- 英霊武器2（イノベイトドール）は `WEAPON_MASTER` 未登録＝シム未対応
 

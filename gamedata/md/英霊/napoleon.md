@@ -93,14 +93,72 @@
 
 ### §2.1 各データのシム内呼称 ###
 
-- **ロワ・クモンド**: `?`
-- **オーンフォッセモ・パイク**: `?`
-- **コンソート・アーティオリ**: `?`
-- **ファクター・ディシジフ**: `?`
-- **エキープ・ベニフィッシ**: `?`
-- **ベタイア・コンヴェフティ**: `?`
+- **ロワ・クモンド**: `roy`（バフキー `roy`・state `roy_tier`）
+- **オーンフォッセモ・パイク**: `pike`（バフキー `pike`/`pike_def`/`pike_crit`）
+- **コンソート・アーティオリ**: `consort`（デバフキー `consort_def`）
+- **ファクター・ディシジフ**: `factor`（state `betaia2`＝2回発動状態の残T）
+- **エキープ・ベニフィッシ**: state `aura`（英雄の闘気・`def.onAbility` で蓄積）
+- **ベタイア・コンヴェフティ**: `def.turnEnd`（闘気消費ダメージ+BG）
+- 強化効果数の計数: `buffCount(sim)`（`DEBUFF_KEYS` 除外の全バフスタック合計・characters.js 冒頭で定義）
+- **英霊武器 レス・ボナパルト**: `gamedata/js/weapons.js` の `les_bonaparte`（`betaiaUpgrade`/`napoBurstCdReduce`）
 
 ### §2.2 シム判明データ ###
 
--
+> 出所: `gamedata/js/characters.js`（`napoleon` エントリ）＋ `src/constants.js`（`DMG`）＋ `gamedata/js/weapons.js`（`les_bonaparte`）に現在エンコード済みの値・挙動を配置（新規導出はしない）。
+
+#### 基本 ####
+
+- 定義キー: `napoleon`（`type:'hero'` / `elem:null` / `gcls:'ge'`）
+- `lvUpAtk`: 400
+- バースト係数: `burst_coef_a=5` / `burst_coef_b=3000`（エジソンと同英霊クラス）
+- 得意武器: 剣・銃 / `keigyoGain=3` / `gmax=100`
+- state: `aura`（英雄の闘気）/ `betaia2`（ベタイア2回発動の残T）/ `roy_tier`（ロワの効果tier 0〜3）
+- 「強化効果の数」は一律 `buffCount(sim)` で近似（パーティ全体のバフスタック合計・デバフ除外＝実機の「英霊が受けた強化効果数」とはスコープが異なる近似）
+
+#### ロワ・クモンド（`roy`・黄） ####
+
+- 定義: `['y', 3, 0]`・タグ `atkBuf`
+- 押下時に `buffCount` で tier確定（0〜5→0 / 6〜10→1 / 11〜15→2 / 16〜→3）・`roy` バフ（`dur_roy=2`）
+- 3枠独自フラット加算（tier順の配列）:
+  - 通常攻撃 `roy_na_frac=[0.06, 0.07, 0.10, 0.20]`×base（`_na` 内・6万〜20万の base比率近似）
+  - アビダメ `roy_abi_frac=[0.05, 0.06, 0.08, 0.10]`（⚠現状の加算実装は**ジャッジph0のみ**＝他のアビダメには乗らない）
+  - バースト `roy_burst_frac=[0.10, 0.30, 0.50, 1.00]`×naB（全員のバースト・減衰上限の外）
+
+#### オーンフォッセモ・パイク（`pike`・黄） ####
+
+- 定義: `['y', 3, 0]`・タグ `atkBuf`
+- `pike`（旺盛 `vigor_pike=0.3552`＝基礎値42）＋ `pike_def`（防壁・buffCount計上のみ）を付与（`dur_pike=2`）
+- 押下後 `buffCount>=15` で `pike_crit` 付与＝確実会心 `crit_rate_pike=1.00` ＋ 急所 `acute_pike_crit=+0.30`（急所倍率1.3倍換算・dur2）
+
+#### コンソート・アーティオリ（`consort`・赤） ####
+
+- 定義: `['r', 3, 0]`
+- ダメージ倍率 `2+0.5×buffCount`（一次情報の「強化効果1つにつき+50%」一致）・減衰 `consort_cap=250万`（アビ枠・×(1+`GEAR.abi_dmg`+攻撃ロボバフ)）
+- `buffCount>=20` で2回発動・`consort_def` 付与（防御DOWN `defdown_consort=0.10`/stack・`dur_consort_def=6`・累積可）
+
+#### ファクター・ディシジフ（`factor`・黄） ####
+
+- 定義: `['y', 9, 0]`・タグ `partyBG`
+- `betaia2=dur_factor(2)`＝ベタイア2回発動状態
+- `buffCount>=10` で追加: 全体アビCD−1（factor以外）＋ 味方全体ゲージ+30（`factor_bg`）
+- ※堅牢（最大値50%）は現状シム未モデル化
+
+#### エキープ・ベニフィッシ（1アシ・`def.onAbility`） ####
+
+- 味方の強化系アビ（`atkBuf` タグ付き cands）発動毎に `aura`+1（1アビ1回＝一次情報一致）
+- ※「自身以外へのランダム強化効果付与」は現状シム未モデル化。一次情報の発動条件表（バースト効果由来は対象外等）は `atkBuf` タグ判定の近似に畳んでいる
+
+#### ベタイア・コンヴェフティ（2アシ・`def.turnEnd`） ####
+
+- ターン終了時: 闘気1個=1ヒット × `min(na×betaia_mult(3.0), betaia_cap(50万))`（フラットmin・アビ枠減衰式は非適用）＋ 味方全体ゲージ+`betaia_bg_per_aura(3)`×闘気数 → `aura=0` 消去
+- ファクター発動中（`betaia2>0`）はヒット数・BGとも2倍
+- ※HP回復は現状シム未モデル化
+
+#### 英霊武器 レス・ボナパルト（`les_bonaparte`・剣/光） ####
+
+- `atk=4721` / `hp=245`。スキル（applyGearが検出）:
+  - 革命皇の覇気: 属性攻撃 `elem+30%`（⚠一次情報の「最終ダメージUP+5%」はweapons.js未登録＝シム未反映）
+  - 淀みなき進軍（`betaiaUpgrade`）: ベタイア 3.0→3.5倍 / 50万→80万（メインナポレオン限定。⚠一次情報は「4倍/70万」＝乖離）
+  - バーストCD短縮（`napoBurstCdReduce`）: バースト発動時に自身の全アビCD−1（`def.onBurst`・`DMG.napo_burst_cd_reduce` フラグ）
+- 英霊武器2（レジオンドヌール）は `WEAPON_MASTER` 未登録＝シム未対応
 

@@ -52,13 +52,61 @@
 
 ### §2.1 各データのシム内呼称 ###
 
-- **プヴワール・リュヌ**: `puvoir`
-- **エフォンド・ロンブル**: `effond`
-- **スリール・リュンヌ**: `sleur`
-- **モビウスムーンズ**: `mobius`
-- **メイビームーンズ**: `?`
+- **プヴワール・リュヌ**: `puvoir`（バフキー `puvoir`・ムーンコード時追加急所は `puvoir_acute`）
+- **エフォンド・ロンブル**: `effond`（デバフキー `effond_def`）
+- **スリール・リュンヌ**: `sleur`（バフキー `sleur_def`＝防壁のbuffCount計上用）
+- **モビウスムーンズ**: `def.onPartyBurst`（state `mburst`＝パーティバースト累計・5回毎CDリセット）＋ `mobius_spec`（バフキー・自バースト4回毎 state `mobius_bcount`）
+- **メイビームーンズ**: state `mooncode`（残T・`tickStates`）＋ `moon_acc`（自身アビ通算・12回毎再発動）。`def.onBattleStart`/`def.onAbility` フック
 
 ### §2.2 シム判明データ ###
 
--
+> 出所: `gamedata/js/characters.js`（`hecate` エントリ）＋ `src/constants.js`（`DMG`/`BG`）に現在エンコード済みの値・挙動を配置（新規導出はしない）。
+
+#### 基本 ####
+
+- 定義キー: `hecate`（`type:'kamihime'` / `elem:'light'` / `gcls:'gh'`）
+- `baseAtk`/`baseHp`: 7800 / 1850
+- バースト係数: `burst_coef_a=5` / `burst_coef_b=2500`
+- 得意武器: 杖・魔導具 / `keigyoGain=1` / `gmax=100`
+- state: `mobius_bcount` / `mooncode`（残T・tickで自動デクリメント）/ `mburst` / `moon_acc`
+
+#### バースト（ブリリアントブレッシング・`def.onBurst`） ####
+
+- ムーンコード発動時のみ追加ダメージ（アビ枠）: `hecate_extra_mult=3` / `hecate_extra_cap=1000000`（⚠一次情報の減衰50万に対しシムは100万）
+- ※被回復上限UP（+5%/7T累積）は現状シム未モデル化
+
+#### プヴワール・リュヌ（`puvoir`・黄） ####
+
+- 定義: `['y', 2, 0]`・動的スコア `s`: `mburst%5>=2`（モビウス発動まで3バースト以内）なら 9999、通常 140
+- 光属性攻撃UP: `elem_puvoir=+0.15`/stack・`dur_puvoir=6`・上限なし独立累積
+- ムーンコード発動時のみ急所追加: `puvoir_acute` push（`acute_puvoir=0.010`/stack＝発動率10%×(1.10−1)・同dur6）
+- ※ダメージ上限UP（+6%）は現状シム未モデル化
+
+#### エフォンド・ロンブル（`effond`・赤） ####
+
+- 定義: `['r', 3, 0]`・静的スコア `s=70`・`burstTrigger`
+- アビダメージ（アビ枠）: `effond_mult=3` / `effond_cap=350000`・×(1+`GEAR.abi_dmg`+攻撃ロボバフ)
+- 攻撃・防御DOWN: `effond_def` を `dur_effond_def=6` で累積付与（`defdown_effond=0.10`/stack・上限 `defdown_effond_max=0.40`）
+- ムーンコード発動時のみ即座にゲージ消費なしでバースト。判定は**押下時点**の状態（`mcAtPress`・C18r2＝12回目押下自身には効かない）
+
+#### スリール・リュンヌ（`sleur`・黄） ####
+
+- 定義: `['y', 3, 0]`・動的スコア（puvoirと同じモビウス最優先制御）
+- 味方全体ゲージ+15（`BG.sleur`）＋ 防壁 `sleur_def`（`dur_sleur_def=3`・buffCount精度用でダメージ非関与）
+- ※リジェネ・状態異常無効（ムーンコード時）は現状シム未モデル化
+
+#### モビウスムーンズ（1アシ・`def.onPartyBurst`/`onBurst`） ####
+
+- パーティ全体バースト5回毎（`mburst%5`・戦闘通算）にヘカテー自身の全アビCD=0
+- 自身バースト4回毎（`mobius_bcount % mobius_burst_cycle=4`）に `mobius_spec` 付与＝特殊攻撃 `spec_mobius=+0.05`/stack・`dur_mobius=4`
+- ※ダメージカット(15%)は現状シム未モデル化
+
+#### メイビームーンズ（2アシ・ムーンコード） ####
+
+- 発動条件（C18実機較正）: 戦闘開始時（`onBattleStart` で `mooncode=2`＝T1,T2をカバー）または**ヘカテー自身**のアビ12回使用毎（`moon_acc%12`・戦闘通算）。持続2T・判定は**アビ終了後**
+- シムがモデル化している効果（`_na()`・`_naOwner`がヘカテー自身のときのみ）:
+  - 旺盛 `vigor_mooncode=+0.3552`（基礎値42 → ×1.3552）
+  - 会心発動率 `crit_rate_mooncode=+0.50`
+- effond の即時バースト・puvoir の急所追加はムーンコード条件で各アビ側に実装（上記）
+- ※回避率UP・反撃（10倍/減衰150万）・注目効果は現状シム未モデル化
 
