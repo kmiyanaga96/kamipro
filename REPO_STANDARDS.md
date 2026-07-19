@@ -16,7 +16,7 @@
 | 大規模な統計的較正（複数trial・実機バッチ） | `cp -r simulation/TEMPLATE simulation/simNN` → README確定 → trial → 2層分析 | simNN・**Mx**（測定メニュー・sim内連番） | simulation/simNN/ |
 | 新キャラ入手・登録較正 | `<CHAR>_REGISTRATION.md` を root に作成（ARIANROD_REGISTRATION.md が先例フォーマット） | **Ax**（キャラdoc内連番・A0=文言転記から） | root → 完了後 archive/ |
 | 仮説の起票・検証 | 関連する考察台帳（CHARACTER_ANALYSIS 等）へ **Hx 起票**。台帳がなければ起票先をユーザーへ確認 | Hx（起票文書内連番・引用は `文書名 Hx`） | 既存台帳内（新規docは乱立させない） |
-| 一次情報の受領（txt/スクショ転記/実機値） | 内容で振り分け: ゲーム仕様→`gamedata/`・敵→`enemies/`（README手順）・sim測定→`simNN/data/`・キャラ→`<CHAR>_REGISTRATION.md` 記録欄 | — | 各所（原文ママ＋出所ヘッダ） |
+| 一次情報の受領（txt/スクショ転記/実機値） | 内容で振り分け: ゲーム仕様→`gamedata/md/`（神姫/英霊/幻獣/その他）・敵→`gamedata/md/敵/`（README手順）・sim測定→`simNN/data/`・キャラ→`<CHAR>_REGISTRATION.md` 記録欄 | — | 各所（原文ママ＋出所ヘッダ） |
 | エンジン改修・機能追加・リファクタ | CLAUDE.md「Git 開発ワークフロー」＝branch → 実装 → **golden必須** → merge。設計検討が要る規模なら `*_DESIGN.md` を root に | — | src/・root設計doc → 完了後 archive/ |
 | フェーズ級の計画（新機能領域） | ROADMAP.md で採番 → `PHASEN_PLAN.md` 作成 | Phase N（ROADMAP が採番台帳） | root → 完了後 archive/ |
 | 読み物・振り返り・ガイド | essays/ へ（ゴール/完了条件は不要な唯一の区分） | — | essays/ |
@@ -26,8 +26,9 @@
 | 場所 | 責務 | 例 |
 |---|---|---|
 | root `*.md` | **現役の**規定・台帳・計画・登録較正（クローズしたら archive/ へ git mv） | CLAUDE.md・CALIBRATION_ANALYSIS.md・ARIANROD_REGISTRATION.md |
-| `gamedata/` | ゲーム側データの一次情報＋ランタイムDB（ESM） | weapons.js・damage_frames.txt |
-| `enemies/` | 敵DBの intake（一次情報 md → ENEMY_REGISTRY へ蒸留） | cath_palug.md |
+| `gamedata/js/` | シムが読むランタイムDB＝現在値（ESM） | weapons.js・characters.js |
+| `gamedata/md/` | ゲーム側データの一次情報（神姫/英霊/幻獣/敵/その他） | damage_frames.md・敵/cath_palug.md |
+| `gamedata/md/敵/` | 敵DBの intake（一次情報 md → ENEMY_REGISTRY へ蒸留・旧 `enemies/`） | cath_palug.md |
 | `simulation/simNN/` | 統計的較正の試行単位（data=一次情報 / analysis=2層構造） | sim03・sim04 |
 | `essays/` | 読み物（開発に拘束力なし） | ENGINE_CHRONICLE.md |
 | `archive/` | **クローズ済みの歴史台帳**（内容は書き換えない・現状の一次情報ではない） | PHASE7_ML_PLAN.md |
@@ -60,7 +61,7 @@
 > 作成 YYYY-MM-DD ／ 関連: <Cx/Ax等のID・関連文書>
 ```
 
-- **一次情報**は加えて「出所（ユーザー提供・実機転記等）＋受領日＋原文ママ宣言」を必須とし、**本文は書き換えない**（訂正は冒頭注記で行う＝damage_frames.txt 方式）。
+- **一次情報**は加えて「出所（ユーザー提供・実機転記等）＋受領日＋原文ママ宣言」を必須とし、**本文は書き換えない**（訂正は冒頭注記で行う＝damage_frames.md 方式）。
 - **分析**は入力（どのファイル・どのID）と出力（起票したCx等）を明記する（sim の2層構造ルールに従う）。
 - 既存MDへの遡及適用はしない（現状ファイル群は精密に作成済み＝改変コスト＞統一益。次回その文書を大改訂する機会があればヘッダを付ける）。
 

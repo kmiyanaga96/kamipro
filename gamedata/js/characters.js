@@ -1,5 +1,5 @@
-import { DMG, BG, RENRI_CAP, RENRI_MAX, TENYA_FROM, IFISHANT_MIN_CD } from '../src/constants.js';
-import { GEAR, CHARS, ABIL, ownerOf, ELEM, LEADER, LABEL } from '../src/app.js';
+import { DMG, BG, RENRI_CAP, RENRI_MAX, TENYA_FROM, IFISHANT_MIN_CD } from '../../src/constants.js';
+import { GEAR, CHARS, ABIL, ownerOf, ELEM, LEADER, LABEL } from '../../src/app.js';
 const DEBUFF_KEYS = new Set(['consort_def', 'divinus_def', 'effond_def', 'nights', 'divinus_dot']);
 const buffCount = sim => Object.entries(sim.buf).reduce((a,[k,v])=>a+(DEBUFF_KEYS.has(k)?0:v.length),0);
 // エレイン2(legend)のターン内基礎上限(契晶累積獲得数の閾値で成長)。legend guard と ifishant の消化判定で共用。
@@ -25,7 +25,7 @@ function arianHolyFire(sim, T, manual){
   if(!manual) sim._countAbilityUse('holy','y');  // A3: 自動発動もアビ計数(連理+・robot反応・proc)
 }
 
-// ⚠ ロード順の不変条件: gamedata/*.js は src/ のモジュール定数(BG/DMG/GEAR)を遅延参照で読む（旧: index.htmlインライン時代の名残）。
+// ⚠ ロード順の不変条件: gamedata/js/*.js は src/ のモジュール定数(BG/DMG/GEAR)を遅延参照で読む（旧: index.htmlインライン時代の名残）。
 // そのため【オブジェクトリテラルの即時評価フィールド】(例: gmax)に BG/DMG/GEAR を参照してはならない
 // (= ReferenceError でファイル全体が落ち、CHAR_REGISTRY 未定義→UI全消失する)。
 // 関数本体(cands.exec / def フック)内での DMG/BG/GEAR 参照は「遅延評価」のため安全(シム実行時に解決)。

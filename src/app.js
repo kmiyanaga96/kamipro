@@ -4,10 +4,10 @@
 // data 側の外部参照は全て関数本体＝遅延評価で TDZ に当たらない（ロード順不変条件）。
 // ⚠ 詳細・保守方針は VITE_MIGRATION.md を一次情報とすること。
 // ==========================================================================
-import { WEAPON_MASTER } from '../gamedata/weapons.js';
-import { SUMMON_REGISTRY } from '../gamedata/summons.js';
-import { ENEMY_REGISTRY } from '../gamedata/enemies.js';
-import { CHAR_REGISTRY } from '../gamedata/characters.js';
+import { WEAPON_MASTER } from '../gamedata/js/weapons.js';
+import { SUMMON_REGISTRY } from '../gamedata/js/summons.js';
+import { ENEMY_REGISTRY } from '../gamedata/js/enemies.js';
+import { CHAR_REGISTRY } from '../gamedata/js/characters.js';
 
 import { RENRI_CAP, RENRI_MAX, JUDG_REACT, TENYA_FROM, FB_THR, MACH_BG, KEIGYO_MAX, BEAM_W, PREFIX_TOPK, BEAM_DIVERSITY_K, IFISHANT_MIN_CD, BG, DMG, DMG_DEFAULTS } from './constants.js';
 import { Sim, cmpVec, enumerateRootPrefixes, _runRootPlan, _runBaselinePlan, _staticPrefixDmg, _selectRootPrefixes, _replayResult, _refineRoute } from './sim.js';
@@ -853,16 +853,11 @@ function _initSimProgress(n){
 
 // C16 体感改善 B1: ローディング内に編成キャラ(名前バッジ)を描画/点灯する。
 // 較正の進捗(_litProgChars(done/total))でグレー→点灯し、待ち時間を計算の進捗に同期させる。
-// ※立ち絵は未DB化のため現状は JP_SHORT の名前バッジ。B2で立ち絵に差し替え予定(点灯ロジックは流用)。
 function _renderProgChars(){
   const el=document.getElementById('sim-prog-chars'); if(!el) return;
-  // B2 前方配線: public/portraits/<key>.png があれば立ち絵、無ければ名前バッジにフォールバック。
-  //   img.onload=名前を隠す / img.onerror=img除去(名前が残る)。画像未配置の間は現状(名前バッジ)と同一。
   el.innerHTML=(CHARS||[]).map(c=>{
     const nm=(JP_SHORT&&JP_SHORT[c])||c;
-    return `<span class="sim-char" data-c="${c}"><span class="sim-char-name">${nm}</span>`+
-           `<img class="sim-char-img" src="portraits/${c}.png" alt="${nm}" `+
-           `onload="this.previousElementSibling.style.display='none';this.parentElement.classList.add('has-img')" onerror="this.remove()"></span>`;
+    return `<span class="sim-char" data-c="${c}"><span class="sim-char-name">${nm}</span></span>`;
   }).join('');
 }
 function _litProgChars(frac){
