@@ -78,7 +78,7 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
 - **イフィシャント早撃ち抑止**: `IFISHANT_MIN_CD = 3`（CD中アビが3つ未満は使用不可）。
 - **ロワ・クモンドの3枠加算**: 通常（`roy_na_frac`）、アビ（`roy_abi_frac`）、バースト（`roy_burst_frac`）をそれぞれ独自枠加算。
 - **ゲージ経済（実機確認済・2026-07-04／実装＝実機一致・乖離なし）**: 黄アビのBG付与（funki+10/legend+10/sleur+15/absolute+20/pactcore+100）・マシーンタクトゥ（ロボ反応1回あたり `MACH_BG=5`）は**すべて味方全体対象**（`addG(CHARS,…)`）。エジソンのバーストで攻撃ロボ/補助ロボ**両方のCDを−1**（`edison.def.onBurst`）＝ロボ3T稼働に対し3T周期の再設置が回りきり**常時稼働**しうる。∴ **中盤(T3〜)以降に全員ゲージ満量になるのは正しい帰結**（過去に「ロボ常時稼働はありえない／満量は不自然」と疑義が出たが、実機仕様として3点とも一致・アンプリファ×攻撃ロボの効果窓も整合＝再調査不要）。エジソン4(アンプリファ)の+10万は攻撃ロボ反応（`sim.droid>0` の赤アビ反応）にのみ加算。
-- **Phase3-1 事前計算マップ（ホットパス高速化・実装済）**: `buildFormation` で `ABIL_KEYS`/`ABIL_KC`/`ABIL_CANDS`/`ABIL_BASE_S` を一度だけ構築し、`_stepStatic`/`_candidates` が `Object.entries(ABIL)`・ネスト参照・`computeBaseScore` 再計算をせず `ABIL_KEYS` を1パス走査する。**⚠不変条件**: 走査順は `ABIL` 挿入順（=`Object.keys`順）でタイブレークは厳密 `>`（先頭最大）。キャラ追加・`abilities`/`cands` 変更時はこのマップ構築を経由するため自動追従するが、**走査順や `>` 比較を崩すと最適押し順の選択がズレる**（ゴールデン値 raw 187,186,834 / calibrated 208,689,608 で検証すること）。
+- **Phase3-1 事前計算マップ（ホットパス高速化・実装済）**: `buildFormation` で `ABIL_KEYS`/`ABIL_KC`/`ABIL_CANDS`/`ABIL_BASE_S` を一度だけ構築し、`_stepStatic`/`_candidates` が `Object.entries(ABIL)`・ネスト参照・`computeBaseScore` 再計算をせず `ABIL_KEYS` を1パス走査する。**⚠不変条件**: 走査順は `ABIL` 挿入順（=`Object.keys`順）でタイブレークは厳密 `>`（先頭最大）。キャラ追加・`abilities`/`cands` 変更時はこのマップ構築を経由するため自動追従するが、**走査順や `>` 比較を崩すと最適押し順の選択がズレる**（ゴールデン値 raw 197,775,394 / calibrated 211,462,826 で検証すること）。
 - **ESM Worker起動規律**: 旧 `_buildWorkerCode`（文字列 slice）は廃止済み。Worker は `new Worker(new URL('./worker.js', import.meta.url), {type:'module'})` で起動。**`src/app.js` の worker 用 export に必要な探索関数（`buildFormation`, `recalcGearK`, `Sim`, `_runRootPlan` 等）を含めること**。UI/DOM 依存は INIT の `if(typeof document!=='undefined')` ガード内・window ブリッジに隔離すること。
 - **2段ルート選抜（①-A・実装済）**: `runSim`/`_fallbackRunSim` は `enumerateRootPrefixes()` の全prefixを `_staticPrefixDmg`（静的greedy・約数ms）で安価採点し、上位 `PREFIX_TOPK`(=8・C16で10→8) 本のみ本選(BW64・C16で128→64)へ回す（`_selectRootPrefixes`）。空prefixは常に確保。**品質低下は PoC 実測で最大0.013%**（top-8が実証済み安全床・BW64で0%損実測）。新キャラ追加時は PoC（scratchpad `poc.js`）を再実行し `PREFIX_TOPK` の余裕を再確認する。
 
@@ -87,7 +87,7 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
   1. `git checkout main` で main に切り替え、`git pull origin main` を実行。
   2. 作業用ブランチを切って開発を開始。
 - **検証 (作業完了時)**
-  - 必ず `npm run test:golden`（期待値: raw 187,186,834 / calibrated 208,689,608）を実行しパスを確認。
+  - 必ず `npm run test:golden`（期待値: raw 197,775,394 / calibrated 211,462,826）を実行しパスを確認。
 - **反映・プッシュ**
   - コミット後、`main` に戻って `pull`、作業ブランチをマージし、再度検証テストをパスして `git push origin main`。不要な作業ブランチは削除。
 
@@ -96,7 +96,7 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
 1. **リプレイ照合**: 「リプレイモード」に実機手順を入力し、乖離の発生起点を特定。実測を `simNN/raw_data.md` に、replay画面は `simNN/replay_screenshots.md` へテキスト転記。
 2. **課題のDB化**: [CALIBRATION_ANALYSIS.md](CALIBRATION_ANALYSIS.md) のバックログ（Cx）に追記。
 3. **計画・検証策定（Antigravity 主担当）**: 設計担当が原因特定し、`simNN/design_report.md` を**必須5節構成**（1.総合比較 / 2.敗北要因 / 3.乖離分析 / 4.影響度検証 / 5.引継ぎ）で作成。
-4. **自律修正とテスト**: 実装担当（Claude Code）が `design_report.md` を検証して `simNN/integrated_analysis.md` にまとめ、コード修正後テスト実行。期待値 `raw 187,186,834 / calibrated 208,689,608` と追加検証ケースのパスを確認。
+4. **自律修正とテスト**: 実装担当（Claude Code）が `design_report.md` を検証して `simNN/integrated_analysis.md` にまとめ、コード修正後テスト実行。期待値 `raw 197,775,394 / calibrated 211,462,826` と追加検証ケースのパスを確認。
 
 ---
 
@@ -108,13 +108,13 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
 npm run test:golden          # = node test/golden.mjs（src/app.js を import し10T総ダメージを検証）
 ```
 
-**期待値**（C27 探索リファインに伴い 2026-07-14 更新）:
+**期待値**（**sim04 絶対値較正に伴い 2026-07-21 更新**・旧C27値 raw 187,186,834 / cal 208,689,608 は git履歴）:
 - FullBurst: `10/10`
-- TotalDmg（raw・較正なし＝…＋C23 judgフェーズ通算連続＋**C27 赤アビ後出しリファイン**モデル）: `187,186,834`
-- TotalDmg（**calibrated**・自動較正 `{judg:160,pactcore:1}` 適用＝production 出荷値。overrideはルート選択を制御し、C27リファインは選択後の単調パスのため選択最適overrideは据置）: `208,689,608`
-  - ※C27移動理由: 確定ルートに「赤アビ(color 'r')を同ターンの攻撃ロボ設置(`deploysRobot`)＋アンプリファ(`prelude`)の後へ」局所改善（厳密改善のみ採用＝単調安全）を追加＝ビームのgreedyロールアウト近似が赤アビ前出しを誤選択する系統ミス(C27)の是正。raw +552,510(+0.296%)/ cal +342,131(+0.164%)・FB不変(10/10)。旧C23 raw 186,634,324 / cal 208,347,477。
+- TotalDmg（raw・較正なし＝構造修正C31(アビダメ加算)/C34(バーストcap)＋絶対値較正calib_na1.835/calib_burst2.07/judg_calib0.62）: `197,775,394`
+- TotalDmg（**calibrated**・自動較正 `{judg:145,pactcore:1}` 適用＝production 出荷値。judgが×0.62で弱まり override 160→145 へ再fit）: `211,462,826`
+  - ※sim04較正の内訳: C31=アビダメUPを乗算→加算（judg/effond/consort/_spendGaugeAbi）・C34=バーストダメUP合計+500%上限・C32=M3実測で2段cap不支持のため現行1.0クランプ維持（実装なし）・C25=通常×1.835/バースト本体×2.07・C30=judg ph0×0.62。根拠 `simulation/sim04/analysis/`（M1-M3 fit）・CALIBRATION_ANALYSIS C25/C30/C31/C32/C34。残: C5/C3追撃cap（低総ダメ影響・別途）。
 
-> 探索は `runSim` 実行時に config別に静的スコア s を自動較正する（`calibrateStaticScores`・proxy-shortlist+full-verify・単調安全）。golden.mjs は決定的検証のため較正結果 `{judg:160,pactcore:1}` を `setStaticOverride` で明示適用する（毎回の較正走行を避ける）。詳細 archive/SEARCH_ROLLOUT_DESIGN.md §6。
+> 探索は `runSim` 実行時に config別に静的スコア s を自動較正する（`calibrateStaticScores`・proxy-shortlist+full-verify・単調安全）。golden.mjs は決定的検証のため較正結果 `{judg:145,pactcore:1}` を `setStaticOverride` で明示適用する（毎回の較正走行を避ける）。詳細 archive/SEARCH_ROLLOUT_DESIGN.md §6。
 
 補助検証（大きな構造変更・Worker/ビルド変更時）:
 ```bash
@@ -153,7 +153,7 @@ npm run preview              # dist を http 配信 → ブラウザで探索/�
   - C17: wontfix (第4較正レバー検討＝BW64新baseで再検証。full生存はsleur/puvoirのみ+0.4〜0.5%・joint掃引27点で相互作用なし=単独加算どまり・3変数が実質飽和点。工数対効果不成立で見送り。データはCALIBRATION_ANALYSIS.md C17)
   - C27: **fixed** (探索品質。真因＝ビーム目的関数が将来ターンを静的greedyで代理採点＝赤アビ前出しを damage-max と誤選択。修正＝確定ルートへ whole-route 局所改善 `_refineRoute`(赤アビ color 'r' を同ターンの`deploysRobot`+`prelude`後へ・厳密改善のみ＝単調安全・タグ駆動でキャラ名リテラル無)を`_runRootPlan`(production/worker)とgolden.mjsに結線。golden再fit raw→**187,186,834**/cal→**208,689,608**・FB10/10・冪等(固定点)確認。ENGINE_VERSION `C27-red-after-setup-refine`。実gear損失は既定gearの8〜9×[T1約450〜490万]。全設定の履歴は CALIBRATION_ANALYSIS.md C27)
   - C31〜C35: open (**2026-07-16 `gamedata/damage_frames.txt`（ダメージ枠一次情報・ユーザー提供）とエンジンの突合で起票**。C31=アビダメUPが乗算実装（実機は倍率へ加算）＝**C30真因候補・pre-cap×1.84過大** / C32=旺盛上限が一律100%クランプ（実機はウェポン100%+合計200%）＝**C25寄与候補・シム過小方向** / C33=weapons.jsの`box:'technica'`がGEAR_BOXES不在で黙殺（configAは手入力で実害なし） / C34=バーストダメUP+500%上限未実装（シム過大方向＝baseline不足の証左） / C35=軽微3点（恐傷同枠加算・final_dmg減衰後適用・急所の有利属性ゲート）。いずれも修正は較正セッション（golden/override再fit）ゲート)
-  * 現ゴールデン値: **raw 187,186,834 / calibrated 208,689,608** (C27 赤アビ後出しリファインにて再fit・2026-07-14)
+  * 現ゴールデン値: **raw 197,775,394 / calibrated 211,462,826** (sim04 絶対値較正にて再fit・2026-07-21・override {judg:145,pactcore:1}・ENGINE_VERSION `sim04-abscal-C31C34-calib`)
 
 ---
 

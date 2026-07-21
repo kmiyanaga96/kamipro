@@ -51,7 +51,7 @@ class Sim {
   }
 
   // 減衰(上限)モデル: 計算ダメージ raw → 実ダメージ。
-  _naForAbi(){ const na=this._na(); const c1=DMG.decay_na.cap1*(1+(GEAR.na_cap||0)); return na>=c1?this._decay('na',na):na; }
+  _naForAbi(){ const na=this._na(); const c1=DMG.decay_na.cap1*(1+(GEAR.na_cap||0)); return na>=c1?this._decay('na',na,undefined,true):na; }  // true=calib_na非適用(アビ基底は通常較正の外)
   _droidAbiBuf(){ const n=this.buf.droid_buf?.length||0; return {dmg:n*DMG.abi_dmg_droid, cap:n*DMG.abi_cap_droid}; }
   // 汎用: ownerのバーストゲージを spent 消費し、アビ枠ダメージ(mult/cap)を加算して use(key) する。
   _spendGaugeAbi(key, spent, mult, cap, T, ord){
@@ -62,7 +62,7 @@ class Sim {
     this.use(key, T, ord, `(消費${spent})`);
   }
 
-  _decay(frame, raw, base){
+  _decay(frame, raw, base, noCalib){
     const up = GEAR[frame+'_cap']||0;
     if(frame==='na'){
       const c1=DMG.decay_na.cap1*(1+up), c2=c1+100000, c3=c1+200000;
@@ -70,7 +70,7 @@ class Sim {
       if(r>c1) r=c1+(r-c1)*0.5;
       if(r>c2) r=c2+(r-c2)*0.5;
       if(r>c3) r=c3+(r-c3)*0.5;
-      return r;
+      return noCalib ? r : r*DMG.calib_na;  // C25: 通常攻撃の絶対値較正(_naForAbi経由=noCalibは除外)
     }
     if(frame==='burst'){
       const c1=(base??DMG.decay_burst.cap1)*(1+up);
@@ -175,7 +175,7 @@ class Sim {
     const capBonus = (CHAR_DEF[owner].burstCapBonus?.(this) ?? 0) + DMG.sub_burst_cap;
     // C34: バーストダメUP合計(バフ+ウェポン)に+500%上限(実機・damage_frames ⑪)。selfBonus(大幅UP=現神/奮起/アリアン等)は上限外。
     const core = this._decay('burst', naB*(coef_a + Math.min(bdmg + GEAR.burst_dmg, DMG.burst_dmg_cap) + selfBonus) + coef_b, DMG.decay_burst.cap1*(1+capBonus));
-    this.dmg += core + royBurst + passiveFlat;
+    this.dmg += core*DMG.calib_burst + royBurst + passiveFlat;  // C25: バースト本体の絶対値較正(dmgのみ・return core=streak基底は素のまま)
     if(atk) bset.add(owner);
     // キャラ固有のバースト時処理（CHAR_DEF記述子に集約）
     CHAR_DEF[owner].onBurst?.(this, atk, owner);

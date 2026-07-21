@@ -144,6 +144,11 @@ const DMG = {
   edison_burst_extra_cap: 800000,  // 減衰上限80万(武器固定)
   judg_mult: 3,             // ジャッジメント: 通常比3倍
   judg_cap: 350000,        // ジャッジ1ヒット減衰上限
+  // ─── sim04 絶対値較正スカラ(2026-07-21・configB×cath_palug M走fit・根拠 CALIBRATION_ANALYSIS C25/C30) ───
+  // エンジンの枠別 pre-cap 過不足を実機meanへ寄せる較正倍率。実機/sim 比の逆数を枠に付与。
+  calib_na: 1.835,     // C25(na): 通常攻撃 実機/sim≈1.73〜1.90(5キャラ)→全体1.835。_decay('na')に付与(judg基底=_naForAbiは除外)
+  calib_burst: 2.07,   // C25(burst): バースト本体 実機/sim≈1.9〜2.3(ARRIVE flat込みbody基準)→2.07。burst()のdmg加算のみ(streak基底は素core)
+  judg_calib: 0.62,    // C30(judg ph0): C31加算化後も 実機/sim≈0.62(過大)→judg hitに付与(abi枠blanketにしない=追加/追撃はC5/C3で別途)
   amplifa_flat: 100000,      // アンプリファ: ロボ反応ダメ+10万
   dur_amplifa: 3,            // アンプリファ効果ターン
 

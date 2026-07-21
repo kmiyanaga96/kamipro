@@ -29,14 +29,14 @@ buildFormation('edison', ['yamato', 'hecate', 'tetra', 'elaine']);
 // raw(較正なし)の回帰アンカー
 setStaticOverride({});
 const raw = run10T();
-const rawOk = raw.dmg === 187186834 && raw.fb === 10;
+const rawOk = raw.dmg === 197775394 && raw.fb === 10;
 
-// 自動較正 override（本編成の calibrateStaticScores 選択結果 = {judg:160,pactcore:1}・C23）を適用した production 値
-setStaticOverride({ judg: 160, pactcore: 1 });
+// 自動較正 override（本編成の calibrateStaticScores 選択結果 = {judg:145,pactcore:1}・sim04較正で160→145）を適用した production 値
+setStaticOverride({ judg: 145, pactcore: 1 });
 const cal = run10T();
 setStaticOverride({});
-const calOk = cal.dmg === 208689608 && cal.fb === 10;
+const calOk = cal.dmg === 211462826 && cal.fb === 10;
 
 const ok = rawOk && calOk;
-console.log(`[golden] raw=${raw.dmg} FB=${raw.fb}/10 | calibrated=${cal.dmg} FB=${cal.fb}/10 => ${ok ? 'OK' : 'MISMATCH (expect raw 187186834 / calibrated 208689608 / 10)'}`);
+console.log(`[golden] raw=${raw.dmg} FB=${raw.fb}/10 | calibrated=${cal.dmg} FB=${cal.fb}/10 => ${ok ? 'OK' : 'MISMATCH (expect raw 197775394 / calibrated 211462826 / 10)'}`);
 process.exit(ok ? 0 : 1);

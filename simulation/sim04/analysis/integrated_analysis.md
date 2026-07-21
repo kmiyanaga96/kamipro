@@ -48,11 +48,15 @@
 
 > ※起票・状態確定の CALIBRATION_ANALYSIS.md 反映は、REPO_STANDARDS の「クローズと台帳更新を同一コミット」規律に従い**構造修正/fitセッションで実施**（本書は判断のハブ）。
 
-## 4. 回帰影響（golden・ENGINE_VERSION）
+## 4. 回帰影響（golden・ENGINE_VERSION）＝**fit実施済み（2026-07-21）**
 
-- **本sim04分析コミット群は golden 不変**（analysis/ とスクリプトのみ・エンジン未変更）: raw 187,186,834 / cal 208,689,608・FB10/10 を全コミットで確認。
-- **今後のfit段で golden は必ず動く**: C31（アビダメ加算化）と baseline/枠fit は pre-cap raw を変える。**C32は実装変更なし＝golden非影響**（旺盛は現行維持）。
-- 構造修正時に ENGINE_VERSION 更新＋golden/override 再fit＋test/golden.mjs と CLAUDE.md の2箇所同期（README §5チェックリスト）。
+- **構造修正＋絶対値較正を実装**（`fit_probe.mjs` で configB M走を突合し較正倍率を決定）:
+  - C31 アビダメUP 乗算→加算（judg/effond/consort/_spendGaugeAbi）／C34 バーストダメUP+500%上限／**C32 実装せず**（M3で2段cap不支持）。
+  - **calib_na=1.835**（通常・`_decay('na')`・`_naForAbi`除外）／**calib_burst=2.07**（バースト本体・`burst()`のdmg加算のみ＝streak基底は素core）／**judg_calib=0.62**（judg site・abi枠blanketにしない）。
+  - fit後の実機/sim: 通常 全5キャラ 0.945〜1.038（×0.9-1.1充足）／judg N=0 ≈1.0／バースト本体 4/5キャラ 0.91〜1.0（hecateのみ+11%＝yamato_elem stack/flat帰属の残差）。
+- **golden 再fit**: raw 187,186,834→**197,775,394** / cal 208,689,608→**211,462,826**・FB **10/10**維持。override **{judg:160→145,pactcore:1}**（judg×0.62で実力低下→calibrateStaticScoresが自動で判定）。ENGINE_VERSION `sim04-abscal-C31C34-calib`。
+- 同期済: test/golden.mjs・CLAUDE.md（検証ゲート/現ゴールデン値/override）・CALIBRATION_ANALYSIS.md（C25部分fix/C30 fixed/C31 fixed/C32 resolved-実装せず/C34 fixed）。`npm run build` 成功。
+- **残（別途）**: C5/C3 追撃cap（ロボ追撃/追加ダメが×2-3.3過小・cap飽和で総ダメ影響小）／バースト成長の二次残差（hecate/tetra のyamato_elem依存）／C35・omni spec範囲（低優先）。
 
 ## 5. 結論・次アクション
 

@@ -339,7 +339,7 @@ const CHAR_REGISTRY = {
                       // アビダメ枠: ×(1+abi_dmg+droid)、1ヒット減衰 基準judg_cap×(1+droid)(超過は1/25で逓減)
                       // amplifa(+10万)はロボ反応ダメージ専用のためジャッジには加算しない。
                       const db0=sim._droidAbiBuf();
-                      const hit=sim._decay('abi', sim._naForAbi()*(DMG.judg_mult+GEAR.abi_dmg+db0.dmg), DMG.judg_cap*(1+db0.cap));  // C31: アビダメUP加算
+                      const hit=sim._decay('abi', sim._naForAbi()*(DMG.judg_mult+GEAR.abi_dmg+db0.dmg), DMG.judg_cap*(1+db0.cap))*DMG.judg_calib;  // C31: アビダメUP加算 / C30: judg ph0 較正(×0.62・過大是正)
                       sim.dmg += 10*hit + royAbi;
                       // C12-案C: 定石性報酬 — judgダメージ(ph0)が防御DOWN有効中なら加点(ランキング用のみ・火力不関与)。
                       T.orthodoxy=(T.orthodoxy||0)+(sim.buf.divinus_def?.length?1:0)+(sim.buf.effond_def?.length?1:0); }
