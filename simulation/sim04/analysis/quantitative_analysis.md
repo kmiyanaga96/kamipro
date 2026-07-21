@@ -62,3 +62,36 @@
 
 ### 6. 手法・スクリプト参照
 - `analysis/m1_aggregate.mjs`（node実行・3走DATA内包＝§2-5の全数値を決定的に再生成）。入力転記元は `data/trial01-03.md` の §1/§2（加工なし）。
+
+---
+
+## M2 層（judg単独・M2a・trial04-10）
+
+### 1. 入力（per_trial 版）
+- `trial04-10_quant.md`（M2a・configB・engine C27-red-after-setup-refine）。judg=**テトラのアビ枠ph0・10hit/走**。
+- 横断スクリプト: `analysis/m2_aggregate.mjs`（7走の10hit＋急所フラグ＋付随データを内包）。
+- **N水準**: N=0（trial04-06）／N=1（trial07-08・droid→alone→judg）／N=2（trial09-10・droid→alone→**effond**→judg）。N=judg押下時の droid_buf スタック（=ロボ反応回数）。
+
+### 2. judg ph0 の絶対値・cap飽和（C30）
+| N | trials | 全hit mean | 非急所プールmean | hit幅(走内) | CV(走内) |
+|---|---|---|---|---|---|
+| 0 | 04,05,06 | 438,076 | **428,046**（6hit） | 3.7〜4.2% | 1.0〜1.4% |
+| 1 | 07,08 | 441,510 | 算出不可（急所列過剰） | 4.1% | 1.3% |
+| 2 | 09,10 | 457,451 | 445,175（3hit・**defdown下**） | 3.5〜4.3% | 1.0〜1.4% |
+
+- **所見A（C30・cap飽和の形）**: 走内の10hit変動（≒4%）は**ほぼ急所on/off**で説明（急所≒+2.9%）。**同一急所状態のhitは近似決定的**（非急所プールN=0の6hitは 425,621〜431,315＝幅1.3%）。∴ judg ph0は**「毎hit独立ロールで大きくばらつく」より「decay/capで値が固定され、急所で段が付く」**像。C30の per-hit cap 想定と整合。
+- **非急所アンカー（N=0）= 428,046/hit**（3走で 428,152/426,886/428,468＝再現性高）＝この編成のjudg ph0の"素のcap高さ"アンカー。fit（C30/C31）の主入力。
+
+### 3. droidスロープ／effond defdown 分離（C31・C30接続）
+- **clean droidスロープ N0→N1 = +0.78%/反応**（trial07/08＝alone反応のみ・**defdown無**）。
+- **N0→N2 = +4.42%**（trial09/10）。droid線形分（2×0.78%=1.57%）を差引いた**残差 ≒ +2.86% = effond_def（敵防御DOWN）寄与**。
+- **⚠帰属注意**: N=2はdroid+2と**effondデバフの二重変化**＝clean droid点ではない。droidの純増分は**N=0→N=1のみ**で採る。effond_defの+2.86%はdefdown係数の一次実測（fitで敵def/defdownモデルへ）。
+- **C31（加算/乗算）はここでは確定しない**（README §3遵守）: 実機ph0絶対値（428k非急所）＋droidスロープ（0.78%/反応）＋naForAbi（M1）を、構造修正後に同時fitして判別。現データはその制約入力（絶対値・スロープ・defdown・cap形状）を確定した段階。
+
+### 4. 付随データ（C5/C3追撃・burst-with-omni・別アビ枠）
+- **ロボ追撃**（6発・alone/effond由来）: mean **1,462,525**（1,438,795〜1,494,094）。sim03アンカー（実機1.58〜2.26M / sim≈0.98〜1.01M飽和）と同レンジの対ボス実測＝C5/C3の追加入力。
+- **エレインburst本体（T1・omni有効下）**: 3,480,464〜3,516,724。M1のT2 elaine本体（omni失効後・3,431〜3,443k）比 **+約1.5〜2.4%**＝omni(spec+30%)のバースト寄与の目安（小＝specは減衰深部で薄い）。
+- **effondアビ枠1hit**: 721,151/721,934（N=2＋defdown下）＝judg以外のアビ枠アンカー（C31同枠・fit時のクロスチェック）。
+
+### 5. 手法・スクリプト参照
+- `analysis/m2_aggregate.mjs`（node実行・7走の判別/スロープ/cap/付随を決定的に再生成）。入力転記元 `data/trial04-10.md` §1（加工なし）。
