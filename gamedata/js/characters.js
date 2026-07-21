@@ -267,7 +267,7 @@ const CHAR_REGISTRY = {
                   // 12回目押下がeffond自身の場合その押下のバーストには効かない。use()フックがmooncodeを
                   // 立てる前にここで捕捉する)。
                   const mcAtPress = sim.mooncode>0;
-                  sim.dmg += sim._decay('abi', sim._naForAbi()*DMG.effond_mult*(1+GEAR.abi_dmg+db.dmg), DMG.effond_cap*(1+db.cap));
+                  sim.dmg += sim._decay('abi', sim._naForAbi()*(DMG.effond_mult+GEAR.abi_dmg+db.dmg), DMG.effond_cap*(1+db.cap));  // C31: アビダメUP加算
                   // C12-案C: 定石性報酬 — divinus(防御DOWN)先行中にeffondを撃てたら加点(divinus→effondの定石・ランキング用のみ)。
                   T.orthodoxy=(T.orthodoxy||0)+(sim.buf.divinus_def?.length?1:0);
                   (sim.buf.effond_def??=[]).push(DMG.dur_effond_def);
@@ -339,7 +339,7 @@ const CHAR_REGISTRY = {
                       // アビダメ枠: ×(1+abi_dmg+droid)、1ヒット減衰 基準judg_cap×(1+droid)(超過は1/25で逓減)
                       // amplifa(+10万)はロボ反応ダメージ専用のためジャッジには加算しない。
                       const db0=sim._droidAbiBuf();
-                      const hit=sim._decay('abi', sim._naForAbi()*DMG.judg_mult*(1+GEAR.abi_dmg+db0.dmg), DMG.judg_cap*(1+db0.cap));
+                      const hit=sim._decay('abi', sim._naForAbi()*(DMG.judg_mult+GEAR.abi_dmg+db0.dmg), DMG.judg_cap*(1+db0.cap));  // C31: アビダメUP加算
                       sim.dmg += 10*hit + royAbi;
                       // C12-案C: 定石性報酬 — judgダメージ(ph0)が防御DOWN有効中なら加点(ランキング用のみ・火力不関与)。
                       T.orthodoxy=(T.orthodoxy||0)+(sim.buf.divinus_def?.length?1:0)+(sim.buf.effond_def?.length?1:0); }
@@ -572,7 +572,7 @@ const CHAR_REGISTRY = {
                    const mult=2+0.5*bc;
                    // アビダメ枠: ×(1+abi_dmg+droid)、減衰 基準consort_cap×(1+droid)(超過は1/25で逓減)
                    const dbc=sim._droidAbiBuf();
-                   for(let i=0;i<hits;i++) sim.dmg+=sim._decay('abi', sim._naForAbi()*mult*(1+GEAR.abi_dmg+dbc.dmg), DMG.consort_cap*(1+dbc.cap));
+                   for(let i=0;i<hits;i++) sim.dmg+=sim._decay('abi', sim._naForAbi()*(mult+GEAR.abi_dmg+dbc.dmg), DMG.consort_cap*(1+dbc.cap));  // C31: アビダメUP加算
                    for(let i=0;i<hits;i++) (sim.buf.consort_def??=[]).push(DMG.dur_consort_def);
                    sim.use('consort',T,ord,hits===2?'(×2)':''); }},
       // ディシジフ: ベタイア2回発動化(2T)。バフ10以上で全体アビCD-1・BG+30追加。

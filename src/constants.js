@@ -189,6 +189,7 @@ const DMG = {
   // ─── アシスト由来グローバル枠 ───
   sub_burst_dmg: 0,           // サブバーストダメージUP
   sub_burst_cap: 0,           // サブバースト上限UP
+  burst_dmg_cap: 5.0,     // C34: バーストダメUP合計(バフ+ウェポン)の上限=+500%(実機・damage_frames ⑪)。selfBonus(大幅UP)は上限外
   final_dmg: 1.0,         // 最終倍率
 
   // ─── バーストゲージ上昇量UP(汎用枠・現ソースはフレイヤ聖夜バースト) ───

@@ -57,7 +57,8 @@ class Sim {
   _spendGaugeAbi(key, spent, mult, cap, T, ord){
     const owner=ownerOf(key); this.g[owner]=Math.max(0, this.g[owner]-spent); this._naOwner=owner;
     const db=this._droidAbiBuf();
-    this.dmg += this._decay('abi', this._naForAbi()*mult*(1+GEAR.abi_dmg+db.dmg), cap*(1+db.cap));
+    // C31: アビダメUPは倍率へ「加算」(実機・damage_frames ⑫)。旧: mult*(1+abi_dmg+db.dmg)=乗算。
+    this.dmg += this._decay('abi', this._naForAbi()*(mult+GEAR.abi_dmg+db.dmg), cap*(1+db.cap));
     this.use(key, T, ord, `(消費${spent})`);
   }
 
@@ -172,7 +173,8 @@ class Sim {
     const coef_a = CHAR_DEF[owner].burst_coef_a ?? 5;
     const coef_b = CHAR_DEF[owner].burst_coef_b ?? 2500;
     const capBonus = (CHAR_DEF[owner].burstCapBonus?.(this) ?? 0) + DMG.sub_burst_cap;
-    const core = this._decay('burst', naB*(coef_a + bdmg + GEAR.burst_dmg + selfBonus) + coef_b, DMG.decay_burst.cap1*(1+capBonus));
+    // C34: バーストダメUP合計(バフ+ウェポン)に+500%上限(実機・damage_frames ⑪)。selfBonus(大幅UP=現神/奮起/アリアン等)は上限外。
+    const core = this._decay('burst', naB*(coef_a + Math.min(bdmg + GEAR.burst_dmg, DMG.burst_dmg_cap) + selfBonus) + coef_b, DMG.decay_burst.cap1*(1+capBonus));
     this.dmg += core + royBurst + passiveFlat;
     if(atk) bset.add(owner);
     // キャラ固有のバースト時処理（CHAR_DEF記述子に集約）
