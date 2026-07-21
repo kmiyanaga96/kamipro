@@ -12,11 +12,11 @@ const JUDG = {
           acute:[0,1,1,1,1,1,1,1,1,1], confound:'なし(素のN=0)' },
   '06': { N:0, hits:[438527,425621,441564,437009,441564,443841,437768,431315,443082,438527],
           acute:[1,0,1,1,1,1,1,0,1,1], confound:'なし(素のN=0)' },
-  // N=1（droid→alone(赤反応1)→judg。defdownなし＝clean droid+1）
-  '07': { N:1, hits:[442215,447535,441435,443735,429422,435122,446775,446775,446015,436056],
-          acute:null, confound:'なし(alone=赤反応のみ・defdown無)。※急所列が11個で1個過剰＝acute分割から除外' },
-  '08': { N:1, hits:[442215,447535,441455,443735,429422,435122,446775,446775,446015,436056],
-          acute:null, confound:'なし。※trial07とほぼ同値(hit3のみ441435→441455)＝独立走か要確認' },
+  // N=1（droid→alone(赤反応1)→judg。defdownなし＝clean droid+1）※2026-07-21 修正版(独立走・急所10個)
+  '07': { N:1, hits:[442215,447535,441455,443735,429422,435122,446775,446775,446015,436056],
+          acute:[1,1,1,1,0,0,1,1,1,0], confound:'なし(alone=赤反応のみ・defdown無)' },
+  '08': { N:1, hits:[449056,446776,443736,446776,444496,447536,435756,442216,433223,446776],
+          acute:[1,1,1,1,1,1,0,1,0,1], confound:'なし(独立走・trial07とは別値)' },
   // N=2（droid→alone→effond(赤反応2)→judg。effondがデバフ(敵防御DOWN)を付与＝judgに乗る＝confound）
   '09': { N:2, hits:[458078,462300,458922,457233,459767,446818,462300,442595,459767,462300],
           acute:[1,1,1,1,1,0,1,0,1,1], confound:'⚠effond_def(敵防御DOWN)有効＝droid+2とデバフの二重変化' },
@@ -27,7 +27,7 @@ const JUDG = {
 // 付随データ(M2aの副産物・C5/C3追撃・burst-with-omniの一次記録)
 const INCIDENTAL = {
   '07': { alone:{body:3494968, extra:1589815, robo:1438795} },
-  '08': { alone:{body:3494968, extra:1589815, robo:1438795} },
+  '08': { alone:{body:3498594, extra:1572933, robo:1432209} },
   '09': { alone:{body:3480464, extra:1570524, robo:1462293}, effond:{abi:721934, body:3514788, extra:2160930, robo:1486790} },
   '10': { alone:{body:3516724, extra:1587400, robo:1454384}, effond:{abi:721151, body:3538211, extra:2117277, robo:1494094} },
 };
@@ -72,5 +72,5 @@ for(const id of Object.keys(INCIDENTAL)){const x=INCIDENTAL[id];
   if(x.effond) s+=` | effond[abi ${x.effond.abi.toLocaleString()} / body ${x.effond.body.toLocaleString()} / 追加 ${x.effond.extra.toLocaleString()} / ロボ追撃 ${x.effond.robo.toLocaleString()}]`;
   console.log(s);
 }
-const robos=[1438795,1438795,1462293,1486790,1454384,1494094];
+const robos=[1438795,1432209,1462293,1486790,1454384,1494094];
 console.log(`ロボ追撃プール(6発): mean=${Math.round(mean(robos)).toLocaleString()} 範囲 ${Math.min(...robos).toLocaleString()}〜${Math.max(...robos).toLocaleString()}`);
