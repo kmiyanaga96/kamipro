@@ -83,8 +83,12 @@ const DMG = {
   // ─── ヤマトタケル ───
   burst_inori: 5.0,          // 現神の祈り中ヤマトバースト係数増分
   burst_funki: 0.15,         // 大和の奮起: バーストダメージ+15%/stack
-  burst_cap_funki: 0.10,     // 大和の奮起: バースト上限+10%/stack
+  burst_cap_funki: 0.10,     // 大和の奮起: バースト上限+10%/stack(自分のみ・通常上限UP枠)
   dur_inori_burst: 3,        // 現神の祈りバースト性能UP効果ターン
+  // ─── ダメージ上限UP(減衰上限・damage_frames「ダメージ上限UP」= na/burst/abi 各枠へ加算) ───
+  cap_absolute: 0.20,        // アブソ(テトラ2): 通常/バースト/アビ 各上限+20%(presence・味方全体2T・tetra.md §1)
+  cap_puvoir:   0.06,        // プヴワール(ヘカテー1): 通常/バースト/アビ 各上限+6%/stack(累積・味方全体光・hecate.md §1)
+  cap_arrive:   0.10,        // ARRIVE(エレイン3): バースト上限+10%(全光・恒久・elaine.md §1・エクシードと同枠)
   dur_funki_burst: 3,        // 大和の奮起バースト性能UP効果ターン
   elem_yamato: 0.05,        // ヤマトバースト: 味方全体の光属性攻撃+5%/stack
   dur_yamato_elem: 3,        // ヤマトバースト光属性攻撃UP効果ターン

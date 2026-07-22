@@ -51,7 +51,9 @@ class Sim {
   }
 
   // 減衰(上限)モデル: 計算ダメージ raw → 実ダメージ。
-  _naForAbi(){ const na=this._na(); const c1=DMG.decay_na.cap1*(1+(GEAR.na_cap||0)); return na>=c1?this._decay('na',na,undefined,true):na; }  // true=calib_na非適用(アビ基底は通常較正の外)
+  _naForAbi(){ const na=this._na(); const c1=DMG.decay_na.cap1*(1+(GEAR.na_cap||0)+this._partyCapUp()); return na>=c1?this._decay('na',na,undefined,true):na; }  // true=calib_na非適用(アビ基底は通常較正の外)
+  // ダメージ上限UP(パーティ・na/burst/abi 共通): アブソ(presence+20%) + プヴワール(累積+6%/stack)。damage_frames「ダメージ上限UP」= 各減衰枠へ加算。
+  _partyCapUp(){ const b=this.buf; return (b.absolute?.length?DMG.cap_absolute:0) + (b.puvoir?.length||0)*DMG.cap_puvoir; }
   _droidAbiBuf(){ const n=this.buf.droid_buf?.length||0; return {dmg:n*DMG.abi_dmg_droid, cap:n*DMG.abi_cap_droid}; }
   // 汎用: ownerのバーストゲージを spent 消費し、アビ枠ダメージ(mult/cap)を加算して use(key) する。
   _spendGaugeAbi(key, spent, mult, cap, T, ord){
@@ -63,7 +65,8 @@ class Sim {
   }
 
   _decay(frame, raw, base, noCalib){
-    const up = GEAR[frame+'_cap']||0;
+    // na/abi: GEAR上限UP枠 + パーティ上限UP(アブソ/プヴワール)を加算。burst: 上限UPは burst() 側で base に集約済み(ここで再加算しない)。
+    const up = (GEAR[frame+'_cap']||0) + ((frame==='na'||frame==='abi') ? this._partyCapUp() : 0);
     if(frame==='na'){
       const c1=DMG.decay_na.cap1*(1+up), c2=c1+100000, c3=c1+200000;
       let r=raw;
@@ -73,7 +76,7 @@ class Sim {
       return noCalib ? r : r*DMG.calib_na;  // C25: 通常攻撃の絶対値較正(_naForAbi経由=noCalibは除外)
     }
     if(frame==='burst'){
-      const c1=(base??DMG.decay_burst.cap1)*(1+up);
+      const c1=(base??DMG.decay_burst.cap1);  // base=burst()側で上限UP(通常枠加算＋特別減衰別枠乗算)を集約済み
       return raw<=c1 ? raw : c1+(raw-c1)*DMG.decay_burst.slope;
     }
     if(frame==='streak'){
@@ -156,8 +159,8 @@ class Sim {
     // 編成パッシブのバースト寄与(全員のバーストに乗る永続効果)をCHAR_DEFから汎用合算。
     // 例: ARRIVE(エレイン3アシ・全光属性編成) = バーストダメ+20% & バーストプラス+50万。
     // 返り値 {dmg:バーストダメUP加算, flat:減衰外フラット加算}。キャラ名リテラルはエンジンに置かない。
-    let passiveDmg=0, passiveFlat=0;
-    for(const c of CHARS){ const p=CHAR_DEF[c].burstPartyPassive?.(this); if(p){ passiveDmg+=p.dmg||0; passiveFlat+=p.flat||0; } }
+    let passiveDmg=0, passiveFlat=0, passiveCap=0;
+    for(const c of CHARS){ const p=CHAR_DEF[c].burstPartyPassive?.(this); if(p){ passiveDmg+=p.dmg||0; passiveFlat+=p.flat||0; passiveCap+=p.cap||0; } }
     // 概算バーストダメージ: absolute(バーストダメUP) + nights(敵バースト耐性DOWN≒バーストダメUP) + 編成パッシブ
     //   + sub_burst_dmg(アシスト由来・AnotherLink等。golden編成は0で不変)。
     const bdmg = (this.buf.absolute?.length||0)*DMG.burst_dmg_absolute
@@ -172,9 +175,12 @@ class Sim {
     // a/b はキャラ毎(CHAR_DEF[owner].def.burst_coef_a/b)。省略時 a=5 / b=2500。
     const coef_a = CHAR_DEF[owner].burst_coef_a ?? 5;
     const coef_b = CHAR_DEF[owner].burst_coef_b ?? 2500;
-    const capBonus = (CHAR_DEF[owner].burstCapBonus?.(this) ?? 0) + DMG.sub_burst_cap;
+    // バースト上限UP: 通常枠(自=奮起/アリアン2アシ=burstCapBonus + パーティ=ARRIVE(passiveCap)/アブソ/プヴワール(_partyCapUp) + アルテミス(sub) + GEARエクシード)は同枠加算。
+    //   特別減衰(アリアン burstCapSpecial)のみ別枠乗算(damage_frames「ダメージ上限UP」＝加算・「特別減衰」＝別枠)。
+    const ordCapUp = (CHAR_DEF[owner].burstCapBonus?.(this) ?? 0) + DMG.sub_burst_cap + passiveCap + (GEAR.burst_cap||0) + this._partyCapUp();
+    const spCapUp  = CHAR_DEF[owner].burstCapSpecial?.(this) ?? 0;
     // C34: バーストダメUP合計(バフ+ウェポン)に+500%上限(実機・damage_frames ⑪)。selfBonus(大幅UP=現神/奮起/アリアン等)は上限外。
-    const core = this._decay('burst', naB*(coef_a + Math.min(bdmg + GEAR.burst_dmg, DMG.burst_dmg_cap) + selfBonus) + coef_b, DMG.decay_burst.cap1*(1+capBonus));
+    const core = this._decay('burst', naB*(coef_a + Math.min(bdmg + GEAR.burst_dmg, DMG.burst_dmg_cap) + selfBonus) + coef_b, DMG.decay_burst.cap1*(1+ordCapUp)*(1+spCapUp));
     this.dmg += core*DMG.calib_burst + royBurst + passiveFlat;  // C25: バースト本体の絶対値較正(dmgのみ・return core=streak基底は素のまま)
     if(atk) bset.add(owner);
     // キャラ固有のバースト時処理（CHAR_DEF記述子に集約）

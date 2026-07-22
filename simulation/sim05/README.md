@@ -28,6 +28,7 @@
 - **ナポレオン cands**: `roy/pike/consort/factor` に **`s:` スコア未設定＝既定静的スコア**。押し順ヒューリスティックは**未反映**（§4.1 で設計）。
 - **アリアン**: `holy`（手動2回/T・`arianHolyFire`）・`elegant`（CD8）・`elegant_re`（guard `T.elegant<(t===1?4:3) && g>=40`）。回数制限は実装済みだが、**短縮由来の上限超過（条件付き+1）は未実装**（§4.2）。A1〜A7/A9 は実機確定済み（追撃=別枠2本・onBurst実装済み）。
 - **DISPLAY_ATK/HP_OVERRIDE**: sim04 configB 値（edison/yamato/hecate/tetra/elaine）。移行実機値は移行README の表にあり（napoleon 102262 / arianrhod 77297 / hecate 75558 / tetra 83718 / elaine 85054・HP も）。
+- **✅ C36（ダメージ上限UP枠）実装済み（2026-07-22・sim05前構造修正）**: cap-UP を na/burst/abi 各減衰枠へ加算（アブソ/プヴワール/ARRIVE ＋ 特別減衰別枠）。golden は default gear で cap 未到達につき不変。**⚠これにより abs-calib スカラ（calib_na/burst/judg・configB で cap-UP 無しに fit）は cap binding する実gearで過大方向に動く＝G4 で cap-UP 込みの再検証・必要なら再fit**（C31/C34 と同じ「構造→スカラ」順）。
 
 ## 3. 依存チェーン（実施順・sim04 と同型）
 
