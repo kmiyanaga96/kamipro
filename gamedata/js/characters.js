@@ -451,7 +451,7 @@ const CHAR_REGISTRY = {
       // バーストダメージ+20% & バーストダメージプラス+50万(減衰外)を全員のバーストに付与。
       // 会心発動率+20%(crit_rate_arrive)は _na() に常時反映済み。
       burstPartyPassive: (sim) => CHARS.every(c=>ELEM[c]==='light')
-        ? { dmg: DMG.burst_dmg_arrive, flat: DMG.bplus_arrive } : null,
+        ? { dmg: DMG.burst_dmg_arrive, flat: DMG.bplus_arrive, cap: DMG.cap_arrive } : null,  // cap: バースト上限+10%(全光・エクシード同枠)
       // バースト追加ダメージ(スクショ確定・アビ枠・2倍/30万): 常時1回、契晶80個以上で3回発動。
       onBurst: (sim) => {
         const naB_e = sim._na();
@@ -522,8 +522,8 @@ const CHAR_REGISTRY = {
       // 1アシ: 登場〜5T バースト性能UP(倍率5→10=+5)。自バースト限定(burstBonus=オーナー限定)。
       burstBonus: (sim) => sim._t <= DMG.arian_last_turn ? DMG.burst_arian : 0,
       // 1アシ: 登場〜5T バースト特別減衰+100% ＋ 2アシ: バースト上限+8%/stack(3T累積)。
-      burstCapBonus: (sim) => (sim._t <= DMG.arian_last_turn ? DMG.arian_cap_boost : 0)
-                            + (sim.buf.arian_bcap?.length||0)*DMG.bcap_arian,
+      burstCapBonus: (sim) => (sim.buf.arian_bcap?.length||0)*DMG.bcap_arian,  // 2アシ: バースト上限+8%/stack(通常上限UP枠・加算)
+      burstCapSpecial: (sim) => sim._t <= DMG.arian_last_turn ? DMG.arian_cap_boost : 0,  // 1アシ: バースト特別減衰+100%(別枠・乗算)
       // 1アビ: バーストダメージプラス(味方光・全バースト共通の減衰外フラット。全編成光前提で全体近似)。
       burstPartyPassive: (sim) => { const n=sim.buf.arian_bplus?.length||0; return n?{flat:n*DMG.bplus_arian}:null; },
       // 2アシ(オーバーカムリターン): 味方光キャラが3回バースト毎に、自分の全アビCD-1・自ゲージ+40・バースト上限+8%(3T累積)。
