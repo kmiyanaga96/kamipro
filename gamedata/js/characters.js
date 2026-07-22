@@ -484,7 +484,7 @@ const CHAR_REGISTRY = {
     cands: {
       // 1アビ: バーストダメージプラス+10万(味方光・5T累積)＋バーストゲージ+10＋敵8回光ダメージ(0.8倍/8万)。
       // 手動発動は同ターン最大2回(A2実機確定＝arianHolyFire に manual=true を渡し T.holy<2 をゲート)。実CD1は cd0+quota。
-      holy: { s:130, atkBuf:true, partyBG:true, guard:(sim,T)=>(T.holy||0)<2,
+      holy: { s:130, atkBuf:true, partyBG:true, guard:(sim,T)=>(T.holy||0) < 2 + (T.holy_plus||0),  // sim05(Q5): 短縮ソースによる上限超過(累積・holy実機〜5回)。増分規則の裏取りはG4
               exec:(sim,T,ord)=>{ arianHolyFire(sim,T,true); sim.use('holy',T,ord); }},
       // 2アビ: 特殊攻撃+8%・急所+0.10(3T累積)。A5実機確定(2026-07-17): 奇数回目=味方全体 / 偶数回目=自分のみ。
       //   → self枠(arian_*_self)は _na が _naOwner===アリアンのときだけ適用（sim.js _na 参照）。
@@ -535,6 +535,8 @@ const CHAR_REGISTRY = {
           for(const k of Object.keys(ABIL)) if(ownerOf(k)===me) sim.cd[k]=Math.max(0, sim.cd[k]-1);
           sim.addG([me], DMG.arian_overcome_bg);
           (sim.buf.arian_bcap ??= []).push(DMG.dur_arian_bcap);
+          // sim05(Q5): 自CD-1がクォータ消化済みholy(cd0)に作用→上限超過+1(ifishant→ifAlone同型・累積可)。増分規則の裏取りはG4
+          if((sim.T?.holy||0)>=2) sim.T.holy_plus=(sim.T.holy_plus||0)+1;
         }
       },
       // 1アシ: 登場〜5T ターン終了時に1アビ即発動(ホーリーターボ)。
@@ -559,16 +561,19 @@ const CHAR_REGISTRY = {
     cdShow: { roy:"ロワ・クモンド", pike:"パイク", consort:"アーティオリ", factor:"ディシジフ" },
     cands: {
       // ロワ・クモンド: バフ数tierに応じ全攻撃ダメージプラス(2T)。tier確定後にbuf追加。
-      roy:     { atkBuf:true, exec:(sim,T,ord)=>{ const bc=buffCount(sim);
+      roy:     { s:(sim)=>{ const bc=buffCount(sim); return bc>=16?70:bc>=11?55:bc>=6?45:38; },  // sim05: tier(6/11/16)が乗るほど価値増=中盤以降寄せ(pre-calib・G3/G4で調整)
+                 atkBuf:true, exec:(sim,T,ord)=>{ const bc=buffCount(sim);
                    sim.roy_tier = bc>=16?3:bc>=11?2:bc>=6?1:0;
                    (sim.buf.roy??=[]).push(DMG.dur_roy); sim.use('roy',T,ord); }},
       // パイク: 旺盛・防壁(2T)。自身のバフ2個を含めてバフ15以上で急所・会心付与追加。
-      pike:    { atkBuf:true, exec:(sim,T,ord)=>{ (sim.buf.pike??=[]).push(DMG.dur_pike);
+      pike:    { s:(sim)=>buffCount(sim)>=15?92:32,  // sim05: ≥15で確実会心=そこで浮上・未満は旺盛/防壁のみで低優先(pre-calib)
+                 atkBuf:true, exec:(sim,T,ord)=>{ (sim.buf.pike??=[]).push(DMG.dur_pike);
                    (sim.buf.pike_def??=[]).push(DMG.dur_pike);
                    if(buffCount(sim)>=15) (sim.buf.pike_crit??=[]).push(DMG.dur_pike);
                    sim.use('pike',T,ord); }},
       // アーティオリ: (2+0.5×バフ数)倍のダメージ(上限250万)。防御DOWN(6T累積可)。バフ20以上で2回。
-      consort: { exec:(sim,T,ord)=>{ sim._naOwner=ownerOf('consort'); const bc=buffCount(sim); const hits=bc>=20?2:1;
+      consort: { s:(sim)=>{ const bc=buffCount(sim); return bc>=20?115:bc>=11?80:55; },  // sim05: 赤主砲(2+0.5bc)倍・≥20で2hit=バフ乗るほど強い=終盤寄せ(pre-calib)
+                 exec:(sim,T,ord)=>{ sim._naOwner=ownerOf('consort'); const bc=buffCount(sim); const hits=bc>=20?2:1;
                    const mult=2+0.5*bc;
                    // アビダメ枠: ×(1+abi_dmg+droid)、減衰 基準consort_cap×(1+droid)(超過は1/25で逓減)
                    const dbc=sim._droidAbiBuf();
@@ -576,10 +581,13 @@ const CHAR_REGISTRY = {
                    for(let i=0;i<hits;i++) (sim.buf.consort_def??=[]).push(DMG.dur_consort_def);
                    sim.use('consort',T,ord,hits===2?'(×2)':''); }},
       // ディシジフ: ベタイア2回発動化(2T)。バフ10以上で全体アビCD-1・BG+30追加。
-      factor:  { partyBG:true, exec:(sim,T,ord)=>{ sim.betaia2=DMG.dur_factor;
+      factor:  { s:(sim)=>{ if(buffCount(sim)<10) return 30; const ct=Object.keys(sim.cd).filter(k=>k!=='factor'&&sim.cd[k]>0).length; return ct*ct; },  // sim05: ifishant同型=CD中アビ最多で浮上(≥10でCD-1有効)。早撃ちは機会損失(ユーザー訂正2026-07-22)
+                 partyBG:true, exec:(sim,T,ord)=>{ sim.betaia2=DMG.dur_factor;
                    if(buffCount(sim)>=10){
                      for(const k of Object.keys(sim.cd)) if(k!=='factor'&&sim.cd[k]>0) sim.cd[k]--;
                      sim.addG(CHARS,DMG.factor_bg);
+                     // sim05(Q5): 全体CD-1が「クォータ消化済み」のアリアン1アビ(holy)に作用→上限超過+1(ifishant→ifAlone同型・累積可)。arian不在ならT.holy未定義でno-op
+                     if((T.holy||0)>=2) T.holy_plus=(T.holy_plus||0)+1;
                    }
                    sim.use('factor',T,ord); }},
     },
