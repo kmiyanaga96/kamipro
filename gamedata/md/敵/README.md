@@ -38,3 +38,4 @@
 | [`cath_palug`](cath_palug.md) | キャスパリーグ | **sim03 較正ボス（2026-07-14 緊急置換・第1走）** | **def/HP未確定**（闇=光有利×1.5確定・ライトレジスト=光非適用・2T討伐・placeholder登録済み） |
 | [`ryomen_sukuna`](ryomen_sukuna.md) | 両面宿儺 | **sim05 較正候補ボス（本命・2026-07-22 統合／2026-07-24 登録）** | **✅ ENEMY_REGISTRY 登録済み**（CATACLYSM闇レイド・光有利クリーン・**def20/HP9.8億**・**鬼神障壁 `barrier` ＝枠別final-dmg cap 実装済み**・**アビ上限 `abilCapPerTurn:19` 実装済み**・⚠**全滅時計(鬼の魔力≥10)=生存/再現性が採用の最終ゲート**・1日1回。⚠rate/abi上限は第1走で実測） |
 | [`variant_chimera_chi`](variant_chimera_chi.md) | PB06 バリアントキメラ-χ（通称 強機獣） | **sim05 較正候補ボス（フォールバック・2026-07-22 intake / 2026-07-24 統合・改称）** | intake のみ（闇=光有利クリーン・def推定10・**変身[攻撃/防御UP]はHP70%動的＝イジェクトドローン→T1窓較正**・2-3T・1日1回・枠別cap無し。max_hp未取得・ENEMY_REGISTRY 未登録） |
+| [`variant_chimera`](variant_chimera.md) | PB06 バリアントキメラ（通称 弱機獣） | **sim05 較正候補ボス（記録用・不採用寄り・2026-07-24 intake）** | intake のみ（強機獣の1段下 MALICIOUS・闇=光有利クリーン・def推定10・**HP4.5億 判明**・エマージェンシーポイズン[防御UP]はHP50%動的・枠別cap無し。**速攻T1-2＝ターン不足で不採用寄り**＝最終手段・ENEMY_REGISTRY 未登録） |
