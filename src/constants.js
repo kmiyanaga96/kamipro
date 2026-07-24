@@ -229,6 +229,17 @@ const DMG = {
   // 敵パラメータ
   enemy_def: 10,
   enemy_max_hp: 100000000,
+  // ─── 敵側 final-dmg 枠別cap（鬼神障壁型・両面宿儺 ryomen_sukuna・sim05前タスク①） ───
+  // 1ヒットの最終ダメージが枠別上限を超える場合、超過分に補正率(rate)を乗じて軽減する敵特性。
+  // null=無し（既定・golden/従来ボス不変）。applyEnemy() が ENEMY_REGISTRY[key].barrier から設定。
+  // 形: {na?, burst?, streak?, abi?, rate}（キー不在の枠=上限なし）。C36「味方側 cap-UP」と対をなす敵側cap。
+  // ⚠ 補正率(rate)の解釈=「超過分×rate」は sim05 第1走で実測して確定する暫定モデル（ryomen_sukuna.md §2.1）。
+  //    現状 na=シムに通常攻撃ダメ蓄積なし / abi上限=不明(未設定) につき binding するのは burst/streak のみ。
+  enemy_barrier: null,
+  // ─── 1ターンのアビ使用回数上限（鬼神一擲回避・両面宿儺・sim05前タスク②） ───
+  // null=無し（既定・golden/従来ボス不変）。数値なら探索の候補生成で T.ability がこの値に達したらアビ候補を剪定
+  // （バースト/通常攻撃は継続）。計数=手動押下＋再発動(tenya_re/elegant_re)／自動発動(アリアン auto holy)は非計数。
+  enemy_abil_cap: null,
 };
 
 // DMG 既定値の凍結スナップショット（D10・2026-07-14）。applyGear/applyEnemy 等が上書きしたキーを
