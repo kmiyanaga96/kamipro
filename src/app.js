@@ -20,6 +20,10 @@ function applyEnemy(key){
   CURRENT_ENEMY_KEY = key;
   DMG.enemy_def    = e.def;
   DMG.enemy_max_hp = e.max_hp;
+  // 敵側 final-dmg 枠別cap(鬼神障壁・sim05前タスク①)＋アビ回数上限(鬼神一擲回避・②)。
+  // 未指定の敵は null にリセット(enemy切替で前ボスの特性が残らないよう常時代入)。null=従来挙動=golden不変。
+  DMG.enemy_barrier  = e.barrier         ?? null;
+  DMG.enemy_abil_cap = e.abilCapPerTurn  ?? null;
   // 敵DB指定の属性相性(本編成=光に対する有利1.5/中立1.0)があれば上書き(UIトグルより優先)。
   // 省略時は DMG.affinity を据え置き(UI/既定に従う=従来挙動)。
   if(e.affinity != null) DMG.affinity = e.affinity;
@@ -223,7 +227,8 @@ function _resultKey(configSig){ return ENGINE_VERSION + '|' + configSig; }
 // 旧キー形式のキャッシュエントリは以後マッチしない（英霊武器の有無だけ違う設定の衝突＝stale cacheハザードを解消）。
 function _configSig(heroKey,kamihimeKeys,n){
   return JSON.stringify([heroKey,kamihimeKeys,GEAR,[...CURRENT_SUBS],DMG.enemy_def,DMG.enemy_max_hp,
-    DMG.edison_burst_extra_mult,DMG.edison_burst_extra_cap,n]);
+    DMG.edison_burst_extra_mult,DMG.edison_burst_extra_cap,n,
+    DMG.enemy_barrier,DMG.enemy_abil_cap]);  // 敵側cap/アビ上限は探索結果(押し順/総ダメ)に効くため署名へ含める
 }
 
 // 命中時: 保存キー列を現行エンジンでリプレイし、総ダメージが記録と一致すれば {rows,dmg,prefix,baseDmg} を返す（探索skip）。
@@ -940,7 +945,8 @@ function runSim(){
   // 旧実装は対象キーの手動列挙（新武器/新キャラの DMG 定数追加のたび追記が必要＝宣言漏れで worker だけ
   // 旧値で走る C26 型のサイレント乖離の温床）。既定値スナップショット(DMG_DEFAULTS)との差分検出により
   // 宣言漏れが構造的に発生しない。worker 側でも buildFormation が再計算するキー(streak_dmgup 等)が
-  // 含まれるが、同値適用後に buildFormation が走るため無害（冪等）。ネスト値は現状不変(全代入はトップレベル数値)。
+  // 含まれるが、同値適用後に buildFormation が走るため無害（冪等）。ネスト値(オブジェクト)は JSON.stringify 比較で
+  // diff 検出＝送信対象（例 enemy_barrier=鬼神障壁の枠別cap。null 既定→非送信でworker既定null＝従来ボス不変）。
   const dmgDiff=Object.fromEntries(Object.entries(DMG).filter(([k,v])=>
     typeof v==='object' ? JSON.stringify(v)!==JSON.stringify(DMG_DEFAULTS[k]) : v!==DMG_DEFAULTS[k]));
   const initMsg={type:'init',heroKey,kamihimeKeys,currentSubs:[...CURRENT_SUBS],gearState:{...GEAR},

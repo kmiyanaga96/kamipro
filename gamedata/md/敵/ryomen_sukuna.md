@@ -100,6 +100,9 @@
 ## 5. 出典・備考
 - **一次情報**: ユーザー共有MD（2026-07-22 受領・§4 に原文ママ保全）＋有志検証データ。
 - def=20 / max_hp=9.8億 は有志値。affinity=1.5 は光⇔闇相互有利の標準則。
-- **sim05 前タスク**: 鬼神障壁（敵側 final-dmg 枠別cap）をシムに実装＝enemy 特性フィールド（例 `barrier:{na:6e6, burst:3e7, streak:3e6, abi:?, rate:0.70}`）＋ダメージ確定後の枠別クランプ。追撃非該当のため追撃 fit 自体は非依存だが HP追跡/streak照合に必要。
+- **✅ sim05 前タスク（2026-07-24 完了・`ENEMY_REGISTRY.ryomen_sukuna` 登録済み）**:
+  - **① 鬼神障壁**＝`barrier:{na:6e6, burst:3e7, streak:3e6, rate:0.70}` を registry に蒸留。エンジンは `Sim._barrier(frame,dmg)` が最終ダメの加算点（burst 本体／streak）で `cap+(dmg-cap)*rate` に軽減。na=シムに通常攻撃ダメ蓄積なし・**abi=上限不明につき未設定（暫定非軽減）**＝binding は streak（フルバーストで確実軽減）と burst（<3000万 cap で非 binding）。追撃（≤50万）非該当＝測定クリーン。⚠**補正率 rate=0.70（超過分×rate）の解釈と abi 上限は第1走で実測**して本 md/registry を更新。
+  - **② アビ回数上限**＝`abilCapPerTurn:19` を registry に蒸留。探索の候補生成（`_candidates`/`_stepStatic`）が `T.ability`（手動＋再発動計数／自動holy非計数）≥19 でアビ剪定＝「≤19アビで最大火力」の押し順を返す（鬼神一擲回避）。
+  - golden 不変検証済み（既定敵は barrier/abilCap とも null＝不活性）。UIの敵ドロップダウンに本ボスが自動出現＝**選択して生存/討伐再現性（採用の最終ゲート）を実機測定できる**。
 - **採用の最終ゲート＝生存**: 自己強化/デバフ/全滅時計（鬼の魔力≥10）ゆえ、**ナポ/アリアン編成が安定討伐（回復・状態異常回復・火力）できるか**を実機確認。全滅頻発なら fimbulvetr 同様に不適→強機獣 T1窓へフォールバック（`kijuu_kyo.md`）。
 - ⚠**アビ上限（不明）と補正率70%の解釈**は第1走で実測して §2/§4 を更新。

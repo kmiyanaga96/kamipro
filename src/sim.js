@@ -54,6 +54,15 @@ class Sim {
   _naForAbi(){ const na=this._na(); const c1=DMG.decay_na.cap1*(1+(GEAR.na_cap||0)+this._partyCapUp()); return na>=c1?this._decay('na',na,undefined,true):na; }  // true=calib_na非適用(アビ基底は通常較正の外)
   // ダメージ上限UP(パーティ・na/burst/abi 共通): アブソ(presence+20%) + プヴワール(累積+6%/stack)。damage_frames「ダメージ上限UP」= 各減衰枠へ加算。
   _partyCapUp(){ const b=this.buf; return (b.absolute?.length?DMG.cap_absolute:0) + (b.puvoir?.length||0)*DMG.cap_puvoir; }
+  // 敵側 final-dmg 枠別cap(鬼神障壁型・両面宿儺)。1ヒットの最終ダメが枠別上限を超えたら超過分に補正率を乗じて軽減。
+  // DMG.enemy_barrier=null(既定/従来ボス)なら素通し=golden不変。枠(na/burst/streak/abi)cap不在も素通し。
+  // 適用は「最終ダメの加算点」に限定(burst本体=this.dmg加算点/streak)。burst の返り値 core は streak 基底に再利用
+  // されるため _decay 内では畳まない(二重cap回避)。⚠補正率解釈は sim05 第1走で実測(constants.js enemy_barrier 注記)。
+  _barrier(frame, dmg){
+    const bar=DMG.enemy_barrier; if(!bar) return dmg;
+    const cap=bar[frame]; if(cap==null) return dmg;
+    return dmg<=cap ? dmg : cap+(dmg-cap)*(bar.rate??1);
+  }
   _droidAbiBuf(){ const n=this.buf.droid_buf?.length||0; return {dmg:n*DMG.abi_dmg_droid, cap:n*DMG.abi_cap_droid}; }
   // 汎用: ownerのバーストゲージを spent 消費し、アビ枠ダメージ(mult/cap)を加算して use(key) する。
   _spendGaugeAbi(key, spent, mult, cap, T, ord){
@@ -181,7 +190,8 @@ class Sim {
     const spCapUp  = CHAR_DEF[owner].burstCapSpecial?.(this) ?? 0;
     // C34: バーストダメUP合計(バフ+ウェポン)に+500%上限(実機・damage_frames ⑪)。selfBonus(大幅UP=現神/奮起/アリアン等)は上限外。
     const core = this._decay('burst', naB*(coef_a + Math.min(bdmg + GEAR.burst_dmg, DMG.burst_dmg_cap) + selfBonus) + coef_b, DMG.decay_burst.cap1*(1+ordCapUp)*(1+spCapUp));
-    this.dmg += core*DMG.calib_burst + royBurst + passiveFlat;  // C25: バースト本体の絶対値較正(dmgのみ・return core=streak基底は素のまま)
+    // 鬼神障壁: バースト本体(core*calib_burst)に枠別cap。バーストプラス(royBurst/passiveFlat)は別枠のためcap外。return core は streak 基底ゆえ素のまま。
+    this.dmg += this._barrier('burst', core*DMG.calib_burst) + royBurst + passiveFlat;  // C25: バースト本体の絶対値較正(dmgのみ・return core=streak基底は素のまま)
     if(atk) bset.add(owner);
     // キャラ固有のバースト時処理（CHAR_DEF記述子に集約）
     CHAR_DEF[owner].onBurst?.(this, atk, owner);
@@ -229,6 +239,9 @@ class Sim {
   _candidates(){
     const sim=this, T=this.T, ord=this.ord, bset=this.bset, t=this._t;
     const c=[];
+    // アビ使用回数上限(鬼神一擲回避・両面宿儺): 上限到達でアビ候補を全剪定(バースト/通常は_attackPhaseで継続)。
+    // 計数=T.ability(手動押下＋再発動tenya_re/elegant_re・自動holyは非計数)。null(既定/従来ボス)なら無制約=不変。
+    if(DMG.enemy_abil_cap!=null && T.ability>=DMG.enemy_abil_cap) return c;
     for(const key of ABIL_KEYS){
       if(sim.cd[key]!==0) continue;
       const kc=ABIL_KC[key];
@@ -259,6 +272,8 @@ class Sim {
   // 最大s候補を直接実行する（reduce((a,b)=>b.s>a.s?b:a) と完全同一の「先頭最大」選択）。
   _stepStatic(){
     const sim=this, T=this.T, ord=this.ord, bset=this.bset, t=this._t;
+    // アビ使用回数上限(鬼神一擲回避・両面宿儺): 上限到達でアビフェイズ終了(false=以降はバースト/通常のみ)。
+    if(DMG.enemy_abil_cap!=null && T.ability>=DMG.enemy_abil_cap) return false;
     let bestKey=null, bestS=0, bestCand=null;
     for(const key of ABIL_KEYS){
       if(sim.cd[key]!==0) continue;
@@ -304,7 +319,8 @@ class Sim {
       // マナポライト(アルテミス3): ストリークダメージ+2%/stack(buf不在で素の streak_dmgup＝golden不変)。
       const sdup=DMG.streak_dmgup+(this.buf.manapolite?.length||0)*DMG.streak_manapolite;
       const raw=burstCoreTotal*DMG.affinity*DMG.streak_count[n]*sdup;
-      this.dmg += this._decay('streak', raw, n);
+      // 鬼神障壁: ストリークは枠別capに binding しやすい(実機フルバーストでほぼ確実に軽減=ryomen_sukuna.md §2.1)。
+      this.dmg += this._barrier('streak', this._decay('streak', raw, n));
     }
     return atk;
   }
