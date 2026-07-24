@@ -36,5 +36,5 @@
 | [`walpurgis_loki`](walpurgis_loki.md) | ヴァルプルギス・ロキ | Phase4 較正ボス（T2〜C1） | **実機値待ち**（プレースホルダ登録済み） |
 | [`fimbulvetr`](fimbulvetr.md) | フィンブルヴェトル | ~~sim03 較正ボス~~ **無期限延期（2026-07-14）** | trial01全滅・7T討伐は偶然→較正対象外（エントリ保持） |
 | [`cath_palug`](cath_palug.md) | キャスパリーグ | **sim03 較正ボス（2026-07-14 緊急置換・第1走）** | **def/HP未確定**（闇=光有利×1.5確定・ライトレジスト=光非適用・2T討伐・placeholder登録済み） |
-| [`ryomen_sukuna`](ryomen_sukuna.md) | 両面宿儺 | **sim05 較正候補ボス（本命・2026-07-22 intake）** | intake のみ（CATACLYSM闇レイド・光有利クリーン・def20・**鬼神障壁=枠別final-dmg cap**・高HP多ターン・1日1回。ENEMY_REGISTRY 未登録） |
+| [`ryomen_sukuna`](ryomen_sukuna.md) | 両面宿儺 | **sim05 較正候補ボス（本命・2026-07-22 一次情報統合）** | intake のみ（CATACLYSM闇レイド・光有利クリーン・**def20/HP9.8億 確定**・**鬼神障壁=枠別final-dmg cap**・⚠**全滅時計(鬼の魔力≥10)=生存/再現性ゲート**・1日1回。ENEMY_REGISTRY 未登録） |
 | [`kijuu_kyo`](kijuu_kyo.md) | 強機獣 | **sim05 較正候補ボス（フォールバック・2026-07-22 intake）** | intake のみ（光有利クリーン・防御UPはHP50%動的→T1窓較正・2-3T・1日1回。詳細スペック未取得・ENEMY_REGISTRY 未登録） |
