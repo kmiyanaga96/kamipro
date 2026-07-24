@@ -26,6 +26,7 @@
 | 場所 | 責務 | 例 |
 |---|---|---|
 | root `*.md` | **現役の**規定・台帳・計画（クローズしたら archive/ へ git mv。キャラ登録較正はキャラmd §3 へ＝2026-07-19 改訂） | CLAUDE.md・CALIBRATION_ANALYSIS.md |
+| `workspace/` | **起動時必読の変動情報**（現状スナップショット＋次タスク・有界）。2026-07-24 新設 | HANDOFF.md・TODO.md |
 | `gamedata/js/` | シムが読むランタイムDB＝現在値（ESM） | weapons.js・characters.js |
 | `gamedata/md/` | ゲーム側データの一次情報（神姫/英霊/幻獣/敵/その他） | damage_frames.md・敵/cath_palug.md |
 | `gamedata/md/敵/` | 敵DBの intake（一次情報 md → ENEMY_REGISTRY へ蒸留・旧 `enemies/`） | cath_palug.md |
@@ -74,7 +75,11 @@
 
 ## 6. セッション定型（どのセッションでも同じ対応をするための手順）
 
-1. CLAUDE.md（自動ロード）→ 着手前に本書 §1 で分類。
-2. 分類が曖昧・複数フロー跨ぎ・新形式が必要 → **ユーザーへ選択肢つきで確認**（例:「これは Cx 起票＋simNN 新設のどちらで進めますか」）。
-3. 大きな成果はセッション末に CLAUDE.md「現在の進行状況」へ追記（次セッションへの申し送り＝優先順リスト形式）。
-4. トークンコスト配慮: 生trialや大型台帳の全文読みは避け、sim の2層構造（per_trial→rollup→integrated）と ID 参照で必要最小限を読む。
+**起動時（読むのは2本のみ）**:
+1. **CLAUDE.md（自動ロード）＋ `workspace/HANDOFF.md`（現状スナップショット）** を読む。次タスクは `workspace/TODO.md`。他doc（sim/CALIBRATION/ROADMAP/Phase/essays/キャラmd）は HANDOFF・CLAUDE のポインタ経由で**必要時のみ**読む（新セッション移行のトークン浪費を避ける＝2026-07-24 ドキュメント運用刷新）。過去の経緯は `archive/SESSION_LOG.md`。
+2. 着手前に本書 §1 で分類。分類が曖昧・複数フロー跨ぎ・新形式が必要 → **ユーザーへ選択肢つきで確認**（例:「これは Cx 起票＋simNN 新設のどちらで進めますか」）。
+
+**セッション末（現状を有界に保つ）**:
+3. **`workspace/TODO.md` を更新**（完了項は `[x]`→ 該当を SESSION_LOG へ畳んで本書から削除・新規タスクは §1 分類を通してから追加）。
+4. **`workspace/HANDOFF.md` を最新状態へ上書き**（「今」だけを短く）。押し出された進行＝現状化した経緯は **`archive/SESSION_LOG.md` の先頭（最新が上）へ1ブロック畳む**（provenance 保全・HANDOFF の青天井化防止）。
+5. トークンコスト配慮: 生trialや大型台帳の全文読みは避け、sim の2層構造（per_trial→rollup→integrated）と ID 参照で必要最小限を読む。**CLAUDE.md には「現状/次タスク」を書かない**（安定リファレンスに留め、変動情報は workspace/ と SESSION_LOG が持つ）。
