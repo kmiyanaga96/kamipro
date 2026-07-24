@@ -14,7 +14,7 @@
 | 実機とシムの乖離・バグ報告 | CALIBRATION_ANALYSIS.md §4 バックログへ **Cx 起票** → 修正は較正セッション or 通常dev | Cx（全リポ一意） | 台帳=CALIBRATION_ANALYSIS.md（根拠が大きければ simNN/ へ） |
 | 較正値・設計判断の確定 | CALIBRATION_ANALYSIS.md §2〜3 へ **Dx 記録**（なぜその値/枠かの根拠つき） | Dx（全リポ一意） | CALIBRATION_ANALYSIS.md |
 | 大規模な統計的較正（複数trial・実機バッチ） | `cp -r simulation/TEMPLATE simulation/simNN` → README確定 → trial → 2層分析 | simNN・**Mx**（測定メニュー・sim内連番） | simulation/simNN/ |
-| 新キャラ入手・登録較正 | 当該キャラの `gamedata/md/神姫|英霊/<key>.md` に **§3 登録較正記録**として直接記録（先例: `gamedata/md/神姫/arianrhod.md` §3＝旧 ARIANROD_REGISTRATION.md を 2026-07-19 統合） | **Ax**（キャラdoc内連番・A0=文言転記から） | キャラmd §3（独立rootドキュメントは作らない） |
+| 新キャラ入手・登録較正 | **md-first intake**（ユーザーが §1 一次情報 md 作成→Claude が要検証洗い出し→registry 配線→実機/sim で解消。**フロー詳細＝ROADMAP.md §5**）。要検証は当該キャラの `gamedata/md/神姫|英霊/<key>.md` **§3 登録較正記録**へ直接記録（先例: `gamedata/md/神姫/arianrhod.md` §3＝旧 ARIANROD_REGISTRATION.md を 2026-07-19 統合） | **Ax**（キャラdoc内連番・A0=文言転記から） | キャラmd §3（独立rootドキュメントは作らない） |
 | 仮説の起票・検証 | 関連する考察台帳（CHARACTER_ANALYSIS 等）へ **Hx 起票**。台帳がなければ起票先をユーザーへ確認 | Hx（起票文書内連番・引用は `文書名 Hx`） | 既存台帳内（新規docは乱立させない） |
 | 一次情報の受領（txt/スクショ転記/実機値） | 内容で振り分け: ゲーム仕様→`gamedata/md/`（神姫/英霊/幻獣/その他）・敵→`gamedata/md/敵/`（README手順）・sim測定→`simNN/data/`・キャラ→`<CHAR>_REGISTRATION.md` 記録欄 | — | 各所（原文ママ＋出所ヘッダ） |
 | エンジン改修・機能追加・リファクタ | CLAUDE.md「Git 開発ワークフロー」＝branch → 実装 → **golden必須** → merge。設計検討が要る規模なら `*_DESIGN.md` を root に | — | src/・root設計doc → 完了後 archive/ |
