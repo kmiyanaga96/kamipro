@@ -8,8 +8,10 @@ const legendCap = sim => { let lu=sim.cum>=1?2:1; for(const thr of [26,51,71,80]
 // アリアンロッド1アビ(ホーリーターボ)の効果適用。手動(cands.holy)/自動(onBurst・turnEnd＝アシスト)から共用。
 // A2実機確定(2026-07-17): 手動発動のみ同ターン2回上限(T.holy)。自動発動(自バースト効果/アシスト)は
 //   上限なしかつ T.holy を消費しない(manual=false 経路)。※旧実装は手動+自動共通2回上限の仮定＝refute。
-// A3実機確定(2026-07-17): 自動発動も黄アビ使用扱い(連理魔力+・robot反応・proc)＝_countAbilityUse を発火。
-//   手動発動は呼び出し側 use('holy') が計数するため二重計数を避け manual 経路では呼ばない。
+// A3改訂(2026-07-22・ユーザー訂正): 自動発動は【アビ使用として数えない】＝連理魔力・鬼神一擲(アビ回数)ともに非計数。
+//   ∴ 自動発動(manual=false)では _countAbilityUse を呼ばない。旧A3(2026-07-17「自動発動も黄アビ使用扱い」)は誤り。
+//   手動発動は use('holy') が計数、再発動(elegant_re/tenya_re)は _countAbilityUse で計数(=数える対象)。
+//   ⚠副次: 自動発動は onAbility 系(ナポ闘気/エジソンロボ反応)も非発火になる(auto=非アビ使用の一貫解釈)。robot反応の扱いは arianrhod.md §3 参照。
 // 効果: バーストダメージプラス+10万(味方光・5T累積)＋ゲージ+10(味方全体)＋敵ランダム8回 光ダメージ(0.8倍/8万・アビ枠)。
 function arianHolyFire(sim, T, manual){
   if(manual){
@@ -22,7 +24,7 @@ function arianHolyFire(sim, T, manual){
   sim._naOwner = me;
   for(let i=0;i<DMG.holy_hits;i++)
     sim.dmg += sim._decay('abi', sim._na()*DMG.holy_hit_mult, DMG.holy_hit_cap);
-  if(!manual) sim._countAbilityUse('holy','y');  // A3: 自動発動もアビ計数(連理+・robot反応・proc)
+  // A3改訂(2026-07-22): 自動発動はアビ使用として非計数＝_countAbilityUse を呼ばない(連理/鬼神一擲/onAbility系すべて非発火)。手動は use('holy') が計数。
 }
 
 // ⚠ ロード順の不変条件: gamedata/js/*.js は src/ のモジュール定数(BG/DMG/GEAR)を遅延参照で読む（旧: index.htmlインライン時代の名残）。
