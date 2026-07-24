@@ -1,0 +1,42 @@
+# セッション進行ログ（履歴台帳・append-only）
+
+> **種別**: 履歴ログ（archive・provenance 保全） ／ **用途**: セッション横断の進行経緯・なぜその判断をしたかの記録。
+> **現状の一次情報ではない**（現状スナップショットは `workspace/HANDOFF.md`・次タスクは `workspace/TODO.md`）。
+> **運用規律**: セッション末に、そのセッションで現状化した進行状況を **本ログの先頭（最新が上）** に1ブロック追記する。
+> `workspace/HANDOFF.md` は「今」だけを有界に保ち、押し出された経緯をここへ畳む（2026-07-24 ドキュメント運用刷新で新設）。
+>
+> ⚠ 旧 `CLAUDE.md`「現在の進行状況（引き継ぎ用）」セクション（2026-07-12〜07-24 の記録）を原文ママ移設したもの。以後の追記は本ブロックの上に。
+
+---
+
+## 〜2026-07-24（旧 CLAUDE.md「現在の進行状況」より移設・原文ママ）
+
+- **現フェーズ**: Phase 4 = **統計的較正 × 反復可能ボス（2026-07-12 転換・PHASE4_PLAN §3.5.1）**。**Antigravity はワークフロー除外**＝全分析を Claude Code 担当。
+- **sim02 完了（旧構造・凍結）**: walpurgis_loki T2較正。成果=①経済系（契晶/累計/連理）全10チェックポイント完全一致（C18/C19/C21受入成立・C22クローズ候補） ②C7撤回（与ダメ2フェーズ倍率は非実在） ③C25再定式化（乖離はpre-cap rawに局在・cap/slope妥当・「cap外し」仮説はB5で棄却） ④C26 fixed（エジソン追撃OFF探索=UI設定忘れ・`_configSig`拡張済） ⑤**C23 fixed＝judgフェーズ戦闘通算連続へ是正（実機3/3裏取り・golden再fit raw 187,186,834 / cal 208,689,608・ENGINE_VERSION `C23-judgphase-continuous`）** ⑥C24診断済（ゲージ±5〜10=黄ロボ反応の計数差に局在・低severity・fixは実機ゲート）。詳細は sim02 の B1〜B5・c23/c24 findings・integrated_analysis。
+- **方針転換（2026-07-12 ユーザー決定・セッション末）**:
+  1. **較正対象を「回数制限のない反復可能ボスバトル」へ転換・統計的較正を導入**（合意済み。論理は PHASE4_PLAN §3.5.1 / simulation/README.md）。
+  2. **simフォルダ新構造（sim03以降）**: `data/`（config.json＋trialXX.md）＋`analysis/`（quantitative=定量のみ/qualitative=定性のみ/integrated=統合のみ）。TEMPLATE 改訂済み。
+  3. **kill-turn は延期継続**。walpurgis での追撃ON再探索は転換により不要化（新ボスで探索し直す）。
+- **sim03 boss緊急置換（2026-07-14 本セッション）＝フィンブルヴェトル→キャスパリーグ**:
+  1. **契機**: フィンブル sim03 trial01 で**パーティ全滅**＝先の7T討伐は偶然・再現性なし＝統計的較正の「確実に反復」前提を満たさない。→ **フィンブル無期限延期**（`enemies/fimbulvetr.md` 冒頭注記・`ENEMY_REGISTRY` エントリは保持）。
+  2. **新較正ボス＝キャスパリーグ**（`cath_palug`・**闇属性/affinity=1.5**・実機**2T討伐＝確実**・def/max_hp placeholder→sim03推定）。一次情報 `enemies/cath_palug.md`。**キャスパリーグの価値**: 闇=光有利アンカーの本命＋**「ライトレジスト＝光*以外*への耐性UP」が敵特性で明文化→光編成に隠れ耐性スカラ非適用がゲーム内保証**＝絶対レベル較正の理想。敵防御UP・味方ゲージDOWン**なし**＝フィンブルの系統交絡2種が構造的に消失。
+  3. **プロトコルv3確定**（`simulation/sim03/README.md`）: ホライズン10T→**2T**・測定モードを**D（全深測定撃破・K/P統合）×5走**へ・**固定押し順は【要ユーザー確定・推奨シム推奨順】**（ゲージDOWNなしで実行不能リスク消失＝シム順が現実的＋序数検証も同時取得）。P1〜P3継続・P4延期継続。max_hp推定はT1終了HP%が鍵（2T=オーバーキル切断）。
+- **第1バッチ準備完了（2026-07-15 セッション末時点＝全ゲート充足）**:
+  1. ✅ ゲート2完了: `sim03/data/configA.json`＝**キャスパリーグ版・C27エンジン**（refine固定点検証済・override `{judg:200,pactcore:1}`・装備一次記録=`configA_gear_panel.md`）。
+  2. ✅ ユーザー確定: **固定押し順=シム推奨順**（configAのT1 19手/T2 24手・`data/record_skeleton.md`に採録＝これを複製してtrial01〜05）・**第1バッチ=D×5**。
+  3. ✅ 表示ATKをLv95実機値へ更新→**configA再export受領（2026-07-15・dispAtk edison93489/yamato73346/hecate70664/tetra78824/elaine79696・総ダメ1,633,835,778→1,644,858,119）**。**⚠訂正: 旧claim「新ATKでも順序影響なし=refine固定点」は誤りで、再exportで最適ルートは微変化した**（例 T1: 旧banoshik→funki→droid… → 新banoshik→droid→funki…）。**未記録のため固定順を新exportへ差し替え済み**（configA.json/record_skeleton同期）。以後は**バッチ途中で差し替えない**。表示HPは未更新（必要時対応・ユーザー合意）。
+- **sim03 第1バッチ完了（2026-07-16 本セッション）＝受領D×5→per_trial→rollup→統合まで全分析完了**:
+  1. 成果物: `sim03/analysis/` の rollup 3書＋P3集計器2本（`rollup_xtrial.mjs`=slot×hit5走突合／`sim_slot_dump.mjs`=configA復元headlessリプレイでシム側slot値）。要約は `sim03/README.md` §6。
+  2. 主要結果: ①**max_hp=400,000,000確定・敵DB反映済み**（ceil表示規約×オーバーキル交差） ②**絶対レベルアンカー取得**＝実機/sim 全体×1.430・バースト系×1.30→×1.78成長・深飽和(streak/DOT)一致=pre-cap raw局在再確認（C25前進） ③追撃cap×1.6〜3.3過小の数値確定（C5/C3） ④経済15/15・judgフェーズ15/15一致＝**C22クローズ・C23追検証パス** ⑤新規起票 **C28**(per-hitダメージロールRNG・低優先)/**C29**(通常DA/TA未モデル・低優先)/**C30**(judg ph0シム過大×1.3・override結合注意) ⑥ディスペル5走不発＝stack=0アンカーはこの編成では構造的に取れない（限定行動1T1個仮説・enemies/cath_palug.md注記）。
+- **ダメージ枠一次情報の受領・突合＋gamedataリネーム（2026-07-16 本セッション）**: ①ユーザー提供のダメージ枠まとめを `gamedata/damage_frames.txt` に格納（原文ママ・一次情報） ②sim内 `data/` との混同防止で **`data/`→`gamedata/` リネーム**（import/ドキュメント参照更新済み・golden不変） ③エンジン突合で **C31〜C35 起票**（C31 アビダメUP乗算→加算＝C30真因候補・C32 旺盛クランプ＝C25寄与候補・C34 バーストcap未実装＝逆符号でbaseline不足を裏付け）。**修正はいずれも較正セッションゲート**（押し順・override・golden に波及するためsim03バッチ運用と衝突させない）。
+- **sim03クローズ＋sim04定義（2026-07-16 本セッション・ユーザー決定）**: **実機装備が強化され sim03（configA）と同等の環境ではなくなった**→ sim03 は第1バッチのみでクローズ（序数A/B第2バッチ案は較正後に新環境で再設計）。追加較正（旧 sim03/calibration_prep.md）は**丸ごと sim04 として再定義**し、テンプレ準拠で整備済み: `simulation/sim04/README.md`＝自己完結プロトコル（構造修正C31〜C35を先行させる依存チェーン・単独データ取得メニューM1〜M5・環境跨ぎ突合禁止ルール・受入基準）＋ `sim04/data/record_skeleton.md`＝Mメニュー対応記録様式。**sim04 実施は新セッションにて Opus と行う（ユーザー決定）**。ML導入（DQN等）は将来の選択肢として保留（編成・敵・アクセの組合せ爆発が現実化した時点で再検討＝模倣学習rollout蒸留→policy+value誘導ビームの順を推奨・本セッション議論）。
+- **リポジトリ規約の制定（2026-07-16 本セッション・ユーザー指示）**: `REPO_STANDARDS.md` 新設＝リクエスト振り分け表（Cx起票/simNN/キャラ登録Ax/仮説Hx/一次情報/dev/Phase/essays の8フロー・曖昧時はユーザーへフロー確認）・ID接頭辞レジストリ（Cx/Dx=全リポ一意、Ax/Mx/Hx=台帳文書内連番、B/F/P/S等の旧ローカルIDは凍結）・MD必須ヘッダ（種別/ゴール/完了条件/状態）・ライフサイクル規律（作成/クローズとCLAUDE.md台帳更新を同一コミット）。**既存MDへの遡及適用はしない**（次回大改訂時にヘッダ付与）。
+- **フォルダ構成の再編＋立ち絵コード削除（2026-07-19 本セッション・ユーザー指示）**: ①`public/`（`portraits/*.png` 未DB化の立ち絵置き場）を削除し、キャラ画像を表示するコード（`_renderProgChars` の `<img src="portraits/...">` フォールバック・index.html の `.sim-char-img`/`.sim-char.has-img` CSS）を撤去＝現状の名前バッジ表示のみに集約（挙動不変・立ち絵は未配置だった）。 ②`gamedata/` を **`gamedata/js/`（シムが読む現在値＝既存4 .js）** と **`gamedata/md/`（一次情報・source of record）** に大別。import 更新（`src/app.js`→`../gamedata/js/*.js`・`characters.js`→`../../src/*`）・golden 不変（raw 187,186,834 / cal 208,689,608）・build 成功。 ③`gamedata/md/` に `神姫/` `英霊/` `幻獣/` `敵/` `その他/` を新設（**今回は構造のみ＝各 README で用途明示・実際の一次情報 md は今後順次**）。ルート `enemies/` は `gamedata/md/敵/` へ移動（参照更新済み）。`damage_frames.txt` は `gamedata/md/その他/damage_frames.md` へ（原文ママ）。
+- **キャラmd §2完成＋quirk修正＋ドキュメント整理（2026-07-19 本セッション・ユーザー指示）**: ①`gamedata/md/神姫|英霊/` 全キャラの §2 シムデータ章を tetra.md 様式で完成（現在値の配置・未モデル化明記・一次情報乖離は⚠注記）。②実装quirk修正（golden不変を検証済）: ヤマト`funki`計数`ycount`をエジソンstateからヤマトへ移管／デバイス・エンブレムの英霊BG+20をエジソンdefからエレイン`def.turnEnd`へ移設（エジソン以外の英霊でも発動）／フレイヤ聖夜バーストのゲージ上昇量+20%を汎用バフキー`bg_gain_up`（`addG`一律乗算・presence判定・`DMG.bg_gain_up=0.20`/`dur=4`）として実装＋4アビでのハーモニー誤付与と全体化時のハーモニー対象を一次情報どおりに修正。③`ARIANROD_REGISTRATION.md` を `gamedata/md/神姫/arianrhod.md` §3 へ統合整理し削除（⚠バースト係数の一次情報矛盾5.5/3000 vs 実機転記5.0/2500を発見＝要再確認）。④Antigravity不使用化に伴い `.agents/` を削除（現役docの参照も更新・archive/simNNの歴史記述は据置）。⑤一次情報とシム現在値の数値乖離5件（アリアン係数・ヘカテー/エレイン追加ダメcap・ARRIVE bplus・ナポ英霊武器ベタイア）は**較正セッションゲート＝未修正**。
+- **sim04 完了（2026-07-21）**: 絶対値較正 C25（通常×1.835/バースト本体×2.07）・C30（judg ph0×0.62）・C31（アビダメUP乗算→加算）・C34（バーストダメUP+500%上限）。golden **raw 197,775,394 / cal 211,462,826**・override **{judg:145,pactcore:1}**・ENGINE_VERSION `sim04-abscal-C31C34-calib`。C32=M3実測で2段cap非支持のため現行1.0クランプ維持。**残＝C5/C3追撃**（成分別×2.3〜6.9・非決定的fitで残差保留＝**新編成アンカーで解く＝sim05**）。
+- **Phase 8（アクセサリー実装）計画策定済み（2026-07-22・`PHASE8_PLAN.md`・実装未着手）**: アクセ＝押し順非依存の常時ボックス補正が主（damage_frames の枠マッピング）＝`ACCESSORY_REGISTRY`＋`applyGear` 集約で class Sim 非改修を狙う。着手ゲートは §6 intake（per-char/全体の別・系統全容・発動系有無）。
+- **sim05（ナポ/アリアン移行＋追撃較正）＝策定完了・G1コード整備＋構造修正済み（2026-07-22 大幅進展）**: 読み順 `simulation/sim05/README.md` §0。
+  - **完了**: G1コード整備（ナポ押し順cands.s＝**factorはifishant同型**[CD中アビ最多で浮上・早撃ちしない・ユーザー訂正]／pike≥15／consort≥20終盤／アリアン holy **累積上限超過カウンタ** `holy_plus`）。**C36＝ダメージ上限UP枠（味方側cap-UP）実装**（`Sim._partyCapUp`＝アブソ/プヴワール を na/burst/abi 加算＋ARRIVE burst＋アリアン特別減衰は別枠乗算・golden不変[default gearでcap未到達]・単体検証済）。**A3改訂**（アリアン自動holyはアビ**非計数**＝連理/鬼神一擲ともに・旧観測は他アビ誤帰属とユーザー確定）。
+  - **Q確定**: Q1=一次情報が正／Q4=案B＋**二重fixture golden**／Q5=holy上限超過は累積カウンタ。**Q2＝両面宿儺が本命確定**（`gamedata/md/敵/ryomen_sukuna.md`＝CATACLYSM闇レイド・光有利クリーン・**def20/HP9.8億**・**鬼神障壁**[枠別final-dmg cap]・鬼神一擲[アビ20回でバフ全消去]）／フォールバック＝強機獣T1窓（`kijuu_kyo.md`）。追撃(≤50万)は鬼神障壁の上限に非該当＝測定クリーン・T1-T7は攻撃DOWN前で出力クリーン。
+- **sim05前タスク①②（鬼神障壁＋アビ上限）実装＋両面宿儺 registry 登録（2026-07-24・golden不変 raw 197,775,394 / cal 211,462,826）**: ①**鬼神障壁**＝敵側final-dmg枠別cap（`DMG.enemy_barrier`＋`Sim._barrier(frame,dmg)`＝`cap+(dmg-cap)*rate`。適用点は最終ダメ加算点の**burst本体とstreak のみ**＝burst返り値coreはstreak基底に再利用のため`_decay`内では畳まず二重cap回避。na=通常攻撃ダメ蓄積なし・abi=上限不明で未設定＝binding は streak/burst。C36味方側capと対）。②**アビ回数上限制約**＝`DMG.enemy_abil_cap`（enemy `abilCapPerTurn:19`）＋`_candidates`/`_stepStatic`で`T.ability`≥cap時にアビ候補剪定（バースト/通常継続）。計数=手動+再発動（tenya_re/elegant_re）／アリアン自動holyは非計数＝要件と厳密一致を確認。`applyEnemy`で設定・`_configSig`へ追加でcache分離・worker は `dmgBase` 自動diff（オブジェクトも送信）。**両面宿儺を `ENEMY_REGISTRY` へ登録**（def20/HP9.8億/barrier/abilCap・UIドロップダウン自動出現＝生存確認可能）。⚠**補正率rate=0.70の解釈とabi上限は第1走で実測**して registry/md 更新。単体検証（_barrier枠別cap・cap=19/3/0クランプ・null不活性）済み。
+- **ドキュメント運用刷新（2026-07-24・ユーザー指示）**: 新セッション移行時のトークン浪費対策。CLAUDE.md 肥大の主因＝青天井の「現在の進行状況」ログ（44,677字中の36%）＋較正ステータスの CALIBRATION_ANALYSIS.md 重複。対策＝**`workspace/HANDOFF.md`（現状スナップショット・有界）＋`workspace/TODO.md`（次タスク）**を新設し起動時の必読を CLAUDE.md＋HANDOFF の2本に限定。進行状況ログは本 `archive/SESSION_LOG.md` へ移設（provenance 保全）。CLAUDE.md の較正ステータスは open-Cx 一行＋ポインタに圧縮。REPO_STANDARDS §6 にセッション起動/終了定型を追加。
