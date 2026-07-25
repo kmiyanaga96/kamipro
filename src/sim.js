@@ -193,8 +193,9 @@ class Sim {
     // 鬼神障壁: バースト本体(core*calib_burst)に枠別cap。バーストプラス(royBurst/passiveFlat)は別枠のためcap外。return core は streak 基底ゆえ素のまま。
     this.dmg += this._barrier('burst', core*DMG.calib_burst) + royBurst + passiveFlat;  // C25: バースト本体の絶対値較正(dmgのみ・return core=streak基底は素のまま)
     if(atk) bset.add(owner);
-    // キャラ固有のバースト時処理（CHAR_DEF記述子に集約）
-    CHAR_DEF[owner].onBurst?.(this, atk, owner);
+    // キャラ固有のバースト時処理（CHAR_DEF記述子に集約）。naB(=this._na())を渡す：burst 中は buf 不変ゆえ
+    // onBurst 内の _na() は naB と同値＝再計算を避けられる（perf・使う側は naB を使えばビット同一）。
+    CHAR_DEF[owner].onBurst?.(this, atk, owner, naB);
     // パーティ全体のバースト監視フック（モビウスムーンズ等・他キャラのバーストにも反応する機構）。
     // mburst(パーティバースト累計)の加算と5回毎のヘカテーCDリセットはヘカテーdefの onPartyBurst に集約。
     for(const c of CHARS) CHAR_DEF[c].onPartyBurst?.(this, owner, T, atk);

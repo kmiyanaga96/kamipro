@@ -13,7 +13,7 @@ const legendCap = sim => { let lu=sim.cum>=1?2:1; for(const thr of [26,51,71,80]
 //   手動発動は use('holy') が計数、再発動(elegant_re/tenya_re)は _countAbilityUse で計数(=数える対象)。
 //   ⚠副次: 自動発動は onAbility 系(ナポ闘気/エジソンロボ反応)も非発火になる(auto=非アビ使用の一貫解釈)。robot反応の扱いは arianrhod.md §3 参照。
 // 効果: バーストダメージプラス+10万(味方光・5T累積)＋ゲージ+10(味方全体)＋敵ランダム8回 光ダメージ(0.8倍/8万・アビ枠)。
-function arianHolyFire(sim, T, manual){
+function arianHolyFire(sim, T, manual, naVal){
   if(manual){
     // A2: 手動のみ同ターン2回上限 ＋ sim05 Q5: 短縮ソースによる上限超過(holy_plus)。
     // ⚠ cands.holy の guard `(T.holy) < 2 + (T.holy_plus)` と厳密一致させること。
@@ -26,8 +26,14 @@ function arianHolyFire(sim, T, manual){
   (sim.buf.arian_bplus ??= []).push(DMG.dur_bplus_arian);
   sim.addG(CHARS, DMG.arian_holy_bg);
   sim._naOwner = me;
-  for(let i=0;i<DMG.holy_hits;i++)
-    sim.dmg += sim._decay('abi', sim._na()*DMG.holy_hit_mult, DMG.holy_hit_cap);
+  // 8ヒットは全て同値（_na は決定的・毎ヒット独立cap）＝1回だけ計算して holy_hits 回加算する。
+  // ⚠perf: 旧実装は _na()（高コスト）を8回再計算＝napoleon探索の _na 呼び出しが約7.6倍に膨れ探索が
+  //   実用不能に遅かった（judg ph0 が `10*hit` で1回計算しているのと同型へ是正・2026-07-25）。
+  //   加算をヒット数だけ回すのでビット同一（golden/napoleon 出力不変）。
+  // naVal(onBurst 経由の naB)があれば再計算を避ける。無ければ（手動/turnEnd）ここで算出。ビット同一。
+  const na = (naVal !== undefined) ? naVal : sim._na();
+  const holyHit = sim._decay('abi', na*DMG.holy_hit_mult, DMG.holy_hit_cap);
+  for(let i=0;i<DMG.holy_hits;i++) sim.dmg += holyHit;
   // A3改訂(2026-07-22): 自動発動はアビ使用として非計数＝_countAbilityUse を呼ばない(連理/鬼神一擲/onAbility系すべて非発火)。手動は use('holy') が計数。
 }
 
@@ -520,10 +526,14 @@ const CHAR_REGISTRY = {
       //   ①バースト効果「追加ダメージ」 と ②1アシ トランジェントマイト「追撃」(HP80%以上=シムは常時フルHP前提で常時発動)。
       //   ③加えて登場〜5T は自バースト毎に1アビ即発動(ホーリーターボ＝アビリティダメージ表記)。※旧実装は①②を同一追撃と誤解し1本のみ。
       //   両者とも3倍/50万(アビ枠)で近似。個別倍率/capの実機値較正は sim04 後(絶対値fit)。
-      onBurst: (sim) => {
-        sim.dmg += sim._decay('abi', sim._na()*DMG.arian_followup_mult, DMG.arian_followup_cap);  // ①バースト効果 追加ダメージ
-        sim.dmg += sim._decay('abi', sim._na()*DMG.arian_followup_mult, DMG.arian_followup_cap);  // ②1アシ 追撃(別枠2重)
-        if(sim._t <= DMG.arian_last_turn) arianHolyFire(sim, sim.T);  // ③自動1アビ(アビリティダメージ)
+      onBurst: (sim, atk, owner, naB) => {
+        // naB(burst が算出済み・buf不変で _na と同値)を再利用。①バースト効果 追加ダメージ ②1アシ 追撃（別枠2本）
+        // は同値＝1回計算して2回加算（ビット同一・perf: _na 呼ばない）。
+        const base = naB !== undefined ? naB : sim._na();
+        const fu = sim._decay('abi', base*DMG.arian_followup_mult, DMG.arian_followup_cap);
+        sim.dmg += fu;  // ①バースト効果 追加ダメージ
+        sim.dmg += fu;  // ②1アシ 追撃(別枠2重)
+        if(sim._t <= DMG.arian_last_turn) arianHolyFire(sim, sim.T, undefined, base);  // ③自動1アビ(naB再利用)
       },
       // 1アシ: 登場〜5T バースト性能UP(倍率5→10=+5)。自バースト限定(burstBonus=オーナー限定)。
       burstBonus: (sim) => sim._t <= DMG.arian_last_turn ? DMG.burst_arian : 0,
