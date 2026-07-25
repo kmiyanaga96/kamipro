@@ -15,7 +15,11 @@ const legendCap = sim => { let lu=sim.cum>=1?2:1; for(const thr of [26,51,71,80]
 // 効果: バーストダメージプラス+10万(味方光・5T累積)＋ゲージ+10(味方全体)＋敵ランダム8回 光ダメージ(0.8倍/8万・アビ枠)。
 function arianHolyFire(sim, T, manual){
   if(manual){
-    if((T.holy||0) >= 2) return;         // A2: 手動のみ同ターン2回上限
+    // A2: 手動のみ同ターン2回上限 ＋ sim05 Q5: 短縮ソースによる上限超過(holy_plus)。
+    // ⚠ cands.holy の guard `(T.holy) < 2 + (T.holy_plus)` と厳密一致させること。
+    // 不一致(旧: >=2 固定)だと holy_plus>0 で「guardはtrue・effectは早期return=T.holy据置」となり
+    // holy が無限に押下可能=1ターン枯渇せず=探索が終わらない(2026-07-25 修正)。
+    if((T.holy||0) >= 2 + (T.holy_plus||0)) return;
     T.holy = (T.holy||0) + 1;
   }
   const me = ownerOf('holy');  // =アリアンロッド
