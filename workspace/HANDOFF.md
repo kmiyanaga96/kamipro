@@ -13,19 +13,24 @@
 次の焦点＝**sim05（ナポ/アリアン編成移行＋追撃 C3/C5 較正）**。土台の frame calib（sim04）は確定・編成非依存で継承。
 
 ## 直近セッションの成果（2026-07-24）
-- **sim05前タスク①②実装＋両面宿儺登録**（golden 不変 raw 197,775,394 / cal 211,462,826）:
-  - ①鬼神障壁＝敵側 final-dmg 枠別cap（`DMG.enemy_barrier`＋`Sim._barrier`・burst本体/streak に適用）。
-  - ②アビ回数上限＝`DMG.enemy_abil_cap`（`abilCapPerTurn:19`・`_candidates`/`_stepStatic` で剪定）。
-  - 両面宿儺を `ENEMY_REGISTRY` 登録（UIドロップダウン自動出現＝**実機で生存確認できる状態**）。
-  - ⚠ 補正率 rate=0.70 の解釈・barrier.abi 上限は **sim05 第1走で実測**して registry/md 更新。
-- **ドキュメント運用刷新**（本刷新）: `workspace/HANDOFF.md`＋`workspace/TODO.md` 新設・進行ログを `archive/SESSION_LOG.md` へ分離・CLAUDE.md 減量。
+- **sim05前タスク①②実装＋両面宿儺登録**（golden 不変 raw 197,775,394 / cal 211,462,826）: ①鬼神障壁（`DMG.enemy_barrier`＋`Sim._barrier`・burst/streak）②アビ上限（`DMG.enemy_abil_cap`=19・候補剪定）。両面宿儺 `ENEMY_REGISTRY` 登録＝実機で生存確認可能。⚠ rate=0.70/barrier.abi は第1走で実測。
+- **新キャラ/新敵 導入フローを md-first intake（確立版）へ改訂**（ROADMAP §5 に一本化・REPO_STANDARDS/CLAUDE はポインタ整合）。
+- **機獣系フォールバック2体 intake＋実機更新**（`variant_chimera_chi`=強機獣・`variant_chimera`=弱機獣）: 強機獣 HP6.8億/T3撃破・弱機獣 HP4.5億/T2撃破＝**両者とも T1オーバーキル無し＝T1クリーンアンカー可**。
+- **ドキュメント運用刷新**: `workspace/HANDOFF.md`＋`TODO.md` 新設・進行ログを `archive/SESSION_LOG.md` へ分離・CLAUDE.md 減量。
+
+## sim05 実施順（合意 2026-07-24）
+**① engine押し順（構造）を先に固める → ② 3体の敵でダメージ較正**。理由＝追撃 anchor は特定押し順上の per-hit で測る（順バグを damage スカラが補償する誤 fit を防ぐ）／順は絶対スカラにほぼ不変（sim04 実証）＝先に固めても damage fit で覆らない。
+- 押し順の狙いは **sim の推奨順/ランキングを構造的に動かす major項目のみ**（系統誤差だけ・些細な序数ゆらぎは追わない）。ナポ/アリアン押し順は **golden 不変**（新編成は golden 不在）＝golden はエジソン回帰ガードとして据え置き。
+- 順の**最終検証は实机ボス走と結合**：「固定押し順＝シム推奨順」で走らせ、1走で (a)序数検証 と (b)追撃 anchor を同時取得（sim03/04 と同型）。
+- 3体は全て**光有利クリーン**＝追撃スカラの**クロスバリデーション**に使える（主アンカーで fit → 別1〜2体で確認）。順検証は多ターンの**両面宿儺が最良**（機獣系は clean が T1のみ）。
+- **着手カデンツ**: エンジン修正＝**主作業**（無制限ボスで押し順確認＝configC/1日1回に非依存・アンブロック）。**両面宿儺 生存確認は毎日1枠を並行消化**（1日1回＝カレンダー律速・早期に全滅の壁を判定→ダメなら機獣系FBへ）。エンジンが固まると ≤19アビ最大火力の順が出て生存率も上がる＝直列にしない。
 
 ## アクティブ作業ライン
 | ライン | 状態 | 次アクション | 詳細 |
 |---|---|---|---|
-| **sim05 追撃較正** | ⏳ データ取得待ち | Q3=configC（月末・ウェポン強化中）受領＋**生存/討伐再現性の実機確認**（両面宿儺 全滅時計 鬼の魔力≥10）。揃えば D×5 走→C3/C5 fit・rate/abi上限実測 | `simulation/sim05/README.md` §0 |
-| **(A) ナポ/アリアン構造修正** | ⏳ 要実機検証 | 闘気の数え方・A3再確認・アリアン絶対値fit/係数矛盾（5.5/3000 vs 5.0/2500） | `gamedata/md/英霊/napoleon.md` §2.2・`神姫/arianrhod.md` §1.2 |
-| **Phase 8 アクセ実装** | ⏳ intake ゲート | §6 intake（per-char/全体・系統全容・発動系有無）をユーザーと確定後着手 | `PHASE8_PLAN.md` |
+| **① ナポ/アリアン押し順（構造）** | ⏳ 要実機検証 | (A) 闘気の数え方・A3再確認・係数矛盾（5.5/3000 vs 5.0/2500）＝major のみ。G1 構造（cands.s/holy_plus/abilCap/barrier）は実装済 | `gamedata/md/英霊/napoleon.md` §2.2・`神姫/arianrhod.md` §1.2 |
+| **② sim05 追撃較正（3体）** | ⏳ データ取得待ち | Q3=configC（月末）受領＋ボス生存確認 → 固定＝シム推奨順で D×5 走（両面宿儺→機獣系で cross-val）→ C3/C5 fit・rate/abi上限実測 | `simulation/sim05/README.md` §0 |
+| **Phase 8 アクセ実装** | ⏳ intake ゲート | §6 intake をユーザーと確定後着手 | `PHASE8_PLAN.md` |
 
 → 全タスクの優先順・チェックは **`workspace/TODO.md`**。
 
@@ -34,7 +39,7 @@
 - **較正の確定値・根拠・Cx バックログ全文**: `CALIBRATION_ANALYSIS.md`
 - **Phase 一覧・採番**: `ROADMAP.md` ／ **現行フェーズ台帳**: `PHASE4_PLAN.md`
 - **ドキュメント規約・振り分け・セッション定型**: `REPO_STANDARDS.md`
-- **敵DB intake**: `gamedata/md/敵/`（`ryomen_sukuna.md`＝sim05本命ボス）
+- **敵DB intake**: `gamedata/md/敵/`（sim05 候補＝本命 `ryomen_sukuna`／主FB `variant_chimera_chi`（強機獣）／最終FB `variant_chimera`（弱機獣））
 - **キャラ一次情報＋シムデータ**: `gamedata/md/神姫|英霊/<key>.md`
 - **過去セッションの経緯**: `archive/SESSION_LOG.md`
 
