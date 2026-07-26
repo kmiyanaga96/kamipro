@@ -118,11 +118,12 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
 npm run test:golden          # = node test/golden.mjs（src/app.js を import し10T総ダメージを検証）
 ```
 
-**期待値**（**sim04 絶対値較正に伴い 2026-07-21 更新**・旧C27値 raw 187,186,834 / cal 208,689,608 は git履歴）:
-- FullBurst: `10/10`
-- TotalDmg（raw・較正なし＝構造修正C31(アビダメ加算)/C34(バーストcap)＋絶対値較正calib_na1.835/calib_burst2.07/judg_calib0.62）: `197,775,394`
-- TotalDmg（**calibrated**・自動較正 `{judg:145,pactcore:1}` 適用＝production 出荷値。judgが×0.62で弱まり override 160→145 へ再fit）: `211,462,826`
-  - ※sim04較正の内訳: C31=アビダメUPを乗算→加算（judg/effond/consort/_spendGaugeAbi）・C34=バーストダメUP合計+500%上限・C32=M3実測で2段cap不支持のため現行1.0クランプ維持（実装なし）・C25=通常×1.835/バースト本体×2.07・C30=judg ph0×0.62。根拠 `simulation/sim04/analysis/`（M1-M3 fit）・CALIBRATION_ANALYSIS C25/C30/C31/C32/C34。残: C5/C3追撃cap（低総ダメ影響・別途）。
+**編成別マルチfixture（2026-07-25 導入・「1編成=1golden」）**。golden.mjs は各編成の回帰アンカーを検証:
+- **edison/raw**（beam+refine・較正なし）: `197,775,394`・FB `10/10`（構造修正C31/C34＋絶対値較正calib_na1.835/calib_burst2.07/judg_calib0.62）
+- **edison/cal**（beam+refine・`{judg:145,pactcore:1}` 適用＝production 出荷値）: `211,462,826`・FB `10/10`
+- **napoleon/static**（移行編成・**静的greedy**の回帰ガード＋**maxPress<60 ハングガード**）: `298,537,617`・FB `10/10`・maxPress `34`
+  - ⚠ napoleon は**静的greedy値＝beam最適ではない・「回帰ガード」であって較正確定値ではない**。フルビーム10Tは~90sで頻回テストに不適のため静的greedyを採用。**buffCount/閾値の実機修正（sim05・点1/2）後に再fit**。beam版napoleon回帰は将来 `test:golden:full` 等へ。
+  - ※sim04較正の内訳（edison）: C31=アビダメUP加算化・C34=バーストダメUP+500%上限・C32=M3で2段cap不支持のため1.0クランプ維持・C25=通常×1.835/バースト×2.07・C30=judg ph0×0.62。根拠 `simulation/sim04/analysis/`・CALIBRATION_ANALYSIS C25/C30/C31/C32/C34。残: C5/C3追撃cap。
 
 > 探索は `runSim` 実行時に config別に静的スコア s を自動較正する（`calibrateStaticScores`・proxy-shortlist+full-verify・単調安全）。golden.mjs は決定的検証のため較正結果 `{judg:145,pactcore:1}` を `setStaticOverride` で明示適用する（毎回の較正走行を避ける）。詳細 archive/SEARCH_ROLLOUT_DESIGN.md §6。
 
