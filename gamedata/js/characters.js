@@ -11,7 +11,8 @@ const legendCap = sim => { let lu=sim.cum>=1?2:1; for(const thr of [26,51,71,80]
 // A3改訂(2026-07-22・ユーザー訂正): 自動発動は【アビ使用として数えない】＝連理魔力・鬼神一擲(アビ回数)ともに非計数。
 //   ∴ 自動発動(manual=false)では _countAbilityUse を呼ばない。旧A3(2026-07-17「自動発動も黄アビ使用扱い」)は誤り。
 //   手動発動は use('holy') が計数、再発動(elegant_re/tenya_re)は _countAbilityUse で計数(=数える対象)。
-//   ⚠副次: 自動発動は onAbility 系(ナポ闘気/エジソンロボ反応)も非発火になる(auto=非アビ使用の一貫解釈)。robot反応の扱いは arianrhod.md §3 参照。
+//   ⚠副次: 自動発動は onAbility 系(エジソンロボ反応・連理)は非発火。**ただしナポ闘気は別**＝闘気は「バフ付与アクション」
+//     を数えるトリガーで、自動holyも arian_bplus を付与する＝闘気+1（実機2026-07-25・点4）。arianHolyFire内で直接加算。
 // 効果: バーストダメージプラス+10万(味方光・5T累積)＋ゲージ+10(味方全体)＋敵ランダム8回 光ダメージ(0.8倍/8万・アビ枠)。
 function arianHolyFire(sim, T, manual, naVal){
   if(manual){
@@ -24,6 +25,10 @@ function arianHolyFire(sim, T, manual, naVal){
   }
   const me = ownerOf('holy');  // =アリアンロッド
   (sim.buf.arian_bplus ??= []).push(DMG.dur_bplus_arian);
+  // 点4(実機2026-07-25): 自動holy(!manual)も強化効果(arian_bplus)を付与＝ナポ闘気+1。手動は use('holy') が
+  //   onAbility(atkBuf) 経由で計上するので二重加算しない。sim.aura は napoleon 編成時のみ存在＝undefinedガード。
+  //   ※アビ計数(連理/鬼神一擲)は自動非計数のまま(A3)＝闘気とは別トリガー(闘気=バフ付与・アビ計数=アビ使用)。
+  if(!manual && sim.aura !== undefined) sim.aura++;
   sim.addG(CHARS, DMG.arian_holy_bg);
   sim._naOwner = me;
   // 8ヒットは全て同値（_na は決定的・毎ヒット独立cap）＝1回だけ計算して holy_hits 回加算する。
@@ -34,7 +39,8 @@ function arianHolyFire(sim, T, manual, naVal){
   const na = (naVal !== undefined) ? naVal : sim._na();
   const holyHit = sim._decay('abi', na*DMG.holy_hit_mult, DMG.holy_hit_cap);
   for(let i=0;i<DMG.holy_hits;i++) sim.dmg += holyHit;
-  // A3改訂(2026-07-22): 自動発動はアビ使用として非計数＝_countAbilityUse を呼ばない(連理/鬼神一擲/onAbility系すべて非発火)。手動は use('holy') が計数。
+  // A3改訂(2026-07-22): 自動発動はアビ使用として非計数＝_countAbilityUse を呼ばない(連理/鬼神一擲は非発火)。手動は use('holy') が計数。
+  // ⚠ナポ闘気は例外＝自動holyも上で+1済み(点4・バフ付与トリガー)。
 }
 
 // ⚠ ロード順の不変条件: gamedata/js/*.js は src/ のモジュール定数(BG/DMG/GEAR)を遅延参照で読む（旧: index.htmlインライン時代の名残）。
@@ -290,6 +296,9 @@ const CHAR_REGISTRY = {
       burst_coef_a: 5, burst_coef_b: 2500,  // ヘカテー: a=5.0 b=2500
       gmax: 100,  // =BG.other_max（即時評価のためリテラル。ロード順不変条件・冒頭注記参照）
       keigyoGain: 1,
+      // 点3(実機2026-07-25): ヘカテーのバーストは強化効果(被回復上限UP)を味方に付与＝ナポ闘気の対象。
+      //   napoleon.def.onPartyBurst がこのフラグを見て闘気+1（ムーンコード中のエフォンド誘発バーストでも同様）。
+      burstGrantsBuff: true,
       // ムーンコード(ヘカテー2アシ・C18実機較正 2026-07-07): 「戦闘開始時または自分がアビリティ12回使用する毎に発動・持続2T」。
       // カウントはヘカテー自身のアビのみ・戦闘通算(moon_acc)。判定は**アビ終了後**(C18r2実機仕様)＝12回目の
       // 押下自身には効かず、同一ターンの後続ヘカテーアビから有効(effond側はmcAtPressで押下時点の状態を捕捉)。
@@ -619,8 +628,15 @@ const CHAR_REGISTRY = {
           if(sim.cd[k] > 0) sim.cd[k] = Math.max(0, sim.cd[k]-1);
         }
       },
-      // エキープ・ベニフィッシ: 味方の強化系アビ(atkBufタグ)毎に闘気+1
+      // エキープ・ベニフィッシ: 味方に強化効果を付与する【アクション毎】に闘気+1（実機確定 2026-07-25）。
+      //   計数は「強化効果を付与するアビリティ数」＝per-action（複数バフを撒くアビ[例テトラ2]も+1）。
+      //   戦闘開始時パッシブ(テトラ1アシ/エレイン3アシ)は対象外＝use()非経由で onAbility を踏まない。
+      //   ①アビ付与: atkBufタグのアビ使用毎（下記onAbility）。②バースト付与: burstGrantsBuff のキャラのバースト毎
+      //   （下記onPartyBurst・例ヘカテー=被回復上限UP）。③自動holy: arianHolyFire(auto)が直接+1（arian_bplus付与）。
       onAbility: (sim, name) => { if(CHAR_REGISTRY[ownerOf(name)]?.cands?.[name]?.atkBuf) sim.aura++; },
+      // 点3: 味方バーストが強化効果を付与するキャラ(def.burstGrantsBuff)のバースト毎に闘気+1。
+      //   ヘカテーのバースト効果(被回復上限UP)が該当＝ムーンコード中エフォンド誘発バーストでも蓄積(実機2026-07-25)。
+      onPartyBurst: (sim, owner) => { if(CHAR_REGISTRY[owner]?.def?.burstGrantsBuff) sim.aura++; },
       // ベタイア・コンヴェフティ: ターン終了時に闘気を消費(闘気1個=1ヒット×3倍・上限50万)
       // ファクター発動中(betaia2>0)は2回発動。BG+3×闘気も同様。
       turnEnd: (sim) => {

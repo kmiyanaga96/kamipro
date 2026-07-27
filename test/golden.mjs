@@ -58,7 +58,7 @@ setStaticOverride({});
 
 // ── Fixture 2: napoleon（移行編成・静的greedy 回帰ガード＋ハングガード・要再fit）──
 buildFormation('napoleon', ['hecate', 'tetra', 'arianrhod', 'elaine']);
-setStaticOverride({});                       check('napoleon/static', runStatic10T(), 298537617, 10, { hangGuard:true });
+setStaticOverride({});                       check('napoleon/static', runStatic10T(), 299534299, 10, { hangGuard:true });
 
 const ok = results.every(r => r.ok);
 console.log(`[golden] ${results.filter(r=>r.ok).length}/${results.length} fixtures OK => ${ok ? 'OK' : 'MISMATCH'}`);

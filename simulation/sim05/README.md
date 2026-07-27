@@ -116,7 +116,7 @@
 
 ## 5. golden 干渉と戦略（**✅ 二重fixture 先行実装済み 2026-07-25**）
 
-> **✅ 実装（2026-07-25）**: `test/golden.mjs` を**編成別マルチfixture**化＝案B＋二重fixture の骨格を先行導入。①**edison/raw・edison/cal**（beam+refine・従来値 197,775,394 / 211,462,826 を凍結＝回帰基準）＋②**napoleon/static**（静的greedy `298,537,617`・FB10/10＋**maxPress<60 ハングガード**）を1ファイルで assert。napoleon は**フルビーム10Tが~90sで頻回テストに不適**のため静的greedy（~0.02s）＝**回帰ガード**（ハング/順崩れ/モデル退行の検出）であって較正確定値ではない＝**buffCount/閾値の実機修正（点1/2）後に再fit**。ATK は現状デフォルト（configC 受領後に per-formation ATK 注入＝下記実装注意へ）。**動機の実証**: アリアン holy 無限ハング（2026-07-25）は edison golden では検出不能だった＝編成別golden の価値。
+> **✅ 実装（2026-07-25）**: `test/golden.mjs` を**編成別マルチfixture**化＝案B＋二重fixture の骨格を先行導入。①**edison/raw・edison/cal**（beam+refine・従来値 197,775,394 / 211,462,826 を凍結＝回帰基準）＋②**napoleon/static**（静的greedy `299,534,299`・FB10/10＋**maxPress<60 ハングガード**）を1ファイルで assert。napoleon は**フルビーム10Tが~90sで頻回テストに不適**のため静的greedy（~0.02s）＝**回帰ガード**（ハング/順崩れ/モデル退行の検出）であって較正確定値ではない＝**buffCount/閾値の実機修正（点1/2）後に再fit**。ATK は現状デフォルト（configC 受領後に per-formation ATK 注入＝下記実装注意へ）。**動機の実証**: アリアン holy 無限ハング（2026-07-25）は edison golden では検出不能だった＝編成別golden の価値。
 
 （以下は当初の戦略検討・記録として保全）
 

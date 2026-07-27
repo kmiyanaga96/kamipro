@@ -20,8 +20,9 @@
 
 ## 直近セッションの成果（2026-07-25）
 - **アリアン holy 無限ループ修正**（探索が終わらない主因＝guard `2+holy_plus` と効果cap `>=2` の不一致）＋ **_na 過剰再計算の perf 修正**（holy 8×→1× 等・_na 48%減・ビット同一）。探索は有限化（_runRootPlan 10T=94s）。
-- **編成別 golden 先行実装（点4）**: `test/golden.mjs` を マルチfixture化＝edison(beam raw/cal 凍結)＋napoleon(静的greedy `298,537,617`・**ハングガード maxPress<60**)。回帰ガード＝要再fit。
-- **buffCount 過大カウント判明（点2の本丸）**: シムの `buffCount` は非デバフ buf の全スタック総和で T5=118（`arian_bplus` 44 等）＝実機「強化効果数」と乖離。ナポ閾値(15/20)がT2以降トリビアル到達＝閾値実質無効化。**要実機カウント規則**（→TODO ①）。
+- **編成別 golden 先行実装（点4）**: `test/golden.mjs` を マルチfixture化＝edison(beam raw/cal 凍結)＋napoleon(静的greedy `299,534,299`・**ハングガード maxPress<60**)。回帰ガード＝要再fit。
+- **buffCount 過大カウント判明（閾値 pike/consort/factor の本丸・未解決）**: シムの `buffCount` は非デバフ buf の全スタック総和で T5=118（`arian_bplus` 44 等）＝実機「強化効果数」と乖離。ナポ閾値(15/20)がT2以降トリビアル到達＝閾値実質無効化。**要実機カウント規則**（→TODO ①）。⚠これは下記「闘気」とは別мех。
+- **ナポ闘気（aura）の数え方を実機確定＋実装**: 「味方に強化効果を付与するアクション」を per-action 計数。①atkBufアビ ②戦闘開始時パッシブ除外 ③ヘカテーバースト(`burstGrantsBuff`) ④自動holy(arianHolyFire直接加算)。golden edison 不変・napoleon 再fit(`299,534,299`)。napoleon.md §2.2/arianrhod.md 更新。
 
 ## sim05 実施順（合意 2026-07-24）
 **① engine押し順（構造）を先に固める → ② 3体の敵でダメージ較正**。理由＝追撃 anchor は特定押し順上の per-hit で測る（順バグを damage スカラが補償する誤 fit を防ぐ）／順は絶対スカラにほぼ不変（sim04 実証）＝先に固めても damage fit で覆らない。
@@ -33,7 +34,7 @@
 ## アクティブ作業ライン
 | ライン | 状態 | 次アクション | 詳細 |
 |---|---|---|---|
-| **① ナポ/アリアン押し順（構造）** | ⏳ 要実機検証 | **点2＝ナポ「強化効果」カウント規則の実機確認（buffCount 過大の是正）→ 点1＝閾値修正後に最大化検証**。(A) 闘気の数え方・A3再確認・係数矛盾（5.5/3000 vs 5.0/2500）。点3=アリアン1/2は既に早期投入で整合（変更不要）。G1 構造は実装済 | `gamedata/md/英霊/napoleon.md` §2.2・`神姫/arianrhod.md` §1.2 |
+| **① ナポ/アリアン押し順（構造）** | ⏳ 要実機検証 | **残＝閾値 buffCount の実機カウント規則（過大是正）→ 最大化検証**。A3再確認・係数矛盾（5.5/3000 vs 5.0/2500）。✅闘気の数え方=実装済・✅アリアン1/2早期投入=整合(変更不要)。G1 構造は実装済 | `gamedata/md/英霊/napoleon.md` §2.2・`神姫/arianrhod.md` §1.2 |
 | **② sim05 追撃較正（3体）** | ⏳ データ取得待ち | Q3=configC（月末）受領＋ボス生存確認 → 固定＝シム推奨順で D×5 走（両面宿儺→機獣系で cross-val）→ C3/C5 fit・rate/abi上限実測 | `simulation/sim05/README.md` §0 |
 | **Phase 8 アクセ実装** | ⏳ intake ゲート | §6 intake をユーザーと確定後着手 | `PHASE8_PLAN.md` |
 
@@ -50,6 +51,6 @@
 
 ## 検証（作業後は必ず）
 ```bash
-npm run test:golden   # 期待値: raw 197,775,394 / cal 211,462,826
+npm run test:golden   # 編成別: edison/raw 197,775,394・edison/cal 211,462,826・napoleon/static 299,534,299（全 FB10/10）
 ```
-docs のみの変更なら golden は不変（コード非依存）。
+docs のみの変更なら golden は不変。napoleon fixture は静的greedy回帰ガード＝モデル変更時は再fit。
