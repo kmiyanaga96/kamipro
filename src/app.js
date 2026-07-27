@@ -105,25 +105,38 @@ const SSR_LV_RELEASE = {
 // ゲーム画面の確定表示値をキャラ毎に上書きする。指定があれば calcDisplayAtk(満凸推定) より優先する。
 // decompose(満凸WEAPON_MASTER + 得意補正 + SSR_LV_RELEASE)は target build 用途として温存し、
 // ここは現状の実機合わせ。{} なら従来どおり全キャラ calcDisplayAtk へフォールバック(現状維持)。
-const DISPLAY_ATK_OVERRIDE = {
-  // 検証編成・実機表示ATK読み値。別編成に差し替える際はその編成の実機表示ATKに更新するか、行を消せば満凸推定へ戻る。
-  // 2026-07-16 sim04開始ゲート: 装備強化後(configB)の実機値へ更新(旧2026-07-15 Lv95時点: 93489/73346/70664/78824/79696)。
+// ⚠ **per-formation 構造（2026-07-27・sim05 §5 実装上の注意）**: 共有キャラ(hecate/tetra/elaine)の実機表示ATKは
+//    編成ごとに異なる（装備強化の進行で configB≠configC）。単一グローバルmapでは両編成を同時に持てず、
+//    一方を入れると他方の回帰(golden)が壊れる。∴ **英霊キー(=LEADER)を編成IDとしたネスト構造**にし、
+//    applyGear が現編成のmapだけを引く。編成が未登録なら {} ＝全キャラ満凸推定へフォールバック（従来挙動）。
+const DISPLAY_ATK_OVERRIDE_BY_FORMATION = {
+  // configB（sim04 較正編成・エジソン基軸）＝**回帰基準として凍結**。触ると sim04 の較正前提が動く。
+  // 2026-07-16 sim04開始ゲート: 装備強化後(configB)の実機値(旧2026-07-15 Lv95時点: 93489/73346/70664/78824/79696)。
   // ⚠ configB(simulation/sim04/data/config.json)の同梱dispAtkは旧値のままexportされた(UI更新前)＝
   //    そのキャッシュの探索ルートは旧ATKスケール計算。M走(押し順自由)には非影響・
   //    序数diffの較正前基準順はheadless再探索で取り直す(sim04/README §2 注記)。
-  edison: 96756, yamato: 75898, hecate: 73727, tetra: 81887, elaine: 82248,
+  edison:   { edison: 96756, yamato: 75898, hecate: 73727, tetra: 81887, elaine: 82248 },
+  // configC（sim05 移行編成・ナポレオン基軸）＝ユーザー実機表示値 2026-07-27 受領（暫定configC）。
+  // 共有キャラ(hecate/tetra/elaine)が configB より高いのは装備強化の進行＝**編成差ではなく時点差**。
+  // Lv: hecate=80 / tetra=95 / arianrhod=80 / elaine=95（override 優先のため lvCap 推定は非経路）。
+  napoleon: { napoleon: 102288, hecate: 75558, tetra: 83718, arianrhod: 77297, elaine: 85054 },
 };
+// 現編成(英霊キー)の実機表示ATK override を引く。未登録編成は {}＝満凸推定へフォールバック。
+function displayAtkOverrideFor(heroKey){ return DISPLAY_ATK_OVERRIDE_BY_FORMATION[heroKey] || {}; }
 
 // ゲーム画面の確定表示HPをキャラ毎に上書きする(ATK overrideと完全対称・0-fudge)。
 // 将来「旺壮」(最大HPを参照して特殊攻撃力UPを付与する仕様)を実装する際、その最大HP基準値となる土台。
 // (※「旺盛/ヴィゴラス」は現在HP参照の別スキルで、シムは最大HP前提に簡略化し vigor 枠で実装済み)
 // +99/育成途中/placeholder武器/Lv上限解放を全て内包した実測値で calcDisplayHp(満凸推定) を上書きする。
 // 空 {} なら従来どおり全キャラ calcDisplayHp へフォールバック(現状維持・挙動不変)。
-const DISPLAY_HP_OVERRIDE = {
-  // 検証編成・実機表示HP(DISPLAY_ATK_OVERRIDEと同一編成・同一出典)。
-  // 2026-07-16 sim04開始ゲート: 装備強化後(configB)の実機値へ更新(旧: 9689/7628/8332/8332/8345)。
-  edison: 12252, yamato: 9668, hecate: 10495, tetra: 10870, elaine: 11513,
+// ATK override と完全対称の per-formation 構造（同一編成ID・同一出典）。
+const DISPLAY_HP_OVERRIDE_BY_FORMATION = {
+  // configB（sim04 較正編成）＝凍結。2026-07-16 装備強化後の実機値(旧: 9689/7628/8332/8332/8345)。
+  edison:   { edison: 12252, yamato: 9668, hecate: 10495, tetra: 10870, elaine: 11513 },
+  // configC（sim05 移行編成）＝ユーザー実機表示値 2026-07-27 受領（暫定configC・ATKと同一出典）。
+  napoleon: { napoleon: 12677, hecate: 10714, tetra: 11089, arianrhod: 10119, elaine: 11807 },
 };
+function displayHpOverrideFor(heroKey){ return DISPLAY_HP_OVERRIDE_BY_FORMATION[heroKey] || {}; }
 
 // 表示攻撃力算出: 武器ATK×得意補正 + 幻獣ATK合計 + キャラ基本ATK(神姫) or 英霊基本値
 // slots: 長さ10の武器キー配列(slot0=メイン, 1-9=サブ。空文字=未装備)
@@ -1415,11 +1428,13 @@ function applyGear(){
     const sumAtkTotal=parseFloat(document.getElementById('summon-atk-total')?.value)||0;
     const sumHpTotal=parseFloat(document.getElementById('summon-hp-total')?.value)||0;
     const dispAtkMap={};
+    // per-formation: 現編成(LEADER=英霊キー)の override だけを引く。未登録編成は全キャラ満凸推定。
+    const atkOv=displayAtkOverrideFor(LEADER), hpOv=displayHpOverrideFor(LEADER);
     for(const charKey of CHARS){
       // 実機表示の直接指定があれば最優先(Lv上限解放/+99等を0-fudgeで内包)。無ければ満凸decompose推定。
-      const dispAtk=DISPLAY_ATK_OVERRIDE[charKey]||calcDisplayAtk(charKey,slots,sumAtkTotal,heroRank);
+      const dispAtk=atkOv[charKey]||calcDisplayAtk(charKey,slots,sumAtkTotal,heroRank);
       // 実機表示HPの直接指定があれば最優先(ATKと対称)。無ければ満凸decompose推定。
-      const dispHp=DISPLAY_HP_OVERRIDE[charKey]||calcDisplayHp(charKey,slots,sumHpTotal,heroRank);
+      const dispHp=hpOv[charKey]||calcDisplayHp(charKey,slots,sumHpTotal,heroRank);
       if(dispAtk>0){ dispAtkMap[charKey]=dispAtk; DISPLAY_HP_C[charKey]=dispHp; }
     }
     recalcGearKCFromDispAtk(dispAtkMap); // DISPLAY_ATK_C / GEAR_K_C を共有式で構築
@@ -1681,6 +1696,9 @@ export {
   setStaticOverride, getStaticOverride, calibrateStaticScores, calibrationShortlist, _runCalibrationProbe,
   tryResultCache, storeResult, _resultCache, _resultKey, ENGINE_VERSION, exportResultCache, importResultCache,
   GEAR, DMG, BG, GEAR_K_C, CHARS, ABIL, ownerOf, ELEM, LEADER, LABEL,
+  // per-formation 実機表示ATK/HP（headless の基準順再探索・golden への ATK 注入で参照）
+  DISPLAY_ATK_OVERRIDE_BY_FORMATION, DISPLAY_HP_OVERRIDE_BY_FORMATION,
+  displayAtkOverrideFor, displayHpOverrideFor, calcDisplayAtk, calcDisplayHp,
   RENRI_CAP, RENRI_MAX, TENYA_FROM, IFISHANT_MIN_CD,
   WEAPON_MASTER, SUMMON_REGISTRY, ENEMY_REGISTRY, CHAR_REGISTRY,
   // sim.js が app.js（可変編成状態）から import する記号（barrel 再公開）:

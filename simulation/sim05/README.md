@@ -129,6 +129,8 @@
 - **Q4（2026-07-22・ユーザー）: 案B が望ましい**（主編成を napoleon へ移す）**が、将来エジソン編成へ再帰する可能性も僅かに残る＝悩みどころ**。
 - **推奨する折衷＝二重 fixture golden**: golden.mjs を napoleon 編成の新基準（案B）へ移しつつ、**edison 編成の従来値（raw 197,775,394 / cal 211,462,826）を凍結 fixture として併存**させる（1ファイルで2編成を assert）。→ 主編成は napoleon へ移りつつ、edison への再帰は fixture が生きているので**低コストで戻せる**＝案B の『回帰基準が一度死ぬ』欠点を消し、Q4 の迷いを設計で吸収する。
 - ⚠**実装上の注意**: 共有キャラ(hecate/tetra/elaine)の ATK が両編成で異なる（装備強化）ため、**単一グローバル `DISPLAY_ATK_OVERRIDE` では両編成を同時に持てない**。→ golden.mjs 側で**編成ごとに ATK を注入する小改修**が要る（per-formation override 適用フック or 各ブロックで setDisplayAtk 相当）。frame calib（絶対値の土台）は編成非依存で共有。
+  - **✅ per-formation override 実装済み（2026-07-27）**: `src/app.js` の `DISPLAY_ATK_OVERRIDE_BY_FORMATION` / `DISPLAY_HP_OVERRIDE_BY_FORMATION`＝**英霊キー(=LEADER)を編成IDとするネスト構造**。`applyGear` が `displayAtkOverrideFor(LEADER)` で現編成分のみ引く（未登録編成は `{}`＝満凸推定＝従来挙動）。edison=configB 凍結／napoleon=configC 実機値。**golden 不変 3/3 検証済み**（headless は applyGear 非経由）。
+  - **残**: golden napoleon fixture への configC ATK 注入は **buffCount 修正（①）と同時に1回で再fit**（二重再fit回避）。
 - 注意: 追撃 cap 変更（C5/C3）は edison golden の追撃成分＝低割合にも効くため、**edison 凍結値も sim05 fit で微動しうる**（意図した変動として台帳に記録）。凍結 fixture の期待値は G4 の fit 確定後に両編成ぶん確定する。
 
 → **G2 で最終確定**（案Bベース＋二重fixtureを推奨として提示済み）。
