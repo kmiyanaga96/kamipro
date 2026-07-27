@@ -4,7 +4,7 @@
 > **次タスクの詳細リスト**は `workspace/TODO.md`。過去の経緯・provenance は `archive/SESSION_LOG.md`（オンデマンド）。
 > **更新規律（セッション末）**: 本書は「今」だけを短く保つ。現状化した記述は `archive/SESSION_LOG.md` の先頭へ1ブロック畳み、本書は最新状態へ上書きする（青天井化させない・規律は REPO_STANDARDS §6）。
 >
-> 最終更新: 2026-07-24
+> 最終更新: 2026-07-25
 
 ---
 
@@ -12,17 +12,18 @@
 **Phase 4 = 統計的較正 × 反復可能ボス**（PHASE4_PLAN §3.5.1）。全分析を Claude Code 担当（Antigravity 不使用）。
 次の焦点＝**sim05（ナポ/アリアン編成移行＋追撃 C3/C5 較正）**。土台の frame calib（sim04）は確定・編成非依存で継承。
 
-## 直近セッションの成果（2026-07-24）
-- **sim05前タスク①②実装＋両面宿儺登録**（golden 不変 raw 197,775,394 / cal 211,462,826）: ①鬼神障壁（`DMG.enemy_barrier`＋`Sim._barrier`・burst/streak）②アビ上限（`DMG.enemy_abil_cap`=19・候補剪定）。両面宿儺 `ENEMY_REGISTRY` 登録＝実機で生存確認可能。⚠ rate=0.70/barrier.abi は第1走で実測。
-- **新キャラ/新敵 導入フローを md-first intake（確立版）へ改訂**（ROADMAP §5 に一本化・REPO_STANDARDS/CLAUDE はポインタ整合）。
-- **機獣系フォールバック2体 intake＋実機更新**（`variant_chimera_chi`=強機獣・`variant_chimera`=弱機獣）: 強機獣 HP6.8億/T3撃破・弱機獣 HP4.5億/T2撃破＝**両者とも T1オーバーキル無し＝T1クリーンアンカー可**。
-- **ドキュメント運用刷新**: `workspace/HANDOFF.md`＋`TODO.md` 新設・進行ログを `archive/SESSION_LOG.md` へ分離・CLAUDE.md 減量。
+## ⏳ 次セッションの第一手（引き継ぎ時点＝2026-07-25 末）
+ユーザーが **暫定configC ＋ 強機獣/両面宿儺(=弱鬼)の実機勘試走** を共有予定。⚠**シム表示ATK/HP が実機と不一致**で proper configC は未準備・弱鬼(両面宿儺)は全滅公算。
+- **第一手＝暫定configC の「シム表示ATK/HP vs 実機表示値」の不一致を診断**（＝proper configC を止めているブロッカー。C26系のUIスカラ未回収の類の可能性）。同じ GEAR でシムの `calcDisplayAtk` 出力と実機表示を突合。
+- 試走データから：**①押し順検証**（シム推奨順 vs 実機手感）＋**生存ゲート判定**（両面宿儺が全滅なら本命→強機獣へ切替確定・intake の採用ゲート）。
+- 形式：configC=各キャラ シム表示/実機表示 ATK・HP＋GEARパネル値／試走=ターン別押し順・撃破or全滅ターン・ダメ/敵HP%マーカー（会心/急所あれば追撃fit用）。
 
-## 直近セッションの成果（2026-07-25）
-- **アリアン holy 無限ループ修正**（探索が終わらない主因＝guard `2+holy_plus` と効果cap `>=2` の不一致）＋ **_na 過剰再計算の perf 修正**（holy 8×→1× 等・_na 48%減・ビット同一）。探索は有限化（_runRootPlan 10T=94s）。
-- **編成別 golden 先行実装（点4）**: `test/golden.mjs` を マルチfixture化＝edison(beam raw/cal 凍結)＋napoleon(静的greedy `299,534,299`・**ハングガード maxPress<60**)。回帰ガード＝要再fit。
-- **buffCount 過大カウント判明（閾値 pike/consort/factor の本丸・未解決）**: シムの `buffCount` は非デバフ buf の全スタック総和で T5=118（`arian_bplus` 44 等）＝実機「強化効果数」と乖離。ナポ閾値(15/20)がT2以降トリビアル到達＝閾値実質無効化。**要実機カウント規則**（→TODO ①）。⚠これは下記「闘気」とは別мех。
-- **ナポ闘気（aura）の数え方を実機確定＋実装**: 「味方に強化効果を付与するアクション」を per-action 計数。①atkBufアビ ②戦闘開始時パッシブ除外 ③ヘカテーバースト(`burstGrantsBuff`) ④自動holy(arianHolyFire直接加算)。golden edison 不変・napoleon 再fit(`299,534,299`)。napoleon.md §2.2/arianrhod.md 更新。
+## 直近セッションの成果（2026-07-25・詳細は SESSION_LOG）
+- **アリアン holy 無限ループ修正**（探索が終わらない主因＝guard `2+holy_plus` と効果cap `>=2` の不一致）＋ **_na perf 修正**（holy 8×→1× 等・_na 48%減・ビット同一）。探索は有限化確認（_runRootPlan 10T=94s・別の無限ループ無し）。
+- **編成別 golden マルチfixture 化（点4）**：edison(beam raw/cal 凍結)＋napoleon(静的greedy `299,534,299`＋ハングガード)。⚠回帰ガード＝モデル修正後に再fit。
+- **ナポ闘気(aura) 実装（実機確定・点1-4）**：per-action 計数＝atkBufアビ＋戦闘開始時除外＋ヘカテーバースト(`burstGrantsBuff`)＋自動holy。⚠闘気とアビ計数(連理)は別トリガー。
+- **検証結果処理**：A3=**実機確定**(自動holy→連理増えず)／係数5.5/3000=**要实机**(据え置き)／buffCount閾値=③のみ確定・①②④データ待ち。
+- （07-24分＝sim05前タスク①②・両面宿儺登録・導入フロー改訂・機獣系2体intake・doc運用刷新は SESSION_LOG へ畳み済み）
 
 ## sim05 実施順（合意 2026-07-24）
 **① engine押し順（構造）を先に固める → ② 3体の敵でダメージ較正**。理由＝追撃 anchor は特定押し順上の per-hit で測る（順バグを damage スカラが補償する誤 fit を防ぐ）／順は絶対スカラにほぼ不変（sim04 実証）＝先に固めても damage fit で覆らない。
@@ -35,7 +36,8 @@
 | ライン | 状態 | 次アクション | 詳細 |
 |---|---|---|---|
 | **① ナポ/アリアン押し順（構造）** | ⏳ 要実機検証 | **残＝閾値 buffCount の実機カウント規則（過大是正）→ 最大化検証**。A3再確認・係数矛盾（5.5/3000 vs 5.0/2500）。✅闘気の数え方=実装済・✅アリアン1/2早期投入=整合(変更不要)。G1 構造は実装済 | `gamedata/md/英霊/napoleon.md` §2.2・`神姫/arianrhod.md` §1.2 |
-| **② sim05 追撃較正（3体）** | ⏳ データ取得待ち | Q3=configC（月末）受領＋ボス生存確認 → 固定＝シム推奨順で D×5 走（両面宿儺→機獣系で cross-val）→ C3/C5 fit・rate/abi上限実測 | `simulation/sim05/README.md` §0 |
+| **②a configC 準備** | ⏳ **暫定configC 共有待ち** | **シム表示ATK/HP vs 実機の不一致を診断**（proper configC のブロッカー）→ 解消で per-formation ATK 確定 | `src/app.js` calcDisplayAtk・§5 |
+| **②b sim05 追撃較正（3体）** | ⏳ データ取得待ち | configC＋ボス生存確認後 → 固定＝シム推奨順で D×5 走（両面宿儺→機獣系 cross-val）→ C3/C5 fit・rate/abi上限実測 | `simulation/sim05/README.md` §0 |
 | **Phase 8 アクセ実装** | ⏳ intake ゲート | §6 intake をユーザーと確定後着手 | `PHASE8_PLAN.md` |
 
 → 全タスクの優先順・チェックは **`workspace/TODO.md`**。

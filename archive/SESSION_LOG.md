@@ -9,6 +9,21 @@
 
 ---
 
+## 2026-07-25（＋07-24 追補・エンジン修正セッション）
+
+**07-24 追補（前回未記録）**:
+- **新キャラ/新敵 導入フロー改訂（md-first intake・ROADMAP §5 一本化）**: 実運用で確立した手順（①ユーザーが一次情報md作成→②Claudeが要検証洗い出し→③registry配線＋golden→④実機/sim走で解消）を正として明文化。§4-iii VMは手順③の自動化の将来構想と位置づけ直し。REPO_STANDARDS/CLAUDE はポインタで整合。
+- **機獣系フォールバック2体 intake＋実機更新**: `variant_chimera_chi`（強機獣＝PB06 バリアントキメラ-χ・闇/def推定10/**HP6.8億**/**T3撃破**）・`variant_chimera`（弱機獣＝PB06 バリアントキメラ・闇/**HP4.5億**/**T2撃破**）。両者とも T1オーバーキル無し＝**T1クリーンアンカー可**（強機獣=イジェクトドローンHP70%変身・弱機獣=エマポイズンHP50%・いずれも敵ターン発動でT1着弾クリーン）。旧 `kijuu_kyo` を実名スラッグへ改称。採用序列＝本命 両面宿儺＞主FB 強機獣＞最終FB 弱機獣。
+
+**07-25 エンジン修正**:
+- **アリアン holy 無限ループ修正（探索が終わらない主因）**: `cands.holy` guard `(T.holy)<2+(T.holy_plus)` と効果本体 `arianHolyFire` 手動cap `>=2` の不一致。holy_plus>0 で「guardはtrue・effectは早期return＝T.holy据置」→ holy 無限押下＝1ターン枯渇せず＝ビーム爆発。修正＝cap を `>=2+(T.holy_plus)` へ一致。静的greedy T1押下 320→32。
+- **_na 過剰再計算の perf 修正**: `arianHolyFire` が8ヒットで `_na()`×8 再計算（auto holy 頻発で napoleon の _na が edison の7.6倍）。1回計算×8加算へ（judg `10*hit` と同型）＋追撃①②同値1回化＋`burst()` の naB を onBurst へ渡し再利用。_na 16.6M→8.56M（48%減）・**ビット同一**（napoleon 10T 369,318,249 一致）。探索は有限化確認（_runRootPlan 10T=94s・別の無限ループ無し＝残りは構造的重さ）。
+- **編成別 golden マルチfixture 導入（点4）**: `test/golden.mjs` を「1編成=1golden」化。edison/raw(197,775,394)・edison/cal(211,462,826)=beam+refine 凍結／napoleon/static=静的greedy(**299,534,299**)＋**maxPress<60 ハングガード**（フルビーム10Tは~90sで頻回不適ゆえ静的greedy）。⚠回帰ガード＝buffCount/閾値/係数の実機修正後に再fit。動機の実証＝holy ハングは edison golden では検出不能だった。
+- **buffCount 過大カウント発見（閾値 pike/consort/factor の本丸・未解決）**: シム `buffCount`=非デバフ buf 全スタック総和で T5=118（`arian_bplus` 44 等）＝実機「強化効果数」と乖離。閾値15/20がT2以降トリビアル到達＝実質無効化。→ sim05 較正走でデータ照合してから差替/再スケール。
+- **ナポ闘気(aura) 実装（実機確定・点1-4）**: 「味方に強化効果を付与するアクション」を per-action 計数。①atkBufアビ(onAbility・既存) ②戦闘開始時パッシブ除外(既存) ③**ヘカテーバースト**(被回復上限UP・`hecate.def.burstGrantsBuff`+`napoleon.def.onPartyBurst`・新規) ④**自動holy**(arian_bplus・arianHolyFire直接加算・新規)。⚠闘気とアビ計数(連理/鬼神一擲)は別トリガー。golden edison 不変・napoleon 298,537,617→299,534,299 再fit。
+- **検証結果処理**: A3=**実機確定**（自動holyのみでは連理魔力増えず＝旧観測は誤帰属・コード既に正）。バースト係数=一次情報(5.5/3000)が正の見込みだが**要实机**＝シム値 5.0/2500 据え置き（未確定値で golden 動かさない）。buffCount閾値=③味方全体バフ=1のみ確定・①②④はデータ待ち。
+- **引き継ぎ時点の状況**: ユーザーが **暫定configC＋強機獣/両面宿儺(弱鬼)試走** を共有予定。⚠**シム表示ATK/HP不一致**で proper configC は未準備・弱鬼(両面宿儺)は全滅公算。→ **次セッション第一手＝暫定configC の ATK/HP 不一致診断**（configC ブロッカー・C26系スカラ未回収の類）＋試走から押し順検証＆生存ゲート判定。
+
 ## 〜2026-07-24（旧 CLAUDE.md「現在の進行状況」より移設・原文ママ）
 
 - **現フェーズ**: Phase 4 = **統計的較正 × 反復可能ボス（2026-07-12 転換・PHASE4_PLAN §3.5.1）**。**Antigravity はワークフロー除外**＝全分析を Claude Code 担当。
