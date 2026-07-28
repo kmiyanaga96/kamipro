@@ -1,0 +1,74 @@
+# configC 装備パネル転記＋実機表示ATK/HP（一次情報・2026-07-27 ユーザー提供）
+
+> **種別**: 一次情報（ユーザー提供・実機画面転記）
+> **出所**: ユーザーによる実機スクリーンショット＋表示値の直接申告 ／ **受領日**: 2026-07-27 ／ **原文ママ**（本文は書き換えない。訂正は冒頭注記で行う＝damage_frames.md 方式）
+> `config.json`（=configC・探索キャッシュexport・engineVersion `sim04-abscal-C31C34-calib`）を補完する装備の一次記録。スクショは保存しない方針のためテキスト転記（simulation/README「データ成型の原則」）。
+> 関連: sim05 README §5（golden 干渉・per-formation ATK）・`src/app.js` `DISPLAY_ATK_OVERRIDE_BY_FORMATION.napoleon`
+>
+> ⚠ **暫定configC**（ウェポン強化継続中・Q3 は月末確定予定）。本値は暫定版として受領した時点のスナップショット。
+
+---
+
+## 1. 編成
+
+英霊=**ナポレオン** / パーティ=**ヘカテー・テトラ・アリアンロッド・エレイン**（幻獣=freyja_christmas / artemis）。
+
+## 2. 実機表示ATK / HP（ユーザー申告・原文ママ）
+
+| キャラ | Lv | 表示ATK | 表示HP |
+|---|---|---|---|
+| ナポレオン | — | 102288 | 12677 |
+| ヘカテー | **80** | 75558 | 10714 |
+| テトラ | **95** | 83718 | 11089 |
+| アリアンロッド | **80** | 77297 | 10119 |
+| エレイン | **95** | 85054 | 11807 |
+
+- `src/app.js` の `DISPLAY_ATK_OVERRIDE_BY_FORMATION.napoleon` / `DISPLAY_HP_OVERRIDE_BY_FORMATION.napoleon` へ**そのまま登録済み**（2026-07-27・0-fudge）。
+- ⚠ **configB（sim04・edison編成）の共有キャラ値より高い**（hecate 73727→75558 / tetra 81887→83718 / elaine 82248→85054）＝**編成差ではなく装備強化の時点差**。∴ 単一グローバル override では両立不能 → per-formation 構造へ改修（sim05 README §5 実装上の注意の解決）。
+- ⚠ Lv 記載は override 優先のため `calcDisplayAtk`（満凸推定・`SSR_LV_RELEASE`）経路には乗らない＝Lv95 増分未取得（`src/app.js` L100 注記）は本 config では非ブロッカー。
+
+## 3. 装備パネル（一次情報・スクリーンショット転記）
+
+| 区分 | 項目 | 値 |
+|---|---|---|
+| 基本効果 | HPUP | 116.0% |
+| 基本効果 | 攻撃UP | 170.0% |
+| 基本効果 | 三段攻撃確率UP | 6.0% |
+| HPに応じた効果 | 旺盛効果 ※HP100%時の効果量 | 38.2% |
+| 通常攻撃系効果 | 通常攻撃ダメージUP | 62.0% |
+| 通常攻撃系効果 | 通常攻撃ダメージ上限UP | 20.0% |
+| アビリティ系効果 | アビリティダメージUP | 140.0% |
+| アビリティ系効果 | アビリティダメージ上限UP | 55.0% |
+| バースト系効果 | バーストダメージUP | 290.0% |
+| バースト系効果 | バーストダメージ上限UP | 112.0% |
+| 確率系効果 | 会心効果 ※効果量の期待値 | 22.5% |
+| 確率系効果 | 急所攻撃効果 ※効果量の期待値 | 8.0% |
+
+## 4. パネル値 ↔ config.json 同梱 GEAR の突合（検証済み・2026-07-27）
+
+`config.json` のキー内 GEAR は、**全項目がパネル値 ×1.8 に厳密一致**（＝`weaponAmp=0.8` 適用後の値・`applyGear` の `GEAR[box]+=v/100*(1+weaponAmp)`）:
+
+| GEAR キー | config.json 値 | パネル値 | 比 |
+|---|---|---|---|
+| assault | 3.06 | 170.0% | ×1.8 |
+| vigor | 0.6876 | 38.2% | ×1.8 |
+| na_dmg | 1.116 | 62.0% | ×1.8 |
+| na_cap | 0.36 | 20.0% | ×1.8 |
+| abi_dmg | 2.52 | 140.0% | ×1.8 |
+| abi_cap | 0.99 | 55.0% | ×1.8 |
+| burst_dmg | 5.22 | 290.0% | ×1.8 |
+| burst_cap | 2.016 | 112.0% | ×1.8 |
+| acute | 0.144 | 8.0% | ×1.8 |
+| crit_rate | 0.405 | 22.5% | ×1.8 |
+
+**⇒ 受領キャッシュの GEAR は configC パネルそのもの**＝GEAR 側に不一致は無く、コード修正は不要（UI 入力値が正しく反映されている）。`elem: 0.54`（属性）はパネル外の別入力。
+
+- **configB（sim04）との GEAR 差分**: `elem` 0 → **0.54** ／ `dmgup` 0.09 → **0**。ダメージ枠（assault/na/abi/burst の dmg・cap）は configB と同値。
+
+## 5. config.json（受領キャッシュ）の素性
+
+- `engineVersion`: `sim04-abscal-C31C34-calib`（現行エンジンと一致）
+- 敵条件: HP `100,000,000`・affinity `0`・barrier `null`・abilCapPerTurn `null` ＝**デフォルト敵**（両面宿儺ではない）
+- `override`: `{judg:130, pactcore:1}` ／ `prefix`: `["effond"]` ／ `dmg`: 4,054,843,556
+- 同梱 `dispAtk` は **旧値**（napoleon 30041 / arianrhod 31737 ＝ override 未登録時の満凸推定フォールバック値）＝**本 md §2 の実機値が正**。sim04 configB と同じ「キャッシュ同梱 dispAtk は旧値」問題（sim04 README §2 注記と同型）。
+- ∴ このキャッシュの探索ルート（`turnsKeys` 10ターン）は**旧ATKスケールで探索された順**＝G3 の「較正前 基準順」として使う場合は **override 登録後に headless 再探索で取り直す**こと。

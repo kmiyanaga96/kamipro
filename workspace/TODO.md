@@ -12,13 +12,16 @@
 
 ## ① ナポ/アリアン 押し順（構造）を先に固める ★先行（着実に消化）
 ✅済（詳細 SESSION_LOG）: 点3 アリアン1/2早期投入=整合／ナポ闘気(aura)実装(点1-4)／A3実機確定／点4 編成別golden。
-- [ ] **閾値 buffCount 規則（pike/consort/factor・最大化検証の前提）**: シム `buffCount` 過大（T5=118・`arian_bplus` 44 等の内部スタック総和）＝閾値15/20がT2以降トリビアル到達＝実質無効化。実機検証(部分)＝③味方全体バフ=1のみ確定・①単位=アビ推定/②スタック=累積推定/④到達時実機値=**いずれも要データ**。→ **sim05 較正走で sim buffCount vs 実機 tier挙動を照合してから** `buffCount` 差替 or 閾値再スケール。※③はシム buf が既に整合。
+- [ ] **閾値 buffCount 規則（pike/consort/factor・最大化検証の前提）**: シム `buffCount` 過大（**sim側分解＝T1で既に34・全tierゲート T1恒常到達＝閾値完全無効化**。主犯＝`arian_bplus` 12→41[単独で約4割]・`legend`→18・`puvoir/arian_bcap` 累積系）＝閾値15/20がトリビアル到達＝実質無効化。実機検証(部分)＝③味方全体バフ=1のみ確定・①単位=アビ推定/②スタック=累積推定/④到達時実機値=**いずれも要データ**。→ **sim05 較正走で sim buffCount vs 実機 tier挙動を照合してから** `buffCount` 差替 or 閾値再スケール。※③はシム buf が既に整合。**✅sim側分解は確定（`simulation/sim05/buffcount_sim_side_diag.md`）＝実機 tier実発動ターンの取得のみで即実装可**。
 - [ ] **ナポ押し順が真に最大化か検証**（buffCount 修正後・garbage-in回避）。T1のサブ閾値発動(consort bc9/pike bc13)の是非も同時。
 - [ ] **バースト係数 5.5/3000**（一次情報が正の見込み・**要实机**）: 确定until シム値 5.0/2500 据え置き。实机確定後に変更＋napoleon golden 再fit。詳細 `arianrhod.md` §1.2。
 - [ ] G3: 固定押し順の基準＝**シム推奨順**を headless 再探索で抽出（②の実机走に流し込む）。
 
-## ②a configC 準備（ブロッカー診断）★次セッション第一手
-- [ ] **暫定configC の「シム表示ATK/HP vs 実機表示」不一致を診断**（proper configC を止めているブロッカー・C26系のUIスカラ未回収の類の可能性）。同一 GEAR でシム `calcDisplayAtk` 出力と実機表示を突合 → 解消で per-formation ATK 確定。ユーザーが暫定configC＋強機獣/両面宿儺(弱鬼)試走を共有予定。
+## ②a configC 準備（ブロッカー診断）
+- [x] **✅解消（2026-07-27）**: 不一致の原因＝**napoleon/arianrhod が override 未登録**（`DISPLAY_ATK_OVERRIDE` は configB の edison編成5キャラのみ）→ 満凸推定フォールバックで −70.6% / −58.9%。C26系UIスカラ問題ではなかった。**per-formation 構造**（`DISPLAY_ATK/HP_OVERRIDE_BY_FORMATION`＝英霊キー別）へ改修し configC 実機値を登録＝**napoleon編成 5/5 が 0.00% 一致**・edison は configB 凍結のまま golden 不変(3/3)。一次情報＝`simulation/sim05/data/configC_gear_panel.md`・キャッシュ＝同 `config.json`。
+  - GEAR は**パネル値 ×1.8（weaponAmp=0.8）で config.json と厳密一致＝不一致なし・コード修正不要**（同 md §4）。
+- [ ] **proper configC 受領時に §2 の表と override を更新**（現在は暫定＝ウェポン強化継続中）。
+- [ ] **golden napoleon fixture への configC ATK 注入**（README §5 実装上の注意）。⚠**buffCount 修正（①）と同時に1回で再fit**する（二重再fitの回避）。現 fixture はデフォルトATK＝回帰ガードとして有効。
 
 ## ②b sim05 追撃較正 C3/C5（3体でクロスバリデーション）★configC後
 - [ ] ⏳ゲート＝configC 準備完了＋**ボス生存/討伐再現性の実機確認**（両面宿儺は1日1回＝**①と並行で毎日1枠を消化**・早期に全滅の壁を判定。弱鬼は全滅公算＝その場合 本命→強機獣へ切替確定）。
