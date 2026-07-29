@@ -4,41 +4,49 @@
 > **更新規律**: 完了項は `[x]` にしてセッション末に `archive/SESSION_LOG.md` の該当ブロックへ畳む（本書からは削除）。新規タスクは REPO_STANDARDS §1 の振り分けを通してから追加。
 > 現状の全体像は `workspace/HANDOFF.md`。
 >
-> 最終更新: 2026-07-25
+> 最終更新: 2026-07-28
 
 ---
 
-> **sim05 実施順（合意 2026-07-24）**: ①押し順（構造・major/golden不変）を先に固める → ②3体の敵でダメージ較正（クロスバリデーション）。詳細は HANDOFF「sim05 実施順」。
+> **sim05 方針転換（2026-07-28）**: **ダメージ較正（C3/C5）は継続／ナポ・アリアンの押し順較正は先送り**。
+> 押し順側は C37（探索の不安定性）・C38（buffCount）未解決では意味をなさない。較正はリプレイ突合＝探索非依存で進められる。
+> **3トラック**: A=ダメージ較正（configC待ち）／**B=探索の安定化（今すぐ着手可）**／C=押し順・tier（Aのデータ待ち）。
 
-## ① ナポ/アリアン 押し順（構造）を先に固める ★先行（着実に消化）
-✅済（詳細 SESSION_LOG）: 点3 アリアン1/2早期投入=整合／ナポ闘気(aura)実装(点1-4)／A3実機確定／点4 編成別golden。
-- [ ] **閾値 buffCount 規則（pike/consort/factor・最大化検証の前提）**: シム `buffCount` 過大（**sim側分解＝T1で既に34・全tierゲート T1恒常到達＝閾値完全無効化**。主犯＝`arian_bplus` 12→41[単独で約4割]・`legend`→18・`puvoir/arian_bcap` 累積系）＝閾値15/20がトリビアル到達＝実質無効化。実機検証(部分)＝③味方全体バフ=1のみ確定・①単位=アビ推定/②スタック=累積推定/④到達時実機値=**いずれも要データ**。→ **sim05 較正走で sim buffCount vs 実機 tier挙動を照合してから** `buffCount` 差替 or 閾値再スケール。※③はシム buf が既に整合。**✅sim側分解は確定（`simulation/sim05/buffcount_sim_side_diag.md`）＝実機 tier実発動ターンの取得のみで即実装可**。
-- [ ] **ナポ押し順が真に最大化か検証**（buffCount 修正後・garbage-in回避）。T1のサブ閾値発動(consort bc9/pike bc13)の是非も同時。
-- [ ] **バースト係数 5.5/3000**（一次情報が正の見込み・**要实机**）: 确定until シム値 5.0/2500 据え置き。实机確定後に変更＋napoleon golden 再fit。詳細 `arianrhod.md` §1.2。
-- [ ] G3: 固定押し順の基準＝**シム推奨順**を headless 再探索で抽出（②の実机走に流し込む）。
+## B. 探索の安定化 ★今すぐ着手可（編成非依存・何にも依存しない）
+- [ ] **実験5: C27 リファインの一般化（局所探索）の効果測定**。確定ルートにアビの位置交換/移動を総当たりし、**リプレイして厳密改善時のみ採用**（単調安全）→改善が尽きるまで反復。**BW64 出力 2,007,021,635 に適用し BW384 の 2,120,186,028 との 5.6% 差をどれだけ埋めるか**を測る。**scratchpad で試作・リポジトリ非改変**（`_replayResult` のみで可）。効果が出たら実装を改めて提案。
+- [ ] （実験5 の結果次第）探索安定化の実装提案 → 承認後に着手。golden 再fit の要否も同時に判断。
 
-## ②a configC 準備（ブロッカー診断）
-- [x] **✅解消（2026-07-27）**: 不一致の原因＝**napoleon/arianrhod が override 未登録**（`DISPLAY_ATK_OVERRIDE` は configB の edison編成5キャラのみ）→ 満凸推定フォールバックで −70.6% / −58.9%。C26系UIスカラ問題ではなかった。**per-formation 構造**（`DISPLAY_ATK/HP_OVERRIDE_BY_FORMATION`＝英霊キー別）へ改修し configC 実機値を登録＝**napoleon編成 5/5 が 0.00% 一致**・edison は configB 凍結のまま golden 不変(3/3)。一次情報＝`simulation/sim05/data/configC_gear_panel.md`・キャッシュ＝同 `config.json`。
-  - GEAR は**パネル値 ×1.8（weaponAmp=0.8）で config.json と厳密一致＝不一致なし・コード修正不要**（同 md §4）。
-- [ ] **proper configC 受領時に §2 の表と override を更新**（現在は暫定＝ウェポン強化継続中）。
-- [ ] **golden napoleon fixture への configC ATK 注入**（README §5 実装上の注意）。⚠**buffCount 修正（①）と同時に1回で再fit**する（二重再fitの回避）。現 fixture はデフォルトATK＝回帰ガードとして有効。
+## A. sim05 ダメージ較正（C3/C5）★proper configC 待ち
+- [ ] **proper configC 受領 → `DISPLAY_ATK/HP_OVERRIDE_BY_FORMATION.napoleon` を更新**（現在は暫定・`data/configC_gear_panel.md` §2 も同時更新）。
+- [ ] **押し順の再抽出**（実験2で ATK 非不変が判明＝ATK が動けば出力順は変わる。`g3_recommended_order.md` はそのまま流用不可）。
+- [ ] 固定＝シム推奨順で D走 → **C5（追撃cap）→C3（式）** を非会心非急所アンカーで fit。⚠ナポ/アリアン編成が必要（sim04 はエジソンで「非決定的fit・per-component fudge」と結論済み＝戻すと袋小路）。
+- [ ] **鬼神障壁 rate=0.70 の解釈と barrier.abi 上限**を実測 → `ENEMY_REGISTRY.ryomen_sukuna` と `ryomen_sukuna.md` を更新。
+- [ ] アリアン絶対値 fit・A8急所倍率。override 再較正・golden 戦略（napoleon fixture の再fit）。
+- 詳細: `simulation/sim05/README.md`
 
-## ②b sim05 追撃較正 C3/C5（3体でクロスバリデーション）★configC後
-- [ ] ⏳ゲート＝configC 準備完了＋**ボス生存/討伐再現性の実機確認**（両面宿儺は1日1回＝**①と並行で毎日1枠を消化**・早期に全滅の壁を判定。弱鬼は全滅公算＝その場合 本命→強機獣へ切替確定）。
-  - 本命=両面宿儺（多ターン clean＝順検証にも最良／全滅時計 鬼の魔力≥10・T2/3全滅リスク）→ 主FB=強機獣（T3・T1クリーン）→ 最終FB=弱機獣（T2・T1クリーン）。**3体とも光有利クリーン＝追撃スカラのクロスバリデーション可**。
-- [ ] 固定＝シム推奨順（G3）で D×5 走。1走で **(a)序数検証＋(b)追撃 anchor** を同時取得 → **C5（追撃cap）→C3（式）** を非会心非急所アンカーで fit。主アンカーで fit → 別1〜2体で確認。
-- [ ] **鬼神障壁 rate=0.70 の解釈（超過分×rate か全体か）と barrier.abi 上限**を第1走で実測 → `ENEMY_REGISTRY.ryomen_sukuna` と `ryomen_sukuna.md` を更新。
-- [ ] アリアン絶対値 fit・A8急所倍率（damage 側）。
-- [ ] G5: override 再較正・golden 戦略（案B＋二重fixture）・**新推奨順の序数 diff 記録**（①で固めた順が damage fit 後も不動か再確認）。
-- 詳細: `simulation/sim05/README.md` §0（読み順）
+## 両面宿儺 試走（保険として取得）
+- [ ] `record_skeleton.md` を複製して `trial01.md` を作成（複製とpushはユーザー運用）。**Kモード＝§A 押し順逸脱／§B tier実発動／§D 生存 の3つのみ**（per-hit 明細は任意）。
+- [ ] **§B が C38 の解決データ**（tier初回発動ターン・実機バフアイコン数と数え方）。
+
+## C. 押し順・tier ★A のデータ待ち
+- [ ] **C38: `buffCount` 差替 or 閾値再スケール**を決定（§B データ受領後）→ napoleon golden 再fit。
+- [ ] **ナポアビ予測探索の実装**（1アビ=tier境界で即撃ち／2アビ=15未満予測なら最速／3アビ=20超え次第／4アビ=CD短縮の別軸）。⚠**C38 が前提**（未解決なら全ルールが即撃ちに縮退）。設計案＝`simulation/sim05/buffcount_sim_side_diag.md`（**検討のみ・未実装・未承認**）。
+- [ ] ナポ押し順が真に最大化か検証（C38 修正後・garbage-in回避）。
+- [ ] **バースト係数 5.5/3000**（一次情報が正の見込み・**要实机**）: 確定まで 5.0/2500 据え置き。確定後に変更＋napoleon golden 再fit。
+
+## 保留（概算時間が大きい・ユーザー判断 2026-07-28）
+- [ ] 実験3: `calibrateStaticScores` の評価ズレ（単一ビーム採点 vs 本番8prefix）。約51分（3候補）〜2時間（全shortlist）。
+- [ ] 実験1b: `BEAM_DIVERSITY_K` の寄与測定。約70分＋**コード一時改変が必要**（module const）。
+- [ ] `CALIB_GRID`={judg,pactcore,effond} が**ナポ/アリアンのアビを1つも含まない**構造的欠落への対処（C37 記載）。
+- [ ] **Phase 7 の再評価**（クローズ根拠の一部が編成依存と判明＝ROADMAP 上の扱いを要相談）。
 
 ## フェーズ着手待ち
-- [ ] **Phase 8（アクセサリー実装）**。⏳ゲート＝§6 intake（per-char/全体の別・系統全容・発動系有無）をユーザーと確定。設計＝`ACCESSORY_REGISTRY`＋`applyGear` 集約で class Sim 非改修。詳細 `PHASE8_PLAN.md`。
+- [ ] **Phase 8（アクセサリー実装）**。⏳ゲート＝§6 intake をユーザーと確定。詳細 `PHASE8_PLAN.md`。
 
 ## 並行・後続（低優先）
-- [ ] C24（ゲージ±5〜10 の系統乖離）は較正走に相乗りで診断更新（黄ロボ反応の計数差に局在・低severity）。
+- [ ] C24（ゲージ±5〜10 の系統乖離）は較正走に相乗りで診断更新。
 - [ ] CHARACTER_ANALYSIS §2（ヤマト vs アリアン）を較正確定後に再測。
-- [ ] essays 更新（次の較正確定後・現状 2026-07-22 の sim04完了/ナポ大全訂正まで反映済み）。
+- [ ] essays 更新（次の較正確定後）。
 
 ---
 
@@ -46,10 +54,8 @@
 - ✅ sim04 絶対値較正（2026-07-21・C25/C30/C31/C34）
 - ✅ Phase 8 計画策定（2026-07-22・実装は未着手）
 - ✅ sim05 前タスク①②（鬼神障壁＋アビ上限）実装＋両面宿儺登録（2026-07-24）
-- ✅ ドキュメント運用刷新（2026-07-24・workspace/ 新設）
-- ✅ 新キャラ/新敵 導入フロー改訂（md-first intake・ROADMAP §5 一本化・2026-07-24）
-- ✅ 機獣系フォールバック2体 intake＋実機更新（強機獣 HP6.8億/T3・弱機獣 HP4.5億/T2・2026-07-24）
-- ✅ アリアン holy 無限ループ修正＋_na perf 修正（探索の非終了/重さ解消・2026-07-25）
-- ✅ 編成別 golden マルチfixture 化（点4・edison＋napoleon・2026-07-25）
-- ✅ ナポ闘気(aura) 実装（点1-4・per-action・2026-07-25）
-- ✅ 検証結果処理: A3実機確定・係数lean記録・buffCount閾値部分確定（2026-07-25）
+- ✅ アリアン holy 無限ループ修正＋_na perf 修正・編成別 golden・ナポ闘気実装（2026-07-25）
+- ✅ **②a configC ブロッカー解消＝per-formation override 導入**（2026-07-28・napoleon 5/5 が 0.00% 一致・golden 不変）
+- ✅ **G3 推奨押し順 v2 抽出**（2026-07-28・v1 は英霊武器/サブ枠欠落で撤回）
+- ✅ **C37 起票**（探索パラメータの編成依存・探索の不安定性）＋実験1/2/4（2026-07-28）
+- ✅ **C38 起票**（buffCount が実機と別のものを数えている・tier機能停止）（2026-07-28）
