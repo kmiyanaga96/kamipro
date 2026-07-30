@@ -4,23 +4,28 @@
 > **更新規律**: 完了項は `[x]` にしてセッション末に `archive/SESSION_LOG.md` の該当ブロックへ畳む（本書からは削除）。新規タスクは REPO_STANDARDS §1 の振り分けを通してから追加。
 > 現状の全体像は `workspace/HANDOFF.md`。
 >
-> 最終更新: 2026-07-28
+> 最終更新: 2026-07-30
 
 ---
 
 > **sim05 方針**: ダメージ較正（C3/C5）は継続／ナポ・アリアンの押し順較正は先送り（C37/C38 未解決では意味をなさない）。
-> **3トラック**: A=ダメージ較正（configC＋ボス切替待ち）／B=探索の安定化（**原因特定済＝実装フェーズ**）／C=押し順・tier（実機データ待ち）。
+> **3トラック**: A=ダメージ較正（configC＋ボス切替待ち）／B=探索の安定化（**LS 実装済 2026-07-30・残=ボス切替**）／C=押し順・tier（実機データ待ち）。
 
 ## ★次セッションの第一手（実装を伴う＝着手前に承認を得る）
 
 - [ ] **① 較正ボスを `walpurgis_loki` へ切替**（ほぼ確定・ユーザー提案 2026-07-28）。B1 で**不安定性の原因は `abilCapPerTurn:19`（宿儺）と確定**したため cap なしボスへ移す。loki は registry 登録済み・**`barrier` も `abilCap` もなし**・**ノーダメージ討伐でシムの常時フルHP近似が厳密成立**・T3〜4 安定反復・C7撤回済で交絡整理済。作業＝`simulation/sim05/README.md` §4.4 の採用序列を loki 主体へ改訂＋押し順の再抽出（`tools/exp_*` を loki 条件で流用）。⚠隠れ耐性未確認（成分比では相殺＝C3/C5 には影響しない）。
-- [ ] **② 局所探索の実装（`_refineRoute` を LS で置換）**。B3b で **LS は C27 の上位互換**と確定（エジソン +0.779%＝C27 の5.6倍／ナポは C27 不発火だが LS +3.02%）。単調安全・既存 `_replayResult` のみで実装可＝**機能が増えてコードが減る**。⚠**golden 全fixture 再fit必須**（edison系 +0.78%前後・napoleon/static は不変）。ハーネス＝`tools/exp_local_search.mjs`。
+
+## LS 実装の follow-up（2026-07-30・低〜中優先）
+- [ ] **探索中の進捗表示が LS 区間で止まって見える**（UX 回帰）。`_runRootPlan` は10ターン完遂**後**に LS を回すため、各ルートの進捗バーが 10/10 に達したあと **数分間 無反応に見える**（LS は edison で 177〜324秒・ナポではさらに長い見込み）。ハングと区別がつかない。対処案＝`_runRootPlan` に LS 用コールバックを足し worker→app.js で「最適化中… sweep n」を出す（追加6行程度・既存 progress protocol への additive 変更）。**中断ボタンの応答性も要確認**（`_simCancelled` は worker のメッセージ境界でしか効かない）。
+- [ ] **LS の評価コスト削減（任意）**: 近傍評価は毎回10ターン全リプレイだが、ターン t の変更は **t 以降しか変えない**＝各ターン開始時の `Sim` スナップショットを持てば約2倍速くなる見込み。⚠`clone()` は `planDepth+1` するため静的greedy経路へ落ちる＝そのまま流用不可（要 planDepth/T のリセット）。**リスクに見合うかは要判断**（現状でも正しさは担保済み）。
+- [ ] **ターン跨ぎ swap の費用対効果**（評価の73%を消費して採用は raw 4件/cal 0件。ただし raw ではその4件が改善の32%）。近傍を |t1-t2| で窓制限した場合の品質/コストは**未測定**。
 
 ## A. sim05 ダメージ較正（C3/C5）★proper configC 待ち
 - [ ] **proper configC 受領 → `DISPLAY_ATK/HP_OVERRIDE_BY_FORMATION.napoleon` を更新**（現在は暫定・`data/configC_gear_panel.md` §2 も同時更新）。
 - [ ] **押し順の再抽出**（実験2で ATK 非不変が判明＝ATK が動けば出力順は変わる。`g3_recommended_order.md` はそのまま流用不可）。**ボスも loki へ移る**ため合わせて実施。
 - [ ] 固定＝シム推奨順で D走 → **C5（追撃cap）→C3（式）** を非会心非急所アンカーで fit。⚠ナポ/アリアン編成が必要（sim04 はエジソンで「非決定的fit・per-component fudge」と結論済＝戻すと袋小路）。
 - [ ] アリアン絶対値 fit・A8急所倍率。override 再較正・golden 戦略（napoleon fixture の再fit）。
+- [ ] **`search_calibrate.mjs` の formal 再fit を判断**（LS 実装の follow-up・留保付き）。override `{judg:145,pactcore:1}` は「override はルート**選択**を制御し LS は選択後の**単調**パス」として据え置いたが、実験5c で「開始点が違うと LS 後の質が 3.8% 違う」と判明した以上**選択最適 override が動く余地は C27 時より大きい**。根拠 CALIBRATION_ANALYSIS C37。
 - [ ] **総ダメージの走間分散を実測**（C28 の理論見積り「サブ1%オーダー」は**未検証**。同一押し順の複数走で総ダメを控えれば副産物として取れる）。
 - 詳細: `simulation/sim05/README.md`
 
@@ -62,3 +67,4 @@
 - ✅ **`tools/` ルート昇格＋実験ハーネス13本コミット**（再現性確保）（2026-07-28）
 - ✅ **REPO_STANDARDS §6 に E1〜E8 制定＋ID接頭辞 Ex 登録**（2026-07-28）
 - ✅ **C37 肥大化解消**（16,393→4,170字・根拠を `search_quality_experiments.md` へ分離）（2026-07-28）
+- ✅ **② 局所探索の production 実装**（2026-07-30・`_localSearchRoute` が `_refineRoute` を置換・golden 再fit raw 201,909,711 / cal 214,213,430）

@@ -24,10 +24,16 @@
 | `search_autocal.mjs` | 静的 s の掃引（C15 案(c) の原型） |
 | `search_lever_scan.mjs` / `search_lever_verify.mjs` | 較正レバー候補の proxy 掃引 → full 検証（C17） |
 | `search_gear_probe.mjs` | ギア別の較正適応を確認（C15 §6.10） |
-| `c27_refine_probe.mjs` | C27 定石リファインの上限測定・冪等/後出し検証・キャッシュ復元 |
+| `c27_refine_probe.mjs` | C27 定石リファインの上限測定・冪等/後出し検証・キャッシュ復元。⚠**C27 は 2026-07-30 に production 非経路化**（`_refineRoute` は再現性のため残置）＝本ハーネスは歴史的数値の再現用 |
 | `ml_fit_static{,_v2}.mjs` | Phase 7 静的スコアML化 PoC（`npm run poc:ml`・**クローズ済だが再開用に温存**） |
 
 ## 2. 探索品質の実験ハーネス（2026-07-28 追加）
+
+> ⚠ **局所探索（LS）は 2026-07-30 に production 実装済**（`src/sim.js` `_localSearchRoute`）。以下の `exp_local_search*` / `exp_c27_vs_localsearch*` は
+> **実装前の判断根拠となった実験の再現用**＝各自が LS を scratchpad 実装として持っており、production の `_localSearchRoute` とは**別物**（近傍は同一だが
+> 停止条件が時間バジェット）。production の挙動を測るなら `_localSearchRoute` を直接 import すること。
+> なお `_refineRoute` を import するハーネス（`c27_refine_probe` / `exp_c27_vs_localsearch{,_edison}` / `exp_beam_width_sweep` / `exp_local_search_control` /
+> `ml_fit_static`）を壊さないため、`_refineRoute` は export ごと残置している。
 
 **C37/C38 の根拠となった数値を出したスクリプト。結果と解釈は `simulation/sim05/search_quality_experiments.md` が正**（本表は「どの数値がどのスクリプト由来か」の対応のみ）。
 
