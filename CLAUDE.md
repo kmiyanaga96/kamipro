@@ -127,6 +127,18 @@ npm run test:golden          # = node test/golden.mjs（src/app.js を import �
 
 > 探索は `runSim` 実行時に config別に静的スコア s を自動較正する（`calibrateStaticScores`・proxy-shortlist+full-verify・単調安全）。golden.mjs は決定的検証のため較正結果 `{judg:145,pactcore:1}` を `setStaticOverride` で明示適用する（毎回の較正走行を避ける）。詳細 archive/SEARCH_ROLLOUT_DESIGN.md §6。
 
+### 実測コスト（2026-07-28 計測・実験設計の前提に使う）
+| 対象 | 実測 |
+|---|---|
+| `npm run test:golden` 全体 | **116秒**（edison beam+refine ×2＝各 ~58s／napoleon 静的greedy は瞬時） |
+| edison configB（cath_palug）1ルート | 約 **62秒** |
+| napoleon configC（両面宿儺）1ルート | 約 **127秒** |
+| BW384 1ルート | 545秒（単独）／762秒（他ジョブと同時実行時＝**約40%増**） |
+| `_replayResult` 1回 | **2.4ms**（探索1ルートの約 1/50,000） |
+
+⚠**旧 `test/golden.mjs` コメントの「edison ~2s」は約29倍の誤りだった**（napoleon ~90s はほぼ整合）。
+**コード内の性能数値は測定条件が不明なら実験計画の前提にしない**（必ず実測してから使う）。根拠 CALIBRATION_ANALYSIS C37。
+
 補助検証（大きな構造変更・Worker/ビルド変更時）:
 ```bash
 npm run build                # dist/ 生成（worker 別チャンク・minify ON）が成功すること

@@ -8,11 +8,17 @@
 //   編成ごとに golden を持てば、その編成のコードパス退行・ハング・押し順崩れを回帰で捕捉できる。
 //
 // ── fixture の方式が編成で異なる理由 ──
-//   edison: beam+refine の production 同型（軽量 ~2s）。raw/calibrated 両建て。
-//   napoleon: フルビーム10Tは ~90s と重く頻回テストに不適 → 静的greedy（高速 ~0.02s・決定的）で
+//   edison: beam+refine の production 同型。raw/calibrated 両建て。
+//   napoleon: フルビーム10Tは重く頻回テストに不適 → 静的greedy（高速・決定的）で
 //     ①総ダメージ回帰 ②FB ③maxPress（1ターンの押下上限＝ターン枯渇=ハングの明示ガード）を検証する。
 //     ⚠ napoleon 値は静的greedy＝beam最適ではない。buffCount/閾値の実機修正（sim05・点1/2）後に再fit予定＝
 //        「回帰ガード」であって「較正確定値」ではない。beam版の napoleon 回帰は将来 test:golden:full 等へ。
+//
+// ── 実測コスト（2026-07-28 計測・⚠旧コメントの「edison ~2s / napoleon ~90s」は誤りだった）──
+//   `npm run test:golden` 全体 = **116秒**（edison beam+refine ×2 が各 ~58s ＋ napoleon 静的greedy は瞬時）。
+//   参考: napoleon フルビーム 10T（configC・両面宿儺）は 1ルート ~127s。edison configB は 1ルート ~62s。
+//   ∴ edison:napoleon のコスト比は **約 1:2.2**（旧コメントからは 1:45 と読めたが実測と乖離）。
+//   ⚠**コード内の性能数値は測定条件が不明なら実験計画の前提にしないこと**（実測してから使う）。詳細 CALIBRATION_ANALYSIS C37。
 //
 // 検証値の根拠・変更履歴は CALIBRATION_ANALYSIS.md の該当 Cx 行と git log を正とする。
 // ⚠ ダメージモデルを変えたら: archive/tools/search_calibrate.mjs で再fitし、下の期待値と override、
