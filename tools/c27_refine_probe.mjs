@@ -1,10 +1,10 @@
 // C27 探索品質プローブ: 「赤アビはロボ設置＋アンプリファ後」定石リファインの検証・監査ハーネス。
 // セッション一時領域(scratchpad)で行ったC27の反実仮想・上限測定・冪等検証を1本に統合した恒久版
-// （C17 の search_lever_scan.mjs と同じ「将来の再実行用に archive/tools へ残す」運用）。
+// （C17 の search_lever_scan.mjs と同じ「将来の再実行用に tools へ残す」運用）。
 //
 // 用途:
-//   node archive/tools/c27_refine_probe.mjs                    … golden既定編成でビーム→_refineRoute の利得と冪等性を報告
-//   node archive/tools/c27_refine_probe.mjs <cache.json>       … 探索キャッシュexportを復元し fixed-point 検証＋
+//   node tools/c27_refine_probe.mjs                    … golden既定編成でビーム→_refineRoute の利得と冪等性を報告
+//   node tools/c27_refine_probe.mjs <cache.json>       … 探索キャッシュexportを復元し fixed-point 検証＋
 //                                                                赤アビ後出し反実仮想の delta を実gearで測定
 // 期待（C27 fixed 後）: 既定編成の refine 利得は「ビーム出力が既に固定点」なら 0、golden経路では
 //   run10T 内で refine 済みのため本プローブの before/after は探索経路によって 0〜+0.3% 程度。

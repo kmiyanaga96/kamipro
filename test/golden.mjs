@@ -21,7 +21,7 @@
 //   ⚠**コード内の性能数値は測定条件が不明なら実験計画の前提にしないこと**（実測してから使う）。詳細 CALIBRATION_ANALYSIS C37。
 //
 // 検証値の根拠・変更履歴は CALIBRATION_ANALYSIS.md の該当 Cx 行と git log を正とする。
-// ⚠ ダメージモデルを変えたら: archive/tools/search_calibrate.mjs で再fitし、下の期待値と override、
+// ⚠ ダメージモデルを変えたら: tools/search_calibrate.mjs で再fitし、下の期待値と override、
 //    CLAUDE.md の検証ゲート、ENGINE_VERSION(src/app.js) を揃えて更新すること。
 // edison 現在値: C27（赤アビ後出しの局所リファイン・単調安全）で再fit（2026-07-14・override {judg:160→sim04で145,pactcore:1}）。
 //   旧C23 raw 186,634,324 / cal 208,347,477。旧C21 raw 203,723,485。

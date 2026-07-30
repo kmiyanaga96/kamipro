@@ -3,7 +3,7 @@
 // 十分か（境界張り付きがないか）・shortlist サイズ（step調整のコスト）を確認する。2026-07-02。
 // GEAR 枠を Node で直接設定して recalcGearK() → calibrateStaticScores。generic は step調整の
 // shortlist=6 と override={judg:145,pactcore:1,effond:100} の確認も兼ねる。
-// 実行: node archive/tools/search_gear_probe.mjs
+// 実行: node tools/search_gear_probe.mjs
 // ============================================================================
 import { Sim, buildFormation, calibrateStaticScores, setStaticOverride, GEAR, recalcGearK } from '../../src/app.js';
 const N = +(process.env.POC_N ?? 10);

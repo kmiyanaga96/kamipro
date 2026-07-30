@@ -7,7 +7,7 @@
 //   point-2（tenya_re の refireOf 往復）は committed 済みのため追加スキャフォールド不要。
 //   ※ POC_* env は search_probe と同じくスキャフォールド編集時のみ有効。
 //
-// 実行例: POC_JUDG_S=130 node archive/tools/search_validate.mjs
+// 実行例: POC_JUDG_S=130 node tools/search_validate.mjs
 //   （JUDG_S=130 は data/characters.js に judg-s env スキャフォールドを当てた状態で）
 // ============================================================================
 import { Sim, buildFormation, LABEL, CHARS, CHAR_DEF, CHAR_REGISTRY } from '../../src/app.js';

@@ -4,8 +4,8 @@
 > **クローズ（2026-07-15・archive 移設）**: PoC×2（§6 phase-1 / §7 phase-2）で**安価サロゲートによる s の ML 最適化は
 > NO-GO**（proxy=不感かつ非転移・浅ビーム=full と反整合で退行・ビーム幅掃引で cal×beamW=64 が大域最良＝production は
 > 実用上限）と実測確定。**否定的結論を得た成果としてクローズ**し本書は歴史台帳（archive）へ。将来 grid 較正の飽和が
-> 崩れた兆候が出た場合のみ §5 の再開条件（`archive/tools/ml_fit_static_v2.mjs` を `SURR_MODE=fulln` で再測定）を検討する。
-> ハーネスは `archive/tools/ml_fit_static{,_v2}.mjs`（`npm run poc:ml`）・src の beamW 注入フックは inert のまま温存。
+> 崩れた兆候が出た場合のみ §5 の再開条件（`tools/ml_fit_static_v2.mjs` を `SURR_MODE=fulln` で再測定）を検討する。
+> ハーネスは `tools/ml_fit_static{,_v2}.mjs`（`npm run poc:ml`）・src の beamW 注入フックは inert のまま温存。
 
 **状態: クローズ（2026-07-15 起票→同日 PoC×2 完了→archive）**。ROADMAP §3 の歴史台帳。
 本書は「探索ヒューリスティック（静的スコア `s`）の直書き定数を、機械学習／最適化で fit した値に置き換える」構想の
@@ -78,7 +78,7 @@
   重み（現状 300/±15/+10/+20/−5/…）を fit。**新キャラへ自動追従**するが、**明示 `s` を持つキーは触らない**
   （golden 編成の大半は明示 `s`＝A1 単独の可動域は狭い）。∴ A1 は A2 で頭打ち確認後の「汎化用」拡張。
 
-**工数**: 実質 **2〜4 人日**（A2 の PoC〜本採用）。既存 `test/golden.mjs`／`archive/tools/search_calibrate.mjs`／
+**工数**: 実質 **2〜4 人日**（A2 の PoC〜本採用）。既存 `test/golden.mjs`／`tools/search_calibrate.mjs`／
 `setStaticOverride` を土台に流用可。**アーキ変更なし**。
 
 **リスク**: 低。ホットパス不変・単調安全を既存と同型で担保可。主リスクは「**既存グリッド較正比の上積みが小さく
@@ -162,7 +162,7 @@ No-go なら本Phase をクローズ（既存グリッド較正で十分と確�
 - G1&G2 同時充足で本採用。G1 未達 or G2 で退行 → 本Phase クローズ（記録のみ）。
 
 ### 4.6 コード配線（最小・inert-by-default）
-- **PoC 段は production 非改変**: 新規 `archive/tools/ml_fit_static.mjs`（`test/golden.mjs`/`search_calibrate.mjs` と同様に
+- **PoC 段は production 非改変**: 新規 `tools/ml_fit_static.mjs`（`test/golden.mjs`/`search_calibrate.mjs` と同様に
   `src/app.js` を import）が `setStaticOverride`／`calibrateStaticScores` の proxy/full を評価関数として呼ぶだけ。
   **本体 `src/*` への変更ゼロ**で上限測定できる（`setStaticOverride` は全キー任意スカラーを受ける既存API）。
 - **A1 へ進む場合のみ**の本体変更: `computeBaseScore` の定数を module 定数 `SCORE_W`（既定＝現行値）に括り出し、
@@ -171,7 +171,7 @@ No-go なら本Phase をクローズ（既存グリッド較正で十分と確�
   `npm run test:golden` 再fit（raw/cal 更新）→ ENGINE_VERSION 更新。
 
 ### 4.7 成果物
-- `archive/tools/ml_fit_static.mjs`（オフライン fit ハーネス・配布外）。
+- `tools/ml_fit_static.mjs`（オフライン fit ハーネス・配布外）。
 - PoC レポート（sim 様式）: config×手法の**現行 vs fit ダメージ表**・hold-out 汎化・**Go/No-go 判定**・
   （Go 時）本採用手順と golden 再fit 値。
 - 判定が Go の場合、B（模倣学習ポリシー）の着手可否を本レポートの上積み幅から決める。
@@ -186,7 +186,7 @@ No-go なら本Phase をクローズ（既存グリッド較正で十分と確�
 
 ## 6. レベルA(A2) PoC 実行結果（2026-07-15・第1回）
 
-**ハーネス**: `archive/tools/ml_fit_static.mjs`（`npm run poc:ml`）。src/* 無改変。`N=10 dim=14 gen=30 λ=12 seed=1`。
+**ハーネス**: `tools/ml_fit_static.mjs`（`npm run poc:ml`）。src/* 無改変。`N=10 dim=14 gen=30 λ=12 seed=1`。
 θ = constant/derived な s の14キー（`droid,banoshik,amplifa,inori,tenya,funki,tenya_re,effond,absolute,divinus,helix,alone,legend,knights`）。
 `judg/pactcore` は per-config アンカーとして固定（θ非対象）。訓練=golden・configA / hold-out=configA ギア ±30% 変種2。
 
@@ -232,7 +232,7 @@ No-go なら本Phase をクローズ（既存グリッド較正で十分と確�
 
 ## 7. PoC-phase-2 実行結果（2026-07-15・(a) per-config連続較正 × (b) 浅ビーム整合サロゲート）
 
-**ハーネス**: `archive/tools/ml_fit_static_v2.mjs`。**src改修**は §6.5(b) の beamW 注入フックのみ（`src/sim.js` `greedyTakeTurn`:
+**ハーネス**: `tools/ml_fit_static_v2.mjs`。**src改修**は §6.5(b) の beamW 注入フックのみ（`src/sim.js` `greedyTakeTurn`:
 `this._beamSearch(this.beamW??BEAM_W, fp)`・既定＝BEAM_W で **golden 完全不変** inert-by-default を確認済み）。
 
 ### 7.1 (a)+(b) 結果（surrogate=浅ビーム beamW=8 N=6 / verify=full prod N=10・config別θ）

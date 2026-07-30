@@ -9,7 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:golden": "node test/golden.mjs",
-    "poc:ml": "node archive/tools/ml_fit_static.mjs"
+    "poc:ml": "node tools/ml_fit_static.mjs"
   },
   "devDependencies": {
     "vite": "^5.4.11"

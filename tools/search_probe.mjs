@@ -18,7 +18,7 @@
 //   ※ ① funki解禁修正（毎ターン化）は別途 data/characters.js の state/onAbility/turnEnd
 //      を書き換える（SEARCH_ROLLOUT_DESIGN.md §再現手順 A）。env では切替えられない。
 //
-// 実行例: POC_N=10 POC_JUDG_S=130 node archive/tools/search_probe.mjs
+// 実行例: POC_N=10 POC_JUDG_S=130 node tools/search_probe.mjs
 // ============================================================================
 import { Sim, buildFormation } from '../../src/app.js';
 buildFormation('edison', ['yamato', 'hecate', 'tetra', 'elaine']);

@@ -17,7 +17,7 @@
 //   proxy = 静的greedy(planDepth=2) / full = 単一ビーム(takeTurn) / prod = golden同型(takeTurn+_refineRoute)。
 //
 // 環境変数: POC_N(10) POC_GEN(40) POC_LAMBDA(12) POC_SEED(1) POC_SIGMA(1.0)
-// 実行:     node archive/tools/ml_fit_static.mjs  （= npm run poc:ml）
+// 実行:     node tools/ml_fit_static.mjs  （= npm run poc:ml）
 // ============================================================================
 import {
   Sim, buildFormation, recalcGearK, recalcGearKCFromDispAtk,

@@ -8,7 +8,7 @@
 //   本探索phase: prefixes=_selectRootPrefixes(raw) を各々 _runRootPlan(override適用) → 最大dmg
 //               （= worker.js root ＋ runSim onAllDone）
 // ① funki 修正は恒久化済みのため scaffold 不要。
-// 実行: node archive/tools/search_calibrate_e2e.mjs
+// 実行: node tools/search_calibrate_e2e.mjs
 // ============================================================================
 import {
   buildFormation, calibrationShortlist, _runCalibrationProbe, setStaticOverride,

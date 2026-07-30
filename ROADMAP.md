@@ -141,7 +141,7 @@ someSummon: {
 - **結論＝NO-GO（PoC×2 で実測）**: phase-1（共有θ×proxy＝HOLD・proxy不感かつ非転移）／phase-2（per-config×浅ビーム＝
   NO-GO・浅ビームは full と**反整合**で退行）。副産物のビーム幅掃引で **cal×beamW=64 が大域最良(208,689,608)** ＝
   production は実用上限。**安価サロゲートによる s の ML 最適化は既存 grid 較正で飽和**。詳細 `archive/PHASE7_ML_PLAN.md` §6/§7。
-- **資産**: ハーネス `archive/tools/ml_fit_static{,_v2}.mjs`（`npm run poc:ml`）・src の beamW 注入フック（inert・golden不変）を温存。
+- **資産**: ハーネス `tools/ml_fit_static{,_v2}.mjs`（`npm run poc:ml`）・src の beamW 注入フック（inert・golden不変）を温存。
   **再開条件**: 新キャラ/新ボスで grid 較正の飽和が崩れた時のみ、v2 を `SURR_MODE=fulln`（full目的・予算付き per-config ES）で
   再測定（唯一の未検証パス）。それ以外は着手しない。
 

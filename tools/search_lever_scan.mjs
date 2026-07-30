@@ -3,7 +3,7 @@
 // base={judg:130}(既知の最適)上で、各アビの静的スコアsを override 掃引し proxy(static greedy)
 // 総ダメージの変動幅を測る。変動が大きい=順序に効く候補。proxyが base を超える点があれば full-verify 対象。
 // ⚠ proxy は full と逆順にミスランクしうる(§5.4)ため、ここは「候補の足切り」のみ。判定は full-verify(第2段)。
-// 実行: node archive/tools/search_lever_scan.mjs
+// 実行: node tools/search_lever_scan.mjs
 // ============================================================================
 import { Sim, buildFormation, setStaticOverride, ABIL } from '../../src/app.js';
 buildFormation('edison', ['yamato', 'hecate', 'tetra', 'elaine']);

@@ -7,7 +7,7 @@
 // data/characters.js に §1.1-A（funki 毎ターン化）を一時適用する。
 //
 // 環境変数: POC_N（既定10）
-// 実行例:  POC_N=10 node archive/tools/search_calibrate.mjs
+// 実行例:  POC_N=10 node tools/search_calibrate.mjs
 // ============================================================================
 import { Sim, buildFormation, calibrateStaticScores, setStaticOverride, getStaticOverride } from '../../src/app.js';
 buildFormation('edison', ['yamato', 'hecate', 'tetra', 'elaine']);

@@ -4,7 +4,7 @@
 //   固定押し順（turnsKeys T1〜T3）を forcedKeys 相当で決定的リプレイ。押下毎の dmg 差分＋
 //   Sim.prototype._decay モンキーパッチの per-hit ログで「シム側の slot×hit 値」を出す。
 //   実機 trial の同slotと突き合わせて絶対レベル（C25）・追撃cap（C5/C3）の分母に使う。
-// ⚠ affinity は configSig 非含（archive/tools/c27_refine_probe.mjs の注記と同じ）。
+// ⚠ affinity は configSig 非含（tools/c27_refine_probe.mjs の注記と同じ）。
 //   キャスパリーグは闇=光有利 1.5 のため明示設定する（enemies/cath_palug.md）。
 import fs from 'fs';
 import { buildFormation, setCurrentSubs, recalcGearKCFromDispAtk, GEAR, DMG, Sim } from '../../../src/app.js';

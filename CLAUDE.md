@@ -21,6 +21,7 @@
 - **KILL_TURN_DESIGN.md**: **最速撃破モード（kill-turn 自動目標）の設計草案（未実装・2026-07-07 起草＋§7必要性検討）**。§7で「演算量は非障害・真のブロッカーは絶対値精度（実機比×2級）」と整理し、**S3保留・S1+S2はsim02試行2の絶対乖離実測をゲート**に着手判断。ROADMAP の未確定Phase(ii)。
 - **ROADMAP.md**: **Phase 一覧・採番の一次台帳（2026-07-09 再編・2026-07-15 採番改訂）**。Phase 6=幻獣システム拡張／**Phase 7=静的スコア s の機械学習化（クローズ・archive＝PoC×2で安価サロゲートNO-GO）**／**Phase 8=アクセ実装（旧Phase 7から繰り下げ・詳細は PHASE8_PLAN.md）**／未確定Phase=敵行動・味方生存(i)・kill-turn(ii)・VM/ワークフロー(iii)。各Phase詳細は個別docへ委譲。
 - **PHASE8_PLAN.md**: **Phase 8（アクセサリー実装）の計画台帳（2026-07-22 起草・実装未着手）**。アクセ＝押し順非依存の常時ボックス補正が主という仮説のもと `ACCESSORY_REGISTRY` 新設＋`applyGear` 集約で `class Sim` 非改修を狙う設計。一次情報＝damage_frames.md の枠マッピング（攻撃枠40%上限/与ダメ枠=タイムピース・ブレスレット/会心枠=天使）。§6 に着手ゲートの intake（per-char/全体の別・系統全容・発動系有無）。未装備 golden 不変を不変条件とする。
+- **tools/**（2026-07-28 `archive/tools/` からルートへ昇格・ユーザー承認）: **較正・探索ハーネス置き場（現役）**。`README.md` が索引＝どのスクリプトがどの台帳数値を出したかの対応表。従来分（`search_calibrate.mjs`＝**ダメージモデル変更時の再fit必須**・`search_probe.mjs`・`c27_refine_probe.mjs`・`ml_fit_static{,_v2}.mjs`＝Phase7 PoC 温存）＋**探索品質の実験ハーネス `exp_*.mjs` 11本**（BW掃引/prefix掃引/ATK感度[ナポ・エジソン]/局所探索[単点・多点・対照]/abilCap切り分け/ホライズン感度/buffCount分解/順×ATK比較）。全て production 非改変。
 - **simulation/sim05/search_quality_experiments.md**: **探索品質の実験記録＝C37 の根拠アーカイブ（2026-07-28 新設）**。BW掃引／PREFIX_TOPK／ATK感度／識別可能性／局所探索（5〜5d）／A1エジソン対照／実測コスト／未実施リスト。**状態と結論の要約は C37 が正**・本書は数値の保全に徹する（C37 行の肥大化 16,393字→2,552字の解消）。
 - **CHARACTER_ANALYSIS.md**: キャラ個別評価＆採用論の生きた考察台帳（2026-07-11 起草）。ヤマトvsアリアンのホライズン別比較・ナポレオン評・併用仮説（暫定）。序数比較ベース＝新キャラ/較正確定のたびに更新。
 
@@ -34,7 +35,6 @@
 - 設計レポート: `BEAM_SEARCH_DESIGN.md`（C9）/ `ORDER_OPTIMIZATION_DESIGN.md`（C12）/ `SEARCH_ROLLOUT_DESIGN.md`（C13-C15・自動較正§6含む）/ `OPTIMIZATION_ENGINE.md`（エンジン解説旧版）
 - 完了フェーズ台帳: `PHASE2_PLAN.md` / `PHASE3_PLAN.md` / `PHASE5_PLAN.md`（UX刷新+Vite化・完了）/ `VITE_MIGRATION.md`（S5作業記録）/ `PERF_NOTES.md`（高速化台帳）/ **`PHASE7_ML_PLAN.md`（静的スコア s のML化・クローズ＝安価サロゲートNO-GO。§6/§7にPoC結果。`s`＝ダメージ非関与の探索ヒューリスティック前提・レベルA/B/C吟味・★スコープ外＝絶対値乖離C25/C5）**
 - 運用メモ: `BRANCH_WORKFLOW.md`（main恒久トランク運用）
-- `tools/`: 較正・探索ハーネス（`search_calibrate.mjs`＝自動較正の再fit実行・`search_probe.mjs`・`c27_refine_probe.mjs`＝C27定石リファイン監査・**`ml_fit_static{,_v2}.mjs`＝Phase7 静的スコアML化PoC（`npm run poc:ml`・クローズ済だが再開用に温存）**等。**現役で使用**。旧pre-Vite CJSツール3本＝calib_t1/calib_t1_forced/t1_dumpは2026-07-14削除＝git履歴参照）
 - `caches/`: 無効化済み探索キャッシュの歴史保全置き場（C26 followupON・C27証拠キャッシュ。2026-07-14 sim03/data から移設）
 
 ---

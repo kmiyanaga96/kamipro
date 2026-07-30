@@ -20,8 +20,8 @@
 //   POC_FUNKI_S : funki 静的スコア(定数=プロセス起動時固定)。既定 150
 //
 // 実行例:
-//   POC_N=10 node archive/tools/search_autocal.mjs                 # 安価 proxy 掃引のみ
-//   POC_N=10 POC_FULL=1 POC_JS_GRID=dyn,80,130 node archive/tools/search_autocal.mjs
+//   POC_N=10 node tools/search_autocal.mjs                 # 安価 proxy 掃引のみ
+//   POC_N=10 POC_FULL=1 POC_JS_GRID=dyn,80,130 node tools/search_autocal.mjs
 // ============================================================================
 import { Sim, buildFormation } from '../../src/app.js';
 buildFormation('edison', ['yamato', 'hecate', 'tetra', 'elaine']);

@@ -22,8 +22,8 @@
 - **編成**: `buildFormation('edison', ['yamato','hecate','tetra','elaine'])`（= golden 編成 / generic gear）。
 - **現行 golden**: **175,023,298**（FB 10/10）。`npm run test:golden`。
 - **計測器（本セッションで追加・commit 済み）**:
-  - `archive/tools/search_probe.mjs` … N ターン探索の総ダメージ・時間・per-turn 使用回数（funki/judg/puvoir/sleur/effond）。
-  - `archive/tools/search_validate.mjs` … 探索 order を独立replay で忠実再生し `探索dmg==replay dmg` & `skip=0` を検証。
+  - `tools/search_probe.mjs` … N ターン探索の総ダメージ・時間・per-turn 使用回数（funki/judg/puvoir/sleur/effond）。
+  - `tools/search_validate.mjs` … 探索 order を独立replay で忠実再生し `探索dmg==replay dmg` & `skip=0` を検証。
   - 環境変数: `POC_N`（ターン数）/ `POC_FUNKI_S` / `POC_JUDG_S` / `POC_ROLLOUT_BW`。**下記§1.1 のスキャフォールド編集を当てた時のみ有効**。
 - **実行時間の目安**: 10T 探索 ≈ 45–75s（単スレッド Node）。重い掃引は background 実行推奨。
 
@@ -83,7 +83,7 @@ if(this.planDepth>=2 && !(this.planDepth===2 && _rbw>1)){
 
 ## 3. 探索準最適性の検証結果（C13 本体・全データ）
 
-全て generic gear・10T・`archive/tools/search_probe.mjs`（突出値は `search_validate.mjs` で合法性検証済み）。
+全て generic gear・10T・`tools/search_probe.mjs`（突出値は `search_validate.mjs` で合法性検証済み）。
 
 | # | モデル | パラメータ | 10T総ダメージ | 判定 |
 |---|---|---|---|---|
@@ -180,7 +180,7 @@ funki は黄アビ＝`use()` で `T.ability` を+1 → `T.ability%12` の proc�
 
 ### 5.4 STEP2 案(c) 自動較正 PoC（2026-07-02 セッション3・**結論=full-search較正なら合格＝STEP2初の肯定的結果**）
 
-§5.3 で最小 lookahead が不合格のため、案(c)＝「静的 s を config ごとに機械的に fit する」を検証した。judg の s は関数（runtime 評価）のため **単一プロセス内で `POC_JUDG_S` を掃引可能**。harness=`archive/tools/search_autocal.mjs`（**commit 済**・POC-C スキャフォールド前提）。安価 proxy（pure static greedy の N ターン総ダメージ・**~20ms/点**）と高価 full beam の双方で採点し比較した。
+§5.3 で最小 lookahead が不合格のため、案(c)＝「静的 s を config ごとに機械的に fit する」を検証した。judg の s は関数（runtime 評価）のため **単一プロセス内で `POC_JUDG_S` を掃引可能**。harness=`tools/search_autocal.mjs`（**commit 済**・POC-C スキャフォールド前提）。安価 proxy（pure static greedy の N ターン総ダメージ・**~20ms/点**）と高価 full beam の双方で採点し比較した。
 
 **①修正モデル（N=10・JUDG_S 掃引）**:
 | JUDG_S | proxy(static greedy) | full beam |
@@ -226,7 +226,7 @@ funki は黄アビ＝`use()` で `T.ability` を+1 → `T.ability%12` の proc�
   2. shortlist のみ単一ビーム full（`takeTurn`）で採点し最大を採用。**baseline を必ず含むため現行以上＝退行しない**（C12 多様性枠と同じ非退行設計）。
 - **proxy 単独が不可な理由**: §5.4 の blackout 反例（proxy→130 だが full→dyn）。proxy は myopic で full と逆順にミスランクしうる。∴ 最終判定は必ず full-verify。
 - **full-grid でなく shortlist な理由**: full は ~60s/点。proxy で強く絞り full を 2〜3 点に限定してコストを抑える。
-- 測定後は呼び出し前の override を必ず復元（呼び出し側が選択 override を明示適用）。harness=`archive/tools/search_calibrate.mjs`（POC-C env 不要＝本機構が置換）。
+- 測定後は呼び出し前の override を必ず復元（呼び出し側が選択 override を明示適用）。harness=`tools/search_calibrate.mjs`（POC-C env 不要＝本機構が置換）。
 
 ### 6.3 実測（実機構・Increment 1 検証）
 | モデル | 較正結果 override | full 総ダメージ | 判定 |
@@ -242,7 +242,7 @@ funki は黄アビ＝`use()` で `T.ability` を+1 → `T.ability%12` の proc�
 - **キャッシュ**: `configSig=(heroKey, kamihimeKeys, GEAR, subs, enemy, n)` をキーに `_calibCache` へ採用 override を保持。同 config 再探索は較正 skip。
 - `_fallbackRunSim`（非並列）も同期較正（`calibrateStaticScores`・同キャッシュ）→ `setStaticOverride` して探索、完了後にメインスレッド override をリセット。
 - **graceful fallback**: 較正列挙で例外時は override なし（＝funki修正のみ・174.25M）で本探索へ。UI 進捗は較正中テキストを表示（バーは本探索phaseから）。
-- **⚠ ブラウザ実機検証は保留**: 本環境に vite 不在のため `npm run preview` 未実施。配線ロジックは `archive/tools/search_calibrate_e2e.mjs`（worker 相当の2段を単一プロセスで再現）で検証済＝要ブラウザ最終確認。
+- **⚠ ブラウザ実機検証は保留**: 本環境に vite 不在のため `npm run preview` 未実施。配線ロジックは `tools/search_calibrate_e2e.mjs`（worker 相当の2段を単一プロセスで再現）で検証済＝要ブラウザ最終確認。
 
 ### 6.5 golden・funki修正の確定（Increment 2・実施済）
 - ①funki 修正（§1.1-A/§2）を `data/characters.js` へ**恒久実装**（state=`funki_recasts`/`funki_carryover`・onAbility/turnEnd）。C14=fixed。
