@@ -14,26 +14,27 @@
 //     ⚠ napoleon 値は静的greedy＝beam最適ではない。buffCount/閾値の実機修正（sim05・点1/2）後に再fit予定＝
 //        「回帰ガード」であって「較正確定値」ではない。beam版の napoleon 回帰は将来 test:golden:full 等へ。
 //
-// ── 実測コスト（2026-07-28 計測・⚠旧コメントの「edison ~2s / napoleon ~90s」は誤りだった）──
-//   `npm run test:golden` 全体 = **116秒**（edison beam+refine ×2 が各 ~58s ＋ napoleon 静的greedy は瞬時）。
+// ── 実測コスト（2026-07-30 再計測・C37 局所探索の導入で増加）──
+//   `npm run test:golden` 全体 = **約10分**（edison が各 ~60s のビーム ＋ 局所探索 324s/177s ／ napoleon は瞬時）。
+//   ⚠ ツール実行の 600秒上限を超えるため、**背景実行（run_in_background）が必須**。
+//   内訳: LS の評価回数 raw 177,961 / cal 124,152（1評価 ≈ 1.4〜1.8ms）。ターン跨ぎ swap が評価の約73%を占める。
 //   参考: napoleon フルビーム 10T（configC・両面宿儺）は 1ルート ~127s。edison configB は 1ルート ~62s。
-//   ∴ edison:napoleon のコスト比は **約 1:2.2**（旧コメントからは 1:45 と読めたが実測と乖離）。
 //   ⚠**コード内の性能数値は測定条件が不明なら実験計画の前提にしないこと**（実測してから使う）。詳細 CALIBRATION_ANALYSIS C37。
 //
 // 検証値の根拠・変更履歴は CALIBRATION_ANALYSIS.md の該当 Cx 行と git log を正とする。
 // ⚠ ダメージモデルを変えたら: tools/search_calibrate.mjs で再fitし、下の期待値と override、
 //    CLAUDE.md の検証ゲート、ENGINE_VERSION(src/app.js) を揃えて更新すること。
-// edison 現在値: C27（赤アビ後出しの局所リファイン・単調安全）で再fit（2026-07-14・override {judg:160→sim04で145,pactcore:1}）。
-//   旧C23 raw 186,634,324 / cal 208,347,477。旧C21 raw 203,723,485。
-import { Sim, buildFormation, setStaticOverride, _refineRoute, _replayResult } from '../src/app.js';
+// edison 現在値: C37（局所探索 `_localSearchRoute`・単調安全）で再fit（2026-07-30・override {judg:145,pactcore:1} 据置）。
+//   旧C27+sim04 raw 197,775,394 / cal 211,462,826。旧C27 raw 187,186,834 / cal 208,689,608。旧C23 raw 186,634,324。
+import { Sim, buildFormation, setStaticOverride, _localSearchRoute, _replayResult } from '../src/app.js';
 
 // ── run 方式 ──
-// beam+refine 10T（edison用・production の _runRootPlan と同じ _refineRoute を通す決定的アンカー）。
+// beam+LS 10T（edison用・production の _runRootPlan と同じ _localSearchRoute を通す決定的アンカー）。
 function runBeam10T(){
   const s=new Sim(); const keys=[];
   for(let t=1;t<=10;t++){ keys.push(s.takeTurn(t).keys); }
-  const ref=_refineRoute(keys, 10);
-  const rep=_replayResult(ref.turnsKeys, 10);
+  const ls=_localSearchRoute(keys, 10);
+  const rep=_replayResult(ls.turnsKeys, 10);
   return { dmg:Math.round(rep.dmg), fb:rep.rows.filter(r=>r.full).length, maxPress:Math.max(...rep.rows.map(r=>r.ability)) };
 }
 // 静的greedy 10T（napoleon用・高速・決定的）。ハング（ターンが枠内で枯渇しない）は maxPress の張り付きで検出。
@@ -56,10 +57,10 @@ function check(name, got, expDmg, expFb, { hangGuard=false }={}){
   console.log(`  [${ok?'OK ':'NG '}] ${name.padEnd(16)} dmg=${got.dmg} FB=${got.fb}/10 maxPress=${got.maxPress}${note}`);
 }
 
-// ── Fixture 1: edison（本番較正編成・beam+refine・raw/cal 回帰基準）──
+// ── Fixture 1: edison（本番較正編成・beam+LS・raw/cal 回帰基準）──
 buildFormation('edison', ['yamato', 'hecate', 'tetra', 'elaine']);
-setStaticOverride({});                       check('edison/raw', runBeam10T(), 197775394, 10);
-setStaticOverride({ judg: 145, pactcore: 1 }); check('edison/cal', runBeam10T(), 211462826, 10);
+setStaticOverride({});                       check('edison/raw', runBeam10T(), 201909711, 10);
+setStaticOverride({ judg: 145, pactcore: 1 }); check('edison/cal', runBeam10T(), 214213430, 10);
 setStaticOverride({});
 
 // ── Fixture 2: napoleon（移行編成・静的greedy 回帰ガード＋ハングガード・要再fit）──

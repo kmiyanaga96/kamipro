@@ -10,7 +10,7 @@ import { ENEMY_REGISTRY } from '../gamedata/js/enemies.js';
 import { CHAR_REGISTRY } from '../gamedata/js/characters.js';
 
 import { RENRI_CAP, RENRI_MAX, JUDG_REACT, TENYA_FROM, FB_THR, MACH_BG, KEIGYO_MAX, BEAM_W, PREFIX_TOPK, BEAM_DIVERSITY_K, IFISHANT_MIN_CD, BG, DMG, DMG_DEFAULTS } from './constants.js';
-import { Sim, cmpVec, enumerateRootPrefixes, _runRootPlan, _runBaselinePlan, _staticPrefixDmg, _selectRootPrefixes, _replayResult, _refineRoute } from './sim.js';
+import { Sim, cmpVec, enumerateRootPrefixes, _runRootPlan, _runBaselinePlan, _staticPrefixDmg, _selectRootPrefixes, _replayResult, _localSearchRoute, _refineRoute } from './sim.js';
 
 
 let CURRENT_ENEMY_KEY = 'default';
@@ -231,7 +231,7 @@ const _calibCache = new Map();
 // ENGINE_VERSION: 探索/ダメージに影響する変更を入れたら必ず更新する（キャッシュ名前空間＝古い版を fast-reject）。
 //   ※正しさの最終担保はリプレイ検証（版更新忘れも総ダメージ不一致で捕捉）。版はあくまで高速化のための粗い無効化。
 // スリム保存（turnsKeys+dmg+prefix+baseDmg）＝レンダー用の重い行は保存せず、命中時にリプレイで再生成する。
-const ENGINE_VERSION = 'sim04-abscal-C31C34-calib';  // sim04較正: 構造修正C31(アビダメ加算)/C34(バーストcap)+絶対値較正(calib_na1.835/calib_burst2.07/judg_calib0.62)。ダメージスケール変更で旧キャッシュ無効化。
+const ENGINE_VERSION = 'sim05-ls-route-C37';  // C37: 探索後処理を C27 リファイン→局所探索(_localSearchRoute)へ置換（押し順変化＝旧キャッシュ無効化）。ダメージモデルは sim04較正のまま（C31/C34＋calib_na1.835/calib_burst2.07/judg_calib0.62）。
 const _resultCache = new Map();   // _resultKey(configSig) -> {turnsKeys, dmg, prefix, baseDmg, override, n}
 function _resultKey(configSig){ return ENGINE_VERSION + '|' + configSig; }
 // config署名: 結果キャッシュ(tryResultCache/storeResult)と較正キャッシュ(_calibCache)の共通キー。
@@ -1692,7 +1692,7 @@ export function setCurrentSubs(v){ CURRENT_SUBS = v; }
 // let 宣言（CHARS/ABIL/ELEM/LEADER/LABEL 等）は buildFormation が再代入する live binding。
 export {
   Sim, buildFormation, applyGear, applyEnemy, recalcGearK, recalcGearKCFromDispAtk,
-  _runRootPlan, _runBaselinePlan, enumerateRootPrefixes, _selectRootPrefixes, _replayResult, _refineRoute,
+  _runRootPlan, _runBaselinePlan, enumerateRootPrefixes, _selectRootPrefixes, _replayResult, _localSearchRoute, _refineRoute,
   setStaticOverride, getStaticOverride, calibrateStaticScores, calibrationShortlist, _runCalibrationProbe,
   tryResultCache, storeResult, _resultCache, _resultKey, ENGINE_VERSION, exportResultCache, importResultCache,
   GEAR, DMG, BG, GEAR_K_C, CHARS, ABIL, ownerOf, ELEM, LEADER, LABEL,
