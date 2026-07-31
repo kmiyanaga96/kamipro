@@ -1,6 +1,6 @@
 // Phase5 S5: SIM ENGINE（class Sim ＋ cmpVec ＋ ビーム/ルート探索）。詳細は VITE_MIGRATION.md。
 // 定数は constants.js から、可変編成状態(CHARS/ABIL/CHAR_DEF/GEAR_K…)は app.js から import（循環・遅延参照で安全）。
-import { DMG, BG, FB_THR, MACH_BG, KEIGYO_MAX, BEAM_W, PREFIX_TOPK, BEAM_DIVERSITY_K, LS_MAX_EVALS, JUDG_REACT } from './constants.js';
+import { DMG, BG, FB_THR, MACH_BG, KEIGYO_MAX, BEAM_W, PREFIX_TOPK, BEAM_DIVERSITY_K, LS_MAX_EVALS, LS_PROGRESS_EVERY, JUDG_REACT } from './constants.js';
 import { GEAR, GEAR_K, GEAR_K_C, CHARS, ABIL, ABIL_KEYS, ABIL_KC, ABIL_CANDS, ABIL_BASE_S, CHAR_DEF, ownerOf, MILESTONES, TICK_STATES, CHAR_SIM_STATES, CHAR_SIM_STATE_KEYS, LABEL, CHAR_REGISTRY } from './app.js';
 
 // ===== SIM ENGINE =====
@@ -553,13 +553,15 @@ function enumerateRootPrefixes(){
 // 手順をここに集約し二重管理を防ぐ)。rowsはgreedyTakeTurnの戻り値配列=構造化複製可能。
 // Phase5-S1: onTurn(t) は各ターン完遂後に呼ばれる副作用専用フック(省略時=完全に従来通り＝戻り値不変)。
 // Worker側は self.postMessage で進捗通知、フォールバックはUI更新に使う。本体に self/document 参照は置かない(slice不変条件)。
-function _runRootPlan(prefix, n, onTurn){
+// onLS(info) は局所探索中に LS_PROGRESS_EVERY 評価ごとに呼ばれる副作用専用フック（省略可）。
+//   LS は全ターン完遂**後**に走り 1ルート 177〜324秒かかるため、通知が無いと UI がハングと区別できない。
+function _runRootPlan(prefix, n, onTurn, onLS){
   const sim=new Sim(); sim.totalTurns=n;
   if(prefix.length){ sim._forcePrefix=prefix; sim._forceTurn=1; }
   const rows=[]; for(let t=1;t<=n;t++){ rows.push(sim.greedyTakeTurn(t)); if(onTurn) onTurn(t); }
   // C37 局所探索: 確定ルートに単調安全な近傍改善を適用（C27 リファインの一般化・2026-07-30 置換）。
   // ビームのロールアウト近似が取り逃す並べ替えを、実ルート上で replay 採点し厳密改善のみ採用して回収する。
-  const ls=_localSearchRoute(rows.map(r=>r.keys), n);
+  const ls=_localSearchRoute(rows.map(r=>r.keys), n, onLS);
   if(ls.improved){ const rep=_replayResult(ls.turnsKeys, n); return {prefix, dmg:rep.dmg, rows:rep.rows}; }
   return {prefix, dmg:sim.dmg, rows};
 }
@@ -580,19 +582,28 @@ function _runRootPlan(prefix, n, onTurn){
 //   （LS_MAX_EVALS）であって時間ではない＝**決定的**（時間バジェットは環境依存で golden を壊す）
 //   ③受理閾値は +1（1円）。golden は円単位に丸めるため、float の ulp 級の差で振動しない。
 // 目的関数は `_objective` 第1要素（総ダメージ）と同一＝エンジンの主目的を変えていない。
-function _localSearchRoute(turnsKeys, n){
+//
+// onProgress(info) は副作用専用の進捗フック（省略可）。`LS_PROGRESS_EVERY` 評価ごとに
+// {sweep, evals, accepted, dmg, baseDmg} を渡す。**カウンタを読むだけで探索には一切影響しない**
+// （フックの有無で結果が変わらないこと＝golden が `_localSearchRoute(keys,10)` を無フックで呼ぶ前提）。
+function _localSearchRoute(turnsKeys, n, onProgress){
   let cur=turnsKeys.map(a=>a.slice());
   let curDmg=_replayResult(cur, n).dmg;
   const baseDmg=curDmg;
-  let evals=0, improved=true;
+  let evals=0, improved=true, sweep=0, accepted=0, nextReport=LS_PROGRESS_EVERY;
   const tryCand=(cand)=>{
     evals++;
     const d=_replayResult(cand, n).dmg;
-    if(d>curDmg+1){ cur=cand; curDmg=d; return true; }
-    return false;
+    let ok=false;
+    if(d>curDmg+1){ cur=cand; curDmg=d; accepted++; ok=true; }
+    if(onProgress && evals>=nextReport){
+      nextReport=evals+LS_PROGRESS_EVERY;
+      onProgress({sweep, evals, accepted, dmg:curDmg, baseDmg});
+    }
+    return ok;
   };
   while(improved && evals<LS_MAX_EVALS){
-    improved=false;
+    improved=false; sweep++;
     // ①ターン内 move ②ターン内 swap（move/swap とも手数不変のため走査中の L は有効）
     for(let t=0;t<n && evals<LS_MAX_EVALS;t++){
       const L=cur[t].length;
