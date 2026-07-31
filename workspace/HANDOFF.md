@@ -17,10 +17,12 @@
 
 ## ⏳ 次セッションの第一手
 
-**押し順の再抽出（loki 条件）— ⏳ proper configC 待ち**
-較正ボスの loki 切替（2026-07-30 完了）と C37 局所探索の実装により、`data/g3_recommended_order.md` は**全面的に無効**。
-ただし実験2 で **ATK が動けば押し順は変わる**と判明済み＝**暫定 ATK で抽出するとやり直しになる**ため、
-**proper configC の受領とセットで1回だけ**実施する。setup は `tools/exp_loki_stability.mjs` を流用（敵=loki・GEAR_C・subs・英霊武器の一式が入っている）。
+**実走（trialNN）— 推奨押し順は抽出済み**
+`simulation/sim05/data/g3_recommended_order_v3_loki.md`（G3 v3・2026-07-31）。ロキ×configC placeholder で production 同経路から抽出。
+- **撃破 T4**（T3 で HP の 98.7%）＝**ユーザーの実機実績「T3〜T4 安定討伐」と一致**。∴ **実走は T1〜T4 のみでよい**（T5 以降は 4.57倍のオーバーキル）。
+- ⚠ **押下数が最大41回/ターン**（`abilCapPerTurn` が無く上限で切られない）＝**実行可能性の確認が要る**（宿儺の19回制限とは事情が違う）。
+- ⚠ **ATK は暫定**（proper configC 未受領）＝受領後は `tools/extract_order_loki.mjs` で**再抽出が必要**。
+- **最優先の取得物は §B（tier 実発動・バフアイコン数）＝C38 の解決データ**。押し順の順位検証は識別可能性が低い（C1/§12）ため二の次。
 
 ## 3トラックとゲート状況
 | トラック | 内容 | ゲート |
@@ -30,6 +32,8 @@
 | **C. 押し順・tier** | C38（buffCount）・予測探索 | ⏳ 実機データ待ち（`record_skeleton` §B） |
 
 ## 直近セッションの成果（2026-07-31・詳細は SESSION_LOG）
+- **✅ G3 v3 推奨押し順を抽出**（ロキ×configC placeholder・production 同経路）。**撃破T4 が実機実績と一致**。
+  副産物として **§12: loki 条件では prefix 分散が完全に空回り**（8本中6本が1円単位で同一・LS 後は上位3本が評価回数まで一致）＝C37 の編成依存**6例目**。LS 利得 +0.904%（7例目）。
 - **✅ configC 向け新規3体を登録**（main から受領した一次情報 md 起点＝ROADMAP §5 の md-first intake）:
   - **メタトロン[神想真化]**（`CHAR_REGISTRY.metatron`）＝アビ3種＋バースト＋アシスト2種。**A0〜A10 を起票**（md §3.2）。
     **⚠運用前提が判明（ユーザー 2026-07-31）＝アルテミスと並べた"サブ運用"がセオリー**。∴ 意味を持つのは **AnotherLink（`subAssists`）のみ**で
