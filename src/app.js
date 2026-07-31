@@ -9,8 +9,8 @@ import { SUMMON_REGISTRY } from '../gamedata/js/summons.js';
 import { ENEMY_REGISTRY } from '../gamedata/js/enemies.js';
 import { CHAR_REGISTRY } from '../gamedata/js/characters.js';
 
-import { RENRI_CAP, RENRI_MAX, JUDG_REACT, TENYA_FROM, FB_THR, MACH_BG, KEIGYO_MAX, BEAM_W, PREFIX_TOPK, BEAM_DIVERSITY_K, IFISHANT_MIN_CD, BG, DMG, DMG_DEFAULTS } from './constants.js';
-import { Sim, cmpVec, enumerateRootPrefixes, _runRootPlan, _runBaselinePlan, _staticPrefixDmg, _selectRootPrefixes, _replayResult, _localSearchRoute, _refineRoute } from './sim.js';
+import { RENRI_CAP, RENRI_MAX, JUDG_REACT, TENYA_FROM, FB_THR, MACH_BG, KEIGYO_MAX, BEAM_W, PREFIX_TOPK, BEAM_DIVERSITY_K, IFISHANT_MIN_CD, LS_MAX_EVALS, BG, DMG, DMG_DEFAULTS } from './constants.js';
+import { Sim, cmpVec, enumerateRootPrefixes, _runRootPlan, _runRouteLS, _runBaselinePlan, _staticPrefixDmg, _selectRootPrefixes, _replayResult, _localSearchRoute, _refineRoute } from './sim.js';
 
 
 let CURRENT_ENEMY_KEY = 'default';
@@ -116,10 +116,11 @@ const DISPLAY_ATK_OVERRIDE_BY_FORMATION = {
   //    そのキャッシュの探索ルートは旧ATKスケール計算。M走(押し順自由)には非影響・
   //    序数diffの較正前基準順はheadless再探索で取り直す(sim04/README §2 注記)。
   edison:   { edison: 96756, yamato: 75898, hecate: 73727, tetra: 81887, elaine: 82248 },
-  // configC（sim05 移行編成・ナポレオン基軸）＝ユーザー実機表示値 2026-07-27 受領（暫定configC）。
-  // 共有キャラ(hecate/tetra/elaine)が configB より高いのは装備強化の進行＝**編成差ではなく時点差**。
+  // configC（sim05 移行編成・ナポレオン基軸）＝**proper configC**・ユーザー実機表示値 2026-07-31 受領（0-fudge）。
+  // 旧暫定値(2026-07-27): 102288/75558/83718/77297/85054。全キャラで上振れ＝装備強化の進行。
+  // 共有キャラ(hecate/tetra/elaine)が configB より高いのは**編成差ではなく時点差**。
   // Lv: hecate=80 / tetra=95 / arianrhod=80 / elaine=95（override 優先のため lvCap 推定は非経路）。
-  napoleon: { napoleon: 102288, hecate: 75558, tetra: 83718, arianrhod: 77297, elaine: 85054 },
+  napoleon: { napoleon: 107861, hecate: 78269, tetra: 86429, arianrhod: 81631, elaine: 88380 },
 };
 // 現編成(英霊キー)の実機表示ATK override を引く。未登録編成は {}＝満凸推定へフォールバック。
 function displayAtkOverrideFor(heroKey){ return DISPLAY_ATK_OVERRIDE_BY_FORMATION[heroKey] || {}; }
@@ -133,8 +134,9 @@ function displayAtkOverrideFor(heroKey){ return DISPLAY_ATK_OVERRIDE_BY_FORMATIO
 const DISPLAY_HP_OVERRIDE_BY_FORMATION = {
   // configB（sim04 較正編成）＝凍結。2026-07-16 装備強化後の実機値(旧: 9689/7628/8332/8332/8345)。
   edison:   { edison: 12252, yamato: 9668, hecate: 10495, tetra: 10870, elaine: 11513 },
-  // configC（sim05 移行編成）＝ユーザー実機表示値 2026-07-27 受領（暫定configC・ATKと同一出典）。
-  napoleon: { napoleon: 12677, hecate: 10714, tetra: 11089, arianrhod: 10119, elaine: 11807 },
+  // configC（sim05 移行編成）＝**proper configC**・ユーザー実機表示値 2026-07-31 受領（0-fudge）。
+  // 旧暫定値(2026-07-27): 12677/10714/11089/10119/11807。
+  napoleon: { napoleon: 13545, hecate: 11300, tetra: 11675, arianrhod: 10840, elaine: 12456 },
 };
 function displayHpOverrideFor(heroKey){ return DISPLAY_HP_OVERRIDE_BY_FORMATION[heroKey] || {}; }
 
@@ -989,8 +991,12 @@ function runSim(){
     catch(err){ chosenOverride={}; }
   }
   const calibResults=[];
+  // 2段実行（2026-07-31）: ①全 prefix をビームのみで走らせ ②キー列で**重複除去**してから LS を掛ける。
+  // LS は (キー列, config) の決定的な純関数なので、同一ルートに複数回掛けるのは完全な無駄。
+  // ロキ条件では prefix 分散が空回りして 8本中6本が同一ルートになる（search_quality_experiments §12）＝
+  // 旧実装は LS を最大8回重複実行していた。**結果は不変**（同一入力→同一出力）でコストだけが減る。
   const buildMainTasks=()=>{
-    const t=prefixes.map((prefix,rootId)=>({type:'root',rootId,prefix,n,override:chosenOverride||{}}));
+    const t=prefixes.map((prefix,rootId)=>({type:'rootBeam',rootId,prefix,n,override:chosenOverride||{}}));
     t.push({type:'baseline',n,override:chosenOverride||{}});
     return t;
   };
@@ -1000,6 +1006,7 @@ function runSim(){
 
   let nextTask=0, done=0, failed=false;
   const rootResults=[]; let baseDmg=0;
+  const beamResults=[]; let lsTasks=null;
 
   // Phase5-S2: per-turn 進捗(総ステップ=本探索タスク数×n)。較正phase中はバー据置＋テキスト表示。
   const totalSteps=(prefixes.length+1)*n; let completedSteps=0; const turnByRoot={}; let startTime=performance.now();
@@ -1008,18 +1015,23 @@ function runSim(){
   const lsByRoot={};
   const _lsActive=()=>Object.keys(lsByRoot).length>0;
   function _setProgText(){
-    const head=`ルート ${done}/${mainTasks?mainTasks.length:0} 計算中(${poolSize}並列)…`;
+    const total = phase==='ls' ? (lsTasks?lsTasks.length:0) : (mainTasks?mainTasks.length:0);
+    const head = phase==='ls' ? `最適化 ${done}/${total} 完了(${poolSize}並列)…`
+                              : `ルート ${done}/${total} 計算中(${poolSize}並列)…`;
     const ids=Object.keys(lsByRoot);
     if(!ids.length){ prog.textContent=head; return; }
     let ev=0, acc=0;
     for(const k of ids){ ev+=lsByRoot[k].evals; acc+=lsByRoot[k].accepted; }
-    prog.textContent=`${head} 押し順を最適化中 ${ids.length}本（評価 ${ev.toLocaleString()} ・ 改善 ${acc}件）`;
+    // ⚠ ev/acc は**実行中ルートの合計**。1ルートの上限は LS_MAX_EVALS なので、平均も併記して
+    //    「合計値が上限を超えている＝暴走」と誤読されないようにする。
+    prog.textContent=`${head} 押し順を最適化中 ${ids.length}本`
+      + `（評価 計${ev.toLocaleString()} / 平均${Math.round(ev/ids.length).toLocaleString()}・上限${LS_MAX_EVALS.toLocaleString()} ・ 改善 ${acc}件）`;
   }
   _initSimProgress(n);
   if(phase==='calib') prog.textContent=`較正中… (${calibTasks.length}候補)`;
   else _litProgChars(1);   // C16 体感改善 B1: 較正skip(キャッシュ命中/override確定)時は全キャラ点灯で本探索へ
 
-  const curTasks=()=>phase==='calib'?calibTasks:mainTasks;
+  const curTasks=()=>phase==='calib'?calibTasks:(phase==='ls'?lsTasks:mainTasks);
   function dispatch(w){ const ts=curTasks(); if(nextTask<ts.length) w.postMessage(ts[nextTask++]); }
 
   function startMainPhase(){
@@ -1036,6 +1048,23 @@ function runSim(){
     _calibCache.set(configSig, chosenOverride);
     _litProgChars(1);   // C16 体感改善 B1: 較正完了＝全キャラ点灯してから本探索(ターン点灯)へ
     startMainPhase();
+  }
+
+  // ビーム完了 → キー列で重複除去 → LS フェーズへ。
+  function startLsPhase(){
+    const uniq=new Map();
+    for(const r of beamResults){
+      const sig=JSON.stringify(r.keys);
+      const hit=uniq.get(sig);
+      if(hit) hit.dupes++;
+      else uniq.set(sig,{prefix:r.prefix, keys:r.keys, dupes:0});
+    }
+    lsTasks=[...uniq.values()].map((u,i)=>
+      ({type:'rootLS', rootId:'ls'+i, prefix:u.prefix, keys:u.keys, n, override:chosenOverride||{}}));
+    if(!lsTasks.length){ onAllDone(); return; }   // 異常系(ビーム全滅)でも進行を止めない
+    phase='ls'; nextTask=0; done=0;
+    prog.textContent=`押し順を最適化中… (${lsTasks.length}本${beamResults.length>lsTasks.length?` / ビーム${beamResults.length}本から重複除去`:''})`;
+    for(const w of workers) dispatch(w);
   }
 
   function onAllDone(){
@@ -1070,11 +1099,13 @@ function runSim(){
         if(done>=calibTasks.length){ finishCalib(); return; }
         dispatch(w); return;
       }
-      if(d.type==='rootResult'){ rootResults.push(d); delete lsByRoot[d.rootId]; }
+      if(d.type==='rootBeamResult') beamResults.push(d);
+      else if(d.type==='rootResult'){ rootResults.push(d); delete lsByRoot[d.rootId]; }
       else if(d.type==='baselineResult') baseDmg=d.baseDmg;
       done++;
       _setProgText();
-      if(done>=mainTasks.length){ onAllDone(); return; }
+      if(phase==='main' && done>=mainTasks.length){ startLsPhase(); return; }
+      if(phase==='ls'   && done>=lsTasks.length){ onAllDone(); return; }
       dispatch(w);
     };
     w.onerror=function(){
@@ -1113,18 +1144,34 @@ function _fallbackRunSim(heroKey,kamihimeKeys,n){
     _renderProgChars(); _litProgChars(1);   // C16 体感改善 B1: 非並列較正は同期(incremental不可)のため全キャラ点灯で本探索へ
     let best=null;
     let i=0;
+    // 2段実行（worker 経路と同じ）: ①ビームのみ ②キー列で重複除去して LS。
+    const beamRoutes=[]; const uniqLS=new Map(); let lsList=null, li=0;
     function nextRoute(){
       if(_simCancelled) return;  // Phase5-S3: 中断でフォールバックループ停止
       if(i<prefixes.length){
-        // C37: フォールバックは同期実行のため LS 中も再描画されない（onLS を渡しても表示は更新できない）。
-        // ∴ 着手前に「探索＋最適化」と明示して、無反応区間が想定内であることを伝える。
-        prog.textContent=`ルート ${i+1}/${prefixes.length} 計算中(非並列フォールバック・探索＋押し順最適化)…`;
+        prog.textContent=`ルート ${i+1}/${prefixes.length} 計算中(非並列フォールバック・ビーム)…`;
         setTimeout(()=>{
           if(_simCancelled) return;
-          const r=_runRootPlan(prefixes[i],n,()=>{ completedSteps++; });
-          if(!best||r.dmg>best.dmg) best=r;
+          const r=_runRootPlan(prefixes[i],n,()=>{ completedSteps++; },null,true);  // skipLS
+          beamRoutes.push({prefix:r.prefix, keys:r.rows.map(x=>x.keys), dmg:r.dmg});
           i++;
           _updateSimProgress(completedSteps, totalSteps, 0, startTime);
+          nextRoute();
+        }, 0);
+      } else if(lsList===null){
+        for(const r of beamRoutes){ const sig=JSON.stringify(r.keys); if(!uniqLS.has(sig)) uniqLS.set(sig,r); }
+        lsList=[...uniqLS.values()];
+        nextRoute();
+      } else if(li<lsList.length){
+        // C37: フォールバックは同期実行のため LS 中も再描画されない（onLS を渡しても表示は更新できない）。
+        // ∴ 着手前に本数を明示して、無反応区間が想定内であることを伝える。
+        prog.textContent=`押し順を最適化中 ${li+1}/${lsList.length}(非並列フォールバック${beamRoutes.length>lsList.length?`・ビーム${beamRoutes.length}本から重複除去`:''})…`;
+        setTimeout(()=>{
+          if(_simCancelled) return;
+          const u=lsList[li];
+          const r=_runRouteLS(u.prefix, u.keys, n);
+          if(!best||r.dmg>best.dmg) best=r;
+          li++;
           nextRoute();
         }, 0);
       } else {
@@ -1740,7 +1787,7 @@ export function setCurrentSubs(v){ CURRENT_SUBS = v; }
 // let 宣言（CHARS/ABIL/ELEM/LEADER/LABEL 等）は buildFormation が再代入する live binding。
 export {
   Sim, buildFormation, applyGear, applyEnemy, recalcGearK, recalcGearKCFromDispAtk,
-  _runRootPlan, _runBaselinePlan, enumerateRootPrefixes, _selectRootPrefixes, _replayResult, _localSearchRoute, _refineRoute,
+  _runRootPlan, _runRouteLS, _runBaselinePlan, enumerateRootPrefixes, _selectRootPrefixes, _replayResult, _localSearchRoute, _refineRoute,
   setStaticOverride, getStaticOverride, calibrateStaticScores, calibrationShortlist, _runCalibrationProbe,
   tryResultCache, storeResult, _resultCache, _resultKey, ENGINE_VERSION, exportResultCache, importResultCache,
   GEAR, DMG, BG, GEAR_K_C, CHARS, ABIL, ownerOf, ELEM, LEADER, LABEL,

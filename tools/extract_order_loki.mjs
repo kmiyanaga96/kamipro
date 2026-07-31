@@ -1,14 +1,16 @@
-// sim05 G3 v3: 推奨押し順の再抽出（ロキ条件・configC placeholder）。
+// sim05 G3 v4: 推奨押し順の抽出（ロキ条件・**proper configC**）。
 //   v2（2026-07-28）は 敵=両面宿儺／サブ=[freyja_christmas, artemis]／LS 導入前 で取得したため全面的に無効。
 //   本ハーネスは **production と同じ経路**（`_runRootPlan` ＝ ビーム + C37 局所探索）で再取得する。
 //
-// 条件（`simulation/sim05/README.md` §4.4.2 の placeholder 定義に対応）:
+// 条件（proper configC・2026-07-31 受領キャッシュを E2 リプレイ bit 一致で検証した実値）:
 //   敵          = walpurgis_loki（barrier / abilCapPerTurn なし）
 //   メイン編成  = napoleon + [hecate, tetra, arianrhod, elaine]
 //   サブ        = [metatron, artemis]   ← メタトロンはサブ運用（ユーザー明言 2026-07-31）
 //   幻獣        = メイン/サポート 守護 据え置き（weapon_amp 0.8 は GEAR_C に織り込み済み）
-//                 ＋ サブにラジエル ⇒ 属性値枠 +0.50 ⇒ elem 0.54 → 1.04
-//   ATK         = DISPLAY_ATK_OVERRIDE_BY_FORMATION.napoleon（**暫定**・proper configC 未受領）
+//                 ＋ サブにラジエル ⇒ 属性値枠 +0.50 ⇒ elem 1.04（受領実値と一致）
+//   ATK         = DISPLAY_ATK_OVERRIDE_BY_FORMATION.napoleon（**proper 値**・2026-07-31 更新）
+//   override    = {judg:130, pactcore:1}（受領キャッシュで自動較正が採用した値）
+// ⚠ v3（同日午前・暫定 ATK / 旧 GEAR / 宿儺時代の override 流用）は無効。
 //
 // ⚠ コスト: 1ルート = ビーム約143s ＋ 局所探索（maxPress42 ゆえ edison より重い）。
 //   実験5c の「探索直後の質と LS 後の質は相関しない」を踏まえ、**prefix を1本に絞ってから LS を掛けない**。
@@ -23,12 +25,15 @@ import fs from 'fs';
 
 const n = 10;
 const TOPN = parseInt(process.argv[2] || '3', 10);
-const OUT = (process.env.SCRATCH || '/tmp') + '/g3_v3_loki.json';
+const OUT = (process.env.SCRATCH || '/tmp') + '/g3_v4_loki_proper.json';
 const log = s => process.stdout.write(s + '\n');
 
-// configC GEAR（§4.4.2）。elem のみ v2 から変更＝ラジエル サブ効果 +0.50。
-const GEAR_C = { assault:3.06, elem:1.04, vigor:0.6876, spec:0, dmgup:0, acute:0.144, crit_rate:0.405, other:0,
-                 na_dmg:1.116, abi_dmg:2.52, burst_dmg:5.22, na_cap:0.36, abi_cap:0.99, burst_cap:2.016 };
+// ✅ proper configC の GEAR（2026-07-31 受領キャッシュから抽出・E2 リプレイ bit 一致で検証済み）。
+// 旧 placeholder との差: assault 3.06→3.204 / vigor 0.6876→0.9666 / acute 0.144→0.288 /
+//   abi_dmg 2.52→**1.8（減）** / burst_dmg 5.22→6.39 / abi_cap 0.99→0.9 / burst_cap 2.016→2.106。
+//   ⚠ elem 1.04 は placeholder の推定（0.54＋ラジエル0.50）と**実値が一致**していた。
+const GEAR_C = { assault:3.204, elem:1.04, vigor:0.9666, spec:0, dmgup:0, acute:0.288, crit_rate:0.405, other:0,
+                 na_dmg:1.116, abi_dmg:1.8, burst_dmg:6.39, na_cap:0.36, abi_cap:0.9, burst_cap:2.106 };
 
 setCurrentSubs(['metatron','artemis']);
 buildFormation('napoleon', ['hecate','tetra','arianrhod','elaine']);
@@ -37,7 +42,9 @@ for(const k of Object.keys(GEAR)) GEAR[k] = GEAR_C[k] ?? 0;
 DMG.betaia_mult = 3.5; DMG.betaia_cap = 800000; DMG.napo_burst_cd_reduce = true;   // 英霊武器
 recalcGearK();
 recalcGearKCFromDispAtk(displayAtkOverrideFor('napoleon'));
-setStaticOverride({ pactcore:1, effond:120 });
+// ⚠ override は受領キャッシュで自動較正が採用した値。旧 v3 は宿儺時代の {pactcore:1, effond:120} を
+//    流用しており誤りだった。⚠これは**旧ATKで較正された値**＝proper ATK では最適 override が動きうる（follow-up）。
+setStaticOverride({ judg:130, pactcore:1 });
 
 log(`敵=walpurgis_loki  def=${DMG.enemy_def} hp=${DMG.enemy_max_hp.toLocaleString()} affinity=${DMG.affinity} barrier=${DMG.enemy_barrier} abilCap=${DMG.enemy_abil_cap}`);
 log(`サブアシスト集約: streak=${DMG.streak_dmgup} burst_dmg=${DMG.sub_burst_dmg} burst_cap=${DMG.sub_burst_cap} `
@@ -58,6 +65,17 @@ for(const prefix of prefixes){
   log(`   [${prefix.join(',')||'(空)'}] ${Math.round(sim.dmg).toLocaleString()}  FB=${rows.filter(r=>r.full).length}/10 maxPress=${Math.max(...rows.map(r=>r.ability))}  (${((Date.now()-t0)/1000).toFixed(0)}s)`);
 }
 scored.sort((a,b) => b.beamDmg - a.beamDmg);
+
+// ── ①-b 重複除去の実測（2段実行が実際に効くかの検証を兼ねる）───────────────
+// ⚠ §12 は「総ダメージが同値」を観測しただけで、同値=同一キー列とは限らない（divinus が反例）。
+//    ここでキー列そのもので数え、2段実行の重複除去が実際に効くのかを確定させる。
+const sigs = new Map();
+for(const c of scored){ const sig = JSON.stringify(c.keys);
+  if(!sigs.has(sig)) sigs.set(sig, []); sigs.get(sig).push(c.prefix.join(',') || '(空)'); }
+log(`\n①-b 重複除去: ビーム ${scored.length}本 → 一意キー列 ${sigs.size}本`);
+{ let i=0; for(const [,mem] of sigs) log(`     群${++i}: ${mem.join(' / ')}`); }
+const cut = scored.length - sigs.size;
+log(`     ⇒ 2段実行で LS を ${cut}本 削減（${(cut/scored.length*100).toFixed(0)}%減）${cut===0?' ❌効果なし':' ✅効果あり'}`);
 
 // ── ②上位 N 本に局所探索 ────────────────────────────────────────
 log(`\n② 局所探索（上位 ${TOPN} 本）⚠実験5c: ビーム順位と LS 後の順位は相関しない＝複数本に掛ける`);
@@ -82,6 +100,6 @@ for(let t=0;t<n;t++)
 
 fs.writeFileSync(OUT, JSON.stringify({ meta:{ enemy:'walpurgis_loki', hero:'napoleon',
   party:['hecate','tetra','arianrhod','elaine'], subs:['metatron','artemis'], gear:GEAR_C,
-  override:{pactcore:1,effond:120}, n, note:'configC placeholder（ATK 暫定・§4.4.2）' },
+  override:{judg:130,pactcore:1}, n, note:'proper configC（2026-07-31 受領・E2 bit一致検証済み）' }, dedupe:{ beam:scored.length, unique:sigs.size },
   beamScored: scored.map(x=>({prefix:x.prefix, dmg:x.beamDmg})), results }, null, 1));
 log(`\n保存: ${OUT}`);
