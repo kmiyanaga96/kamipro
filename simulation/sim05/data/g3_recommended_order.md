@@ -3,7 +3,10 @@
 > **種別**: 分析（headless 抽出物・実走プロトコルの入力）
 > **ゴール**: sim05 の実機走で「固定押し順＝シム推奨順」を再現できるよう、production 同経路で抽出した押し順を確定形で提示する。この順を実走し、序数検証（①押し順が最適か）と追撃 anchor（②C3/C5）を同時取得する。
 > **完了条件**: 実走（trialNN）で本順が実行され、§A 逸脱記録と §B tier 観測が得られたら役割終了 → 較正確定後に再抽出した順で置き換える。
-> **状態**: 抽出済み（2026-07-27 v2＝**config完全再現版**）・実走待ち
+> **状態**: ❌ **無効（2026-07-31 supersede）→ 現行は [`g3_recommended_order_v3_loki.md`](g3_recommended_order_v3_loki.md)**
+> 無効化の理由（4点すべてが押し順を動かす）: ①較正ボスが両面宿儺→`walpurgis_loki` へ切替（B1/B4）②C37 局所探索の実装で探索後処理が変わった
+> ③サブ枠が `[freyja_christmas, artemis]`→`[metatron, artemis]` ④ラジエル追加で `elem` 0.54→1.04。
+> 本書は**経緯の保全**として残す（v1 撤回の記録＝§6 も含めて再発防止の資料価値がある）。
 > 作成 2026-07-27 ／ 関連: sim05 README §3 G3・`config_sukuna.json`（ユーザー受領キャッシュ）・`configC_gear_panel.md`・`record_skeleton.md`・`buffcount_sim_side_diag.md`
 >
 > ⚠ **v1（初版・同日）は撤回**。英霊武器とサブ枠を欠いた条件で抽出しており無効（→ §6 経緯）。
