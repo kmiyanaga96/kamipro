@@ -3,7 +3,7 @@
 // init では実行時設定のみ受け取り、プロパティ変更 or setter で反映する（import 束縛への直接再代入は不可）。
 // ⚠ 旧 _buildWorkerCode（slice＋__FUNC__ serialize）を置き換えたもの。詳細は VITE_MIGRATION.md。
 import {
-  buildFormation, recalcGearK, _runRootPlan, _runBaselinePlan,
+  buildFormation, recalcGearK, _runRootPlan, _runRouteLS, _runBaselinePlan,
   GEAR, DMG, GEAR_K_C, setCurrentSubs, setStaticOverride, _runCalibrationProbe
 } from './app.js';
 
@@ -25,12 +25,16 @@ self.onmessage = function(e){
   } else if(d.type==='calibrate'){
     // C15 案(c): 1 つの静的スコア override を適用して単一ビームfullで採点（full-verify 段の1点）。
     self.postMessage({type:'calibResult', override:d.override, dmg:_runCalibrationProbe(d.override, d.n)});
-  } else if(d.type==='root'){
+  } else if(d.type==='rootBeam'){
+    // 2段実行の第1段: ビームのみ。キー列を返してメイン側で重複除去する（同一ルートへの LS 重複実行の防止）。
     setStaticOverride(d.override||{});   // C15: 採用された較正 override を適用してから探索
-    // 第4引数 onLS = C37 局所探索の進捗（LS は全ターン完遂後に数分走るため、通知が無いと UI がハングに見える）。
-    self.postMessage({type:'rootResult', rootId:d.rootId, ..._runRootPlan(
-      d.prefix, d.n,
-      (t)=>self.postMessage({type:'progress',rootId:d.rootId,t}),
+    const r=_runRootPlan(d.prefix, d.n, (t)=>self.postMessage({type:'progress',rootId:d.rootId,t}), null, true);
+    self.postMessage({type:'rootBeamResult', rootId:d.rootId, prefix:r.prefix, dmg:r.dmg, keys:r.rows.map(x=>x.keys)});
+  } else if(d.type==='rootLS'){
+    // 2段実行の第2段: 重複除去後の一意ルートにのみ局所探索を掛ける。
+    setStaticOverride(d.override||{});
+    self.postMessage({type:'rootResult', rootId:d.rootId, ..._runRouteLS(
+      d.prefix, d.keys, d.n,
       (ls)=>self.postMessage({type:'lsProgress',rootId:d.rootId,...ls}))});
   } else if(d.type==='baseline'){
     setStaticOverride({});   // C16: baseline は「素直押し」=自然s（override無し）。較正overrideは分子(opt)のみに効かせ、

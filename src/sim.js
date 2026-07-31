@@ -566,15 +566,28 @@ function enumerateRootPrefixes(){
 // Worker側は self.postMessage で進捗通知、フォールバックはUI更新に使う。本体に self/document 参照は置かない(slice不変条件)。
 // onLS(info) は局所探索中に LS_PROGRESS_EVERY 評価ごとに呼ばれる副作用専用フック（省略可）。
 //   LS は全ターン完遂**後**に走り 1ルート 177〜324秒かかるため、通知が無いと UI がハングと区別できない。
-function _runRootPlan(prefix, n, onTurn, onLS){
+// skipLS=true なら**ビームまでで返す**（2段実行の第1段）。呼び出し側がキー列で重複除去してから
+//   `_runRouteLS` で LS を回すことで、**同一ルートに対する LS の重複実行を防ぐ**。
+//   LS は (キー列, config) の決定的な純関数なので、同一キー列に複数回掛けるのは完全な無駄。
+//   ロキ条件では prefix 分散が空回りして 8本中6本が同一ルートになる（search_quality_experiments §12）。
+function _runRootPlan(prefix, n, onTurn, onLS, skipLS){
   const sim=new Sim(); sim.totalTurns=n;
   if(prefix.length){ sim._forcePrefix=prefix; sim._forceTurn=1; }
   const rows=[]; for(let t=1;t<=n;t++){ rows.push(sim.greedyTakeTurn(t)); if(onTurn) onTurn(t); }
+  if(skipLS) return {prefix, dmg:sim.dmg, rows};
   // C37 局所探索: 確定ルートに単調安全な近傍改善を適用（C27 リファインの一般化・2026-07-30 置換）。
   // ビームのロールアウト近似が取り逃す並べ替えを、実ルート上で replay 採点し厳密改善のみ採用して回収する。
   const ls=_localSearchRoute(rows.map(r=>r.keys), n, onLS);
   if(ls.improved){ const rep=_replayResult(ls.turnsKeys, n); return {prefix, dmg:rep.dmg, rows:rep.rows}; }
   return {prefix, dmg:sim.dmg, rows};
+}
+
+// 2段実行の第2段: 確定済みキー列に局所探索だけを掛ける（`_runRootPlan(...,skipLS=true)` の続き）。
+// 戻り値の形は `_runRootPlan` と互換（{prefix,dmg,rows}）＝呼び出し側の集計をそのまま使える。
+function _runRouteLS(prefix, turnsKeys, n, onLS){
+  const ls=_localSearchRoute(turnsKeys, n, onLS);
+  const rep=_replayResult(ls.turnsKeys, n);
+  return {prefix, dmg:rep.dmg, rows:rep.rows, improved:ls.improved, evals:ls.evals};
 }
 
 // C37 局所探索（whole-route・単調安全・決定的）: 確定した per-turn キー列に対し3種の近傍を総当たりし、
@@ -720,4 +733,4 @@ function _selectRootPrefixes(n){
 }
 
 
-export { Sim, cmpVec, enumerateRootPrefixes, _runRootPlan, _runBaselinePlan, _staticPrefixDmg, _selectRootPrefixes, _replayResult, _localSearchRoute, _refineRoute };
+export { Sim, cmpVec, enumerateRootPrefixes, _runRootPlan, _runRouteLS, _runBaselinePlan, _staticPrefixDmg, _selectRootPrefixes, _replayResult, _localSearchRoute, _refineRoute };
