@@ -204,10 +204,31 @@ const DMG = {
   dur_divinus_dot: 2,       // DOT持続
 
   // ─── アシスト由来グローバル枠 ───
+  // buildFormation が subAssists を集約して代入する（既定0＝未編成時は完全に不変＝golden 影響なし）。
+  // GEAR（装備由来）と**同枠で加算**する（damage_frames: 同種のダメージUP/上限UPは加算合成）。
   sub_burst_dmg: 0,           // サブバーストダメージUP
   sub_burst_cap: 0,           // サブバースト上限UP
+  sub_na_dmg: 0,              // サブ通常攻撃ダメージUP（シムで通常攻撃ダメが立つのは judg ph2 のみ）
+  sub_na_cap: 0,              // サブ通常攻撃ダメージ上限UP（_decay('na') と _naForAbi の cap に効く＝波及が広い）
+  sub_abi_dmg: 0,             // サブアビリティダメージUP
+  sub_abi_cap: 0,             // サブアビリティダメージ上限UP
   burst_dmg_cap: 5.0,     // C34: バーストダメUP合計(バフ+ウェポン)の上限=+500%(実機・damage_frames ⑪)。selfBonus(大幅UP)は上限外
   final_dmg: 1.0,         // 最終倍率
+
+  // ─── メタトロン[神想真化]（2026-07-31 登録・一次情報 gamedata/md/神姫/metatron.md）───
+  metatron_extra_mult: 2,          // バースト「メテオ・ダイブ」追加ダメージ: 通常時 倍率2倍
+  metatron_extra_cap: 400000,      //   同 減衰上限40万
+  metatron_extra_mult_tenshin: 3,  // 天真爛漫時（効果量1.5倍）: 倍率3倍
+  metatron_extra_cap_tenshin: 600000, //   同 減衰上限60万
+  spec_tenshin: 0.30,              // 天真爛漫: 特殊攻撃+30%（アシスト1・バフアイコンは付与されない）
+  spec_metatron_link: 0.30,        // LinkSkill[メタトロン]: 光属性キャラの特殊攻撃+30%
+  streak_metatron_link: 0.30,      // LinkSkill[メタトロン]: バーストストリークダメージ+30%
+  dur_metatron_link: 2,            // LinkSkill 効果2T
+  defdown_metatron: 0.30,          // ロイヤルサプレッション: 防御DOWN(B枠) -30%
+  dur_metatron_def: 99,            // ⚠180秒のターン換算は未検証（A5）。10Tホライズンでは実質恒久として近似
+  bg_metatron_royal: 25,           // ロイヤルサプレッション: 味方全体バーストゲージ+25
+  metatron_magokoro_per: 5,        // アシスト1: 光属性キャラのバースト5回ごとに真心+1・自分の全アビCD-1
+  metatron_tenshin_at: 5,          // アシスト1: 真心5個以降 天真爛漫（＝光バースト通算25回）
 
   // ─── バーストゲージ上昇量UP(汎用枠・現ソースはフレイヤ聖夜バースト) ───
   bg_gain_up: 0.20,          // 有効中の全ゲージ付与に×(1+この値)。buf.bg_gain_up はpresence判定(非累積)

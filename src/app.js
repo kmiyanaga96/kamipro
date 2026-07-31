@@ -382,21 +382,29 @@ function buildFormation(heroKey, kamihimeKeys) {
 
   // サブとメインのアシスト効果（streak_dmgup ＋ AnotherLink系の編成パッシブ）を集約（光統一時のみ適用）。
   // subAssists はサブメンバー時にも発動するアシスト効果（例: アルテミスAnotherLink）をメイン/サブ共通で拾う。
-  let sdmgup = 1.0, bdmg = 0, bcap = 0, fdmg = 1.0;
+  // ⚠ 合成は **Math.max（非累積）**＝複数キャラの AnotherLink が同枠で重複しても最大値のみ採る。
+  //    実機で加算されるのか最大値なのかは**未検証**（メタトロン登録時に A7 として起票・2026-07-31）。
+  //    アルテミス単独時は挙動不変のため、この前提は従来の golden/較正値に影響していない。
+  const acc = { streak_dmgup:1.0, burst_dmg:0, burst_cap:0, final_dmg:1.0,
+                na_dmg:0, na_cap:0, abi_dmg:0, abi_cap:0 };
   const collect = key => {
     const s = CHAR_REGISTRY[key]?.subAssists; if(!s) return;
-    if(s.streak_dmgup) sdmgup = Math.max(sdmgup, s.streak_dmgup);
-    if(s.burst_dmg)    bdmg   = Math.max(bdmg,   s.burst_dmg);
-    if(s.burst_cap)    bcap   = Math.max(bcap,   s.burst_cap);
-    if(s.final_dmg)    fdmg   = Math.max(fdmg,   1 + s.final_dmg);
+    if(s.streak_dmgup) acc.streak_dmgup = Math.max(acc.streak_dmgup, s.streak_dmgup);
+    if(s.final_dmg)    acc.final_dmg    = Math.max(acc.final_dmg,    1 + s.final_dmg);
+    for(const k of ['burst_dmg','burst_cap','na_dmg','na_cap','abi_dmg','abi_cap'])
+      if(s[k]) acc[k] = Math.max(acc[k], s[k]);
   };
   for(const key of CURRENT_SUBS) collect(key);
   for(const c of CHARS) collect(c);
   const allLight = CHARS.every(c => ELEM[c] === 'light');
-  DMG.streak_dmgup  = allLight ? sdmgup : 1.0;
-  DMG.sub_burst_dmg = allLight ? bdmg   : 0;
-  DMG.sub_burst_cap = allLight ? bcap   : 0;
-  DMG.final_dmg     = allLight ? fdmg   : 1.0;
+  DMG.streak_dmgup  = allLight ? acc.streak_dmgup : 1.0;
+  DMG.sub_burst_dmg = allLight ? acc.burst_dmg    : 0;
+  DMG.sub_burst_cap = allLight ? acc.burst_cap    : 0;
+  DMG.final_dmg     = allLight ? acc.final_dmg    : 1.0;
+  DMG.sub_na_dmg    = allLight ? acc.na_dmg       : 0;
+  DMG.sub_na_cap    = allLight ? acc.na_cap       : 0;
+  DMG.sub_abi_dmg   = allLight ? acc.abi_dmg      : 0;
+  DMG.sub_abi_cap   = allLight ? acc.abi_cap      : 0;
 }
 
 // 候補スコア自動算出: s を省略したアビに対して構造的特徴から標準スコアを導出する。
@@ -1385,13 +1393,27 @@ function applyGear(){
   // トップレベル box は位置非依存として全枠共通で加算。
   let weaponAmp=0;
   const summonBoxes=[];
+  // 条件付き効果の判定材料: サブ枠に**実際に装備されている**幻獣の属性一覧（空枠は数えない）。
+  // 例: ラジエル サブ効果「装備しているサブ幻獣が全て光属性のとき」。
+  const subElems=[];
+  for(let i=0;i<SUMMON_SLOTS;i++){
+    if(SUMMON_ROLES[i]!=='sub') continue;
+    const s=SUMMON_REGISTRY[document.getElementById('summon-'+i)?.value];
+    if(s) subElems.push(s.elem);
+  }
+  // condition は宣言的（registry 側に持つ＝エンジンに幻獣名リテラルを書かない）。未知キーは**不成立**＝安全側。
+  const condOK=(c)=>{
+    if(!c) return true;
+    if(c.allSubSummonsElem) return subElems.length>0 && subElems.every(e=>e===c.allSubSummonsElem);
+    return false;
+  };
   for(let i=0;i<SUMMON_SLOTS;i++){
     const key=document.getElementById('summon-'+i)?.value;
     const s=SUMMON_REGISTRY[key]; if(!s) continue;
     const isMainSlot=(SUMMON_ROLES[i]!=='sub'); // main または support
     if(s.box) summonBoxes.push(s.box); // 位置非依存
     const eff = isMainSlot ? s.mainEffect : s.subEffect;
-    if(eff){
+    if(eff && condOK(eff.condition)){
       if(isMainSlot) weaponAmp+=eff.weapon_amp||0; // 加護はメイン幻獣効果=main/supportのみ
       if(eff.box) summonBoxes.push(eff.box);
     }
