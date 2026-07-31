@@ -51,7 +51,7 @@ class Sim {
   }
 
   // 減衰(上限)モデル: 計算ダメージ raw → 実ダメージ。
-  _naForAbi(){ const na=this._na(); const c1=DMG.decay_na.cap1*(1+(GEAR.na_cap||0)+this._partyCapUp()); return na>=c1?this._decay('na',na,undefined,true):na; }  // true=calib_na非適用(アビ基底は通常較正の外)
+  _naForAbi(){ const na=this._na(); const c1=DMG.decay_na.cap1*(1+(GEAR.na_cap||0)+DMG.sub_na_cap+this._partyCapUp()); return na>=c1?this._decay('na',na,undefined,true):na; }  // true=calib_na非適用(アビ基底は通常較正の外)
   // ダメージ上限UP(パーティ・na/burst/abi 共通): アブソ(presence+20%) + プヴワール(累積+6%/stack)。damage_frames「ダメージ上限UP」= 各減衰枠へ加算。
   _partyCapUp(){ const b=this.buf; return (b.absolute?.length?DMG.cap_absolute:0) + (b.puvoir?.length||0)*DMG.cap_puvoir; }
   // 敵側 final-dmg 枠別cap(鬼神障壁型・両面宿儺)。1ヒットの最終ダメが枠別上限を超えたら超過分に補正率を乗じて軽減。
@@ -69,13 +69,16 @@ class Sim {
     const owner=ownerOf(key); this.g[owner]=Math.max(0, this.g[owner]-spent); this._naOwner=owner;
     const db=this._droidAbiBuf();
     // C31: アビダメUPは倍率へ「加算」(実機・damage_frames ⑫)。旧: mult*(1+abi_dmg+db.dmg)=乗算。
-    this.dmg += this._decay('abi', this._naForAbi()*(mult+GEAR.abi_dmg+db.dmg), cap*(1+db.cap));
+    this.dmg += this._decay('abi', this._naForAbi()*(mult+GEAR.abi_dmg+DMG.sub_abi_dmg+db.dmg), cap*(1+db.cap));
     this.use(key, T, ord, `(消費${spent})`);
   }
 
   _decay(frame, raw, base, noCalib){
     // na/abi: GEAR上限UP枠 + パーティ上限UP(アブソ/プヴワール)を加算。burst: 上限UPは burst() 側で base に集約済み(ここで再加算しない)。
-    const up = (GEAR[frame+'_cap']||0) + ((frame==='na'||frame==='abi') ? this._partyCapUp() : 0);
+    // アシスト由来の上限UP(DMG.sub_na_cap / sub_abi_cap)も GEAR と同枠加算。burst は burst() 側で base に集約済みのため
+    // ここでは足さない（sub_burst_cap の二重加算防止）。既定0＝golden 不変。
+    const up = (GEAR[frame+'_cap']||0) + (DMG['sub_'+frame+'_cap']||0)
+             + ((frame==='na'||frame==='abi') ? this._partyCapUp() : 0);
     if(frame==='na'){
       const c1=DMG.decay_na.cap1*(1+up), c2=c1+100000, c3=c1+200000;
       let r=raw;
@@ -139,7 +142,13 @@ class Sim {
     const spec = (b.leg_spec?D.spec_legend:0)+(b.omni?.length?D.spec_omni:0)
                + (b.mobius_spec?.length||0)*D.spec_mobius
                + (b.arian_spec?.length||0)*D.spec_arian + arSelf*arSpecSelf*D.spec_arian
-               + (b.artemis_spec?.length?D.spec_artemis:0) + G.spec;
+               + (b.artemis_spec?.length?D.spec_artemis:0)
+               // メタトロン4アビ LinkSkill: 光属性キャラの特殊攻撃+30%(2T・パーティ全体)
+               + (b.metatron_spec?.length?D.spec_metatron_link:0)
+               // メタトロン アシスト1 天真爛漫(真心5個以降): 特殊攻撃+30%。**自分のみ**(自分に付与される状態)。
+               // metatron 非編成時は state 未宣言＝undefined>=5 が false で短絡＝従来編成に無影響。
+               + (this.metatron_magokoro>=D.metatron_tenshin_at && this._naOwner===ABIL.rocket?.[0] ? D.spec_tenshin : 0)
+               + G.spec;
     // GEAR_K or per-character GEAR_K_C[owner] (武器マスタ設定時)
     const gk = (this._naOwner && GEAR_K_C[this._naOwner]) || GEAR_K;
     const base = gk*(1+aslt)*elemBox*(1+vigor)*(1+crit)*(1+acute)*(1+spec);
@@ -150,6 +159,7 @@ class Sim {
     const defdown = Math.min(
       (b.consort_def?.length||0)*D.defdown_consort
     + (b.divinus_def?.length||0)*D.defdown_divinus
+    + (b.metatron_def?.length?D.defdown_metatron:0)   // メタトロン3アビ: B枠 -30%(必中)・非累積(presence)
     + Math.min((b.effond_def?.length||0)*D.defdown_effond, D.defdown_effond_max), 0.50);
     // 恐傷(アルテミス1・消費100): 敵への被ダメージUP(this.kyosho_amp・buf.kyosho有効中のみ)。全枠の外側に乗算。
     // 最終ダメージ倍率(DMG.final_dmg・AnotherLink等のアシスト由来): 既定1.0で golden 不変。
@@ -319,7 +329,8 @@ class Sim {
     const n=atk.length;
     if(n>=2){
       // マナポライト(アルテミス3): ストリークダメージ+2%/stack(buf不在で素の streak_dmgup＝golden不変)。
-      const sdup=DMG.streak_dmgup+(this.buf.manapolite?.length||0)*DMG.streak_manapolite;
+      const sdup=DMG.streak_dmgup+(this.buf.manapolite?.length||0)*DMG.streak_manapolite
+                +(this.buf.metatron_streak?.length?DMG.streak_metatron_link:0);  // メタトロン4アビ: ストリーク+30%(2T・非累積)
       const raw=burstCoreTotal*DMG.affinity*DMG.streak_count[n]*sdup;
       // 鬼神障壁: ストリークは枠別capに binding しやすい(実機フルバーストでほぼ確実に軽減=ryomen_sukuna.md §2.1)。
       this.dmg += this._barrier('streak', this._decay('streak', raw, n));

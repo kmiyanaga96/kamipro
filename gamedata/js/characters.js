@@ -1,6 +1,6 @@
 import { DMG, BG, RENRI_CAP, RENRI_MAX, TENYA_FROM, IFISHANT_MIN_CD } from '../../src/constants.js';
 import { GEAR, CHARS, ABIL, ownerOf, ELEM, LEADER, LABEL } from '../../src/app.js';
-const DEBUFF_KEYS = new Set(['consort_def', 'divinus_def', 'effond_def', 'nights', 'divinus_dot']);
+const DEBUFF_KEYS = new Set(['consort_def', 'divinus_def', 'effond_def', 'nights', 'divinus_dot', 'metatron_def']);
 const buffCount = sim => Object.entries(sim.buf).reduce((a,[k,v])=>a+(DEBUFF_KEYS.has(k)?0:v.length),0);
 // エレイン2(legend)のターン内基礎上限(契晶累積獲得数の閾値で成長)。legend guard と ifishant の消化判定で共用。
 const legendCap = sim => { let lu=sim.cum>=1?2:1; for(const thr of [26,51,71,80]) if(sim.cum>=thr) lu++; return lu; };
@@ -285,7 +285,7 @@ const CHAR_REGISTRY = {
                   // 12回目押下がeffond自身の場合その押下のバーストには効かない。use()フックがmooncodeを
                   // 立てる前にここで捕捉する)。
                   const mcAtPress = sim.mooncode>0;
-                  sim.dmg += sim._decay('abi', sim._naForAbi()*(DMG.effond_mult+GEAR.abi_dmg+db.dmg), DMG.effond_cap*(1+db.cap));  // C31: アビダメUP加算
+                  sim.dmg += sim._decay('abi', sim._naForAbi()*(DMG.effond_mult+GEAR.abi_dmg+DMG.sub_abi_dmg+db.dmg), DMG.effond_cap*(1+db.cap));  // C31: アビダメUP加算
                   // C12-案C: 定石性報酬 — divinus(防御DOWN)先行中にeffondを撃てたら加点(divinus→effondの定石・ランキング用のみ)。
                   T.orthodoxy=(T.orthodoxy||0)+(sim.buf.divinus_def?.length?1:0);
                   (sim.buf.effond_def??=[]).push(DMG.dur_effond_def);
@@ -360,12 +360,12 @@ const CHAR_REGISTRY = {
                       // アビダメ枠: ×(1+abi_dmg+droid)、1ヒット減衰 基準judg_cap×(1+droid)(超過は1/25で逓減)
                       // amplifa(+10万)はロボ反応ダメージ専用のためジャッジには加算しない。
                       const db0=sim._droidAbiBuf();
-                      const hit=sim._decay('abi', sim._naForAbi()*(DMG.judg_mult+GEAR.abi_dmg+db0.dmg), DMG.judg_cap*(1+db0.cap))*DMG.judg_calib;  // C31: アビダメUP加算 / C30: judg ph0 較正(×0.62・過大是正)
+                      const hit=sim._decay('abi', sim._naForAbi()*(DMG.judg_mult+GEAR.abi_dmg+DMG.sub_abi_dmg+db0.dmg), DMG.judg_cap*(1+db0.cap))*DMG.judg_calib;  // C31: アビダメUP加算 / C30: judg ph0 較正(×0.62・過大是正)
                       sim.dmg += 10*hit + royAbi;
                       // C12-案C: 定石性報酬 — judgダメージ(ph0)が防御DOWN有効中なら加点(ランキング用のみ・火力不関与)。
                       T.orthodoxy=(T.orthodoxy||0)+(sim.buf.divinus_def?.length?1:0)+(sim.buf.effond_def?.length?1:0); }
                     else if(ph===1) sim.burst(ownerOf('judg'),bset,T);
-                    else sim.dmg += sim._decay('na', sim._na()*(1+GEAR.na_dmg)); }},
+                    else sim.dmg += sim._decay('na', sim._na()*(1+GEAR.na_dmg+DMG.sub_na_dmg)); }},
       absolute: { s:130, atkBuf:true, partyBG:true, exec:(sim,T,ord)=>{ if(!sim.buf.absolute)sim.buf.absolute=[]; sim.buf.absolute.push(DMG.dur_absolute); sim.addG(CHARS,BG.absolute); sim.use('absolute',T,ord); }},
       // ディウィヌス: 敵防御-30%(defdown・後続全攻撃を底上げ)＋DOT4種(順序非依存・turnEndでtick)。
       divinus:  { s:90, atkBuf:true, exec:(sim,T,ord)=>{
@@ -602,7 +602,7 @@ const CHAR_REGISTRY = {
                    const mult=2+0.5*bc;
                    // アビダメ枠: ×(1+abi_dmg+droid)、減衰 基準consort_cap×(1+droid)(超過は1/25で逓減)
                    const dbc=sim._droidAbiBuf();
-                   for(let i=0;i<hits;i++) sim.dmg+=sim._decay('abi', sim._naForAbi()*(mult+GEAR.abi_dmg+dbc.dmg), DMG.consort_cap*(1+dbc.cap));  // C31: アビダメUP加算
+                   for(let i=0;i<hits;i++) sim.dmg+=sim._decay('abi', sim._naForAbi()*(mult+GEAR.abi_dmg+DMG.sub_abi_dmg+dbc.dmg), DMG.consort_cap*(1+dbc.cap));  // C31: アビダメUP加算
                    for(let i=0;i<hits;i++) (sim.buf.consort_def??=[]).push(DMG.dur_consort_def);
                    sim.use('consort',T,ord,hits===2?'(×2)':''); }},
       // ディシジフ: ベタイア2回発動化(2T)。バフ10以上で全体アビCD-1・BG+30追加。
@@ -807,6 +807,84 @@ const CHAR_REGISTRY = {
     //   バーストダメージ+25% / バースト上限+10% / 最終ダメージ+10%。buildFormationが集約し
     //   sub_burst_dmg / sub_burst_cap / final_dmg へ反映（メイン編成でも同経路で1回だけ適用）。
     subAssists: { burst_dmg: 0.25, burst_cap: 0.10, final_dmg: 0.10 },
+  },
+
+  // ── メタトロン[神想真化]（2026-07-31 登録・一次情報 gamedata/md/神姫/metatron.md）──
+  // ⚠ 未モデル化が3つある（いずれもHP依存＝シムは常時フルHP前提）。詳細と Ax は md §2.2/§3:
+  //   ①2アビ リーガルディフェンド（不屈/かばう/味方HPを25%にする）＝abilities に**登録しない**
+  //     （生存側で与ダメ無関与。押せる候補にすると探索が手数を無駄にするだけ）
+  //   ②アシスト1「ピンチ時バースト性能大幅UP」（倍率10倍/減衰200万）＝HP状態が無いため発動しない
+  //   ③4アビ「自分のHP25%以下で攻撃ダメージUP追加」＝同上
+  //   ∴ **本キャラは実機ポテンシャルより弱く出る**。HP モデル導入時は md と同時に更新すること。
+  metatron: {
+    type: 'kamihime',
+    jp: 'メタトロン[神想真化]', shortJp: 'メタトロン', gcls: 'gmt', elem: 'light',
+    favWeapon: ['銃','ハンマー'], baseAtk: 14900, baseHp: 3050,
+    // metatron_link_used: LinkSkill(4アビ・戦闘中1回のみ) / metatron_bacc: 光バースト累計(アシスト1・5回毎に真心+1)
+    // metatron_magokoro: 真心の個数（5個以降 天真爛漫＝_na の特殊攻撃枠と各所の分岐が参照）
+    state: { metatron_link_used: false, metatron_bacc: 0, metatron_magokoro: 0 },
+    abilities: {
+      rocket:    ['r', 7, 0],  // 1アビ ロケットアサルト: ゲージ消費なしバースト
+      rocket_re: ['r', 0, 0],  // 同 2回目(天真爛漫のみ)。⚠CD7を張る rocket 本体では同T再押下が構造的に不可能なため
+                               //    アリアン elegant/elegant_re と同型の**別キー**で表現する（cd0＋guardのクォータ）
+      royal:     ['b', 3, 0],  // 3アビ ロイヤルサプレッション: 敵全体 攻防DOWN + 味方全体BG+25
+      metalink:  ['y', 1, 0],  // 4アビ LinkSkill[メタトロン]: 特殊攻撃UP + ストリークUP(戦闘中1回)
+      // 2アビ リーガルディフェンドは生存側のため非登録（上記コメント①）
+    },
+    labelSuffix: { royal:'(全+25)' },
+    cdShow: { rocket:"ロケットアサルト", rocket_re:"ロケット(2回目)", royal:"ロイヤルサプレッション", metalink:"リンクスキル" },
+    cands: {
+      // 1アビ: ゲージ消費なしでバースト発動（アリアン elegant と同型）。CD7。
+      rocket: { s:110, burstTrigger:true,
+                exec:(sim,T,ord,bset)=>{ const me=ownerOf('rocket');
+                  sim.use('rocket',T,ord); sim.burst(me,bset,T); T.rocket=1; }},
+      // 1アビ 2回目: **天真爛漫のときのみ**同一ターンにもう1回。ゲージ消費なし（本体と同じ）。
+      // アリアン elegant_re と同型＝再発動も赤アビ計数（連理魔力+・ロボ反応・proc）。
+      rocket_re: { s:110, burstTrigger:true, refireOf:'rocket', refireSuffix:'(2回目)',
+                guard:(sim,T)=>(T.rocket||0)===1 && sim.metatron_magokoro>=DMG.metatron_tenshin_at,
+                exec:(sim,T,ord,bset)=>{ const me=ownerOf('rocket');
+                  sim._countAbilityUse('rocket_re','r');
+                  sim.burst(me,bset,T); T.rocket++;
+                  ord.push({text:`${LABEL.rocket}(2回目)`,color:'r'}); }},
+      // 3アビ: 防御DOWN(B枠 -30%・必中) ＋ 味方全体バーストゲージ+25。攻撃DOWN/与ダメDOWN は生存側で非モデル化。
+      royal: { s:150, partyBG:true, exec:(sim,T,ord)=>{
+                (sim.buf.metatron_def??=[]).push(DMG.dur_metatron_def);
+                sim.addG(CHARS, DMG.bg_metatron_royal); sim.use('royal',T,ord); }},
+      // 4アビ LinkSkill: 光属性キャラの特殊攻撃+30% ＋ バーストストリークダメージ+30%（2T）。戦闘中1回のみ。
+      // 「自分のHP25%以下で攻撃ダメージUP追加」は未モデル化（HP状態なし）。
+      metalink: { s:260, atkBuf:true, guard:(sim)=>!sim.metatron_link_used,
+                exec:(sim,T,ord)=>{ sim.metatron_link_used=true;
+                  (sim.buf.metatron_spec??=[]).push(DMG.dur_metatron_link);
+                  (sim.buf.metatron_streak??=[]).push(DMG.dur_metatron_link);
+                  sim.use('metalink',T,ord); }},
+    },
+    def: {
+      burst_coef_a: 5.5, burst_coef_b: 3000,  // メテオ・ダイブ: a=5.5 b=3000（一次情報）
+      gmax: 100,  // =BG.other_max（即時評価のためリテラル。ロード順不変条件・冒頭注記参照）
+      keigyoGain: 1,
+      // バースト効果「追加ダメージ」（アビ枠）。天真爛漫なら効果量1.5倍＝倍率2→3・減衰40万→60万（一次情報の有志検証値）。
+      onBurst: (sim, atk, owner, naB) => {
+        const tenshin = sim.metatron_magokoro >= DMG.metatron_tenshin_at;
+        const base = naB !== undefined ? naB : sim._na();
+        sim.dmg += sim._decay('abi',
+          base*(tenshin ? DMG.metatron_extra_mult_tenshin : DMG.metatron_extra_mult),
+          tenshin ? DMG.metatron_extra_cap_tenshin : DMG.metatron_extra_cap);
+      },
+      // アシスト1 ピュアプログレス: 光属性キャラのバースト5回ごとに 真心+1 ＆ 自分の全アビCD-1。
+      // 真心5個以降 天真爛漫（＝光バースト通算25回）。⚠バフアイコンは付与されない＝buffCount(C38)には乗せない。
+      onPartyBurst: (sim, owner) => {
+        if(ELEM[owner] !== 'light') return;
+        sim.metatron_bacc = (sim.metatron_bacc||0) + 1;
+        if(sim.metatron_bacc % DMG.metatron_magokoro_per !== 0) return;
+        sim.metatron_magokoro = (sim.metatron_magokoro||0) + 1;
+        const me = ownerOf('rocket');  // =メタトロン自キー
+        for(const k of Object.keys(ABIL)) if(ownerOf(k)===me) sim.cd[k]=Math.max(0, sim.cd[k]-1);
+      },
+    },
+    // アシスト2 AnotherLink[メタトロン]: パーティ全体が光属性のとき、サブメンバー時にも発動。
+    //   通常/バースト/アビの各ダメージ+20%・各上限+10% ＋ 最終ダメージ+10%。
+    subAssists: { na_dmg:0.20, na_cap:0.10, burst_dmg:0.20, burst_cap:0.10,
+                  abi_dmg:0.20, abi_cap:0.10, final_dmg:0.10 },
   }
 };
 export { CHAR_REGISTRY, DEBUFF_KEYS, buffCount };
