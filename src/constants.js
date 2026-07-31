@@ -13,6 +13,14 @@ const BEAM_W = 64; // ビームサーチ幅（C16: 128→64。較正rollout改�
 const PREFIX_TOPK = 8;  // 2段ルート選抜: 静的proxyで全prefixを採点し本選へ回す数（C16: 10→8＝PoC実証の安全床。top-8 loss≤0.013%・BW64で0%損実測・golden不変。本探索タスク約18%減）
 const BEAM_DIVERSITY_K = 24; // ビーム多様性枠: 定石性(T.orthodoxy)上位の追加保護数
 const IFISHANT_MIN_CD = 3; // イフィシャント使用可の最小CD中アビ数
+// 局所探索(C37・_localSearchRoute)の評価回数上限＝**決定的な**安全弁。時間バジェットは環境依存で
+// golden の再現性を壊すため使わない（改善のみ採用＝単調増加なので通常は収束で自然停止する）。
+// 実測: edison/raw 177,961評価で収束（default gear・10T）。上限が binding した場合も途中結果は単調安全。
+const LS_MAX_EVALS = 500000;
+// 局所探索の進捗通知の刻み（評価回数）。**探索結果には一切影響しない**（カウンタを読むだけ・決定性を壊さない）。
+// LS は10ターン完遂後に走り 1ルート 177〜324秒かかるため、通知が無いとUIがハングと区別できない。
+// 2000評価 ≈ 3〜4秒（1評価 1.4〜1.8ms）＝体感で「動いている」ことが分かる最小の刻み。
+const LS_PROGRESS_EVERY = 2000;
 const BG = {
   inori: 100, funki: 10, absolute: 20, sleur: 15, legend: 10,
   pactcore: 100, cascade: 10, yamato_max: 200, other_max: 100
@@ -249,5 +257,5 @@ const DMG_DEFAULTS = JSON.parse(JSON.stringify(DMG));
 
 export {
   RENRI_CAP, RENRI_MAX, JUDG_REACT, TENYA_FROM, FB_THR, MACH_BG, KEIGYO_MAX,
-  BEAM_W, PREFIX_TOPK, BEAM_DIVERSITY_K, IFISHANT_MIN_CD, BG, DMG, DMG_DEFAULTS
+  BEAM_W, PREFIX_TOPK, BEAM_DIVERSITY_K, IFISHANT_MIN_CD, LS_MAX_EVALS, LS_PROGRESS_EVERY, BG, DMG, DMG_DEFAULTS
 };

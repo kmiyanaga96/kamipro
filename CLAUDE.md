@@ -91,6 +91,8 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
 - **ゲージ経済（実機確認済・2026-07-04／実装＝実機一致・乖離なし）**: 黄アビのBG付与（funki+10/legend+10/sleur+15/absolute+20/pactcore+100）・マシーンタクトゥ（ロボ反応1回あたり `MACH_BG=5`）は**すべて味方全体対象**（`addG(CHARS,…)`）。エジソンのバーストで攻撃ロボ/補助ロボ**両方のCDを−1**（`edison.def.onBurst`）＝ロボ3T稼働に対し3T周期の再設置が回りきり**常時稼働**しうる。∴ **中盤(T3〜)以降に全員ゲージ満量になるのは正しい帰結**（過去に「ロボ常時稼働はありえない／満量は不自然」と疑義が出たが、実機仕様として3点とも一致・アンプリファ×攻撃ロボの効果窓も整合＝再調査不要）。エジソン4(アンプリファ)の+10万は攻撃ロボ反応（`sim.droid>0` の赤アビ反応）にのみ加算。
 - **Phase3-1 事前計算マップ（ホットパス高速化・実装済）**: `buildFormation` で `ABIL_KEYS`/`ABIL_KC`/`ABIL_CANDS`/`ABIL_BASE_S` を一度だけ構築し、`_stepStatic`/`_candidates` が `Object.entries(ABIL)`・ネスト参照・`computeBaseScore` 再計算をせず `ABIL_KEYS` を1パス走査する。**⚠不変条件**: 走査順は `ABIL` 挿入順（=`Object.keys`順）でタイブレークは厳密 `>`（先頭最大）。キャラ追加・`abilities`/`cands` 変更時はこのマップ構築を経由するため自動追従するが、**走査順や `>` 比較を崩すと最適押し順の選択がズレる**（ゴールデン値 raw 197,775,394 / calibrated 211,462,826 で検証すること）。
 - **ESM Worker起動規律**: 旧 `_buildWorkerCode`（文字列 slice）は廃止済み。Worker は `new Worker(new URL('./worker.js', import.meta.url), {type:'module'})` で起動。**`src/app.js` の worker 用 export に必要な探索関数（`buildFormation`, `recalcGearK`, `Sim`, `_runRootPlan` 等）を含めること**。UI/DOM 依存は INIT の `if(typeof document!=='undefined')` ガード内・window ブリッジに隔離すること。
+- **局所探索による後処理（C37・2026-07-30 実装・`_localSearchRoute`）**: `_runRootPlan` は確定ルートに3種の近傍（①ターン内move ②ターン内swap ③**ターン跨ぎswap**）を総当たりし、`_replayResult` で採点して**厳密改善のみ採用**する。**不変条件**: (1) 改善のみ採用＝総ダメージは単調非減少（golden は下がらない） (2) 停止条件は評価回数 `LS_MAX_EVALS` であって**時間ではない**＝決定的（時間バジェットを入れると golden が環境依存で壊れる） (3) ③を move ではなく swap にするのは手数保存＝`abilCapPerTurn` を持つ敵で受け側が黙って落ちるのを防ぐため。**旧 C27 `_refineRoute` を置換**（LS が包含すると B3b で実測・`_refineRoute` は再現性のため残置＝**production 非経路・新規結線禁止**）。目的関数は `_objective` 第1要素と同一＝エンジンの主目的は変えていない。
+- **forcedKeys リプレイの正規化（2026-07-30）**: `greedyTakeTurn(t, forcedKeys)` は**実際に実行できたキーだけ**を行に記録する（`_execKey` が実行可否を返す）。押せなかったキー（CD中/契晶不足/`abilCap`到達）が「押した手」として残る幽霊キーを防ぐ＝ターン跨ぎ swap を持つ LS の前提。**総ダメージは元から不成立キーを無視して計算されており不変**。
 - **2段ルート選抜（①-A・実装済）**: `runSim`/`_fallbackRunSim` は `enumerateRootPrefixes()` の全prefixを `_staticPrefixDmg`（静的greedy・約数ms）で安価採点し、上位 `PREFIX_TOPK`(=8・C16で10→8) 本のみ本選(BW64・C16で128→64)へ回す（`_selectRootPrefixes`）。空prefixは常に確保。**品質低下は PoC 実測で最大0.013%**（top-8が実証済み安全床・BW64で0%損実測）。新キャラ追加時は PoC（scratchpad `poc.js`）を再実行し `PREFIX_TOPK` の余裕を再確認する。
 
 ### 3. Git 開発ワークフロー (強制ルール)
@@ -98,7 +100,7 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
   1. `git checkout main` で main に切り替え、`git pull origin main` を実行。
   2. 作業用ブランチを切って開発を開始。
 - **検証 (作業完了時)**
-  - 必ず `npm run test:golden`（期待値: raw 197,775,394 / calibrated 211,462,826）を実行しパスを確認。
+  - 必ず `npm run test:golden`（期待値: raw 201,909,711 / calibrated 214,213,430 / napoleon 299,534,299）を実行しパスを確認。⚠**約10分＝背景実行**。
 - **反映・プッシュ**
   - コミット後、`main` に戻って `pull`、作業ブランチをマージし、再度検証テストをパスして `git push origin main`。不要な作業ブランチは削除。
 
@@ -118,20 +120,23 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
 ```bash
 npm run test:golden          # = node test/golden.mjs（src/app.js を import し10T総ダメージを検証）
 ```
+⚠**所要は約10分**（C37 局所探索の導入で 116秒→増加）。ツール実行の600秒上限を超えるため**背景実行が必須**。
 
 **編成別マルチfixture（2026-07-25 導入・「1編成=1golden」）**。golden.mjs は各編成の回帰アンカーを検証:
-- **edison/raw**（beam+refine・較正なし）: `197,775,394`・FB `10/10`（構造修正C31/C34＋絶対値較正calib_na1.835/calib_burst2.07/judg_calib0.62）
-- **edison/cal**（beam+refine・`{judg:145,pactcore:1}` 適用＝production 出荷値）: `211,462,826`・FB `10/10`
+- **edison/raw**（beam+**LS**・較正なし）: `201,909,711`・FB `10/10`（構造修正C31/C34＋絶対値較正calib_na1.835/calib_burst2.07/judg_calib0.62＋C37局所探索）
+- **edison/cal**（beam+**LS**・`{judg:145,pactcore:1}` 適用＝production 出荷値）: `214,213,430`・FB `10/10`
 - **napoleon/static**（移行編成・**静的greedy**の回帰ガード＋**maxPress<60 ハングガード**）: `299,534,299`・FB `10/10`・maxPress `34`
   - ⚠ napoleon は**静的greedy値＝beam最適ではない・「回帰ガード」であって較正確定値ではない**。フルビーム10Tは~90sで頻回テストに不適のため静的greedyを採用。**buffCount/閾値の実機修正（sim05・点1/2）後に再fit**。beam版napoleon回帰は将来 `test:golden:full` 等へ。
   - ※sim04較正の内訳（edison）: C31=アビダメUP加算化・C34=バーストダメUP+500%上限・C32=M3で2段cap不支持のため1.0クランプ維持・C25=通常×1.835/バースト×2.07・C30=judg ph0×0.62。根拠 `simulation/sim04/analysis/`・CALIBRATION_ANALYSIS C25/C30/C31/C32/C34。残: C5/C3追撃cap。
+  - ※**C37 局所探索による再fit（2026-07-30）**: ダメージモデルは不変（sim04較正のまま）で、**探索後処理の置換による押し順改善のみ**の上振れ＝raw +2.09% / cal +1.30%。単調安全なので値は下がらない。napoleon/static は静的greedy経路のため**不変**。override `{judg:145,pactcore:1}` は据置（下記の留保あり）。
 
 > 探索は `runSim` 実行時に config別に静的スコア s を自動較正する（`calibrateStaticScores`・proxy-shortlist+full-verify・単調安全）。golden.mjs は決定的検証のため較正結果 `{judg:145,pactcore:1}` を `setStaticOverride` で明示適用する（毎回の較正走行を避ける）。詳細 archive/SEARCH_ROLLOUT_DESIGN.md §6。
 
-### 実測コスト（2026-07-28 計測・実験設計の前提に使う）
+### 実測コスト（2026-07-28 計測／golden は 2026-07-30 に C37 で更新・実験設計の前提に使う）
 | 対象 | 実測 |
 |---|---|
-| `npm run test:golden` 全体 | **116秒**（edison beam+refine ×2＝各 ~58s／napoleon 静的greedy は瞬時） |
+| `npm run test:golden` 全体 | **約10分**（edison ビーム ~60s×2 ＋ **局所探索 324s/177s**／napoleon 静的greedy は瞬時）。旧 C27 時代は116秒 |
+| 局所探索 1ルート（edison・default gear・10T） | **324秒**（raw・177,961評価）／**177秒**（cal・124,152評価）。1評価 ≈ 1.4〜1.8ms・**ターン跨ぎ swap が評価の約73%** |
 | edison configB（cath_palug）1ルート | 約 **62秒** |
 | napoleon configC（両面宿儺）1ルート | 約 **127秒** |
 | BW384 1ルート | 545秒（単独）／762秒（他ジョブと同時実行時＝**約40%増**） |
@@ -161,10 +166,10 @@ npm run preview              # dist を http 配信 → ブラウザで探索/�
   - **C3 / C5**（追撃・investigating）: 追撃 cap 過小（実機比×2.3〜6.9・非決定fitで残差保留）＝**sim05 の主題**（新編成アンカーで解く）。
   - **C1 / C2**（open）・**C24**（診断済・低severity・fixは実機ゲート＝ゲージ±5〜10 の系統乖離・黄ロボ反応の計数差に局在）。
   - **C31〜C35**（damage_frames 突合起票・修正は較正セッションゲート）: C31/C34 は sim04 で fixed（アビダメUP加算化・バーストダメUP+500%上限）。C32=M3実測で現行1.0クランプ維持。C33/C35 は軽微・open。
-  - **C37**（open・**起票のみ／実装しない**）: **探索パラメータ `BEAM_W=64` は編成依存**＝ナポ/アリアン×宿儺では最悪点で、幅を変えると総ダメが **+3.0〜+5.6% 変動しかつ非単調**（BW384=+5.64%）。根拠の C16 はエジソン編成の測定値で本編成へ転移せず。本質は幅不足でなく**枝刈りの代理採点（ロールアウト静的greedy）**。⚠**A1 でエジソンは健全と判明**（ダメージ厳密単調・押し順一致99.2〜100%）＝**エンジン全体の病理ではなくナポ/アリアン×宿儺(abilCap19)に固有**（編成と cap は未分離＝B1 で切り分け）。派生: `PREFIX_TOPK=8` は転移確認（損失0.017%）／**局所探索は C27 の上位互換＝置換可**（B3b: エジソンで C27 +0.140% に対し LS +0.779%・refine有/無が同一終点へ収束。ナポでは**C27 自体が発火せず**＝4例目の編成依存。⚠実装時 golden 全fixture 上振れ＝**再fit必須**）だが**幅の代替にはならない**／**押し順の識別可能性が根本的に低い**（C1: 総ダメが1円単位で同値の別ルートが7本以上・prefix分散は中位で空回り）／`CALIB_GRID` はナポ/アリアンのアビを含まない構造的欠落／**Phase 7 のクローズ根拠もエジソン依存＝再評価対象**。一般則: **編成を移したら探索パラメータは再測する**・**コード内の性能数値は実測してから使う**。**全実験の数値＝`simulation/sim05/search_quality_experiments.md`**。
+  - **C37**（open・**局所探索は 2026-07-30 に実装済／幅の問題は未解決**）: **探索パラメータ `BEAM_W=64` は編成依存**＝ナポ/アリアン×宿儺では最悪点で、幅を変えると総ダメが **+3.0〜+5.6% 変動しかつ非単調**（BW384=+5.64%）。根拠の C16 はエジソン編成の測定値で本編成へ転移せず。本質は幅不足でなく**枝刈りの代理採点（ロールアウト静的greedy）**。⚠**A1 でエジソンは健全と判明**（ダメージ厳密単調・押し順一致99.2〜100%）＝**エンジン全体の病理ではなくナポ/アリアン×宿儺(abilCap19)に固有**（編成と cap は未分離＝B1 で切り分け）。派生: `PREFIX_TOPK=8` は転移確認（損失0.017%）／**局所探索＝C27 の上位互換・✅2026-07-30 に `_localSearchRoute` として実装（`_refineRoute` を production 経路から置換）**（B3b: エジソンで C27 +0.140% に対し LS +0.779%・refine有/無が同一終点へ収束。ナポでは**C27 自体が発火せず**＝4例目の編成依存。実装時の golden 再fit＝raw +2.09%/cal +1.30%。⚠**改善幅もギア/敵依存**＝B3b の実gear条件 +0.78% に対し golden の default gear では +2.09%）だが**幅の代替にはならない**（5d 対照: 幅と LS は加算的）／**押し順の識別可能性が根本的に低い**（C1: 総ダメが1円単位で同値の別ルートが7本以上・prefix分散は中位で空回り）／`CALIB_GRID` はナポ/アリアンのアビを含まない構造的欠落／**Phase 7 のクローズ根拠もエジソン依存＝再評価対象**。一般則: **編成を移したら探索パラメータは再測する**・**コード内の性能数値は実測してから使う**。**全実験の数値＝`simulation/sim05/search_quality_experiments.md`**。
   - **C38**（open・**押し順への影響は最大級**）: **`buffCount` が実機と別のものを数えている**（同一効果の内部スタックを1個ずつ加算）＝T1で既に bc=34・以降88〜100 で**強化効果数tierが全て常時到達＝機能停止**。ナポの4アビは全て tier 依存スコアだが定数に張り付き、「6で撃つか10で撃つか」の判断が存在しない。**予測探索の実装は本Cxが前提**（未解決なら全ルールが即撃ちに縮退）。解決には実機の tier 初回発動ターン＋バフアイコン数の数え方が必要（記録先 `simulation/sim05/data/record_skeleton.md` §B）。
-  - **fixed 済の主要 Cx**（詳細は CALIBRATION_ANALYSIS.md）: C4/C8/C9/C11/C12/C13/C14/C16・C18（ムーンコード）・C19（tenya_re アビ計数）・C21（ifishant 条件付き+1）・C22（経済 clean・クローズ）・C23（judgフェーズ戦闘通算）・C26（追撃UI設定・_configSig拡張）・C27（whole-route refine）。**wontfix**: C6/C17。**撤回**: C7（与ダメ2フェーズ倍率は非実在）。
-  * 現ゴールデン値: **raw 197,775,394 / calibrated 211,462,826** (sim04 絶対値較正にて再fit・2026-07-21・override {judg:145,pactcore:1}・ENGINE_VERSION `sim04-abscal-C31C34-calib`)
+  - **fixed 済の主要 Cx**（詳細は CALIBRATION_ANALYSIS.md）: C4/C8/C9/C11/C12/C13/C14/C16・C18（ムーンコード）・C19（tenya_re アビ計数）・C21（ifishant 条件付き+1）・C22（経済 clean・クローズ）・C23（judgフェーズ戦闘通算）・C26（追撃UI設定・_configSig拡張）・C27（whole-route refine＝**2026-07-30 に C37 局所探索へ置換・production 非経路**）。**wontfix**: C6/C17。**撤回**: C7（与ダメ2フェーズ倍率は非実在）。
+  * 現ゴールデン値: **raw 201,909,711 / calibrated 214,213,430** (C37 局所探索にて再fit・2026-07-30・override {judg:145,pactcore:1} 据置・ENGINE_VERSION `sim05-ls-route-C37`。ダメージモデルは sim04 較正のまま＝押し順改善のみの上振れ)
 
 ---
 

@@ -33,9 +33,9 @@
 | key | label | 用途 | 状態 |
 |---|---|---|---|
 | `default` | 汎用 placeholder | 抽象スケール基準（ゴールデン） | — |
-| [`walpurgis_loki`](walpurgis_loki.md) | ヴァルプルギス・ロキ | Phase4 較正ボス（T2〜C1） | **実機値待ち**（プレースホルダ登録済み） |
+| [`walpurgis_loki`](walpurgis_loki.md) | ヴァルプルギス・ロキ | **★sim05 較正ボス（本命・2026-07-30 切替）**／旧 Phase4 較正ボス（T2〜C1） | **✅ ENEMY_REGISTRY 登録済み**（幻・**affinity1.5[実機]**・**HP9.8億[実機検証]**・**`barrier` も `abilCapPerTurn` も無し**＝探索が安定[B1/B4]・**ノーダメージ討伐＝常時フルHP近似が厳密成立**・T3〜4 安定反復・1日1回。⚠**def=10 は暫定**・⚠**隠れ耐性 未確認**＝C25 には乗るが C3/C5 では相殺） |
 | [`fimbulvetr`](fimbulvetr.md) | フィンブルヴェトル | ~~sim03 較正ボス~~ **無期限延期（2026-07-14）** | trial01全滅・7T討伐は偶然→較正対象外（エントリ保持） |
 | [`cath_palug`](cath_palug.md) | キャスパリーグ | **sim03 較正ボス（2026-07-14 緊急置換・第1走）** | **def/HP未確定**（闇=光有利×1.5確定・ライトレジスト=光非適用・2T討伐・placeholder登録済み） |
-| [`ryomen_sukuna`](ryomen_sukuna.md) | 両面宿儺 | **sim05 較正候補ボス（本命・2026-07-22 統合／2026-07-24 登録）** | **✅ ENEMY_REGISTRY 登録済み**（CATACLYSM闇レイド・光有利クリーン・**def20/HP9.8億**・**鬼神障壁 `barrier` ＝枠別final-dmg cap 実装済み**・**アビ上限 `abilCapPerTurn:19` 実装済み**・⚠**全滅時計(鬼の魔力≥10)=生存/再現性が採用の最終ゲート**・1日1回。⚠rate/abi上限は第1走で実測） |
+| [`ryomen_sukuna`](ryomen_sukuna.md) | 両面宿儺 | ~~sim05 較正候補ボス（本命）~~ **不採用（2026-07-30）**＝`abilCapPerTurn:19` が探索を不安定にすると B1 で確定（生存ゲート以前に較正の土台として失格）。エントリ/機構は保持 | **✅ ENEMY_REGISTRY 登録済み**（CATACLYSM闇レイド・光有利クリーン・**def20/HP9.8億**・**鬼神障壁 `barrier` ＝枠別final-dmg cap 実装済み**・**アビ上限 `abilCapPerTurn:19` 実装済み**・⚠**全滅時計(鬼の魔力≥10)=生存/再現性が採用の最終ゲート**・1日1回。⚠rate/abi上限は第1走で実測） |
 | [`variant_chimera_chi`](variant_chimera_chi.md) | PB06 バリアントキメラ-χ（通称 強機獣） | **sim05 較正候補ボス（主フォールバック・2026-07-22 intake / 2026-07-24 統合・改称・実機更新）** | intake のみ（闇=光有利クリーン・def推定10・**HP6.8億 判明**・**T3撃破**＝T1オーバーキル無し・変身[攻撃/防御UP]はHP70%動的＝イジェクトドローン→**T1クリーン窓較正**・1日1回・枠別cap無し。ENEMY_REGISTRY 未登録） |
 | [`variant_chimera`](variant_chimera.md) | PB06 バリアントキメラ（通称 弱機獣） | **sim05 較正候補ボス（最終フォールバック・2026-07-24 intake・実機更新）** | intake のみ（強機獣の1段下 MALICIOUS・闇=光有利クリーン・def推定10・**HP4.5億**・**T2撃破**＝T1オーバーキル無し＝**T1クリーンアンカー可**・エマージェンシーポイズン[防御UP]はHP50%動的・枠別cap無し。データ量最少・ENEMY_REGISTRY 未登録） |

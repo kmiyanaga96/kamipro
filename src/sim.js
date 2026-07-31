@@ -1,6 +1,6 @@
 // Phase5 S5: SIM ENGINE（class Sim ＋ cmpVec ＋ ビーム/ルート探索）。詳細は VITE_MIGRATION.md。
 // 定数は constants.js から、可変編成状態(CHARS/ABIL/CHAR_DEF/GEAR_K…)は app.js から import（循環・遅延参照で安全）。
-import { DMG, BG, FB_THR, MACH_BG, KEIGYO_MAX, BEAM_W, PREFIX_TOPK, BEAM_DIVERSITY_K, JUDG_REACT } from './constants.js';
+import { DMG, BG, FB_THR, MACH_BG, KEIGYO_MAX, BEAM_W, PREFIX_TOPK, BEAM_DIVERSITY_K, LS_MAX_EVALS, LS_PROGRESS_EVERY, JUDG_REACT } from './constants.js';
 import { GEAR, GEAR_K, GEAR_K_C, CHARS, ABIL, ABIL_KEYS, ABIL_KC, ABIL_CANDS, ABIL_BASE_S, CHAR_DEF, ownerOf, MILESTONES, TICK_STATES, CHAR_SIM_STATES, CHAR_SIM_STATE_KEYS, LABEL, CHAR_REGISTRY } from './app.js';
 
 // ===== SIM ENGINE =====
@@ -292,8 +292,9 @@ class Sim {
     return true;
   }
 
-  // key一致の候補をクローン上で実行（exec内のthisはクローン）。
-  _execKey(key){ const m=this._candidates().find(x=>x.key===key); if(m) m.exec(); }
+  // key一致の候補をクローン上で実行（exec内のthisはクローン）。**実行できたら true**（不成立=CD中/契晶不足/
+  // guard不成立/abilCap到達 なら候補に現れず false）。戻り値は forcedKeys リプレイの正規化に使う（下記）。
+  _execKey(key){ const m=this._candidates().find(x=>x.key===key); if(m){ m.exec(); return true; } return false; }
 
   // リプレイモード用: CDチェックのみ行いguardをスキップして実行。実行した場合trueを返す。
   _execKeyNoGuard(key){
@@ -437,8 +438,12 @@ class Sim {
     let usedKeys=null;
     if(forcedKeys){
       this._primeLookaheads(t);
-      for(const key of forcedKeys) this._execKey(key);
-      usedKeys=forcedKeys.slice();
+      // 正規化(2026-07-30): **実際に実行できたキーだけ**を行へ記録する。旧実装は forcedKeys をそのまま
+      // 記録していたため、押せなかったキー（CD中/契晶不足/abilCap到達）が「押した手」として残り、UIが
+      // 押せない手を推奨しうる幽霊キーになっていた。局所探索(_localSearchRoute)のターン跨ぎswapは
+      // 受け側で不成立になる候補を作るため、この正規化がないと幽霊キーが確定ルートに載る。
+      // ダメージは元から不成立キーを無視して計算されており**総ダメージ・rows の他要素は不変**。
+      usedKeys=forcedKeys.filter(key=>this._execKey(key));
     } else if(this.planDepth>=2){
       for(let i=0;i<300;i++) if(!this._stepStatic()) break;
     } else {
@@ -548,17 +553,86 @@ function enumerateRootPrefixes(){
 // 手順をここに集約し二重管理を防ぐ)。rowsはgreedyTakeTurnの戻り値配列=構造化複製可能。
 // Phase5-S1: onTurn(t) は各ターン完遂後に呼ばれる副作用専用フック(省略時=完全に従来通り＝戻り値不変)。
 // Worker側は self.postMessage で進捗通知、フォールバックはUI更新に使う。本体に self/document 参照は置かない(slice不変条件)。
-function _runRootPlan(prefix, n, onTurn){
+// onLS(info) は局所探索中に LS_PROGRESS_EVERY 評価ごとに呼ばれる副作用専用フック（省略可）。
+//   LS は全ターン完遂**後**に走り 1ルート 177〜324秒かかるため、通知が無いと UI がハングと区別できない。
+function _runRootPlan(prefix, n, onTurn, onLS){
   const sim=new Sim(); sim.totalTurns=n;
   if(prefix.length){ sim._forcePrefix=prefix; sim._forceTurn=1; }
   const rows=[]; for(let t=1;t<=n;t++){ rows.push(sim.greedyTakeTurn(t)); if(onTurn) onTurn(t); }
-  // C27 定石リファイン: 確定ルートに「赤アビは攻撃ロボ設置＋アンプリファ後に撃つ」局所改善を適用。
-  // ビームのgreedyロールアウト近似が赤アビ前出しを選ぶ系統ミス(C27)を、実ルート上で厳密改善のみ採用して補正。
-  const ref=_refineRoute(rows.map(r=>r.keys), n);
-  if(ref.improved){ const rep=_replayResult(ref.turnsKeys, n); return {prefix, dmg:rep.dmg, rows:rep.rows}; }
+  // C37 局所探索: 確定ルートに単調安全な近傍改善を適用（C27 リファインの一般化・2026-07-30 置換）。
+  // ビームのロールアウト近似が取り逃す並べ替えを、実ルート上で replay 採点し厳密改善のみ採用して回収する。
+  const ls=_localSearchRoute(rows.map(r=>r.keys), n, onLS);
+  if(ls.improved){ const rep=_replayResult(ls.turnsKeys, n); return {prefix, dmg:rep.dmg, rows:rep.rows}; }
   return {prefix, dmg:sim.dmg, rows};
 }
 
+// C37 局所探索（whole-route・単調安全・決定的）: 確定した per-turn キー列に対し3種の近傍を総当たりし、
+// 10T総ダメージが**厳密に増える時のみ**採用する。改善が尽きるまで sweep を反復して局所最適で停止。
+//   ①ターン内 move（i→j へ挿入移動）②ターン内 swap（2点交換）③ターン跨ぎ swap（別ターンの1手と交換）
+// ③を move ではなく **swap** にするのは手数を保存するため。move だと受け側ターンが1手増え、
+// `abilCapPerTurn` を持つ敵（両面宿儺 cap=19）では上限超過で**黙って落ちる**（実験5b）。
+//
+// ── なぜ C27 リファインを置換したか（B3b・search_quality_experiments.md §6f）──
+//   C27 は「赤アビを deploysRobot/prelude の直後へ移す」タグ駆動の特殊ルールで、①の部分集合にあたる。
+//   エジソンで両者を比較すると LS は C27 の改善に到達したうえで上回り、C27 有り/無しの出発点から
+//   **1円単位で同一の終点へ収束**した（包含関係の実測）。さらにタグを持たない編成（ナポ/アリアン）では
+//   C27 は一度も発火しないが LS は効く＝**編成非依存**。∴ production 経路は LS 一本に統一した。
+//
+// ⚠不変条件: ①改善のみ採用（総ダメージは単調非減少＝golden は下がらない） ②停止条件は評価回数
+//   （LS_MAX_EVALS）であって時間ではない＝**決定的**（時間バジェットは環境依存で golden を壊す）
+//   ③受理閾値は +1（1円）。golden は円単位に丸めるため、float の ulp 級の差で振動しない。
+// 目的関数は `_objective` 第1要素（総ダメージ）と同一＝エンジンの主目的を変えていない。
+//
+// onProgress(info) は副作用専用の進捗フック（省略可）。`LS_PROGRESS_EVERY` 評価ごとに
+// {sweep, evals, accepted, dmg, baseDmg} を渡す。**カウンタを読むだけで探索には一切影響しない**
+// （フックの有無で結果が変わらないこと＝golden が `_localSearchRoute(keys,10)` を無フックで呼ぶ前提）。
+function _localSearchRoute(turnsKeys, n, onProgress){
+  let cur=turnsKeys.map(a=>a.slice());
+  let curDmg=_replayResult(cur, n).dmg;
+  const baseDmg=curDmg;
+  let evals=0, improved=true, sweep=0, accepted=0, nextReport=LS_PROGRESS_EVERY;
+  const tryCand=(cand)=>{
+    evals++;
+    const d=_replayResult(cand, n).dmg;
+    let ok=false;
+    if(d>curDmg+1){ cur=cand; curDmg=d; accepted++; ok=true; }
+    if(onProgress && evals>=nextReport){
+      nextReport=evals+LS_PROGRESS_EVERY;
+      onProgress({sweep, evals, accepted, dmg:curDmg, baseDmg});
+    }
+    return ok;
+  };
+  while(improved && evals<LS_MAX_EVALS){
+    improved=false; sweep++;
+    // ①ターン内 move ②ターン内 swap（move/swap とも手数不変のため走査中の L は有効）
+    for(let t=0;t<n && evals<LS_MAX_EVALS;t++){
+      const L=cur[t].length;
+      for(let i=0;i<L;i++) for(let j=0;j<L;j++){
+        if(i===j) continue;
+        const c=cur.map(a=>a.slice()); const [k]=c[t].splice(i,1); c[t].splice(j,0,k);
+        if(tryCand(c)) improved=true;
+      }
+      for(let i=0;i<L;i++) for(let j=i+1;j<L;j++){
+        const c=cur.map(a=>a.slice()); [c[t][i],c[t][j]]=[c[t][j],c[t][i]];
+        if(tryCand(c)) improved=true;
+      }
+    }
+    // ③ターン跨ぎ swap（全ターン対・各ターンの手数を保存）
+    for(let t1=0;t1<n && evals<LS_MAX_EVALS;t1++)
+      for(let t2=t1+1;t2<n && evals<LS_MAX_EVALS;t2++)
+        for(let i=0;i<cur[t1].length;i++) for(let j=0;j<cur[t2].length;j++){
+          if(cur[t1][i]===cur[t2][j]) continue;
+          const c=cur.map(a=>a.slice()); [c[t1][i],c[t2][j]]=[c[t2][j],c[t1][i]];
+          if(tryCand(c)) improved=true;
+        }
+  }
+  return { turnsKeys:cur, dmg:curDmg, improved:curDmg>baseDmg+1, evals };
+}
+
+// ⚠**production 非経路（2026-07-30 に `_localSearchRoute` へ置換）**。LS が本関数の改善を包含すると
+// 実測で確定したため探索本線からは外したが、記録済み数値の再現性を保つため残す（`tools/c27_refine_probe.mjs`
+// および `exp_c27_vs_localsearch{,_edison}.mjs` / `exp_beam_width_sweep.mjs` / `exp_local_search_control.mjs`
+// / `ml_fit_static.mjs` が import する）。**新しい結線を足さないこと**。
 // C27 定石リファイン（whole-route 局所改善・単調安全）: 確定した per-turn キー列に対し、各ターン内で
 // 「攻撃ロボ設置(deploysRobot) or アンプリファ(prelude) より前に置かれた赤アビ(color 'r')」を、その最後の
 // setup 直後へ移し、10T総ダメージが**厳密に増える時のみ**採用する。ビームの目的関数(将来ターンを静的greedyで
@@ -635,4 +709,4 @@ function _selectRootPrefixes(n){
 }
 
 
-export { Sim, cmpVec, enumerateRootPrefixes, _runRootPlan, _runBaselinePlan, _staticPrefixDmg, _selectRootPrefixes, _replayResult, _refineRoute };
+export { Sim, cmpVec, enumerateRootPrefixes, _runRootPlan, _runBaselinePlan, _staticPrefixDmg, _selectRootPrefixes, _replayResult, _localSearchRoute, _refineRoute };

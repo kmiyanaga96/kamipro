@@ -10,7 +10,7 @@ import { ENEMY_REGISTRY } from '../gamedata/js/enemies.js';
 import { CHAR_REGISTRY } from '../gamedata/js/characters.js';
 
 import { RENRI_CAP, RENRI_MAX, JUDG_REACT, TENYA_FROM, FB_THR, MACH_BG, KEIGYO_MAX, BEAM_W, PREFIX_TOPK, BEAM_DIVERSITY_K, IFISHANT_MIN_CD, BG, DMG, DMG_DEFAULTS } from './constants.js';
-import { Sim, cmpVec, enumerateRootPrefixes, _runRootPlan, _runBaselinePlan, _staticPrefixDmg, _selectRootPrefixes, _replayResult, _refineRoute } from './sim.js';
+import { Sim, cmpVec, enumerateRootPrefixes, _runRootPlan, _runBaselinePlan, _staticPrefixDmg, _selectRootPrefixes, _replayResult, _localSearchRoute, _refineRoute } from './sim.js';
 
 
 let CURRENT_ENEMY_KEY = 'default';
@@ -231,7 +231,7 @@ const _calibCache = new Map();
 // ENGINE_VERSION: 探索/ダメージに影響する変更を入れたら必ず更新する（キャッシュ名前空間＝古い版を fast-reject）。
 //   ※正しさの最終担保はリプレイ検証（版更新忘れも総ダメージ不一致で捕捉）。版はあくまで高速化のための粗い無効化。
 // スリム保存（turnsKeys+dmg+prefix+baseDmg）＝レンダー用の重い行は保存せず、命中時にリプレイで再生成する。
-const ENGINE_VERSION = 'sim04-abscal-C31C34-calib';  // sim04較正: 構造修正C31(アビダメ加算)/C34(バーストcap)+絶対値較正(calib_na1.835/calib_burst2.07/judg_calib0.62)。ダメージスケール変更で旧キャッシュ無効化。
+const ENGINE_VERSION = 'sim05-ls-route-C37';  // C37: 探索後処理を C27 リファイン→局所探索(_localSearchRoute)へ置換（押し順変化＝旧キャッシュ無効化）。ダメージモデルは sim04較正のまま（C31/C34＋calib_na1.835/calib_burst2.07/judg_calib0.62）。
 const _resultCache = new Map();   // _resultKey(configSig) -> {turnsKeys, dmg, prefix, baseDmg, override, n}
 function _resultKey(configSig){ return ENGINE_VERSION + '|' + configSig; }
 // config署名: 結果キャッシュ(tryResultCache/storeResult)と較正キャッシュ(_calibCache)の共通キー。
@@ -883,7 +883,9 @@ function _litProgChars(frac){
   const kids=el.children; const lit=Math.max(0,Math.min(kids.length,Math.ceil((frac||0)*kids.length)));
   for(let i=0;i<kids.length;i++) kids[i].classList.toggle('lit', i<lit);
 }
-function _updateSimProgress(completedSteps, totalSteps, baselineTurn, startTime){
+// lsActive: C37 局所探索が1本でも走っているか。LS はターン単位の進捗を出さないため、
+// ターン数ベースの ETA は「残り約 10s」などと大きく過小に出る＝嘘をつく。LS 中は残り時間を出さない。
+function _updateSimProgress(completedSteps, totalSteps, baselineTurn, startTime, lsActive){
   const pct=totalSteps>0?Math.min(100,completedSteps/totalSteps*100):0;
   const fill=document.getElementById('sim-prog-fill');
   if(fill) fill.style.width=pct+'%';
@@ -897,10 +899,14 @@ function _updateSimProgress(completedSteps, totalSteps, baselineTurn, startTime)
     c.classList.toggle('current', t===baselineTurn+1); }
   // ETA: 完了ステップあたり平均所要 × 残ステップ(計画 §5.2-3)
   const eta=document.getElementById('sim-prog-eta');
-  if(eta && completedSteps>0){
+  if(eta && (completedSteps>0 || lsActive)){
     const elapsed=(performance.now()-startTime)/1000;
-    const remain=Math.max(0,totalSteps-completedSteps)*(elapsed/completedSteps);
-    eta.textContent=`経過 ${Math.round(elapsed)}s ・ 残り約 ${Math.round(remain)}s`;
+    if(lsActive){
+      eta.textContent=`経過 ${Math.round(elapsed)}s ・ 押し順を最適化中（残り時間は不定）`;
+    } else {
+      const remain=Math.max(0,totalSteps-completedSteps)*(elapsed/completedSteps);
+      eta.textContent=`経過 ${Math.round(elapsed)}s ・ 残り約 ${Math.round(remain)}s`;
+    }
   }
 }
 
@@ -989,6 +995,18 @@ function runSim(){
 
   // Phase5-S2: per-turn 進捗(総ステップ=本探索タスク数×n)。較正phase中はバー据置＋テキスト表示。
   const totalSteps=(prefixes.length+1)*n; let completedSteps=0; const turnByRoot={}; let startTime=performance.now();
+  // C37: 局所探索中のルート -> {sweep,evals,accepted}。LS は全ターン完遂後に数分走り、その間ターン進捗が
+  // 一切動かない（バーが 10/10 で止まって見える＝ハングと区別できない）ため、活動を別途表示する。
+  const lsByRoot={};
+  const _lsActive=()=>Object.keys(lsByRoot).length>0;
+  function _setProgText(){
+    const head=`ルート ${done}/${mainTasks?mainTasks.length:0} 計算中(${poolSize}並列)…`;
+    const ids=Object.keys(lsByRoot);
+    if(!ids.length){ prog.textContent=head; return; }
+    let ev=0, acc=0;
+    for(const k of ids){ ev+=lsByRoot[k].evals; acc+=lsByRoot[k].accepted; }
+    prog.textContent=`${head} 押し順を最適化中 ${ids.length}本（評価 ${ev.toLocaleString()} ・ 改善 ${acc}件）`;
+  }
   _initSimProgress(n);
   if(phase==='calib') prog.textContent=`較正中… (${calibTasks.length}候補)`;
   else _litProgChars(1);   // C16 体感改善 B1: 較正skip(キャッシュ命中/override確定)時は全キャラ点灯で本探索へ
@@ -1028,7 +1046,13 @@ function runSim(){
       if(d.type==='progress'){
         const prev=turnByRoot[d.rootId]||0;
         if(d.t>prev){ completedSteps+=(d.t-prev); turnByRoot[d.rootId]=d.t; }
-        _updateSimProgress(completedSteps, totalSteps, turnByRoot['baseline']||0, startTime);
+        _updateSimProgress(completedSteps, totalSteps, turnByRoot['baseline']||0, startTime, _lsActive());
+        return;
+      }
+      if(d.type==='lsProgress'){
+        lsByRoot[d.rootId]={sweep:d.sweep, evals:d.evals, accepted:d.accepted};
+        _setProgText();
+        _updateSimProgress(completedSteps, totalSteps, turnByRoot['baseline']||0, startTime, true);
         return;
       }
       if(d.type==='calibResult'){
@@ -1038,10 +1062,10 @@ function runSim(){
         if(done>=calibTasks.length){ finishCalib(); return; }
         dispatch(w); return;
       }
-      if(d.type==='rootResult') rootResults.push(d);
+      if(d.type==='rootResult'){ rootResults.push(d); delete lsByRoot[d.rootId]; }
       else if(d.type==='baselineResult') baseDmg=d.baseDmg;
       done++;
-      prog.textContent=`ルート ${done}/${mainTasks.length} 計算中(${poolSize}並列)…`;
+      _setProgText();
       if(done>=mainTasks.length){ onAllDone(); return; }
       dispatch(w);
     };
@@ -1084,7 +1108,9 @@ function _fallbackRunSim(heroKey,kamihimeKeys,n){
     function nextRoute(){
       if(_simCancelled) return;  // Phase5-S3: 中断でフォールバックループ停止
       if(i<prefixes.length){
-        prog.textContent=`ルート ${i+1}/${prefixes.length} 計算中(非並列フォールバック)…`;
+        // C37: フォールバックは同期実行のため LS 中も再描画されない（onLS を渡しても表示は更新できない）。
+        // ∴ 着手前に「探索＋最適化」と明示して、無反応区間が想定内であることを伝える。
+        prog.textContent=`ルート ${i+1}/${prefixes.length} 計算中(非並列フォールバック・探索＋押し順最適化)…`;
         setTimeout(()=>{
           if(_simCancelled) return;
           const r=_runRootPlan(prefixes[i],n,()=>{ completedSteps++; });
@@ -1692,7 +1718,7 @@ export function setCurrentSubs(v){ CURRENT_SUBS = v; }
 // let 宣言（CHARS/ABIL/ELEM/LEADER/LABEL 等）は buildFormation が再代入する live binding。
 export {
   Sim, buildFormation, applyGear, applyEnemy, recalcGearK, recalcGearKCFromDispAtk,
-  _runRootPlan, _runBaselinePlan, enumerateRootPrefixes, _selectRootPrefixes, _replayResult, _refineRoute,
+  _runRootPlan, _runBaselinePlan, enumerateRootPrefixes, _selectRootPrefixes, _replayResult, _localSearchRoute, _refineRoute,
   setStaticOverride, getStaticOverride, calibrateStaticScores, calibrationShortlist, _runCalibrationProbe,
   tryResultCache, storeResult, _resultCache, _resultKey, ENGINE_VERSION, exportResultCache, importResultCache,
   GEAR, DMG, BG, GEAR_K_C, CHARS, ABIL, ownerOf, ELEM, LEADER, LABEL,
