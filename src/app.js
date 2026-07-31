@@ -116,10 +116,11 @@ const DISPLAY_ATK_OVERRIDE_BY_FORMATION = {
   //    そのキャッシュの探索ルートは旧ATKスケール計算。M走(押し順自由)には非影響・
   //    序数diffの較正前基準順はheadless再探索で取り直す(sim04/README §2 注記)。
   edison:   { edison: 96756, yamato: 75898, hecate: 73727, tetra: 81887, elaine: 82248 },
-  // configC（sim05 移行編成・ナポレオン基軸）＝ユーザー実機表示値 2026-07-27 受領（暫定configC）。
-  // 共有キャラ(hecate/tetra/elaine)が configB より高いのは装備強化の進行＝**編成差ではなく時点差**。
+  // configC（sim05 移行編成・ナポレオン基軸）＝**proper configC**・ユーザー実機表示値 2026-07-31 受領（0-fudge）。
+  // 旧暫定値(2026-07-27): 102288/75558/83718/77297/85054。全キャラで上振れ＝装備強化の進行。
+  // 共有キャラ(hecate/tetra/elaine)が configB より高いのは**編成差ではなく時点差**。
   // Lv: hecate=80 / tetra=95 / arianrhod=80 / elaine=95（override 優先のため lvCap 推定は非経路）。
-  napoleon: { napoleon: 102288, hecate: 75558, tetra: 83718, arianrhod: 77297, elaine: 85054 },
+  napoleon: { napoleon: 107861, hecate: 78269, tetra: 86429, arianrhod: 81631, elaine: 88380 },
 };
 // 現編成(英霊キー)の実機表示ATK override を引く。未登録編成は {}＝満凸推定へフォールバック。
 function displayAtkOverrideFor(heroKey){ return DISPLAY_ATK_OVERRIDE_BY_FORMATION[heroKey] || {}; }
@@ -133,8 +134,9 @@ function displayAtkOverrideFor(heroKey){ return DISPLAY_ATK_OVERRIDE_BY_FORMATIO
 const DISPLAY_HP_OVERRIDE_BY_FORMATION = {
   // configB（sim04 較正編成）＝凍結。2026-07-16 装備強化後の実機値(旧: 9689/7628/8332/8332/8345)。
   edison:   { edison: 12252, yamato: 9668, hecate: 10495, tetra: 10870, elaine: 11513 },
-  // configC（sim05 移行編成）＝ユーザー実機表示値 2026-07-27 受領（暫定configC・ATKと同一出典）。
-  napoleon: { napoleon: 12677, hecate: 10714, tetra: 11089, arianrhod: 10119, elaine: 11807 },
+  // configC（sim05 移行編成）＝**proper configC**・ユーザー実機表示値 2026-07-31 受領（0-fudge）。
+  // 旧暫定値(2026-07-27): 12677/10714/11089/10119/11807。
+  napoleon: { napoleon: 13545, hecate: 11300, tetra: 11675, arianrhod: 10840, elaine: 12456 },
 };
 function displayHpOverrideFor(heroKey){ return DISPLAY_HP_OVERRIDE_BY_FORMATION[heroKey] || {}; }
 
