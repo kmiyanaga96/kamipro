@@ -16,7 +16,7 @@
 | [`arianrhod`](arianrhod.md) | アリアンロッド[健美端麗] | `arianrhod` | §3 に A0〜A9 の登録較正記録 |
 | [`artemis`](artemis.md) | アルテミス[神想真化] | `artemis` | AnotherLink（サブ枠アシスト） |
 | [`freyja`](freyja.md) | フレイヤ[聖夜の約束] | `freyja_christmas` | サブ枠アシスト（ストリーク） |
-| [`metatron`](metatron.md) | メタトロン[神想真化] | `metatron` | **2026-07-31 登録**。§3 に **A0〜A10**。⚠**HP依存の3機構が未モデル化**（A2/A3＝ピンチ時バースト性能大幅UP・HP25%以下の攻撃ダメージUP）＝**実機ポテンシャルより弱く出る** |
+| [`metatron`](metatron.md) | メタトロン[神想真化] | `metatron` | **2026-07-31 登録**。**アルテミスと並べて“サブ運用”が前提**＝意味を持つのは AnotherLink（`subAssists`）のみで**アビリティ実装は凍結**。★**A7（AnotherLink の重複規則）が最優先の要実機**。HP依存機構は `反逆` 編成のものでスコープ外（§3.4） |
 
 > 英霊（エジソン／ナポレオン）は [`../英霊/`](../英霊/) 配下。
 
