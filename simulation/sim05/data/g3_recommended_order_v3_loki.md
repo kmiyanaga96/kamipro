@@ -3,7 +3,11 @@
 > **種別**: 分析（headless 抽出物・実走プロトコルの入力）
 > **ゴール**: 較正ボスを loki へ切替え、C37 局所探索を実装した現行エンジンで、production 同経路の推奨押し順を再取得する。
 > **完了条件**: 実走（trialNN）で本順が実行され §A 逸脱記録・§B tier 観測が得られたら役割終了。
-> **状態**: **抽出済み（2026-07-31 v3）・実走待ち**
+> **状態**: ❌ **無効（2026-07-31 同日中に supersede）→ 現行は [`g3_recommended_order_v4_proper.md`](g3_recommended_order_v4_proper.md)**
+> 無効化の理由（3点とも押し順を動かす）: ①**表示ATK が暫定値**だった（proper は全キャラ +2.7〜5.6%）
+> ②**GEAR が旧 placeholder**（assault 3.06→3.204・vigor 0.6876→0.9666・acute 0.144→0.288・abi_dmg 2.52→**1.8**・burst_dmg 5.22→6.39 等）
+> ③**override が宿儺時代の `{pactcore:1, effond:120}` の流用で誤り**（正 `{judg:130, pactcore:1}`）。
+> ⚠ ただし §4 の「prefix 分散が空回り」という観測自体は v4 でも再現しており、そちらは有効（→ `search_quality_experiments` §12/§13）。
 > 作成 2026-07-31 ／ ハーネス `tools/extract_order_loki.mjs` ／ 生データ `g3_v3_loki.json`
 >
 > ⚠ **v2（2026-07-27・両面宿儺）は全面的に無効**: ①較正ボスが loki へ切替（B1/B4）②C37 局所探索の導入で押し順が変わる
