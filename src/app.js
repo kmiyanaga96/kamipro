@@ -10,7 +10,7 @@ import { ENEMY_REGISTRY } from '../gamedata/js/enemies.js';
 import { CHAR_REGISTRY } from '../gamedata/js/characters.js';
 
 import { RENRI_CAP, RENRI_MAX, JUDG_REACT, TENYA_FROM, FB_THR, MACH_BG, KEIGYO_MAX, BEAM_W, PREFIX_TOPK, BEAM_DIVERSITY_K, IFISHANT_MIN_CD, LS_MAX_EVALS, BG, DMG, DMG_DEFAULTS } from './constants.js';
-import { Sim, cmpVec, enumerateRootPrefixes, _runRootPlan, _runRouteLS, _runBaselinePlan, _staticPrefixDmg, _selectRootPrefixes, _replayResult, _localSearchRoute, _refineRoute } from './sim.js';
+import { Sim, cmpVec, enumerateRootPrefixes, _runRootPlan, _runRouteLS, _runBaselinePlan, _staticPrefixDmg, _selectRootPrefixes, _replayResult, _localSearchRoute, _LSReplay, _refineRoute } from './sim.js';
 
 
 let CURRENT_ENEMY_KEY = 'default';
@@ -1787,7 +1787,7 @@ export function setCurrentSubs(v){ CURRENT_SUBS = v; }
 // let 宣言（CHARS/ABIL/ELEM/LEADER/LABEL 等）は buildFormation が再代入する live binding。
 export {
   Sim, buildFormation, applyGear, applyEnemy, recalcGearK, recalcGearKCFromDispAtk,
-  _runRootPlan, _runRouteLS, _runBaselinePlan, enumerateRootPrefixes, _selectRootPrefixes, _replayResult, _localSearchRoute, _refineRoute,
+  _runRootPlan, _runRouteLS, _runBaselinePlan, enumerateRootPrefixes, _selectRootPrefixes, _replayResult, _localSearchRoute, _LSReplay, _refineRoute,
   setStaticOverride, getStaticOverride, calibrateStaticScores, calibrationShortlist, _runCalibrationProbe,
   tryResultCache, storeResult, _resultCache, _resultKey, ENGINE_VERSION, exportResultCache, importResultCache,
   GEAR, DMG, BG, GEAR_K_C, CHARS, ABIL, ownerOf, ELEM, LEADER, LABEL,

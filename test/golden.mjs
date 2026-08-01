@@ -14,11 +14,11 @@
 //     ⚠ napoleon 値は静的greedy＝beam最適ではない。buffCount/閾値の実機修正（sim05・点1/2）後に再fit予定＝
 //        「回帰ガード」であって「較正確定値」ではない。beam版の napoleon 回帰は将来 test:golden:full 等へ。
 //
-// ── 実測コスト（2026-07-30 再計測・C37 局所探索の導入で増加）──
-//   `npm run test:golden` 全体 = **約10分**（edison が各 ~60s のビーム ＋ 局所探索 324s/177s ／ napoleon は瞬時）。
-//   ⚠ ツール実行の 600秒上限を超えるため、**背景実行（run_in_background）が必須**。
-//   内訳: LS の評価回数 raw 177,961 / cal 124,152（1評価 ≈ 1.4〜1.8ms）。ターン跨ぎ swap が評価の約73%を占める。
-//   参考: napoleon フルビーム 10T（configC・両面宿儺）は 1ルート ~127s。edison configB は 1ルート ~62s。
+// ── 実測コスト（2026-08-01 再計測・LS 高速化後）──
+//   `npm run test:golden` 全体 = **4分07秒**（edison が各 ~43s のビーム ＋ 局所探索 計 ~161s ／ napoleon は瞬時）。
+//   ⚠ 600秒上限に近いため、**背景実行（run_in_background）が必須**。旧値は約10分（C27 時代は116秒）。
+//   内訳: LS の評価回数 raw 177,961 / cal 124,152 は**高速化後も不変**（1評価 1.27ms→**0.63ms**）。
+//   ターン跨ぎ swap が評価の約73%を占める。参考: napoleon フルビーム 10T（configC・両面宿儺）は 1ルート ~130s。
 //   ⚠**コード内の性能数値は測定条件が不明なら実験計画の前提にしないこと**（実測してから使う）。詳細 CALIBRATION_ANALYSIS C37。
 //
 // 検証値の根拠・変更履歴は CALIBRATION_ANALYSIS.md の該当 Cx 行と git log を正とする。

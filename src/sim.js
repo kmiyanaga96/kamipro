@@ -304,7 +304,33 @@ class Sim {
 
   // key一致の候補をクローン上で実行（exec内のthisはクローン）。**実行できたら true**（不成立=CD中/契晶不足/
   // guard不成立/abilCap到達 なら候補に現れず false）。戻り値は forcedKeys リプレイの正規化に使う（下記）。
-  _execKey(key){ const m=this._candidates().find(x=>x.key===key); if(m){ m.exec(); return true; } return false; }
+  //
+  // 2026-08-01: 旧実装は `this._candidates().find(...)` ＝1押下ごとに**全候補の配列とクロージャを構築**して
+  // から1件を探していた。ここは forced リプレイ（LS の評価）とビーム展開の両方のホットパスなので、
+  // `_stepStatic` と同じく **ABIL_KEYS を1パス走査して一致したら即実行**へ書き換える（配列/クロージャ非構築）。
+  // ⚠**完全同値**である根拠: ①走査順・フィルタ（abilCap→cd→契晶→guard→variants）は `_candidates` と同一
+  //   ②`find` は最初の一致を返す＝短絡と同じ ③`guard`/`s`/`variants` は**すべて純粋な参照**（副作用なし）を
+  //   確認済みのため、一致より後ろのキーを評価しなくても状態は変わらない。`s` は本関数では未使用（採点しない）。
+  _execKey(key){
+    const sim=this, T=this.T, ord=this.ord, bset=this.bset, t=this._t;
+    if(DMG.enemy_abil_cap!=null && T.ability>=DMG.enemy_abil_cap) return false;
+    for(const k of ABIL_KEYS){
+      if(sim.cd[k]!==0) continue;
+      const kc=ABIL_KC[k];
+      if(kc&&sim.keigyo<kc) continue;
+      const cand=ABIL_CANDS[k];
+      if(!cand) continue;
+      if(cand.guard&&!cand.guard(sim,T,t)) continue;
+      if(cand.variants){  // variants は合成key(enchant_t3 等)を持つため展開して照合する
+        for(const v of cand.variants(sim,T,t)) if(v.key===key){ v.exec(sim,T,ord,bset,t); return true; }
+        continue;
+      }
+      if(k!==key) continue;
+      if(cand.exec) cand.exec(sim,T,ord,bset,t); else sim.use(k,T,ord);
+      return true;
+    }
+    return false;
+  }
 
   // リプレイモード用: CDチェックのみ行いguardをスキップして実行。実行した場合trueを返す。
   _execKeyNoGuard(key){
@@ -525,6 +551,20 @@ class Sim {
     if(this.T){ s.T={...this.T}; s.ord=this.ord.slice(); s.bset=new Set(this.bset); s._t=this._t; }
     return s;
   }
+
+  // LS のインクリメンタル replay（`_LSReplay`）専用の**忠実スナップショット**。`clone()` との差は2点だけ:
+  //   ①**planDepth を上げない**。復元シムは planDepth=0 の実ターンとして再生されねばならず
+  //     （`_primeLookaheads` が内部で `clone()` して +1 するため、深度がズレると lookahead の挙動が
+  //     fresh replay と変わる）。
+  //   ②**`_naOwner` を引き継ぐ**。`clone()` はこれを落とすが fresh replay では前ターンの値が残っており、
+  //     `_na()` の自己バフ枠（ムーンコード / アリアン2アビ self / フレイヤ1アシ）が `_naOwner` を読むため、
+  //     引き継がないと**ターン頭の評価がズレる**（napoleon/configC で実測 −90万／edison では arSelf・mc が
+  //     不成立のため差ゼロ）。⚠ これは「`_naOwner` が一時値なのにターンを跨いで残留する」という
+  //     **既存の設計上の不整合**（`clone()` が落とす＝ビーム側も本線と条件が食い違う）に由来する。
+  //     ここでは**現行挙動を1円も変えないこと**を最優先に残留値をそのまま複製する。是非は C39 で扱う。
+  _snapshotForReplay(){
+    const s=this.clone(); s.planDepth=this.planDepth; s._naOwner=this._naOwner; return s;
+  }
 }
 
 // 辞書式ベクトル比較: a>b なら正・a<b なら負・等しければ0
@@ -590,6 +630,46 @@ function _runRouteLS(prefix, turnsKeys, n, onLS){
   return {prefix, dmg:rep.dmg, rows:rep.rows, improved:ls.improved, evals:ls.evals};
 }
 
+// LS 評価のインクリメンタル replay（2026-08-01・**結果不変**の高速化）。
+// LS の近傍候補は現ルート `cur` と **最初に異なるターン t0 以降しか変化しない**（move/swap のいずれも
+// t0 より前のターンのキー列を触らない）。各ターン開始時の Sim をスナップショットしておけば、
+// 1評価あたりの再生は n ターンではなく **n-t0 ターン**で済む。
+//
+// ⚠不変条件（これを崩すと golden 再fit が要る＝やってはいけない）:
+//   ①評価値は full replay と**ビット一致**。同一キー列前置き ⇒ 同一状態、が根拠。
+//     復元は `_snapshotForReplay()`（planDepth 非加算＋`_naOwner` 引継ぎ）で行う＝そのコメント参照。
+//   ②走査順・受理順は一切変えていない（受理のたびに `rebase` でスナップショットを張り直すだけ）＝
+//     着地する局所最適は同一。∴ **golden 値は不変**。
+//   ③`curDmg` は受理時に `rebase`（= full replay 相当）の戻り値を採る＝旧実装と同じ「full replay 値」。
+// gmax は clone がコピーしないが `new Sim()` が CHAR_DEF から同値を再構築する（既存 clone と同じ前提）。
+class _LSReplay {
+  constructor(n){ this.n=n; this.keys=null; this.snaps=null; this.dmg=0; }
+  // 基準ルートを全再生し snaps[t] = **ターン t+1 開始前**の Sim を保持。総ダメージを返す。
+  rebase(turnsKeys){
+    const n=this.n, snaps=new Array(n);
+    const sim=new Sim(); sim.totalTurns=n;
+    for(let t=0;t<n;t++){ snaps[t]=sim._snapshotForReplay(); sim.greedyTakeTurn(t+1, turnsKeys[t]||[]); }
+    this.keys=turnsKeys.map(a=>a.slice()); this.snaps=snaps; this.dmg=sim.dmg;
+    return this.dmg;
+  }
+  // 候補の総ダメージ。基準と一致するターンはスナップショットで飛ばす。
+  dmgOf(turnsKeys){
+    const n=this.n, base=this.keys;
+    let t0=0;
+    for(; t0<n; t0++){
+      const a=base[t0]||[], b=turnsKeys[t0]||[];
+      if(a.length!==b.length) break;
+      let same=true;
+      for(let i=0;i<a.length;i++) if(a[i]!==b[i]){ same=false; break; }
+      if(!same) break;
+    }
+    if(t0>=n) return this.dmg;  // 完全一致（同一キーの swap 等）
+    const sim=this.snaps[t0]._snapshotForReplay();
+    for(let t=t0;t<n;t++) sim.greedyTakeTurn(t+1, turnsKeys[t]||[]);
+    return sim.dmg;
+  }
+}
+
 // C37 局所探索（whole-route・単調安全・決定的）: 確定した per-turn キー列に対し3種の近傍を総当たりし、
 // 10T総ダメージが**厳密に増える時のみ**採用する。改善が尽きるまで sweep を反復して局所最適で停止。
 //   ①ターン内 move（i→j へ挿入移動）②ターン内 swap（2点交換）③ターン跨ぎ swap（別ターンの1手と交換）
@@ -610,16 +690,19 @@ function _runRouteLS(prefix, turnsKeys, n, onLS){
 // onProgress(info) は副作用専用の進捗フック（省略可）。`LS_PROGRESS_EVERY` 評価ごとに
 // {sweep, evals, accepted, dmg, baseDmg} を渡す。**カウンタを読むだけで探索には一切影響しない**
 // （フックの有無で結果が変わらないこと＝golden が `_localSearchRoute(keys,10)` を無フックで呼ぶ前提）。
+//
+// 評価は `_LSReplay` のインクリメンタル replay を通す（2026-08-01・**結果不変の高速化のみ**）。
 function _localSearchRoute(turnsKeys, n, onProgress){
   let cur=turnsKeys.map(a=>a.slice());
-  let curDmg=_replayResult(cur, n).dmg;
+  const rc=new _LSReplay(n);
+  let curDmg=rc.rebase(cur);
   const baseDmg=curDmg;
   let evals=0, improved=true, sweep=0, accepted=0, nextReport=LS_PROGRESS_EVERY;
   const tryCand=(cand)=>{
     evals++;
-    const d=_replayResult(cand, n).dmg;
+    const d=rc.dmgOf(cand);
     let ok=false;
-    if(d>curDmg+1){ cur=cand; curDmg=d; accepted++; ok=true; }
+    if(d>curDmg+1){ cur=cand; curDmg=rc.rebase(cur); accepted++; ok=true; }
     if(onProgress && evals>=nextReport){
       nextReport=evals+LS_PROGRESS_EVERY;
       onProgress({sweep, evals, accepted, dmg:curDmg, baseDmg});
@@ -733,4 +816,4 @@ function _selectRootPrefixes(n){
 }
 
 
-export { Sim, cmpVec, enumerateRootPrefixes, _runRootPlan, _runRouteLS, _runBaselinePlan, _staticPrefixDmg, _selectRootPrefixes, _replayResult, _localSearchRoute, _refineRoute };
+export { Sim, cmpVec, enumerateRootPrefixes, _runRootPlan, _runRouteLS, _runBaselinePlan, _staticPrefixDmg, _selectRootPrefixes, _replayResult, _localSearchRoute, _LSReplay, _refineRoute };
