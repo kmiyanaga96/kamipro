@@ -57,6 +57,8 @@
 | `exp_loki_stability.mjs` | **B4＝較正ボス切替（`walpurgis_loki`）の受入検証**。実験2/B1 と同一手続きで ATK 感度を再測（`node tools/exp_loki_stability.mjs <scale>`・1.00 を先に走らせて基準キー列を保存）。ビームのみ＝LS を通さない（後処理の強さと交絡させないため）（§11） |
 | `exp_ls_incremental_verify.mjs` | **LS インクリメンタル replay（`_LSReplay`）の結果不変性 回帰**。edison / napoleon×宿儺 の2 config で、LS 近傍3種を網羅サンプリングし `_LSReplay.dmgOf` と full `_replayResult` の **ビット一致**＋受理後（rebase 後）の一致を検証し、1評価あたりのコスト比も出す。所要 **約4分**（内訳はビーム 2本＝43s＋130s）。**`_replayResult` / `_execKey` / `clone` / `_snapshotForReplay` を触ったら必ず回す**（C39 を検出したのがこのハーネス） |
 
+| `exp_t1_abilcap_sweep.mjs` | **§4.4.4 ③-b＝T1 の押下上限を外すとシムの T1 ダメージはどこまで伸びるか**（`DMG.enemy_abil_cap` を掃引・静的greedy で cap 以外を揃える）。実測: cap=19→16.3% / 無制限→**24.8%（×1.52・30手で自然枯渇）**＝実機の ×2.43 の**約2/3までしか説明しない**。冒頭で既知ルートのリプレイ bit 一致（E2）を自己検証してから測る。数秒 |
+
 ### 共通の注意
 
 - **config は各スクリプト冒頭にハードコード**（GEAR/サブ枠/英霊武器/敵/override）。**編成や config を変えるときは、まず既知値との bit 一致を確認してから**回すこと（E2。`napo_burst_cd_reduce`・`betaia_*`・`CURRENT_SUBS` は `_configSig` に含まれないため、キャッシュJSONを読むだけでは検出できない）。
