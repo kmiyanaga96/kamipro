@@ -10,7 +10,7 @@ const STALE = { napoleon:30041, hecate:73727, tetra:81887, arianrhod:31737, elai
 const CORRECT = displayAtkOverrideFor('napoleon');
 
 // ユーザーキャッシュの順
-const cache = JSON.parse(fs.readFileSync('/home/user/kamipro/simulation/sim05/data/config_sukuna.json','utf8'));
+const cache = JSON.parse(fs.readFileSync('/home/user/kamipro/archive/caches/sim05_sukuna.json','utf8'));
 const userOrder = cache.entries[0][1].turnsKeys;
 const userDmgRecorded = cache.entries[0][1].dmg;
 

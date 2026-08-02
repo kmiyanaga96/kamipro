@@ -33,7 +33,7 @@ function setup(enemy){
 }
 // ── E2: 環境（GEAR/subs/ATK/英霊武器）の再現検証。敵だけが本番と異なる。
 setup('ryomen_sukuna');
-const c=JSON.parse(fs.readFileSync('/home/user/kamipro/simulation/sim05/data/config_sukuna_v2.json','utf8')).entries[0][1];
+const c=JSON.parse(fs.readFileSync('/home/user/kamipro/archive/caches/sim05_sukuna_v2.json','utf8')).entries[0][1];
 recalcGearKCFromDispAtk(c.dispAtk); setStaticOverride(c.override||{});
 const chk=Math.round(_replayResult(c.turnsKeys,10).dmg);
 if(chk!==Math.round(c.dmg)){ console.log(`  ❌環境再現 失敗: ${chk.toLocaleString()} != ${Math.round(c.dmg).toLocaleString()}`); process.exit(1); }

@@ -21,7 +21,7 @@ function setup(){
 }
 // ── E2: config 再現の検証（cap=19 のまま・override {}・正しいATK → 1,988,538,373）
 setup();
-const c=JSON.parse(fs.readFileSync('/home/user/kamipro/simulation/sim05/data/config_sukuna_v2.json','utf8')).entries[0][1];
+const c=JSON.parse(fs.readFileSync('/home/user/kamipro/archive/caches/sim05_sukuna_v2.json','utf8')).entries[0][1];
 recalcGearKCFromDispAtk(c.dispAtk); setStaticOverride(c.override||{});
 const chk=Math.round(_replayResult(c.turnsKeys,10).dmg);
 if(chk!==Math.round(c.dmg)){ console.log(`  ❌config再現 失敗: ${chk.toLocaleString()} != ${Math.round(c.dmg).toLocaleString()}`); process.exit(1); }

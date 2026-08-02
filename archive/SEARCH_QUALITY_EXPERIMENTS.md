@@ -142,7 +142,7 @@ prefix=`[factor]` 固定・ATK スケールのみ変更。
 
 ## 6b. B1: abilCap の切り分け — **原因は abilCap 19 で確定**
 
-§6 で未分離だった2候補（アリアン holy か abilCap か）を分離。**敵を入れ替えると cap/def/barrier が同時に動く**ため、**両面宿儺のまま `DMG.enemy_abil_cap=null` だけを上書き**して1変数のみを変えた（実験2との差分はこの1点）。E2 に従い実験前に `config_sukuna_v2.json` の記録値 1,988,538,373 とのリプレイ bit 一致を確認済み。
+§6 で未分離だった2候補（アリアン holy か abilCap か）を分離。**敵を入れ替えると cap/def/barrier が同時に動く**ため、**両面宿儺のまま `DMG.enemy_abil_cap=null` だけを上書き**して1変数のみを変えた（実験2との差分はこの1点）。E2 に従い実験前に `archive/caches/sim05_sukuna_v2.json` の記録値 1,988,538,373 とのリプレイ bit 一致を確認済み。
 
 | ATK | cap=19（実験2・再掲） | **cap=null（B1）** |
 |---|---|---|
@@ -351,7 +351,7 @@ B1 は「両面宿儺のまま `abilCapPerTurn` だけ無効化」という**反
 敵のみ loki（def10暫定 / HP9.8億 / 幻・affinity1.5 / **barrier も abilCapPerTurn も無し**）。
 **⚠ ビームのみ（局所探索は通さない）**＝実験2/B1 は C27 リファイン経由だが当編成では C27 が発火しない（§6e）ため
 実質ビーム単体で、**同一条件の比較になる**。LS を挟むと後処理の強さが交絡して「探索が安定したか」を測れない。
-E2 に従い実験前に `config_sukuna_v2.json` の記録値 1,988,538,373 とのリプレイ bit 一致を確認済み（環境=GEAR/subs/ATK/英霊武器の再現検証）。
+E2 に従い実験前に `archive/caches/sim05_sukuna_v2.json` の記録値 1,988,538,373 とのリプレイ bit 一致を確認済み（環境=GEAR/subs/ATK/英霊武器の再現検証）。
 
 | ATK | 実験2: 宿儺 cap=19 | B1: 宿儺 cap=null | **B4: loki** |
 |---|---|---|---|
