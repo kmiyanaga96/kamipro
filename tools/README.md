@@ -35,7 +35,7 @@
 > なお `_refineRoute` を import するハーネス（`c27_refine_probe` / `exp_c27_vs_localsearch{,_edison}` / `exp_beam_width_sweep` / `exp_local_search_control` /
 > `ml_fit_static`）を壊さないため、`_refineRoute` は export ごと残置している。
 
-**C37/C38 の根拠となった数値を出したスクリプト。結果と解釈は `simulation/sim05/search_quality_experiments.md` が正**（本表は「どの数値がどのスクリプト由来か」の対応のみ）。
+**C37/C38 の根拠となった数値を出したスクリプト。結果と解釈は `archive/SEARCH_QUALITY_EXPERIMENTS.md` が正**（本表は「どの数値がどのスクリプト由来か」の対応のみ）。
 
 | スクリプト | 出した数値（→ 実験記録の節） |
 |---|---|
@@ -56,10 +56,11 @@
 | `extract_order_loki.mjs` | **推奨押し順の抽出**（G3）。①全 prefix をビームのみで採点 → ①-b キー列で重複除去を実測 → ②上位N本に局所探索 → 最良。引数=LS対象本数（既定3）。⚠**1回約1時間**。⚠2026-07-31 以降、実走は**実機勘のフリー押し**方針のため本ハーネスの出力は**参考値**（`record_skeleton.md` 冒頭） |
 | `exp_loki_stability.mjs` | **B4＝較正ボス切替（`walpurgis_loki`）の受入検証**。実験2/B1 と同一手続きで ATK 感度を再測（`node tools/exp_loki_stability.mjs <scale>`・1.00 を先に走らせて基準キー列を保存）。ビームのみ＝LS を通さない（後処理の強さと交絡させないため）（§11） |
 | `exp_ls_incremental_verify.mjs` | **LS インクリメンタル replay（`_LSReplay`）の結果不変性 回帰**。edison / napoleon×宿儺 の2 config で、LS 近傍3種を網羅サンプリングし `_LSReplay.dmgOf` と full `_replayResult` の **ビット一致**＋受理後（rebase 後）の一致を検証し、1評価あたりのコスト比も出す。所要 **約4分**（内訳はビーム 2本＝43s＋130s）。**`_replayResult` / `_execKey` / `clone` / `_snapshotForReplay` を触ったら必ず回す**（C39 を検出したのがこのハーネス） |
-| `exp_t1_abilcap_sweep.mjs` | **§4.4.4 ③-b＝T1 の押下上限を外すとシムの T1 ダメージはどこまで伸びるか**（`DMG.enemy_abil_cap` を掃引・静的greedy で cap 以外を揃える）。実測: cap=19→16.3% / 無制限→**24.8%（×1.52・30手で自然枯渇）**＝実機の ×2.43 の**約2/3までしか説明しない**。冒頭で既知ルートのリプレイ bit 一致（E2）を自己検証してから測る。数秒 |
+| `exp_t1_abilcap_sweep.mjs` | **sim05 README §4.4.1＝T1 の押下上限を外すとシムの T1 ダメージはどこまで伸びるか**（`DMG.enemy_abil_cap` を掃引・静的greedy で cap 以外を揃える）。実測: cap=19→16.3% / 無制限→**24.8%（×1.52・30手で自然枯渇）**＝実機の ×2.43 の**約2/3までしか説明しない**。冒頭で既知ルートのリプレイ bit 一致（E2）を自己検証してから測る。数秒 |
 
 ### 共通の注意
 
 - **config は各スクリプト冒頭にハードコード**（GEAR/サブ枠/英霊武器/敵/override）。**編成や config を変えるときは、まず既知値との bit 一致を確認してから**回すこと（E2。`napo_burst_cd_reduce`・`betaia_*`・`CURRENT_SUBS` は `_configSig` に含まれないため、キャッシュJSONを読むだけでは検出できない）。
 - `exp_atk_sensitivity_*` / `exp_abilcap_isolation` / `exp_horizon_sensitivity` は **引数でスケール/ホライズンを指定し、1条件=1プロセス**で回す設計（E8）。基準条件の押し順を JSON に落として次の条件が読む。
+- **E2 アンカーの JSON は `archive/caches/` へ退避済み**（2026-08-02 の sim05 整理）。`exp_loki_stability` / `exp_abilcap_isolation` / `exp_order_compare` が読む `sim05_sukuna{,_v2}.json` がそれ。⚠**これらは engineVersion `sim04-abscal-C31C34-calib` ＝C37（押し順）と C39（ダメージモデル）の2世代前**なので、**記録値との bit 一致はもう成立しない**（＝E2 ゲートで止まる）。再実行するなら現行エンジンでアンカーを取り直すこと。出した数値そのものは `archive/SEARCH_QUALITY_EXPERIMENTS.md` が正。
 - 出力先の JSON パスが `/tmp/.../scratchpad` を指しているものがある。**恒久的に使うなら書き換えること**（scratchpad はセッション毎に消える）。

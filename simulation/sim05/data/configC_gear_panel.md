@@ -2,7 +2,7 @@
 
 > **種別**: 一次情報（ユーザー提供・実機画面転記）
 > **出所**: ユーザーによる実機スクリーンショット＋表示値の直接申告 ／ **受領日**: 2026-07-27 ／ **原文ママ**（本文は書き換えない。訂正は冒頭注記で行う＝damage_frames.md 方式）
-> `config.json`（=configC・探索キャッシュexport・engineVersion `sim04-abscal-C31C34-calib`）を補完する装備の一次記録。スクショは保存しない方針のためテキスト転記（simulation/README「データ成型の原則」）。
+> configC の装備の一次記録（探索キャッシュ `archive/caches/sim05_configC_provisional.json`・engineVersion `sim04-abscal-C31C34-calib` を補完する）。スクショは保存しない方針のためテキスト転記（simulation/README「データ成型の原則」）。
 > 関連: sim05 README §5（golden 干渉・per-formation ATK）・`src/app.js` `DISPLAY_ATK_OVERRIDE_BY_FORMATION.napoleon`
 >
 > ⚠ **暫定configC**（ウェポン強化継続中・Q3 は月末確定予定）。本値は暫定版として受領した時点のスナップショット。
@@ -82,11 +82,13 @@ proper との差は全キャラで上振れ（+2.7%〜+5.6%）＝装備強化の
 | 確率系効果 | 会心効果 ※効果量の期待値 | 22.5% |
 | 確率系効果 | 急所攻撃効果 ※効果量の期待値 | 8.0% |
 
-## 4. パネル値 ↔ config.json 同梱 GEAR の突合（検証済み・2026-07-27）
+## 4. パネル値 ↔ 受領キャッシュ同梱 GEAR の突合（検証済み・2026-07-27）
 
-`config.json` のキー内 GEAR は、**全項目がパネル値 ×1.8 に厳密一致**（＝`weaponAmp=0.8` 適用後の値・`applyGear` の `GEAR[box]+=v/100*(1+weaponAmp)`）:
+<!-- ⚠ 参照先の JSON は 2026-08-02 に `archive/caches/sim05_configC_provisional.json` へ退避（engineVersion 2世代前＝再現不能）。以下の突合結果は転記済みなので本節だけで完結する。 -->
 
-| GEAR キー | config.json 値 | パネル値 | 比 |
+受領キャッシュ内の GEAR は、**全項目がパネル値 ×1.8 に厳密一致**（＝`weaponAmp=0.8` 適用後の値・`applyGear` の `GEAR[box]+=v/100*(1+weaponAmp)`）:
+
+| GEAR キー | キャッシュ値 | パネル値 | 比 |
 |---|---|---|---|
 | assault | 3.06 | 170.0% | ×1.8 |
 | vigor | 0.6876 | 38.2% | ×1.8 |
@@ -103,7 +105,7 @@ proper との差は全キャラで上振れ（+2.7%〜+5.6%）＝装備強化の
 
 - **configB（sim04）との GEAR 差分**: `elem` 0 → **0.54** ／ `dmgup` 0.09 → **0**。ダメージ枠（assault/na/abi/burst の dmg・cap）は configB と同値。
 
-## 5. config.json（受領キャッシュ）の素性
+## 5. 受領キャッシュの素性（実体は `archive/caches/sim05_configC_provisional.json`）
 
 - `engineVersion`: `sim04-abscal-C31C34-calib`（現行エンジンと一致）
 - 敵条件: HP `100,000,000`・affinity `0`・barrier `null`・abilCapPerTurn `null` ＝**デフォルト敵**（両面宿儺ではない）
