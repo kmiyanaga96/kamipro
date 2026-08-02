@@ -547,23 +547,23 @@ class Sim {
     s.keigyo=this.keigyo; s.cum=this.cum; s.renri=this.renri; s.judgPhase=this.judgPhase; s.dmg=this.dmg;
     const buf={}; for(const k in this.buf) buf[k]=this.buf[k].slice(); s.buf=buf;
     for(const k of CHAR_SIM_STATE_KEYS) s[k]=this[k];
+    // C39(b) fix（2026-08-02）: `_naOwner` を複製する。旧実装は落としていたため**ビーム/先読みのクローンだけが
+    // `_naOwner=undefined` から始まり**、本線（連続実行）と `_na()` の評価条件が食い違っていた
+    // （GEAR_K_C の参照先・ムーンコード/アリアン2アビself/フレイヤ1アシの自己バフ枠が `_naOwner` 依存）。
+    // クローンは本線の忠実な複製であるべき＝探索の代理採点から系統ズレを除去する。
+    s._naOwner=this._naOwner;
     s.totalTurns=this.totalTurns; s.planDepth=this.planDepth+1;
     if(this.T){ s.T={...this.T}; s.ord=this.ord.slice(); s.bset=new Set(this.bset); s._t=this._t; }
     return s;
   }
 
-  // LS のインクリメンタル replay（`_LSReplay`）専用の**忠実スナップショット**。`clone()` との差は2点だけ:
-  //   ①**planDepth を上げない**。復元シムは planDepth=0 の実ターンとして再生されねばならず
-  //     （`_primeLookaheads` が内部で `clone()` して +1 するため、深度がズレると lookahead の挙動が
-  //     fresh replay と変わる）。
-  //   ②**`_naOwner` を引き継ぐ**。`clone()` はこれを落とすが fresh replay では前ターンの値が残っており、
-  //     `_na()` の自己バフ枠（ムーンコード / アリアン2アビ self / フレイヤ1アシ）が `_naOwner` を読むため、
-  //     引き継がないと**ターン頭の評価がズレる**（napoleon/configC で実測 −90万／edison では arSelf・mc が
-  //     不成立のため差ゼロ）。⚠ これは「`_naOwner` が一時値なのにターンを跨いで残留する」という
-  //     **既存の設計上の不整合**（`clone()` が落とす＝ビーム側も本線と条件が食い違う）に由来する。
-  //     ここでは**現行挙動を1円も変えないこと**を最優先に残留値をそのまま複製する。是非は C39 で扱う。
+  // LS のインクリメンタル replay（`_LSReplay`）専用の**忠実スナップショット**。`clone()` との差は1点:
+  //   **planDepth を上げない**。復元シムは planDepth=0 の実ターンとして再生されねばならず
+  //   （`_primeLookaheads` が内部で `clone()` して +1 するため、深度がズレると lookahead の挙動が
+  //   fresh replay と変わる）。
+  // ※`_naOwner` の引継ぎは C39(b) fix で `clone()` 本体の責務になったためここでは不要（2026-08-02）。
   _snapshotForReplay(){
-    const s=this.clone(); s.planDepth=this.planDepth; s._naOwner=this._naOwner; return s;
+    const s=this.clone(); s.planDepth=this.planDepth; return s;
   }
 }
 

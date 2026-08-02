@@ -24,7 +24,13 @@
 // 検証値の根拠・変更履歴は CALIBRATION_ANALYSIS.md の該当 Cx 行と git log を正とする。
 // ⚠ ダメージモデルを変えたら: tools/search_calibrate.mjs で再fitし、下の期待値と override、
 //    CLAUDE.md の検証ゲート、ENGINE_VERSION(src/app.js) を揃えて更新すること。
-// edison 現在値: C37（局所探索 `_localSearchRoute`・単調安全）で再fit（2026-07-30・override {judg:145,pactcore:1} 据置）。
+// 現在値: **C39（`_naOwner` の是正）で再fit（2026-08-02）**。ダメージモデルの変更＝3 fixture すべてが動いた。
+//   内訳: (a) effond/betaia が `_naOwner` を設定せず「直前に行動したキャラ」基準で _na() していたのを是正
+//        (b) `clone()` が `_naOwner` を落としていた（＝ビーム/先読みだけ本線と評価条件が違った）のを是正。
+//   napoleon/static は静的greedy＝ビーム不使用のため (a) のみの影響（−0.004%）。edison はナポ不在＝betaia が
+//   無いので (a) effond ＋ (b) clone の合算（raw +0.048% / cal +0.443%）。
+//   ⚠**override {judg:145,pactcore:1} は未再fit**（ダメージモデルが動いた＝再fit の必要性は上がった。TODO 参照）。
+//   旧C37 raw 201,909,711 / cal 214,213,430 / napo 299,534,299。
 //   旧C27+sim04 raw 197,775,394 / cal 211,462,826。旧C27 raw 187,186,834 / cal 208,689,608。旧C23 raw 186,634,324。
 import { Sim, buildFormation, setStaticOverride, _localSearchRoute, _replayResult } from '../src/app.js';
 
@@ -59,13 +65,13 @@ function check(name, got, expDmg, expFb, { hangGuard=false }={}){
 
 // ── Fixture 1: edison（本番較正編成・beam+LS・raw/cal 回帰基準）──
 buildFormation('edison', ['yamato', 'hecate', 'tetra', 'elaine']);
-setStaticOverride({});                       check('edison/raw', runBeam10T(), 201909711, 10);
-setStaticOverride({ judg: 145, pactcore: 1 }); check('edison/cal', runBeam10T(), 214213430, 10);
+setStaticOverride({});                       check('edison/raw', runBeam10T(), 202005923, 10);
+setStaticOverride({ judg: 145, pactcore: 1 }); check('edison/cal', runBeam10T(), 215161915, 10);
 setStaticOverride({});
 
 // ── Fixture 2: napoleon（移行編成・静的greedy 回帰ガード＋ハングガード・要再fit）──
 buildFormation('napoleon', ['hecate', 'tetra', 'arianrhod', 'elaine']);
-setStaticOverride({});                       check('napoleon/static', runStatic10T(), 299534299, 10, { hangGuard:true });
+setStaticOverride({});                       check('napoleon/static', runStatic10T(), 299523354, 10, { hangGuard:true });
 
 const ok = results.every(r => r.ok);
 console.log(`[golden] ${results.filter(r=>r.ok).length}/${results.length} fixtures OK => ${ok ? 'OK' : 'MISMATCH'}`);

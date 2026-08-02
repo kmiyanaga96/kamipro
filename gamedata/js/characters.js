@@ -285,6 +285,11 @@ const CHAR_REGISTRY = {
                   // 12回目押下がeffond自身の場合その押下のバーストには効かない。use()フックがmooncodeを
                   // 立てる前にここで捕捉する)。
                   const mcAtPress = sim.mooncode>0;
+                  // C39(a) fix(2026-08-02): ダメージ算出は use('effond') より**前**にあるため、_naOwner を
+                  //   明示設定しないと「直前に行動したキャラ」のまま _na() が走る（GEAR_K_C の参照先も
+                  //   ムーンコード自己バフ mc の判定も _naOwner 依存）。効果はエフォンドルマン＝ヘカテー自身のもの。
+                  //   ⚠use() を前に出す解は不可（onAbility フックが mooncode を立てる前に mcAtPress を捕捉する必要がある）。
+                  sim._naOwner = ownerOf('effond');
                   sim.dmg += sim._decay('abi', sim._naForAbi()*(DMG.effond_mult+GEAR.abi_dmg+DMG.sub_abi_dmg+db.dmg), DMG.effond_cap*(1+db.cap));  // C31: アビダメUP加算
                   // C12-案C: 定石性報酬 — divinus(防御DOWN)先行中にeffondを撃てたら加点(divinus→effondの定石・ランキング用のみ)。
                   T.orthodoxy=(T.orthodoxy||0)+(sim.buf.divinus_def?.length?1:0);
@@ -643,6 +648,11 @@ const CHAR_REGISTRY = {
         const times = sim.betaia2>0 ? 2 : 1;
         if(sim.aura>0){
           sim.addG(CHARS, DMG.betaia_bg_per_aura*sim.aura*times);
+          // C39(a) fix(2026-08-02): turnEnd は攻撃フェイズの**後**に走るため、_naOwner は「最後にバースト/
+          //   アビを撃ったキャラ」のまま残っていた（実測でアリアンロッド）。ベタイアはナポレオン自身の効果
+          //   ＝GEAR_K_C も自己バフ枠もナポレオン基準で評価されねばならない。他の全ダメージ源（use /
+          //   _spendGaugeAbi / burst / consort / 自動holy）が踏んでいる規約に揃える。
+          sim._naOwner = ownerOf('roy');  // = ナポレオン（自分のアビキー経由で自己参照＝キャラ名リテラル不使用）
           for(let i=0;i<sim.aura*times;i++)
             sim.dmg += Math.min(sim._na()*DMG.betaia_mult, DMG.betaia_cap);
           sim.aura=0;

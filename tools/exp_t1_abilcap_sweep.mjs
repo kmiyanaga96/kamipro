@@ -24,14 +24,26 @@ DMG.betaia_mult=3.5; DMG.betaia_cap=800000; DMG.napo_burst_cd_reduce=true;
 recalcGearK(); recalcGearKCFromDispAtk(displayAtkOverrideFor('napoleon'));
 setStaticOverride({pactcore:1,effond:120});
 
-// ── E2: 既知値との bit 一致を先に確認する（config 再現の検証）──
-const ROUTE='/tmp/claude-0/-home-user-kamipro/21dd8fe3-058a-518b-9720-4e11617bb04c/scratchpad/napo_route.json';
-if(fs.existsSync(ROUTE)){
-  const d=_replayResult(JSON.parse(fs.readFileSync(ROUTE,'utf8')), 10).dmg;
-  const KNOWN=1958173800.8464613;
-  log(`[E2] 既知ルートのリプレイ: ${d} / 既知 ${KNOWN} → ${d===KNOWN?'✅ bit 一致':'★不一致（config 再現に失敗＝以降の数値は無効）'}`);
-  if(d!==KNOWN) process.exit(1);
-} else log('[E2] ⚠ 既知ルートのキャッシュが無いため config 再現の bit 検証をスキップ');
+// ── E2: config 再現の検証（ビーム出力 vs 強制リプレイの bit 一致）──
+// キャッシュには {route, dmg} を持たせる。dmg はビーム走行が出した値で、リプレイは独立経路なので
+// 両者の一致は「この config でエンジンが同じ状態を再現できている」ことの検証になる（E2）。
+// ⚠ダメージモデルを変えたらキャッシュは無効＝削除して再生成すること（C39 で1度失効した）。
+const CACHE='/tmp/claude-0/-home-user-kamipro/21dd8fe3-058a-518b-9720-4e11617bb04c/scratchpad/napo_route_c39.json';
+let cache;
+if(fs.existsSync(CACHE)) cache=JSON.parse(fs.readFileSync(CACHE,'utf8'));
+else {
+  const s=new Sim(); const route=[]; const t0=Date.now();
+  for(let t=1;t<=10;t++) route.push(s.takeTurn(t).keys);
+  cache={route, dmg:s.dmg};
+  fs.writeFileSync(CACHE, JSON.stringify(cache));
+  log(`[E2] 基準ルートをビームで生成: ${((Date.now()-t0)/1000).toFixed(1)}s`);
+}
+{
+  const d=_replayResult(cache.route, 10).dmg;
+  log(`[E2] ビーム ${cache.dmg} / 強制リプレイ ${d} → ${d===cache.dmg?'✅ bit 一致':'★不一致（config 再現に失敗＝以降の数値は無効）'}`);
+  if(d!==cache.dmg) process.exit(1);
+  log(`     基準ルートの押下数: ${cache.route.map(k=>k.length).join(' / ')}`);
+}
 
 const HP=9.8e8;  // 両面宿儺 HP（§4.4.3）
 function t1(cap){

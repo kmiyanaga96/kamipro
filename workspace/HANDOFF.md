@@ -58,12 +58,21 @@
 | **B. 探索の安定化** | C37 | ✅ LS 実装＋ボス切替で回避（B4 検証済）。⚠**根治せず**（×1.25 で押し順52.8%・代理採点は手つかず）＝open |
 | **C. 押し順・tier** | C38（buffCount）・予測探索 | ⏳ 実機データ待ち（`record_skeleton` §B） |
 
-## 直近セッションの成果（2026-08-01）
+## 直近セッションの成果（2026-08-02）
+- **✅ C39 を fix（ユーザー承認・golden 再fit）**: (a) `effond`/`betaia` が自分を `_naOwner` に設定せず
+  **他キャラのギア係数・自己バフで自分のダメージを計算していた**／(b) `clone()` が `_naOwner` を落とし
+  **ビーム/先読みだけ本線と評価条件が違った**。→ **raw 202,005,923 / cal 215,161,915 / napo/static 299,523,354**
+  （ENGINE_VERSION `sim05-c39-naowner`）。⚠**override は未再fit**（下記）。
+- **✅ C38 の取得方式を切替**: 実機UIは付与先非表示＋効果量のストック表示＝**アイコン計数は不可**
+  → **tier 効果の成立/不成立で bc を区間推定**（`record_skeleton` §B-1〜B-4）。
+- **★新仮説(4): ベタイアの cap 過小**（§4.4.4 ③-c）: configC で **betaia は cap 飽和**
+  （素点 1,213,875 → cap 800,000＝**34%切り捨て**・20ヒット/T）。実機では主ダメージ源＝**C3/C5 と同型の cap 過小**の疑い。
+  **ベタイア1ヒットの表示ダメージが実機 cap を直接与える**＝最も費用対効果の高い取得物（§B-2b）。
+
+## 前々セッションの成果（2026-08-01）
 - **✅ LS 高速化（結果不変）**: `_execKey` の短絡＋`_LSReplay` インクリメンタル replay で **golden 約10分→4分07秒（×2.4）**。
   **golden 3/3 完全一致**＋近傍1,000件のビット一致（新ハーネス `tools/exp_ls_incremental_verify.mjs`）。
-- **✅ C39 を摘出**（上記検証の副産物）: **`_naOwner` がターンを跨いで残留し、かつ `clone()` がコピーしない**
-  ＝ビーム/先読みのクローンが本線と評価条件で食い違う。edison は影響ゼロ・napoleon/configC で −90万（0.05%）。
-  **fix は較正セッションに合流**（先に直すと較正スカラが差分を吸収）。現状は挙動不変を維持。
+- **✅ C39 を摘出**（上記検証の副産物・**2026-08-02 に fix 済**＝上記）。
 - **✅ 運用原則を明文化**: **CLAUDE.md 開発ルール §5「編成間の転移可能性」**＋**REPO_STANDARDS §6 E9**。
 
 ## 前セッションの成果（2026-07-30〜31・詳細は SESSION_LOG）
@@ -85,6 +94,7 @@
 | **A. sim05 ダメージ較正（本丸）** | ⏳ 転記待ち | **T1 局在の切り分け** → 追撃 per-hit → C3/C5 fit |
 | **★メタトロン A7（AnotherLink 重複規則）** | ⏳ **要実機・最優先** | metatron+artemis を両方サブ＝同枠が必ず競合。`final_dmg` 1.10 vs 1.21。**確定前に絶対値較正をやると較正が誤差を吸収する** |
 | **探索の長時間化** | ✅ **LS 高速化 完了**（×2.4） | 残＝sweep 間プルーニング（**golden 再fit 必須**）。⛔上位K本限定は不採用 |
+| **★override の再fit** | ⏳ **未履行** | C39 でダメージモデルが動いた＝`search_calibrate.mjs` の再fit が CLAUDE.md 規約上必要（`{judg:145,pactcore:1}` は据置で出荷中） |
 | **Phase 8 アクセ実装** | ⏳ intake ゲート | §6 intake をユーザーと確定後 |
 
 → 全タスクの優先順・チェックは **`workspace/TODO.md`**。
@@ -104,7 +114,7 @@
 
 ## 検証（作業後は必ず）
 ```bash
-npm run test:golden   # edison/raw 201,909,711・edison/cal 214,213,430・napoleon/static 299,534,299（全 FB10/10）
+npm run test:golden   # edison/raw 202,005,923・edison/cal 215,161,915・napoleon/static 299,523,354（全 FB10/10）
 ```
 ⚠**実測 4分07秒**（2026-08-01 の LS 高速化で 約10分から短縮）＝600秒上限に近いので**背景実行が必須**。docs のみの変更なら golden は不変。
 `_replayResult`/`_execKey`/`clone`/`_snapshotForReplay` を触ったら **`node tools/exp_ls_incremental_verify.mjs`（約4分）も回す**。
