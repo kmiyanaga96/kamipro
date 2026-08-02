@@ -93,6 +93,7 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
 - **ESM Worker起動規律**: 旧 `_buildWorkerCode`（文字列 slice）は廃止済み。Worker は `new Worker(new URL('./worker.js', import.meta.url), {type:'module'})` で起動。**`src/app.js` の worker 用 export に必要な探索関数（`buildFormation`, `recalcGearK`, `Sim`, `_runRootPlan` 等）を含めること**。UI/DOM 依存は INIT の `if(typeof document!=='undefined')` ガード内・window ブリッジに隔離すること。
 - **局所探索による後処理（C37・2026-07-30 実装・`_localSearchRoute`）**: `_runRootPlan` は確定ルートに3種の近傍（①ターン内move ②ターン内swap ③**ターン跨ぎswap**）を総当たりし、`_replayResult` で採点して**厳密改善のみ採用**する。**不変条件**: (1) 改善のみ採用＝総ダメージは単調非減少（golden は下がらない） (2) 停止条件は評価回数 `LS_MAX_EVALS` であって**時間ではない**＝決定的（時間バジェットを入れると golden が環境依存で壊れる） (3) ③を move ではなく swap にするのは手数保存＝`abilCapPerTurn` を持つ敵で受け側が黙って落ちるのを防ぐため。**旧 C27 `_refineRoute` を置換**（LS が包含すると B3b で実測・`_refineRoute` は再現性のため残置＝**production 非経路・新規結線禁止**）。目的関数は `_objective` 第1要素と同一＝エンジンの主目的は変えていない。
 - **探索の2段実行（2026-07-31・LS の重複除去）**: `runSim`/`_fallbackRunSim` は **①全 prefix をビームのみで走らせ（`_runRootPlan(...,skipLS=true)`）→ ②キー列で重複除去 → ③一意ルートにのみ LS（`_runRouteLS`）** の順で回す。**LS は (キー列, config) の決定的な純関数**なので、同一キー列に複数回掛けるのは完全な無駄。ロキ条件では prefix 分散が空回りして 8本中6本が同一ルートになる（`search_quality_experiments` §12）＝旧実装は LS を最大8回重複実行していた。**⚠不変条件: 結果は不変**（同一入力→同一出力）でコストのみ削減＝品質のトレードオフは無い。golden は `_localSearchRoute` を直接呼ぶため本変更の影響を受けない。
+- **LS 評価の高速化（2026-08-01・★結果不変が不変条件）**: 2点。①**`_execKey` の短絡**＝旧実装は1押下ごとに `_candidates()` で**全候補の配列とクロージャを構築**してから1件を `find` していたが、`_stepStatic` と同じく `ABIL_KEYS` を1パス走査して一致で即実行する。同値の根拠＝走査順とフィルタ（abilCap→cd→契晶→guard→variants）が `_candidates` と同一、`find` は最初の一致、`guard`/`s`/`variants` は**全て純粋な参照**（副作用なし）を確認済。②**インクリメンタル replay `_LSReplay`**＝LS の近傍候補は基準ルートと**最初に異なるターン t0 以降しか変わらない**ので、各ターン開始時のスナップショットから t0 以降だけを再生する。⚠**不変条件**: (1) 評価値は full replay と**ビット一致**（復元は `Sim._snapshotForReplay()`＝**planDepth を上げない**＋**`_naOwner` を引き継ぐ**。前者は `_primeLookaheads` が内部で `clone()` して +1 するため、後者は C39 のため） (2) **走査順・受理順・評価回数・着地点はすべて不変**＝golden は1円も動かない。**回帰は `tools/exp_ls_incremental_verify.mjs`**（近傍1,000件のビット一致＋受理後の一致）。実測 golden 約10分→**4分07秒**。
 - **forcedKeys リプレイの正規化（2026-07-30）**: `greedyTakeTurn(t, forcedKeys)` は**実際に実行できたキーだけ**を行に記録する（`_execKey` が実行可否を返す）。押せなかったキー（CD中/契晶不足/`abilCap`到達）が「押した手」として残る幽霊キーを防ぐ＝ターン跨ぎ swap を持つ LS の前提。**総ダメージは元から不成立キーを無視して計算されており不変**。
 - **2段ルート選抜（①-A・実装済）**: `runSim`/`_fallbackRunSim` は `enumerateRootPrefixes()` の全prefixを `_staticPrefixDmg`（静的greedy・約数ms）で安価採点し、上位 `PREFIX_TOPK`(=8・C16で10→8) 本のみ本選(BW64・C16で128→64)へ回す（`_selectRootPrefixes`）。空prefixは常に確保。**品質低下は PoC 実測で最大0.013%**（top-8が実証済み安全床・BW64で0%損実測）。新キャラ追加時は PoC（scratchpad `poc.js`）を再実行し `PREFIX_TOPK` の余裕を再確認する。
 
@@ -112,6 +113,28 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
 3. **計画・検証策定（Antigravity 主担当）**: 設計担当が原因特定し、`simNN/design_report.md` を**必須5節構成**（1.総合比較 / 2.敗北要因 / 3.乖離分析 / 4.影響度検証 / 5.引継ぎ）で作成。
 4. **自律修正とテスト**: 実装担当（Claude Code）が `design_report.md` を検証して `simNN/integrated_analysis.md` にまとめ、コード修正後テスト実行。期待値 `raw 197,775,394 / calibrated 211,462,826` と追加検証ケースのパスを確認。
 
+### 5. 編成間の転移可能性（2026-08-01 制定・同型の失敗が4例に到達したため明文化）
+
+> **原則: エジソン編成で確立した機構・定数は、新編成では必ず再測する。**
+> 「エジソンで最適／飽和／有効」は**エジソン条件下の測定値**であって一般則ではない。編成・敵（`abilCapPerTurn` 等の有無）・ギアのいずれが変わっても転移は保証されない。
+
+**該当事例（いずれも実測で外れが判明）**:
+
+| # | 対象 | エジソンでの結論 | 新編成での実態 |
+|---|---|---|---|
+| 1 | `BEAM_W=64`（C16） | 幅64で飽和＝広げても得なし | ナポ/アリアン×宿儺では**最悪点**。幅で総ダメが +3.0〜+5.6% 変動し**非単調**（BW384=+5.64%） |
+| 2 | Phase 7 §7.2「BW64が大域最良＝実用上限」 | ML化クローズの根拠の一つ | ①がエジソン依存＝**クローズ根拠が再評価対象**（ROADMAP 上の扱いは要相談） |
+| 3 | `CALIB_GRID`（静的スコア較正の格子） | エジソン編成のアビを網羅 | ナポ/アリアンのアビを**1つも含まない**＝新編成の主役2人を較正できない**構造的欠落** |
+| 4 | C27 定石リファイン | 赤アビ後出しで +0.140% | ナポ/アリアンは `deploysRobot`/`prelude` **タグ不在で一度も発火しない** |
+
+さらに**改善幅そのものも条件依存**: C37 局所探索の利得は同じエジソンでも **実gear +0.78% / default gear +2.09%**（＝ギア・敵でも変わる）。
+
+**運用**:
+- 編成・敵・ギアのいずれかを変えたら、**探索パラメータ（`BEAM_W` / `PREFIX_TOPK` / `BEAM_DIVERSITY_K`）と較正格子（`CALIB_GRID`）は再測対象**として扱う。据え置く場合は「未再測」と明示する。
+- **タグ駆動の機構**（`deploysRobot` / `prelude` 等）は**タグを持つキャラが編成に居て初めて発火する**。新編成で「効かない」のは不具合ではなく前提不成立でありうる＝まずタグの有無を確認する。
+- 定数のコメントには**測定条件（編成・敵・ギア）を併記する**。条件不明の数値は REPO_STANDARDS §6 E1 により実験設計の前提にできない。
+- **一般則として書いてよいのは、2編成以上で再現したときだけ。**
+
 ---
 
 ## 検証方法
@@ -121,7 +144,7 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
 ```bash
 npm run test:golden          # = node test/golden.mjs（src/app.js を import し10T総ダメージを検証）
 ```
-⚠**所要は約10分**（C37 局所探索の導入で 116秒→増加）。ツール実行の600秒上限を超えるため**背景実行が必須**。
+⚠**所要は約4分**（2026-08-01 の LS 高速化で 約10分→**4分07秒**）。ツール実行の600秒上限に近いため**背景実行が必須**。
 
 **編成別マルチfixture（2026-07-25 導入・「1編成=1golden」）**。golden.mjs は各編成の回帰アンカーを検証:
 - **edison/raw**（beam+**LS**・較正なし）: `201,909,711`・FB `10/10`（構造修正C31/C34＋絶対値較正calib_na1.835/calib_burst2.07/judg_calib0.62＋C37局所探索）
@@ -133,15 +156,21 @@ npm run test:golden          # = node test/golden.mjs（src/app.js を import �
 
 > 探索は `runSim` 実行時に config別に静的スコア s を自動較正する（`calibrateStaticScores`・proxy-shortlist+full-verify・単調安全）。golden.mjs は決定的検証のため較正結果 `{judg:145,pactcore:1}` を `setStaticOverride` で明示適用する（毎回の較正走行を避ける）。詳細 archive/SEARCH_ROLLOUT_DESIGN.md §6。
 
-### 実測コスト（2026-07-28 計測／golden は 2026-07-30 に C37 で更新・実験設計の前提に使う）
+### 実測コスト（**2026-08-01 の LS 高速化後で再計測**／実験設計の前提に使う）
 | 対象 | 実測 |
 |---|---|
-| `npm run test:golden` 全体 | **約10分**（edison ビーム ~60s×2 ＋ **局所探索 324s/177s**／napoleon 静的greedy は瞬時）。旧 C27 時代は116秒 |
-| 局所探索 1ルート（edison・default gear・10T） | **324秒**（raw・177,961評価）／**177秒**（cal・124,152評価）。1評価 ≈ 1.4〜1.8ms・**ターン跨ぎ swap が評価の約73%** |
-| edison configB（cath_palug）1ルート | 約 **62秒** |
-| napoleon configC（両面宿儺）1ルート | 約 **127秒** |
-| BW384 1ルート | 545秒（単独）／762秒（他ジョブと同時実行時＝**約40%増**） |
-| `_replayResult` 1回 | **2.4ms**（探索1ルートの約 1/50,000） |
+| `npm run test:golden` 全体 | **4分07秒**（edison ビーム ~43s×2 ＋ 局所探索 計 ~161s／napoleon 静的greedy は瞬時）。**旧 約10分**（C27 時代は116秒） |
+| LS 1評価（edison・default gear・10T） | **0.63ms**（旧 **1.27ms**＝**×2.0**）。内訳＝`_execKey` 短絡で 1.27→0.88・インクリメンタル replay で 0.88→0.63 |
+| LS 1評価（napoleon configC・宿儺） | **0.88ms**（旧 **2.15ms**＝**×2.4**）。内訳＝1.27→ `_execKey` 1.29・→ インクリメンタル 0.88 |
+| 局所探索 1ルート（edison・default gear・10T） | 旧 **324秒**（raw・177,961評価）／**177秒**（cal・124,152評価）→ 高速化後は上の 1評価コストで按分（評価回数は**不変**）。**ターン跨ぎ swap が評価の約73%** |
+| edison ビーム 1ルート | **43秒**（旧記載 ~60s） |
+| napoleon configC（両面宿儺）ビーム 1ルート | **130〜138秒**（旧記載 ~127s） |
+| BW384 1ルート | 545秒（単独）／762秒（他ジョブと同時実行時＝**約40%増**）※LS 高速化前の値 |
+
+> **LS 高速化（2026-08-01・結果不変）**: ①`_execKey` を「全候補配列を構築して find」から **ABIL_KEYS 1パス短絡**へ
+> ②LS の評価を `_LSReplay` の**インクリメンタル replay**（候補が基準と最初に異なるターン t0 以降だけ再生）へ。
+> **評価回数・受理順・着地点はすべて不変＝golden 値は1円も動かない**（`tools/exp_ls_incremental_verify.mjs` で
+> 近傍1,000件のビット一致を検証＋golden 3/3 一致）。
 
 ⚠**旧 `test/golden.mjs` コメントの「edison ~2s」は約29倍の誤りだった**（napoleon ~90s はほぼ整合）。
 **コード内の性能数値は測定条件が不明なら実験計画の前提にしない**（必ず実測してから使う）。根拠 CALIBRATION_ANALYSIS C37。
