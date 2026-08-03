@@ -34,6 +34,7 @@
 
 | スクリプト | 用途 |
 |---|---|
+| **`calib_replay_compare.mjs`** | **★実機の押し順をそのまま強制リプレイし、ターン別・成分別に実機と突合する**（sim05 の較正方式そのもの）。`simulation/sim05/data/pre-trial.md` §1 をパースして実機側を集計し、シム側は `sim.dmg` の setter で**加算点のソース行**から成分に帰属させる（production 非改変）。`--cap19`（production 既定の `enemy_abil_cap` を掛ける）／`--wipe`（T1末バフ全消去仮説）。**約3秒**。出した数値＝`simulation/sim05/analysis/per_trial/pre-trial_quant.md`（C40〜C44 の根拠）。⚠**成分の対応表 `SITE` は characters.js / sim.js の行番号依存**＝両ファイルを編集したら更新すること（未知の行は行番号のまま出るので気付ける） |
 | `search_calibrate.mjs` | 静的スコア自動較正の再fit（**ダメージモデルを変えたら必ず実行**） |
 | `search_calibrate_e2e.mjs` | 較正phase→本探索phase の2段配線を単一プロセスで検証 |
 | `search_probe.mjs` | N ターン探索の総ダメージ・時間・per-turn 使用回数 |
@@ -73,7 +74,7 @@
 | `extract_order_loki.mjs` | **推奨押し順の抽出**（G3）。①全 prefix をビームのみで採点 → ①-b キー列で重複除去を実測 → ②上位N本に局所探索 → 最良。引数=LS対象本数（既定3）。**✅2026-08-02 に①②とも並列化**（逐次 約1時間）。⚠⚠**config が陳腐化している**＝敵が loki のまま（較正ボスは宿儺に確定）・override が C37 世代・**C39 でダメージモデルが変わった**＝再実行前に必ず更新すること。⚠2026-07-31 以降、実走は**実機勘のフリー押し**方針のため本ハーネスの出力は**参考値**（`record_skeleton.md` 冒頭） |
 | `exp_loki_stability.mjs` | **B4＝較正ボス切替（`walpurgis_loki`）の受入検証**。実験2/B1 と同一手続きで ATK 感度を再測（`node tools/exp_loki_stability.mjs <scale>`・1.00 を先に走らせて基準キー列を保存）。ビームのみ＝LS を通さない（後処理の強さと交絡させないため）（§11） |
 | `exp_ls_incremental_verify.mjs` | **LS インクリメンタル replay（`_LSReplay`）の結果不変性 回帰**。edison / napoleon×宿儺 の2 config で、LS 近傍3種を網羅サンプリングし `_LSReplay.dmgOf` と full `_replayResult` の **ビット一致**＋受理後（rebase 後）の一致を検証し、1評価あたりのコスト比も出す。所要 **約4分**（内訳はビーム 2本＝43s＋130s）。**`_replayResult` / `_execKey` / `clone` / `_snapshotForReplay` を触ったら必ず回す**（C39 を検出したのがこのハーネス） |
-| `exp_t1_abilcap_sweep.mjs` | **sim05 README §4.4.1＝T1 の押下上限を外すとシムの T1 ダメージはどこまで伸びるか**（`DMG.enemy_abil_cap` を掃引・静的greedy で cap 以外を揃える）。実測: cap=19→16.3% / 無制限→**24.8%（×1.52・30手で自然枯渇）**＝実機の ×2.43 の**約2/3までしか説明しない**。冒頭で既知ルートのリプレイ bit 一致（E2）を自己検証してから測る。数秒 |
+| `exp_t1_abilcap_sweep.mjs` | **sim05 README §4.4.1＝T1 の押下上限を外すとシムの T1 ダメージはどこまで伸びるか**（`DMG.enemy_abil_cap` を掃引・静的greedy で cap 以外を揃える）。実測: cap=19→16.3% / 無制限→**24.8%（×1.52・30手で自然枯渇）**。⚠**2026-08-03 に pre-trial で更新**＝この「30手で自然枯渇」は**静的greedy が自発的に選ぶ手数**であって押せる上限ではない。**実機の押し順を強制すると 39手通る**（`calib_replay_compare.mjs`）＝手数の寄与は **×1.39**、残り ×1.77 はダメージモデル。冒頭で既知ルートのリプレイ bit 一致（E2）を自己検証してから測る。数秒 |
 
 ### 共通の注意
 
