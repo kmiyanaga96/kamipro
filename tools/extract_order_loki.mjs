@@ -17,15 +17,28 @@
 //   2段構成にする: ①全 prefix をビームのみで採点（安価）→ ②上位 N 本に LS を掛けて最終比較。
 //   N は引数で変えられる（既定3）。★リポジトリ非改変（src/* を import するだけ）
 //
+// ── ✅ 並列化（2026-08-02）──
+//   ①の prefix 間・②のルート間はいずれも**完全に独立**なので `tools/lib/parallel_map.mjs` で子プロセスへ分散する。
+//   逐次だと node 単一スレッド＝コアを1つしか使わない（実測 1時間）。**結果は不変**（各タスクは決定的で、
+//   親が宣言順に整列し直してから sort するため tie-break まで一致する）。並列度は既定でコア数。
+//   環境変数 `PMAP_LIMIT` で上限を変えられる（例: 他ジョブと同居させたい時＝E5）。
+//
+// ⚠⚠ **この config は陳腐化している**（2026-08-02 時点）。再実行する前に必ず更新すること:
+//   ・敵が **walpurgis_loki** のまま＝較正ボスは **両面宿儺（ryomen_sukuna）に確定済み**（sim05 README §4.4）
+//   ・override {judg:130,pactcore:1} は **C37 世代**の自動較正値
+//   ・**C39（2026-08-02）でダメージモデルが変わった**＝ここで得た数値は現行エンジンと一致しない
+//
 // 使い方: node tools/extract_order_loki.mjs [LS対象本数]
 import { Sim, buildFormation, applyEnemy, recalcGearK, recalcGearKCFromDispAtk, GEAR, DMG, setCurrentSubs,
          displayAtkOverrideFor, setStaticOverride, _selectRootPrefixes, _localSearchRoute, _replayResult,
          LABEL } from '/home/user/kamipro/src/app.js';
 import fs from 'fs';
+import { parallelMap, pmapTask, pmapRecv, PMAP_CORES } from './lib/parallel_map.mjs';
 
 const n = 10;
 const TOPN = parseInt(process.argv[2] || '3', 10);
 const OUT = (process.env.SCRATCH || '/tmp') + '/g3_v4_loki_proper.json';
+const LIMIT = Number(process.env.PMAP_LIMIT) || PMAP_CORES;
 const log = s => process.stdout.write(s + '\n');
 
 // ✅ proper configC の GEAR（2026-07-31 受領キャッシュから抽出・E2 リプレイ bit 一致で検証済み）。
@@ -46,24 +59,48 @@ recalcGearKCFromDispAtk(displayAtkOverrideFor('napoleon'));
 //    流用しており誤りだった。⚠これは**旧ATKで較正された値**＝proper ATK では最適 override が動きうる（follow-up）。
 setStaticOverride({ judg:130, pactcore:1 });
 
+// ── タスク本体（親も子も同じ関数を使う＝挙動の二重管理を避ける）──
+function beamOne(prefix){
+  const t0 = Date.now();
+  const sim = new Sim(); sim.totalTurns = n;
+  if(prefix.length){ sim._forcePrefix = prefix; sim._forceTurn = 1; }
+  const rows = []; for(let t=1;t<=n;t++) rows.push(sim.greedyTakeTurn(t));
+  return { prefix, beamDmg: sim.dmg, keys: rows.map(r => r.keys),
+           fb: rows.filter(r=>r.full).length, maxPress: Math.max(...rows.map(r=>r.ability)),
+           sec: (Date.now()-t0)/1000 };
+}
+function lsOne(c){
+  const t0 = Date.now();
+  const tag = `[${c.prefix.join(',')||'(空)'}]`;
+  const ls = _localSearchRoute(c.keys, n, (i)=>{ if(i.evals % 20000 === 0)
+    process.stdout.write(`      ${tag} sweep${i.sweep} 評価${i.evals.toLocaleString()} 改善${i.accepted}件\n`); });
+  const rep = _replayResult(ls.turnsKeys, n);
+  return { prefix:c.prefix, beamDmg:c.beamDmg, lsDmg:ls.dmg, keys:rep.rows.map(r=>r.keys),
+           fb:rep.rows.filter(r=>r.full).length, maxPress:Math.max(...rep.rows.map(r=>r.ability)),
+           evals:ls.evals, sec:(Date.now()-t0)/1000 };
+}
+
+// ── 子プロセス: 担当タスクだけ実行して返す ──
+const _task = pmapTask();
+if(_task){
+  const payload = await pmapRecv();
+  process.send(_task.kind === 'beam' ? beamOne(payload) : lsOne(payload));
+  process.exit(0);
+}
+
 log(`敵=walpurgis_loki  def=${DMG.enemy_def} hp=${DMG.enemy_max_hp.toLocaleString()} affinity=${DMG.affinity} barrier=${DMG.enemy_barrier} abilCap=${DMG.enemy_abil_cap}`);
 log(`サブアシスト集約: streak=${DMG.streak_dmgup} burst_dmg=${DMG.sub_burst_dmg} burst_cap=${DMG.sub_burst_cap} `
   + `na_dmg=${DMG.sub_na_dmg} na_cap=${DMG.sub_na_cap} abi_dmg=${DMG.sub_abi_dmg} abi_cap=${DMG.sub_abi_cap} final=${DMG.final_dmg}`);
 
 // ── ①全 prefix をビームのみで採点 ────────────────────────────────
 const prefixes = _selectRootPrefixes(n);
-log(`\n① ビーム採点（${prefixes.length} prefix・LS なし）`);
-const scored = [];
-for(const prefix of prefixes){
-  const t0 = Date.now();
-  const sim = new Sim(); sim.totalTurns = n;
-  if(prefix.length){ sim._forcePrefix = prefix; sim._forceTurn = 1; }
-  const rows = []; for(let t=1;t<=n;t++) rows.push(sim.greedyTakeTurn(t));
-  const keys = rows.map(r => r.keys);
-  scored.push({ prefix, beamDmg: sim.dmg, keys,
-                fb: rows.filter(r=>r.full).length, maxPress: Math.max(...rows.map(r=>r.ability)) });
-  log(`   [${prefix.join(',')||'(空)'}] ${Math.round(sim.dmg).toLocaleString()}  FB=${rows.filter(r=>r.full).length}/10 maxPress=${Math.max(...rows.map(r=>r.ability))}  (${((Date.now()-t0)/1000).toFixed(0)}s)`);
-}
+log(`\n① ビーム採点（${prefixes.length} prefix・LS なし）── 並列度 ${Math.min(LIMIT, prefixes.length)}`);
+const wall1 = Date.now();
+const scored = await parallelMap(import.meta.url, 'beam', prefixes, { limit: LIMIT });
+// ⚠ 出力は**宣言順に整列してから**表示・sort する（並列でも逐次時と完全に同じ順序・同じ tie-break）。
+for(const c of scored)
+  log(`   [${c.prefix.join(',')||'(空)'}] ${Math.round(c.beamDmg).toLocaleString()}  FB=${c.fb}/10 maxPress=${c.maxPress}  (${c.sec.toFixed(0)}s)`);
+log(`   ⇒ 実時間 ${((Date.now()-wall1)/1000).toFixed(0)}s（逐次相当 ${scored.reduce((a,c)=>a+c.sec,0).toFixed(0)}s）`);
 scored.sort((a,b) => b.beamDmg - a.beamDmg);
 
 // ── ①-b 重複除去の実測（2段実行が実際に効くかの検証を兼ねる）───────────────
@@ -78,18 +115,15 @@ const cut = scored.length - sigs.size;
 log(`     ⇒ 2段実行で LS を ${cut}本 削減（${(cut/scored.length*100).toFixed(0)}%減）${cut===0?' ❌効果なし':' ✅効果あり'}`);
 
 // ── ②上位 N 本に局所探索 ────────────────────────────────────────
-log(`\n② 局所探索（上位 ${TOPN} 本）⚠実験5c: ビーム順位と LS 後の順位は相関しない＝複数本に掛ける`);
-const results = [];
-for(const c of scored.slice(0, TOPN)){
-  const t0 = Date.now();
-  const ls = _localSearchRoute(c.keys, n, (i)=>{ if(i.evals % 20000 === 0)
-    process.stdout.write(`      … sweep${i.sweep} 評価${i.evals.toLocaleString()} 改善${i.accepted}件\n`); });
-  const rep = _replayResult(ls.turnsKeys, n);
-  results.push({ prefix:c.prefix, beamDmg:c.beamDmg, lsDmg:ls.dmg, keys:rep.rows.map(r=>r.keys),
-                 fb:rep.rows.filter(r=>r.full).length, maxPress:Math.max(...rep.rows.map(r=>r.ability)), evals:ls.evals });
-  log(`   [${c.prefix.join(',')||'(空)'}] ${Math.round(c.beamDmg).toLocaleString()} → ${Math.round(ls.dmg).toLocaleString()}`
-    + `  (+${((ls.dmg-c.beamDmg)/c.beamDmg*100).toFixed(3)}% / 評価${ls.evals.toLocaleString()} / ${((Date.now()-t0)/1000).toFixed(0)}s)`);
-}
+const lsTargets = scored.slice(0, TOPN);
+log(`\n② 局所探索（上位 ${TOPN} 本）⚠実験5c: ビーム順位と LS 後の順位は相関しない＝複数本に掛ける`
+  + ` ── 並列度 ${Math.min(LIMIT, lsTargets.length)}`);
+const wall2 = Date.now();
+const results = await parallelMap(import.meta.url, 'ls', lsTargets, { limit: LIMIT });
+for(const r of results)
+  log(`   [${r.prefix.join(',')||'(空)'}] ${Math.round(r.beamDmg).toLocaleString()} → ${Math.round(r.lsDmg).toLocaleString()}`
+    + `  (+${((r.lsDmg-r.beamDmg)/r.beamDmg*100).toFixed(3)}% / 評価${r.evals.toLocaleString()} / ${r.sec.toFixed(0)}s)`);
+log(`   ⇒ 実時間 ${((Date.now()-wall2)/1000).toFixed(0)}s（逐次相当 ${results.reduce((a,r)=>a+r.sec,0).toFixed(0)}s）`);
 results.sort((a,b) => b.lsDmg - a.lsDmg);
 
 const best = results[0];

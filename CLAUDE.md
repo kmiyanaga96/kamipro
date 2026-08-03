@@ -22,6 +22,7 @@
 - **ROADMAP.md**: **Phase 一覧・採番の一次台帳（2026-07-09 再編・2026-07-15 採番改訂）**。Phase 6=幻獣システム拡張／**Phase 7=静的スコア s の機械学習化（クローズ・archive＝PoC×2で安価サロゲートNO-GO）**／**Phase 8=アクセ実装（旧Phase 7から繰り下げ・詳細は PHASE8_PLAN.md）**／未確定Phase=敵行動・味方生存(i)・kill-turn(ii)・VM/ワークフロー(iii)。各Phase詳細は個別docへ委譲。
 - **PHASE8_PLAN.md**: **Phase 8（アクセサリー実装）の計画台帳（2026-07-22 起草・実装未着手）**。アクセ＝押し順非依存の常時ボックス補正が主という仮説のもと `ACCESSORY_REGISTRY` 新設＋`applyGear` 集約で `class Sim` 非改修を狙う設計。一次情報＝damage_frames.md の枠マッピング（攻撃枠40%上限/与ダメ枠=タイムピース・ブレスレット/会心枠=天使）。§6 に着手ゲートの intake（per-char/全体の別・系統全容・発動系有無）。未装備 golden 不変を不変条件とする。
 - **tools/**（2026-07-28 `archive/tools/` からルートへ昇格・ユーザー承認）: **較正・探索ハーネス置き場（現役）**。`README.md` が索引＝どのスクリプトがどの台帳数値を出したかの対応表。従来分（`search_calibrate.mjs`＝**ダメージモデル変更時の再fit必須**・`search_probe.mjs`・`c27_refine_probe.mjs`・`ml_fit_static{,_v2}.mjs`＝Phase7 PoC 温存）＋**探索品質の実験ハーネス `exp_*.mjs` 15本**（BW掃引/prefix掃引/ATK感度[ナポ・エジソン]/局所探索[単点・多点・対照]/abilCap切り分け/ホライズン感度/C27vsLS[ナポ・エジソン]/prefixルート同一性/buffCount分解/順×ATK比較/**loki安定性[B4]**）＋**押し順抽出 `extract_order_loki.mjs`**。全て production 非改変。
+- **TRANSCRIPTION_DESIGN.md**: **実機録画→trialNN 転記の半自動化（見立てメモ・未着手・2026-08-02 起草）**。転記コストが較正全体の律速という認識のもと、**OCR を信用せず検算する**設計（総和チェック／リプレイ照合／値域／会心・急所は記号）。**S0＝総和チェックのみ（AI不要）から段階的に価値が出る**順序を規定。
 - **CHARACTER_ANALYSIS.md**: キャラ個別評価＆採用論の生きた考察台帳（2026-07-11 起草）。ヤマトvsアリアンのホライズン別比較・ナポレオン評・併用仮説（暫定）。序数比較ベース＝新キャラ/較正確定のたびに更新。
 
 ### 現役データディレクトリ
@@ -144,7 +145,8 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
 ```bash
 npm run test:golden          # = node test/golden.mjs（src/app.js を import し10T総ダメージを検証）
 ```
-⚠**所要は約4分**（2026-08-01 の LS 高速化で 約10分→**4分07秒**）。ツール実行の600秒上限に近いため**背景実行が必須**。
+⚠**所要は約2分**（2026-08-01 LS 高速化 約10分→4分07秒 → 2026-08-02 **fixture 並列化で 2分07秒**）。600秒上限に余裕はできたが**背景実行を推奨**。
+`--serial` で従来の逐次実行、`--fixture <name>` で単体実行（デバッグ用）。**検証内容は不変**＝各 fixture は決定的なので並列化しても値は動かない。
 
 **編成別マルチfixture（2026-07-25 導入・「1編成=1golden」）**。golden.mjs は各編成の回帰アンカーを検証:
 - **edison/raw**（beam+**LS**・較正なし）: `202,005,923`・FB `10/10`（構造修正C31/C34＋絶対値較正calib_na1.835/calib_burst2.07/judg_calib0.62＋C37局所探索）
@@ -160,7 +162,8 @@ npm run test:golden          # = node test/golden.mjs（src/app.js を import �
 ### 実測コスト（**2026-08-01 の LS 高速化後で再計測**／実験設計の前提に使う）
 | 対象 | 実測 |
 |---|---|
-| `npm run test:golden` 全体 | **4分07秒**（edison ビーム ~43s×2 ＋ 局所探索 計 ~161s／napoleon 静的greedy は瞬時）。**旧 約10分**（C27 時代は116秒） |
+| `npm run test:golden` 全体 | **2分07秒**（3 fixture を並列実行・律速は最重量の edison/raw）。**逐次では 4分07秒**（`--serial`）。旧 約10分（C27 時代は116秒） |
+| 〃 の内訳 | edison ビーム ~43s×2 ＋ 局所探索 計 ~161s ／ napoleon 静的greedy は瞬時。user 時間 3分50秒 vs real 2分07秒＝**実効 ×1.94** |
 | LS 1評価（edison・default gear・10T） | **0.63ms**（旧 **1.27ms**＝**×2.0**）。内訳＝`_execKey` 短絡で 1.27→0.88・インクリメンタル replay で 0.88→0.63 |
 | LS 1評価（napoleon configC・宿儺） | **0.88ms**（旧 **2.15ms**＝**×2.4**）。内訳＝1.27→ `_execKey` 1.29・→ インクリメンタル 0.88 |
 | 局所探索 1ルート（edison・default gear・10T） | 旧 **324秒**（raw・177,961評価）／**177秒**（cal・124,152評価）→ 高速化後は上の 1評価コストで按分（評価回数は**不変**）。**ターン跨ぎ swap が評価の約73%** |
