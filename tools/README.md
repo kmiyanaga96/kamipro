@@ -74,10 +74,17 @@
 | `extract_order_loki.mjs` | **推奨押し順の抽出**（G3）。①全 prefix をビームのみで採点 → ①-b キー列で重複除去を実測 → ②上位N本に局所探索 → 最良。引数=LS対象本数（既定3）。**✅2026-08-02 に①②とも並列化**（逐次 約1時間）。⚠⚠**config が陳腐化している**＝敵が loki のまま（較正ボスは宿儺に確定）・override が C37 世代・**C39 でダメージモデルが変わった**＝再実行前に必ず更新すること。⚠2026-07-31 以降、実走は**実機勘のフリー押し**方針のため本ハーネスの出力は**参考値**（`record_skeleton.md` 冒頭） |
 | `exp_loki_stability.mjs` | **B4＝較正ボス切替（`walpurgis_loki`）の受入検証**。実験2/B1 と同一手続きで ATK 感度を再測（`node tools/exp_loki_stability.mjs <scale>`・1.00 を先に走らせて基準キー列を保存）。ビームのみ＝LS を通さない（後処理の強さと交絡させないため）（§11） |
 | `exp_ls_incremental_verify.mjs` | **LS インクリメンタル replay（`_LSReplay`）の結果不変性 回帰**。edison / napoleon×宿儺 の2 config で、LS 近傍3種を網羅サンプリングし `_LSReplay.dmgOf` と full `_replayResult` の **ビット一致**＋受理後（rebase 後）の一致を検証し、1評価あたりのコスト比も出す。所要 **約4分**（内訳はビーム 2本＝43s＋130s）。**`_replayResult` / `_execKey` / `clone` / `_snapshotForReplay` を触ったら必ず回す**（C39 を検出したのがこのハーネス） |
-| `exp_t1_abilcap_sweep.mjs` | **sim05 README §4.4.1＝T1 の押下上限を外すとシムの T1 ダメージはどこまで伸びるか**（`DMG.enemy_abil_cap` を掃引・静的greedy で cap 以外を揃える）。実測: cap=19→16.3% / 無制限→**24.8%（×1.52・30手で自然枯渇）**。⚠**2026-08-03 に pre-trial で更新**＝この「30手で自然枯渇」は**静的greedy が自発的に選ぶ手数**であって押せる上限ではない。**実機の押し順を強制すると 39手通る**（`calib_replay_compare.mjs`）＝手数の寄与は **×1.39**、残り ×1.77 はダメージモデル。冒頭で既知ルートのリプレイ bit 一致（E2）を自己検証してから測る。数秒 |
+| `exp_t1_abilcap_sweep.mjs` | **sim05 README §4.4.1＝T1 の押下上限を外すとシムの T1 ダメージはどこまで伸びるか**（`DMG.enemy_abil_cap` を掃引・静的greedy で cap 以外を揃える）。実測: cap=19→16.3% / 無制限→24.8%（×1.52・30手で自然枯渇）。⚠⚠**2026-08-03: 数値は無効**＝**GEAR が最古値（2026-07-27 暫定）のまま**だった（下の「共通の注意」）。加えて「30手で自然枯渇」は**静的greedy が自発的に選ぶ手数**であって押せる上限ではない（**実機の押し順を強制すると 39手通る**＝`calib_replay_compare.mjs`）。**再実行するなら GEAR を `configC_cache_20260803.json` から読むよう直してから**。冒頭で既知ルートのリプレイ bit 一致（E2）を自己検証してから測る。数秒 |
 
 ### 共通の注意
 
+- **⚠⚠ 2026-08-03: ハードコードされた GEAR が最古値（2026-07-27 暫定）のままだったことが判明**。
+  `simulation/sim05/data/configC_gear_panel.md` §2.0 には「proper v2（現行）」列が**最初からあった**のに、
+  ハーネス側がそれを参照していなかった。この GEAR で出した突合は **T1 実機/シム ×1.77（正しくは ×1.41）**、
+  **バースト本体 ×1.04（正しくは ×0.77＝符号ごと反転）**という誤りを生んだ。
+  **`calib_replay_compare.mjs` は受領キャッシュ JSON の `_configSig` から config を読む方式に修正済み**。
+  **⚠ 他のハーネス（`exp_t1_abilcap_sweep` / `exp_atk_sensitivity_napoleon` / `exp_beam_width_sweep` 等の
+  ナポ編成系）は未修正＝同じ最古 GEAR を持つので、出した数値は再取得が必要**。
 - **config は各スクリプト冒頭にハードコード**（GEAR/サブ枠/英霊武器/敵/override）。**編成や config を変えるときは、まず既知値との bit 一致を確認してから**回すこと（E2。`napo_burst_cd_reduce`・`betaia_*`・`CURRENT_SUBS` は `_configSig` に含まれないため、キャッシュJSONを読むだけでは検出できない）。
 - `exp_atk_sensitivity_*` / `exp_abilcap_isolation` / `exp_horizon_sensitivity` は **引数でスケール/ホライズンを指定し、1条件=1プロセス**で回す設計（E8）。基準条件の押し順を JSON に落として次の条件が読む。
 - **E2 アンカーの JSON は `archive/caches/` へ退避済み**（2026-08-02 の sim05 整理）。`exp_loki_stability` / `exp_abilcap_isolation` / `exp_order_compare` が読む `sim05_sukuna{,_v2}.json` がそれ。⚠**これらは engineVersion `sim04-abscal-C31C34-calib` ＝C37（押し順）と C39（ダメージモデル）の2世代前**なので、**記録値との bit 一致はもう成立しない**（＝E2 ゲートで止まる）。再実行するなら現行エンジンでアンカーを取り直すこと。出した数値そのものは `archive/SEARCH_QUALITY_EXPERIMENTS.md` が正。

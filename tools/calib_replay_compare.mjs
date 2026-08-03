@@ -20,7 +20,7 @@
 //   node tools/calib_replay_compare.mjs --wipe     # T1 終了時にバフ全消去（アビ上限超過ペナルティ仮説）
 import fs from 'node:fs';
 import { Sim, buildFormation, applyEnemy, recalcGearK, recalcGearKCFromDispAtk, GEAR, DMG,
-         setCurrentSubs, displayAtkOverrideFor, setStaticOverride } from '/home/user/kamipro/src/app.js';
+         setCurrentSubs, setStaticOverride } from '/home/user/kamipro/src/app.js';
 
 const log = s => process.stdout.write(s + '\n');
 const fmt = n => Math.round(n).toLocaleString('en-US');
@@ -80,16 +80,32 @@ const REAL_AURA = { 1: 29*2, 2: 13*2, 3: 14 };
 for (const t of [1,2,3]) R[t]['#betaia'] = REAL_AURA[t];
 
 // ══ 2. シム側（configC で同じ押し順を強制リプレイ）══════════════════
-const GEAR_C = { assault:3.06, elem:0.54, vigor:0.6876, spec:0, dmgup:0, acute:0.144, crit_rate:0.405, other:0,
-                 na_dmg:1.116, abi_dmg:2.52, burst_dmg:5.22, na_cap:0.36, abi_cap:0.99, burst_cap:2.016 };
-setCurrentSubs(['metatron','artemis']);
-buildFormation('napoleon', ['hecate','tetra','arianrhod','elaine']);
+// ★config は**ハードコードしない**。GEAR・サブ枠・パーティ順・敵パラメータは受領キャッシュ JSON の
+//   `_configSig` キーから復元し、表示ATK は**trial md のヘッダに記録された実機値**を使う。
+//   （2026-08-03: ハーネスに v2 GEAR と repo の ATK override を手で置いていたため、T1 比が ×1.77 と
+//     0.36 も過大に出ていた。config は必ずデータ側から与える＝REPO_STANDARDS E2。）
+const CACHE = JSON.parse(fs.readFileSync('/home/user/kamipro/simulation/sim05/data/configC_cache_20260803.json','utf8'));
+const SIG = JSON.parse(CACHE.entries[0][0].split('|').slice(1).join('|'));
+const [HERO, KAMI, GEAR_C, SUBS, E_DEF, E_HP, E_BM, E_BC, , E_BAR, E_CAP] = SIG;
+setCurrentSubs(SUBS);
+buildFormation(HERO, KAMI);
 applyEnemy('ryomen_sukuna');
 for (const k of Object.keys(GEAR)) GEAR[k] = GEAR_C[k] ?? 0;
+DMG.enemy_def = E_DEF; DMG.enemy_max_hp = E_HP; DMG.enemy_barrier = E_BAR;
+DMG.edison_burst_extra_mult = E_BM; DMG.edison_burst_extra_cap = E_BC;
 DMG.betaia_mult = 3.5; DMG.betaia_cap = 800000; DMG.napo_burst_cd_reduce = true;   // 英霊武器（レス・ボナパルト）
-recalcGearK(); recalcGearKCFromDispAtk(displayAtkOverrideFor('napoleon'));
+// 表示ATK: trial md ヘッダ「UI装備パネル一致確認（表示ATK5人分）: napoleon=… / …」の実機値を使う。
+// ⚠ `DISPLAY_ATK_OVERRIDE_BY_FORMATION`（src/app.js）は **golden の napoleon fixture に効くため未更新のまま**
+//    ＝リポジトリ側の値は走行時点より古い。走の条件は**その走の記録**が正。
+const DISP = {};
+{
+  const m = src.find(l => /表示ATK5人分/.test(l));
+  if (!m) { console.error('★ trial md に「表示ATK5人分」の行が無い＝config を再現できない'); process.exit(1); }
+  for (const [, k, v] of m.matchAll(/([a-z_]+)=([\d,]+)/g)) DISP[k] = +v.replace(/,/g,'');
+}
+recalcGearK(); recalcGearKCFromDispAtk(DISP);
 setStaticOverride({ pactcore:1, effond:120 });
-DMG.enemy_abil_cap = process.argv.includes('--cap19') ? 19 : null;
+DMG.enemy_abil_cap = process.argv.includes('--cap19') ? 19 : E_CAP === undefined ? null : null;
 
 const SITE = { 'sim.js:204':'burst_body', 'sim.js:362':'streak', 'characters.js:41':'holy',
   'characters.js:293':'effond_abi', 'characters.js:334':'extra_hecate', 'characters.js:369':'judg_ph0',
@@ -141,7 +157,9 @@ const NAME = { burst_body:'バースト本体', extra_hecate:'追加ダメ ヘ�
   holy:'holy 8hit', judg_ph0:'judg ph0', judg_ph2:'judg ph2(通常)', effond_abi:'effond アビ',
   consort:'consort', betaia:'betaia', streak:'ストリーク', dot:'DOT', counter:'反撃' };
 const HP = 9.8e8;
-log(`\n■ 強制リプレイ（configC / ryomen_sukuna / enemy_abil_cap=${DMG.enemy_abil_cap}${process.argv.includes('--wipe')?' / T1末バフ全消去':''}）`);
+log(`\n■ 強制リプレイ（config=configC_cache_20260803.json / ryomen_sukuna / enemy_abil_cap=${DMG.enemy_abil_cap}${process.argv.includes('--wipe')?' / T1末バフ全消去':''}）`);
+log(`  GEAR: ${JSON.stringify(GEAR_C)}`);
+log(`  サブ枠: ${JSON.stringify(SUBS)} / パーティ順: ${JSON.stringify(KAMI)} / 表示ATK(trial md 記録値): ${JSON.stringify(DISP)}`);
 for (const t of [1,2,3]) {
   const rTot = Object.keys(NAME).reduce((a,k)=>a+(R[t][k]||0), 0);
   const sTot = Object.keys(NAME).reduce((a,k)=>a+(S[t][k]||0), 0);
