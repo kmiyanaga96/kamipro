@@ -5,3 +5,13 @@ dist/
 _exp_*.js
 scratchpad_*.log
 scratchpad_*.json
+
+# 実機録画（★git に入れない・REPO_STANDARDS §2 / TRANSCRIPTION_DESIGN §6.1）
+#   リポジトリは packed 1.4MB 規模。5分の1080p mp4 は 50〜500MB＝全履歴の30〜350倍になり、
+#   一度コミットすると削除しても履歴に残り続ける（rewrite しない限り不可逆）。
+#   → 動画は共有のみ・格納しない。必要なのは「静止画数枚＋ffprobe の出力テキスト」で足りる。
+*.mp4
+*.mkv
+*.avi
+*.mov
+*.webm
