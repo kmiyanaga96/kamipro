@@ -73,6 +73,10 @@
   **golden 3/3 完全一致**＋近傍1,000件のビット一致（新ハーネス `tools/exp_ls_incremental_verify.mjs`）。
 - **✅ C39 を摘出**（上記検証の副産物・**2026-08-02 に fix 済**＝上記）。
 - **✅ 運用原則を明文化**: **CLAUDE.md 開発ルール §5「編成間の転移可能性」**＋**REPO_STANDARDS §6 E9**。
+- **✅ 長時間ジョブの並列化**（`tools/lib/parallel_map.mjs` 新設）: node は単一スレッド＝**4コアのうち1コアしか使っていなかった**。
+  golden **4分07秒→2分07秒（×1.94・値は3/3一致）**／`extract_order_loki` の①8 prefix が **約19分→6.5分（×2.9）**。
+- **✅ sim05 の整理**（12ファイル→4ファイル・README 400→172行・record_skeleton 218→86行）。
+- **📝 `TRANSCRIPTION_DESIGN.md` 起草**（実機録画→転記の半自動化・**未着手**）。転記コストが較正の律速という認識。
 
 ## 前セッションの成果（2026-07-30〜31・詳細は SESSION_LOG）
 - **✅ C37 局所探索を production 実装**（`_localSearchRoute`／golden 再fit raw 201,909,711・cal 214,213,430）＋**LS 進捗表示**。
@@ -93,6 +97,7 @@
 | **A. sim05 ダメージ較正（本丸）** | ⏳ 転記待ち | **T1 局在の切り分け** → 追撃 per-hit → C3/C5 fit |
 | **★メタトロン A7（AnotherLink 重複規則）** | ⏳ **要実機・最優先** | metatron+artemis を両方サブ＝同枠が必ず競合。`final_dmg` 1.10 vs 1.21。**確定前に絶対値較正をやると較正が誤差を吸収する** |
 | **探索の長時間化** | ✅ **LS 高速化 完了**（×2.4） | 残＝sweep 間プルーニング（**golden 再fit 必須**）。⛔上位K本限定は不採用 |
+| **長時間ジョブ** | ✅ ①②並列化済 | 残＝③LS内部の投機並列・他ハーネス横展開・ローカル移行 |
 | **★override の再fit** | ⏳ **未履行** | C39 でダメージモデルが動いた＝`search_calibrate.mjs` の再fit が CLAUDE.md 規約上必要（`{judg:145,pactcore:1}` は据置で出荷中） |
 | **Phase 8 アクセ実装** | ⏳ intake ゲート | §6 intake をユーザーと確定後 |
 
@@ -115,5 +120,5 @@
 ```bash
 npm run test:golden   # edison/raw 202,005,923・edison/cal 215,161,915・napoleon/static 299,523,354（全 FB10/10）
 ```
-⚠**実測 4分07秒**（2026-08-01 の LS 高速化で 約10分から短縮）＝600秒上限に近いので**背景実行が必須**。docs のみの変更なら golden は不変。
+⚠**実測 2分07秒**（2026-08-02 の fixture 並列化）。旧 4分07秒（2026-08-01 の LS 高速化で 約10分から短縮）＝600秒上限に近いので**背景実行が必須**。docs のみの変更なら golden は不変。
 `_replayResult`/`_execKey`/`clone`/`_snapshotForReplay` を触ったら **`node tools/exp_ls_incremental_verify.mjs`（約4分）も回す**。
