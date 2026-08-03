@@ -98,16 +98,22 @@ const SITE = { 'sim.js:204':'burst_body', 'sim.js:362':'streak', 'characters.js:
   'characters.js:610':'consort', 'characters.js:657':'betaia' };
 const S = { 1:{}, 2:{}, 3:{} }; let curTurn = 0, _d = 0;
 
-// 実機の押下列（pre-trial.md §1・elegant の2回目以降はシムのキー elegant_re へ写像）
-const RAW = {
-  1: ['puvoir','sleur','absolute','divinus','legend','legend','knights','miti','holy','holy','judg','effond','judg',
-      'elegant','judg','holy','elegant','judg','elegant','puvoir','effond','holy','judg','miti','sleur','pike','roy',
-      'judg','elegant','alone','holy','alone','puvoir','sleur','effond','consort','factor','legend','miti','holy','alone','holy'],
-  2: ['legend','legend','miti','puvoir','sleur','pike','holy','holy','effond','holy','alone','judg','judg','legend',
-      'effond','holy','judg','roy','consort'],
-  3: ['puvoir','sleur','pactcore','miti','legend','pike','holy','holy','effond','judg','holy','legend','knights',
-      'judg','elegant','judg','legend','roy','consort'] };
-const KEYS = {}; for (const t of [1,2,3]) { let e=0; KEYS[t]=RAW[t].map(k=>k==='elegant'?(e++?'elegant_re':'elegant'):k); }
+// 実機の押下列は §1 テーブルの「key/イベント」列から**そのまま読む**（手写ししない＝転記事故の排除）。
+// ラベル装飾 `(赤)` を落とし、elegant の2回目以降はシムのキー `elegant_re` へ写像する（ターン毎にリセット）。
+const KEYS = {};
+{
+  let t = null, eleg = 0;
+  for (const ln of src) {
+    if (!ln.startsWith('|')) continue;
+    const c = ln.split('|').slice(1,-1).map(s=>s.trim());
+    if (c.length !== 11 || c[0]==='T' || /^-+$/.test(c[0])) continue;
+    if (c[0]) { if (+c[0] !== t) eleg = 0; t = +c[0]; }
+    if (!t || c[1] === '(攻撃フェイズ)') continue;
+    const key = c[2].replace(/\(.*\)$/, '').trim();
+    if (!key) continue;
+    (KEYS[t] ??= []).push(key === 'elegant' ? (eleg++ ? 'elegant_re' : 'elegant') : key);
+  }
+}
 
 const sim = new Sim(); sim.totalTurns = 10; _d = sim.dmg;
 Object.defineProperty(sim, 'dmg', { configurable:true, enumerable:true, get(){ return _d; }, set(v){

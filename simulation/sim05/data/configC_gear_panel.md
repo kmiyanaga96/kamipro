@@ -6,6 +6,18 @@
 > 関連: sim05 README §5（golden 干渉・per-formation ATK）・`src/app.js` `DISPLAY_ATK_OVERRIDE_BY_FORMATION.napoleon`
 >
 > ⚠ **暫定configC**（ウェポン強化継続中・Q3 は月末確定予定）。本値は暫定版として受領した時点のスナップショット。
+>
+> ### ⚠ 冒頭注記（2026-08-03・ユーザー確認による訂正）
+> **§1 の「（幻獣=freyja_christmas / artemis）」はサブ枠の記載として陳腐化している。**
+> pre-trial の実機走のサブ枠（アシスト）は **metatron + artemis**（ユーザー確認 2026-08-03）。
+> ∴ ハーネスの `setCurrentSubs` は `['metatron','artemis']` が正で、**A7（AnotherLink の重複規則）は現役の未確定変数**。
+> ⚠ 本文は書き換えない（原文ママ原則）。**サブ枠・幻獣・ウェポンの正は、今後 `configC_slot.json`（UI の編成保存スロット JSON）とする**。
+>
+> **感度の実測（2026-08-03・`tools/calib_replay_compare.mjs`）**: サブ枠を metatron→freyja に替えても
+> pre-trial T1 の全体比は ×1.77→×1.78 で、**betaia ×2.89・バースト本体 ×1.04 は完全に不変**。
+> 動くのは metatron 固有の `sub_abi_*`/`sub_na_*`（holy ×2.40→2.49・judg ph0 ×1.36→1.42）と
+> フレイヤの `streak_dmgup 1.1`（ストリーク ×1.11→1.05）だけ。バースト枠は AnotherLink が現行 `Math.max` のため
+> **アルテミスの 0.25 に張り付いて両者同値**。∴ `analysis/` の結論はサブ枠の取り違えに対して頑健。
 
 ---
 
