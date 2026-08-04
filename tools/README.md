@@ -35,6 +35,7 @@
 | スクリプト | 用途 |
 |---|---|
 | **`calib_replay_compare.mjs`** | **★実機の押し順をそのまま強制リプレイし、ターン別・成分別に実機と突合する**（sim05 の較正方式そのもの）。`simulation/sim05/data/pre-trial.md` §1 をパースして実機側を集計し、シム側は `sim.dmg` の setter で**加算点のソース行**から成分に帰属させる（production 非改変）。`--cap19`（production 既定の `enemy_abil_cap` を掛ける）／`--wipe`（T1末バフ全消去仮説）。**約3秒**。出した数値＝`simulation/sim05/analysis/per_trial/pre-trial_quant.md`（C40〜C44 の根拠）。⚠**成分の対応表 `SITE` は characters.js / sim.js の行番号依存**＝両ファイルを編集したら更新すること（未知の行は行番号のまま出るので気付ける） |
+| **`calib_burst_formula.mjs`** | **★バースト本体の式を実機から推定する**（C44 の分解）。`calib_replay_compare` と同じ config で強制リプレイし、`burst()` の内部量（naB / raw / 実効cap / core）と**加算点 sim.js:204 の増分のみ**を採取して実機と突合。①同一 FB 内のキャラ間比（交絡ゼロ）②どの内部量に実機比が安定するか ③キャラ別残差 ④減衰外フラット項の割合 ⑤係数の推定、を出す。`--fix` で推定値を当てて検証。**約3秒**。⚠ **T1 のみ有効**（T2 以降はバフ消去で汚染）。⚠ 素朴に `this.dmg` 前後差を取ると `onBurst` の追加ダメージが混入する |
 | `search_calibrate.mjs` | 静的スコア自動較正の再fit（**ダメージモデルを変えたら必ず実行**） |
 | `search_calibrate_e2e.mjs` | 較正phase→本探索phase の2段配線を単一プロセスで検証 |
 | `search_probe.mjs` | N ターン探索の総ダメージ・時間・per-turn 使用回数 |
