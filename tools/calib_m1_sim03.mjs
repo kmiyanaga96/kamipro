@@ -8,6 +8,10 @@
 //      「cap 構成 vs slope vs calib」を切り分けられる**唯一の在庫**。
 //      さらに **同一 FB 内のキャラ間比**はパーティバフが約分されるので**バフ量を知らなくても使える**。
 //
+// ⚠⚠ **T3 は使えない**（2026-08-03 発見）: sim03 は実機が **T3 の途中で撃破**しており記録がそこで打ち切られる
+//   （実機バースト 15発 vs シム 65発／実機 FB 0 vs シム 25）。押下列も「予定した25手」でシムは全部通してしまう。
+//   ∴ **本ハーネスの全解析は T1/T2 に限定**する（`TURNS`）。
+//
 // データ: `simulation/sim03/data/trial01〜05.md`（6列様式。sim04/sim05 の11列様式とは別物）
 //   - 押し順は「## 固定押し順」節から（`**` と `(赤)` の装飾を落とす）
 //   - 成分値は「## TN 記録」表から（`発生hit（成分・キャラ）` 列の並び順に `値` 列が対応する）
@@ -26,6 +30,7 @@ const mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
 const sd = a => Math.sqrt(mean(a.map(v => (v - mean(a)) ** 2)));
 const nums = s => (s.match(/\d[\d,]*/g) || []).map(x => +x.replace(/,/g, ''));
 const FIX = process.argv.includes('--fix');
+const TURNS = [1, 2];   // ⚠ T3 は実機が途中撃破で打ち切られており比較不能（冒頭注記）
 
 // ══ config（sim03 の受領キャッシュから復元・ハードコードしない）══
 const CFG = JSON.parse(fs.readFileSync('/home/user/kamipro/simulation/sim03/data/configA.json', 'utf8'));
@@ -114,7 +119,7 @@ function runTrial(path) {
         if (m) { if (m[1] === 'sim' && m[2] === '204') BODY += dd; break; } } } }); }
   let prev = 0;
   const rej = {};
-  for (const t of [1, 2, 3]) {
+  for (const t of TURNS) {
     if (!keys[t]) break;
     CUR = t;
     const r = sim.greedyTakeTurn(t, keys[t]);
@@ -129,7 +134,7 @@ function runTrial(path) {
   // 実機のバースト本体を「キー＋オーナー」で対応付ける
   const OWNER_OF = { effond: 'hecate', alone: 'elaine', judg: 'tetra', tenya: 'yamato', tenya_re: 'yamato' };
   const pairs = [];
-  for (const t of [1, 2, 3]) {
+  for (const t of TURNS) {
     if (!comp[t]) continue;
     const realPress = comp[t].press.filter(p => p.parts['バースト本体'] !== undefined);
     const byO = {}; realPress.forEach(p => { const o = OWNER_OF[p.key] || p.key; (byO[o] ??= []).push(p.parts['バースト本体']); });
@@ -267,6 +272,12 @@ for (const [lab, arr] of [['configA (sim03)', P], ['configC v3 (pre-trial T1・�
 }
 
 // ══════════════════════════════════════════════════════════════════
+// ⚠⚠ **以下の --slope / --fine は「バースト本体の比」だけを見ており、結論は 2026-08-03 に棄却された**。
+//   本体の比は `calib_burst × core` で動くため **slope を上げて calib を下げれば同じ比を作れる（縮退）**。
+//   縮退を破るのが **バーストストリーク**（基底は素の `core`＝`calib_burst` の影響を受けない）で、
+//   `--streak` で見ると **現行 slope=0.10 が最も一致（×1.019）し、上げるほど悪化する**。
+//   ∴ slope 仮説は棄却。残る「config 間で calib_burst が 1.46 vs 1.66 と食い違う」原因は**未特定**。
+// ══════════════════════════════════════════════════════════════════
 // ★ slope 掃引: 2 config の「実機/シム本体」が一致する slope を探す
 //   現行の s=0.10 では configA 0.707 / configC 0.800 と **13% 食い違う**＝
 //   「cap + s×超過」の形が cap 水準を変えると系統的にズレている。
@@ -340,4 +351,156 @@ if (process.argv.includes('--fine')) {
     log(`| ${s.toFixed(2)} | ${mean(e).toFixed(3)} | ${(sd(e) / mean(e) * 100).toFixed(1)}% | ${r.toFixed(3)} | ${(2.07 * mean(e)).toFixed(2)} |`);
   }
   log(`\n  → r≈0 は **slope=${best.s}**（r=${best.r.toFixed(3)}・CV ${(best.cv * 100).toFixed(1)}%）／共通 calib_burst ≈ **${(2.07 * best.m).toFixed(2)}**`);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ★ 全成分の突合（バースト以外の環境妥当性検査）
+//   ⚠ 行内の値の並びは「成分ラベルの並び」に対応するが、**多ヒット成分（通常三段攻撃）は複数値を消費する**。
+//      曖昧な行は割り当てを推測せず **未パースとして計上し、集計から除外する**（誤帰属より欠測を選ぶ）。
+// ══════════════════════════════════════════════════════════════════
+// ★ 全成分の突合（バースト以外の環境妥当性検査）
+//   行の構造は実データを全数調査して確定させた（`--components` の前提）:
+//     FB 行   : 必ず groups=6 sizes=[2,2,2,2,2,1] ＝ 5キャラ×(本体,追加ダメ) ＋ ストリーク1
+//     press 行: 単一グループ。成分ラベルに位置対応。多ヒットラベルは 通常三段攻撃=3 / 通常二段攻撃=2
+//   ⚠ 数が合わない行は**割り当てを推測せず未パースとして除外**する（誤帰属より欠測を選ぶ）。
+//   ⚠ 実機の「追加ダメージ」は1バースト1値だが、シムは **キャラ固有の追加ダメ＋英霊武器追加ダメ** を
+//      別々に加算する。∴ シム側は**両方を束ねて**比較する（束ねている事実を明示する）。
+// ══════════════════════════════════════════════════════════════════
+if (process.argv.includes('--components')) {
+  const SITE = {
+    'sim.js:204': 'バースト本体', 'sim.js:362': 'バーストストリーク',
+    'characters.js:128': 'ロボ追撃',
+    'characters.js:139': '追加ダメージ', 'characters.js:212': '追加ダメージ',
+    'characters.js:334': '追加ダメージ', 'characters.js:417': '追加ダメージ', 'characters.js:486': '追加ダメージ',
+    'characters.js:293': 'アビリティ', 'characters.js:369': 'アビリティ',
+    'characters.js:373': '通常攻撃', 'characters.js:429': 'DOT',
+    'characters.js:726': 'フレイヤ バーストプラス',
+  };
+  const MULTI = { '通常三段攻撃': 3, '通常二段攻撃': 2 };
+  const CANON = { '通常三段攻撃': '通常攻撃', '通常二段攻撃': '通常攻撃' };
+  const R = {}, S = {}; let unparsed = 0; const bad = [];
+  const addR = (k, v) => R[k] = (R[k] || 0) + v;
+  const addS = (k, v) => S[k] = (S[k] || 0) + v;
+
+  for (let i = 1; i <= 5; i++) {
+    const path = `/home/user/kamipro/simulation/sim03/data/trial0${i}.md`;
+    const src = fs.readFileSync(path, 'utf8').split('\n');
+    let t = null;
+    for (const l of src) {
+      const h = l.match(/^## T(\d) 記録/); if (h) { t = TURNS.includes(+h[1]) ? +h[1] : null; continue; }
+      if (/^## /.test(l) && !/記録/.test(l)) { t = null; continue; }
+      if (t && /^\*\*T\d 敵フェイズ/.test(l)) t = null;
+      if (!t || !l.startsWith('|')) continue;
+      const c = l.split('|').slice(1, -1).map(s => s.trim());
+      if (c.length !== 6 || c[0] === '押下#' || /^-+$/.test(c[0])) continue;
+      const comps = c[2].split('/').map(s => s.trim()).filter(Boolean);
+      if (!comps.length || c[3] === 'なし') continue;
+      if (c[0] === '(攻撃フェイズ)') {
+        const groups = c[3].split('/').map(s => nums(s));
+        if (groups.length !== 6 || groups.slice(0, 5).some(g => g.length !== 2) || groups[5].length !== 1) {
+          unparsed++; bad.push(`FB 形が想定外: sizes=[${groups.map(g => g.length)}]`); continue; }
+        for (let k = 0; k < 5; k++) { addR('バースト本体', groups[k][0]); addR('追加ダメージ', groups[k][1]); }
+        addR('バーストストリーク', groups[5][0]);
+        continue;
+      }
+      const vals = nums(c[3]);
+      const need = comps.reduce((a, cm) => a + (MULTI[cm] || 1), 0);
+      if (need !== vals.length) { unparsed++; bad.push(`[${comps.join('/')}] に ${vals.length} 値: ${c[3].slice(0, 40)}`); continue; }
+      let j2 = 0;
+      for (const cm of comps) { const n = MULTI[cm] || 1;
+        addR(CANON[cm] || cm, vals.slice(j2, j2 + n).reduce((a, b) => a + b, 0)); j2 += n; }
+    }
+    // ターン終了ブロック（DOT は「10万×4発」表記）。⚠ T3 は除外（実機打ち切り）
+    { let tt = null;
+      for (const l of src) {
+        const hh = l.match(/^\*\*T(\d) 敵フェイズ/); if (hh) { tt = +hh[1]; continue; }
+        if (/^## /.test(l)) { tt = null; continue; }
+        if (tt === null || !TURNS.includes(tt)) continue;
+        const d = l.match(/DOTダメージ[^:]*:\s*(\d+)万×(\d+)発/);
+        if (d) { addR('DOT', +d[1] * 10000 * +d[2]); continue; }
+        const k = l.match(/^-\s*反撃ダメージ[^:]*:\s*(.*)$/);
+        if (k && !/なし/.test(k[1])) addR('反撃', nums(k[1]).reduce((a, b) => a + b, 0)); } }
+    // シム側
+    const { keys, disp } = parseTrial(path);
+    setCurrentSubs(SUBS); buildFormation(HERO, KAMI); applyEnemy('cath_palug');
+    for (const k of Object.keys(GEAR)) GEAR[k] = G[k] ?? 0;
+    DMG.edison_burst_extra_mult = E_BM; DMG.edison_burst_extra_cap = E_BC;
+    DMG.enemy_barrier = null; DMG.enemy_abil_cap = null;
+    recalcGearK(); recalcGearKCFromDispAtk(disp); setStaticOverride(OVERRIDE);
+    const s2 = new Sim(); s2.totalTurns = 10;
+    { let _d = s2.dmg; Object.defineProperty(s2, 'dmg', { configurable: true, enumerable: true, get() { return _d; }, set(v) {
+        const dd = v - _d; _d = v; if (!dd) return;
+        for (const l of new Error().stack.split('\n').slice(2)) { const m = l.match(/(characters|sim)\.js:(\d+):/);
+          if (m) { addS(SITE[`${m[1]}.js:${m[2]}`] ?? `?${m[1]}.js:${m[2]}`, dd); break; } } } }); }
+    for (const t2 of TURNS) if (keys[t2]) s2.greedyTakeTurn(t2, keys[t2]);
+  }
+  log('\n\n■ ★ 全成分の突合（sim03 D走 5本の合計・configA）\n');
+  log('| 成分 | 実機 | シム | 実機/シム |');
+  log('|---|---|---|---|');
+  const all = [...new Set([...Object.keys(R), ...Object.keys(S)])].sort((a, b) => (R[b] || 0) - (R[a] || 0));
+  let rt = 0, st = 0;
+  for (const k of all) { const r = R[k] || 0, sv = S[k] || 0; rt += r; st += sv;
+    log(`| ${k} | ${f(r)} | ${f(sv)} | ${sv && r ? '×' + (r / sv).toFixed(3) : (r ? '**シムに無し**' : '**実機記録に無し**')} |`); }
+  log(`| **合計** | **${f(rt)}** | **${f(st)}** | **×${(rt / st).toFixed(3)}** |`);
+  log(`\n  未パース行: ${unparsed} 件`);
+  [...new Set(bad)].slice(0, 6).forEach(x => log(`    - ${x}`));
+}
+
+
+// ══════════════════════════════════════════════════════════════════
+// ★ 反証テスト（--streak）: **バーストストリークは `calib_burst` の影響を受けない**
+//   （`_attackPhase` の基底は各バーストの素の `core`）。∴ **slope 単独の検証になる**。
+//   本体の比だけを見ると calib と slope が縮退するが、ストリークがそれを破る。
+// ══════════════════════════════════════════════════════════════════
+if (process.argv.includes('--streak')) {
+  // 実機（T1/T2）のバースト本体合計とストリーク合計
+  let Rb = 0, Rs = 0; const trials = [];
+  for (let i = 1; i <= 5; i++) {
+    const path = `/home/user/kamipro/simulation/sim03/data/trial0${i}.md`;
+    const src = fs.readFileSync(path, 'utf8').split('\n');
+    let t = null;
+    for (const l of src) {
+      const h = l.match(/^## T(\d) 記録/); if (h) { t = TURNS.includes(+h[1]) ? +h[1] : null; continue; }
+      if (/^## /.test(l) && !/記録/.test(l)) t = null;
+      if (t && /^\*\*T\d 敵フェイズ/.test(l)) t = null;
+      if (!t || !l.startsWith('|')) continue;
+      const c = l.split('|').slice(1, -1).map(s => s.trim());
+      if (c.length !== 6 || c[0] === '押下#' || /^-+$/.test(c[0])) continue;
+      const comps = c[2].split('/').map(s => s.trim()).filter(Boolean);
+      if (c[0] === '(攻撃フェイズ)') { const g = c[3].split('/').map(s => nums(s));
+        if (g.length === 6) { for (let k = 0; k < 5; k++) Rb += g[k][0]; Rs += g[5][0]; } continue; }
+      const idx = comps.indexOf('バースト本体'); if (idx < 0) continue;
+      const vals = nums(c[3]); if (vals.length !== comps.length) continue;
+      Rb += vals[idx];
+    }
+    trials.push(parseTrial(path));
+  }
+  const run = (slope, calib) => {
+    let body = 0, streak = 0;
+    for (const { keys, disp } of trials) {
+      setCurrentSubs(SUBS); buildFormation(HERO, KAMI); applyEnemy('cath_palug');
+      for (const k of Object.keys(GEAR)) GEAR[k] = G[k] ?? 0;
+      DMG.edison_burst_extra_mult = E_BM; DMG.edison_burst_extra_cap = E_BC;
+      DMG.enemy_barrier = null; DMG.enemy_abil_cap = null;
+      DMG.decay_burst.slope = slope; DMG.calib_burst = calib;
+      recalcGearK(); recalcGearKCFromDispAtk(disp); setStaticOverride(OVERRIDE);
+      const s2 = new Sim(); s2.totalTurns = 10;
+      { let _d = s2.dmg; Object.defineProperty(s2, 'dmg', { configurable: true, enumerable: true, get() { return _d; }, set(v) {
+          const dd = v - _d; _d = v; if (!dd) return;
+          for (const l of new Error().stack.split('\n').slice(2)) { const m = l.match(/(characters|sim)\.js:(\d+):/);
+            if (m) { if (m[1] === 'sim' && m[2] === '204') body += dd; if (m[1] === 'sim' && m[2] === '362') streak += dd; break; } } } }); }
+      for (const t of TURNS) if (keys[t]) s2.greedyTakeTurn(t, keys[t]);
+    }
+    return { body, streak };
+  };
+  log('\n\n■ ★ 反証テスト: ストリークは calib_burst 非依存＝slope 単独の検証（sim03 configA・障壁なし・T1/T2）\n');
+  log(`  実機: バースト本体 ${f(Rb)} / ストリーク ${f(Rs)}\n`);
+  log('| slope | calib_burst | 実機/シム 本体 | **実機/シム ストリーク** |');
+  log('|---|---|---|---|');
+  for (const [sl, ca] of [[0.10, 2.07], [0.10, 1.46], [0.20, 2.07], [0.30, 1.28], [0.40, 1.20]]) {
+    const r = run(sl, ca);
+    log(`| ${sl.toFixed(2)} | ${ca} | ×${(Rb / r.body).toFixed(3)} | **×${(Rs / r.streak).toFixed(3)}** |`);
+  }
+  log('\n  → **現行 slope=0.10 でストリークが最もよく一致**（×1.019）。上げるほど悪化＝**slope 仮説は棄却**。');
+  log('  → configA では **slope=0.10 のまま calib_burst≈1.46 で本体 ×0.955・ストリーク ×1.019 が同時に合う**。');
 }
