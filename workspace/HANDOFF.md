@@ -139,7 +139,7 @@
   ／**`analysis/PROVISIONAL_ANALYSIS.md`（暫定統合＝ここから読む）**／`analysis/m1_history_replay.md`（★M1 の全成分突合）
   ／`analysis/per_trial/pre-trial_{quant,quali}.md`／`data/pre-trial.md`（実機原本）／`data/record_skeleton.md`（記入テンプレ）
   ／**`data/configC_gear_panel.md`（★冒頭注記2＝GEAR の正）**／**`data/configC_cache_20260803.json`（config の正・E2 通過）**
-- **計測ハーネス**: `tools/`（`README.md` が索引・**§0 に並列実行**・**★§0.5 に config の台帳駆動（`lib/config_c.mjs`）**・**`calib_replay_compare.mjs` が sim05 の較正方式そのもの**）
+- **計測ハーネス**: `tools/`（`README.md` が索引・**§0 に並列実行**・**★§0.5 に config の台帳駆動（`tools/lib/config_c.mjs`）**・**`calib_replay_compare.mjs` が sim05 の較正方式そのもの**）
 - **実験・計測の作法**: `REPO_STANDARDS.md` §6 の **E1〜E10**（着手前に通す。**★E10=config は台帳から読む**）
 - **探索品質の実験の全数値**: `archive/SEARCH_QUALITY_EXPERIMENTS.md`（C37 の根拠アーカイブ）
 - **新キャラ/幻獣の一次情報と Ax**: `gamedata/md/神姫/metatron.md`（§3.2 A0〜A10）／`gamedata/md/幻獣/`

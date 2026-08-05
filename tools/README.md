@@ -114,6 +114,12 @@ loadConfigC({ enemy:'walpurgis_loki', atkScale:1.10, abilCap:null });  // 実験
 | `exp_ls_incremental_verify.mjs` | **LS インクリメンタル replay（`_LSReplay`）の結果不変性 回帰**。edison / napoleon×宿儺 の2 config で、LS 近傍3種を網羅サンプリングし `_LSReplay.dmgOf` と full `_replayResult` の **ビット一致**＋受理後（rebase 後）の一致を検証し、1評価あたりのコスト比も出す。所要 **約4分**（内訳はビーム 2本＝43s＋130s）。**`_replayResult` / `_execKey` / `clone` / `_snapshotForReplay` を触ったら必ず回す**（C39 を検出したのがこのハーネス） |
 | `exp_t1_abilcap_sweep.mjs` | **sim05 README §4.4.1＝T1 の押下上限を外すとシムの T1 ダメージはどこまで伸びるか**（`DMG.enemy_abil_cap` を掃引・静的greedy で cap 以外を揃える）。実測: cap=19→16.3% / 無制限→24.8%（×1.52・30手で自然枯渇）。⚠⚠**上記の数値は無効**＝**GEAR が最古値（2026-07-27 暫定）のまま**だった（下の「共通の注意」）。加えて「30手で自然枯渇」は**静的greedy が自発的に選ぶ手数**であって押せる上限ではない（**実機の押し順を強制すると 39手通る**＝`calib_replay_compare.mjs`）。**✅2026-08-05: config は台帳駆動へ移行済＝そのまま再実行してよい**（冒頭で E2 の bit 一致を自己検証してから測る）。**正しい config での実測 = cap19→22.8% / 無制限→32.3%（×1.42）**。数秒 |
 
+## 3. ドキュメント検査（2026-08-05 追加）
+
+| スクリプト | 用途 |
+|---|---|
+| **`doc_refs.mjs`** | **md 相互参照の機械検査**（`npm run doc:check`・DOC_RELATION_PLAN S1）。全 md の参照グラフを構築し ①**壊れた参照** ②**曖昧参照**（裸 basename・`README.md` が15本あるので一意解決できない層）③**被参照ランキング** を出す。**`--write` を持たない＝リポジトリ無改変**。`--ambiguous` / `--graph` / `--refs <path>` / `--json`。<br>⚠ **「解決できない」＝「壊れている」ではない**（地の文 `Node.js`、連結表記 `A.md/B.md`、命名パターン `<CHAR>_REGISTRATION.md` を分離する。初版はこの分離が無く実数の約10倍を報告した）。<br>⚠ **死んだパスを資料として引用する文書**（SESSION_LOG の歴史記述・DOC_RELATION_PLAN のリンク切れ一覧）は `<!-- doc_refs:ignore-begin -->` / `<!-- doc_refs:ignore-end -->` で区間除外する。<br>⚠ `git ls-files` は**非ASCIIパスを8進エスケープする**ため `-z` で受ける／**追跡済みしか出さない**ため実ファイル存在も併せて見る（どちらも実際に踏んだ） |
+
 ### 共通の注意
 
 - **⚠⚠ 本表の napoleon 系の数値は「旧 config」で測定されている＝再取得が必要**（2026-08-03 発覚・2026-08-05 に構造対策）。
