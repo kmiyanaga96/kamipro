@@ -15,7 +15,7 @@
 
 ### 現役ドキュメント（ルート）
 - **REPO_STANDARDS.md**: **ドキュメント規約＆リクエスト振り分けフロー（2026-07-16 制定・生きた台帳）**。リクエスト種別→フロー/ID/置き場所の分類表・ID接頭辞レジストリ・MD統一テンプレート・ライフサイクルgit運用・セッション定型。
-- **DOC_RELATION_PLAN.md**: **md 相互参照の整備計画（2026-08-05 起草・★S1〜S3 完了／残 S4・S5）**。md 間の更新漏れインシデントを根絶するため、①参照の機械検証可能化（**✅`tools/doc_refs.mjs`＝S1 完成・`npm run doc:check`**）②単一の正の徹底（統一文言）③大テンプレ末尾の更新履歴＋被参照ブロック（自動生成）④用途別の小テンプレ、を段階計画 S1〜S5 で進める。⚠**§2 が要点＝末尾テンプレ単体で消えるインシデント型はゼロ**（効くのは機械検査と単一の正）。**§0＝ユーザー決定8件**（適用対象＝**現役層 52本**・凍結 sim/archive/essays は対象外・末尾ブロックは本文外メタ領域・数値は ID 置換しない）。**規約は REPO_STANDARDS §4.1／§7 が正**。**§7＝常駐サブタスク**（イベント駆動＋5セッション定期・カウンタは `workspace/TODO.md` が持つ）。
+- **DOC_RELATION_PLAN.md**: **md 相互参照の整備計画（2026-08-05 起草・★S1〜S5 完了＝運用フェーズ）**。md 間の更新漏れインシデントを根絶するため、①参照の機械検証可能化（**✅`tools/doc_refs.mjs`＝S1 完成・`npm run doc:check`**）②単一の正の徹底（統一文言）③大テンプレ末尾の更新履歴＋被参照ブロック（自動生成）④用途別の小テンプレ、を段階計画 S1〜S5 で進める。⚠**§2 が要点＝末尾テンプレ単体で消えるインシデント型はゼロ**（効くのは機械検査と単一の正）。**§0＝ユーザー決定8件**（適用対象＝**現役層 52本**・凍結 sim/archive/essays は対象外・末尾ブロックは本文外メタ領域・数値は ID 置換しない）。**規約は REPO_STANDARDS §4.1／§7 が正**。**§7＝常駐サブタスク（稼働中）**＝イベント駆動＋5セッション定期・カウンタは `workspace/TODO.md` 冒頭・超過はツールが警告。**セッション末の手順は REPO_STANDARDS §6-6 が正**。⚠**md を新設/改名したら `node tools/doc_refs.mjs --write` も回す**（被参照ブロックの再生成・冪等）。
 - **CLAUDE.md**（本書）: 生きた開発ガイド＝**安定リファレンス**。コード地図・開発ルール・確定仕様・検証方法・実機較正ステータス（open-Cx 要約）。**「現状/次タスク」は持たない**（→ workspace/HANDOFF・TODO）。
 - **CALIBRATION_ANALYSIS.md**: 実機較正の確定値＆**根拠アーカイブ**（なぜその値・枠か）＋乖離バックログ（Cx）。較正・英霊武器は実装済み。
 - **PHASE4_PLAN.md**: Phase 4（実機較正の反復＝**現行フェーズ**）の進め方台帳。**押し順優先**・序数比較ハーネス・「押し順は蓄積誤差に頑健、系統誤差だけを狙う」方針・乖離バックログ駆動を規定。
@@ -237,3 +237,37 @@ npm run preview              # dist を http 配信 → ブラウザで探索/�
 - **過去の進行経緯・provenance**: `archive/SESSION_LOG.md`（append-only 履歴）
 
 > セッション末は HANDOFF/TODO を更新し、現状化した進行を SESSION_LOG の先頭へ畳む（規律は REPO_STANDARDS §6）。
+
+---
+
+## 更新履歴
+
+<!-- 直近5件のみ（それ以前は git log）。「波及確認」列が本体＝git が持たない情報はここだけ。 -->
+
+| 日付 | 変更点 | 波及確認 |
+|---|---|---|
+| 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=規定・台帳・計画） | 参照関係は `npm run doc:check` がグリーン |
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 17）
+
+- [CALIBRATION_ANALYSIS.md](./CALIBRATION_ANALYSIS.md)
+- [DOC_RELATION_PLAN.md](./DOC_RELATION_PLAN.md)
+- [KILL_TURN_DESIGN.md](./KILL_TURN_DESIGN.md)
+- [PHASE4_PLAN.md](./PHASE4_PLAN.md)
+- [PHASE8_PLAN.md](./PHASE8_PLAN.md)
+- [REPO_STANDARDS.md](./REPO_STANDARDS.md)
+- [ROADMAP.md](./ROADMAP.md)
+- [gamedata/md/幻獣/rasiel.md](./gamedata/md/幻獣/rasiel.md)
+- [gamedata/md/神姫/README.md](./gamedata/md/神姫/README.md)
+- [gamedata/md/英霊/edison.md](./gamedata/md/英霊/edison.md)
+- [simulation/README.md](./simulation/README.md)
+- [simulation/sim05/README.md](./simulation/sim05/README.md)
+- [simulation/sim05/analysis/PROVISIONAL_ANALYSIS.md](./simulation/sim05/analysis/PROVISIONAL_ANALYSIS.md)
+- [simulation/sim05/analysis/per_trial/pre-trial_quant.md](./simulation/sim05/analysis/per_trial/pre-trial_quant.md)
+- [tools/README.md](./tools/README.md)
+- [workspace/HANDOFF.md](./workspace/HANDOFF.md)
+- [workspace/TODO.md](./workspace/TODO.md)
+
+_他に 凍結sim/archive/essays から 32 件（更新対象外）_
+<!-- doc_refs:end -->

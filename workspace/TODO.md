@@ -13,18 +13,25 @@
 > **なぜここか**（ユーザー判断 2026-08-05）: ①頻繁に参照・書き換えが行われる ②**いかなるセッションでも読み込まれる**。
 > 別ファイルの state は作らない（管理対象を増やすこと自体が新しい更新漏れの発生源になるため）。
 
-- 前回 `npm run doc:check`: **2026-08-05 / S1 完成時**
+- 前回 `npm run doc:check`: **2026-08-05（S1〜S5 完了時・現役層グリーン）**
 - カウンタ: `0/5`  ← **セッション末に +1**。5 到達で棚卸しの回（`doc_refs.mjs` がこの行を読んで警告を出す）
 - **⚠ 即実行トリガ**（カウンタに関係なく走らせて 0 に戻す）: md の**新設・リネーム・archive 移動**があったセッション
+
+**セッション末の手順**（REPO_STANDARDS §6-6 が正）:
+1. 上のカウンタを +1（即実行トリガに当たるなら `npm run doc:check` を走らせて 0 に戻す）
+2. md を新設・改名したら **`node tools/doc_refs.mjs --write`** も走らせる（被参照ブロックの再生成・冪等）
+3. 検査が**現役層**の壊れた参照を出したらそのセッションで直す。
+   **凍結 sim01〜04 と archive の警告は対象外**（決定3・決定8＝歴史資料として安置する）
 
 ### 残工程（[DOC_RELATION_PLAN.md](DOC_RELATION_PLAN.md) §6）
 
 - [x] **S1 検査ツール**（`tools/doc_refs.mjs`・`npm run doc:check`）／**S2 規約制定**（REPO_STANDARDS §4.1・§7・§6-6）
       ／**S3 現役層の参照を全解決**（壊れた参照 48→0・曖昧 33→0）。⚠archive と凍結 sim は**決定8/3 により一切触っていない**。
-- [ ] **S4: 末尾ブロックの一括挿入**（`doc_refs.mjs --write` を実装 → 現役層 52本へ）。
-      **①高被参照の現役分 → ②残り の2コミットに割る**（差分が大きく一括レビューが困難なため）。
-      ⚠ 生成部はマーカー内に閉じ**冪等**にする。更新履歴は種別により不要（§5.2）。
-- [ ] **S5: 常駐化の運用開始**＝上のカウンタを毎セッション +1 する運用に入る（規約側は §6-6 で組込み済）。
+- [x] **S4 末尾ブロックの一括挿入**＝`--write` を実装し**現役層 51本**へ（TEMPLATE 除く）。冪等（2回目は差分ゼロ）。
+      一次情報には更新履歴を入れない（§5.2）。**被参照リストは現役層の参照元のみ**＝凍結・archive は件数のみ
+      （CLAUDE.md は 48件→**実際に直しうる16件**に圧縮）。
+- [x] **S5 常駐化の運用開始**＝規約（§6-6）＋カウンタ（本書冒頭）＋ツールの超過警告の3点セット。
+- [ ] **⏳ 完了条件の残り**: 常駐サブタスクが**2周**回ること（DOC_RELATION_PLAN 完了条件③）。回りきったら本計画を archive へ。
 
 ---
 
@@ -192,3 +199,26 @@
 - [ ] **consort 2hit の順序性**（実機は 1回目→デバフ→2回目でデバフ1回分が乗る／シムは同時計算）。微小・低優先。
 - [ ] CHARACTER_ANALYSIS §2（ヤマト vs アリアン）を較正確定後に再測。
 - [ ] essays 更新（次の較正確定後）。
+
+---
+
+## 更新履歴
+
+<!-- 直近5件のみ（それ以前は git log）。「波及確認」列が本体＝git が持たない情報はここだけ。 -->
+
+| 日付 | 変更点 | 波及確認 |
+|---|---|---|
+| 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=現状スナップショット） | 参照関係は `npm run doc:check` がグリーン |
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 6）
+
+- [CLAUDE.md](../CLAUDE.md)
+- [DOC_RELATION_PLAN.md](../DOC_RELATION_PLAN.md)
+- [REPO_STANDARDS.md](../REPO_STANDARDS.md)
+- [simulation/sim05/analysis/PROVISIONAL_ANALYSIS.md](../simulation/sim05/analysis/PROVISIONAL_ANALYSIS.md)
+- [simulation/sim05/analysis/m1_history_replay.md](../simulation/sim05/analysis/m1_history_replay.md)
+- [workspace/HANDOFF.md](./HANDOFF.md)
+
+_他に 凍結sim/archive/essays から 1 件（更新対象外）_
+<!-- doc_refs:end -->

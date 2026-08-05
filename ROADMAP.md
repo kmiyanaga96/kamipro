@@ -232,3 +232,23 @@ S1+S2（フェーズ倍率モデル化＋撃破ターン表示）は **sim02 試
    （実装と md の乖離防止＝CLAUDE.md §1 の規律）。
 
 > ID/置き場所の一次台帳は REPO_STANDARDS.md §1（振り分け表）・§3（Ax レジストリ）。本節は「手順の流れ」を正として持つ。
+
+---
+
+## 更新履歴
+
+<!-- 直近5件のみ（それ以前は git log）。「波及確認」列が本体＝git が持たない情報はここだけ。 -->
+
+| 日付 | 変更点 | 波及確認 |
+|---|---|---|
+| 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=規定・台帳・計画） | 参照関係は `npm run doc:check` がグリーン |
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 5）
+
+- [CLAUDE.md](./CLAUDE.md)
+- [PHASE8_PLAN.md](./PHASE8_PLAN.md)
+- [REPO_STANDARDS.md](./REPO_STANDARDS.md)
+- [gamedata/md/幻獣/README.md](./gamedata/md/幻獣/README.md)
+- [workspace/HANDOFF.md](./workspace/HANDOFF.md)
+<!-- doc_refs:end -->

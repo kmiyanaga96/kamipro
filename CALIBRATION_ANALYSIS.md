@@ -148,4 +148,33 @@ HELIX後も基礎分（3倍/50万）が欠落していた。→ 差分計算を�
 
 > 新規乖離は PHASE4_PLAN.md §3 の駆動フロー（リプレイで起点特定→ここへ起票→`simNN/design_report.md`→`simNN/integrated_analysis.md`+修正+序数フィクスチャ）で追加する。
 
+---
 
+## 更新履歴
+
+<!-- 直近5件のみ（それ以前は git log）。「波及確認」列が本体＝git が持たない情報はここだけ。 -->
+
+| 日付 | 変更点 | 波及確認 |
+|---|---|---|
+| 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=規定・台帳・計画） | 参照関係は `npm run doc:check` がグリーン |
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 14）
+
+- [CLAUDE.md](./CLAUDE.md)
+- [DOC_RELATION_PLAN.md](./DOC_RELATION_PLAN.md)
+- [PHASE4_PLAN.md](./PHASE4_PLAN.md)
+- [REPO_STANDARDS.md](./REPO_STANDARDS.md)
+- [ROADMAP.md](./ROADMAP.md)
+- [gamedata/md/その他/README.md](./gamedata/md/その他/README.md)
+- [gamedata/md/その他/damage_frames.md](./gamedata/md/その他/damage_frames.md)
+- [gamedata/md/敵/README.md](./gamedata/md/敵/README.md)
+- [gamedata/md/英霊/README.md](./gamedata/md/英霊/README.md)
+- [simulation/README.md](./simulation/README.md)
+- [simulation/c3_edison_followup_intake.md](./simulation/c3_edison_followup_intake.md)
+- [simulation/sim05/analysis/PROVISIONAL_ANALYSIS.md](./simulation/sim05/analysis/PROVISIONAL_ANALYSIS.md)
+- [simulation/sim05/analysis/per_trial/pre-trial_quant.md](./simulation/sim05/analysis/per_trial/pre-trial_quant.md)
+- [workspace/HANDOFF.md](./workspace/HANDOFF.md)
+
+_他に 凍結sim/archive/essays から 16 件（更新対象外）_
+<!-- doc_refs:end -->

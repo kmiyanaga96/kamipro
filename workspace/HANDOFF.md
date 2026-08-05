@@ -37,7 +37,7 @@
 **C37 の BW 掃引（非単調・BW384 +5.64%）／ATK 感度／LS 利得率／PREFIX_TOPK 損失／C1 の中位7本分類**が対象。
 **「結論が変わる」とは限らないが裏付けとして引用できない**（E1）。⚠ **再測は C43 実装後に**（探索空間が変わる）。
 
-## ✅ 直近の成果（2026-08-05・その2）── md 相互参照の整備（S1〜S3）
+## ✅ 直近の成果（2026-08-05・その2）── md 相互参照の整備（S1〜S5 完了）
 
 **ユーザー指示で常駐サブタスク化**。設計と決定は [DOC_RELATION_PLAN.md](DOC_RELATION_PLAN.md)（§0 決定8件・§6 段階計画）。
 
@@ -48,7 +48,11 @@
 - **S3** ＝ **現役層の壊れた参照 48→0・曖昧参照 33→0**（`data/`→`gamedata/js/` の追従漏れ15件ほか）。
 - **適用対象は 52本**（164本から、凍結 sim 86・**archive 15**・essays 4・TEMPLATE 7 を除外）。
   **archive は歴史資料として安置＝末尾ブロックも入れない**（ユーザー決定8）。
-- ⏳ **残＝S4（末尾ブロックの一括挿入）・S5（常駐運用の開始）**。カウンタは `workspace/TODO.md` 冒頭。
+- **S4** ＝ 末尾ブロックを**現役層 51本**へ挿入（冪等・2回目は差分ゼロ）。一次情報には更新履歴を入れない。
+  **被参照リストは現役層の参照元のみ**＝凍結・archive は件数のみ（CLAUDE.md は 48件→**実際に直しうる16件**）。
+- **S5** ＝ 常駐運用を開始（規約 §6-6 ＋ TODO 冒頭のカウンタ ＋ ツールの超過警告）。**5到達で警告が出ることを実測確認**。
+- ⏳ **残＝常駐が2周回ること**（完了条件③）。回りきったら本計画は archive へ。
+- ⚠ **セッション末の新しい手順**: カウンタ +1／md を新設・改名したら `node tools/doc_refs.mjs --write` も回す。
 
 ## ✅ 直近の成果（2026-08-03）
 
@@ -167,3 +171,24 @@ npm run test:golden   # edison/raw 202,005,923・edison/cal 215,161,915・napole
 ```
 ⚠**実測 2分07秒**（fixture 並列。`--serial` で逐次・`--fixture <name>` で単体）。**背景実行を推奨**。docs のみの変更なら golden は不変。
 `_replayResult`/`_execKey`/`clone`/`_snapshotForReplay` を触ったら **`node tools/exp_ls_incremental_verify.mjs`（約4分）も回す**。
+
+---
+
+## 更新履歴
+
+<!-- 直近5件のみ（それ以前は git log）。「波及確認」列が本体＝git が持たない情報はここだけ。 -->
+
+| 日付 | 変更点 | 波及確認 |
+|---|---|---|
+| 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=現状スナップショット） | 参照関係は `npm run doc:check` がグリーン |
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 4）
+
+- [CLAUDE.md](../CLAUDE.md)
+- [DOC_RELATION_PLAN.md](../DOC_RELATION_PLAN.md)
+- [REPO_STANDARDS.md](../REPO_STANDARDS.md)
+- [workspace/TODO.md](./TODO.md)
+
+_他に 凍結sim/archive/essays から 1 件（更新対象外）_
+<!-- doc_refs:end -->

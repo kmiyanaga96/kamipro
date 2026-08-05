@@ -14,7 +14,11 @@
 //   node tools/doc_refs.mjs --refs <path> … 指定 md の 参照先 / 被参照 を両方向で表示
 //   node tools/doc_refs.mjs --json      … 機械可読出力（後続工程 S4 の --write が食う）
 //
-// ⚠ 本ツールは **--write を持たない**（S1 の受入条件＝リポジトリ無改変）。末尾ブロックの挿入は S4 で別途。
+//   node tools/doc_refs.mjs --write [--dry-run] [--only <prefix>]
+//                                       … 末尾ブロック（被参照＋更新履歴の雛形）を生成/更新（S4）
+//
+// ⚠ `--write` は**現役層のみ**が対象（凍結 sim・archive・essays・TEMPLATE は決定3/決定8 で対象外）。
+// ⚠ **冪等**＝2回走らせても差分は出ない。被参照ブロックは毎回再生成し、更新履歴の雛形は1度だけ置く。
 import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
@@ -74,12 +78,17 @@ const PROSE = /^(Node|Vite|package)\.js$/;
 function extractRefs(file) {
   const lines = fs.readFileSync(path.join(ROOT, file), 'utf8').split('\n');
   const out = [];
-  let fenced = false, ignoring = false, skipNext = false;
+  let fenced = false, ignoring = false, skipNext = false, inGen = false;
   lines.forEach((line, i) => {
     if (/^\s*```/.test(line)) { fenced = !fenced; return; }
     if (fenced) return;                       // コードブロック内は例示＝参照ではない
     // 「死んだパスを**資料として引用する**」区間を除外する。歴史台帳（SESSION_LOG）や本計画の
     // リンク切れ一覧のように、解決してはいけないパスを意図的に書く文書が実在するため必要。
+    // ★生成ブロック（doc_refs:begin〜end）は**抽出しない**。中身は被参照リンクの羅列なので、
+    //   数えてしまうと「全 md が全 md を参照している」状態に自己増殖する。
+    if (/<!--\s*doc_refs:begin\b/.test(line)) { inGen = true; return; }
+    if (/<!--\s*doc_refs:end\b/.test(line))   { inGen = false; return; }
+    if (inGen) return;
     if (/<!--\s*doc_refs:ignore-begin\b/.test(line)) { ignoring = true; return; }
     if (/<!--\s*doc_refs:ignore-end\b/.test(line))   { ignoring = false; return; }
     if (ignoring) return;
@@ -152,6 +161,21 @@ for (const f of allFiles) {
   }
 }
 
+// ══ 3.5 種別分類（DOC_RELATION_PLAN §5.2 / REPO_STANDARDS §4.1）════════
+// 末尾ブロックの対象は**現役層のみ**（凍結 sim・archive・essays・TEMPLATE は決定3/決定8 で対象外）。
+// 更新履歴の要否は種別で変わる: 一次情報は「原文ママ＝更新されないのが正」なので**不要**。
+function kindOf(f) {
+  if (/(^|\/)TEMPLATE\.md$/.test(f)) return null;                    // テンプレ原本＝対象外
+  if (f.startsWith('workspace/')) return { history: true,  label: '現状スナップショット' };
+  if (/^gamedata\/md\/.*README\.md$/.test(f)) return { history: true,  label: '規定' };
+  if (f.startsWith('gamedata/md/')) return { history: false, label: '一次情報' };
+  if (f.startsWith('simulation/sim05/data/')) return { history: false, label: '一次情報' };
+  if (f.startsWith('simulation/sim05/analysis/')) return { history: true, label: '分析' };
+  if (f.startsWith('simulation/') || f.startsWith('tools/')) return { history: true, label: '規定・台帳' };
+  if (!f.includes('/')) return { history: true, label: '規定・台帳・計画' };
+  return { history: true, label: 'その他' };
+}
+
 // ══ 4. 常駐サブタスクのカウンタ（DOC_RELATION_PLAN §7・決定7）═══════
 // 状態は **workspace/TODO.md が持つ**（別 state ファイルを作らない＝管理対象を増やさない）。
 const TODO = 'workspace/TODO.md';
@@ -208,6 +232,78 @@ if (has('--ambiguous')) {
     list.forEach(a => log(`      ${a.file}:${a.line}`));
     log(`      候補: ${list[0].cands.join(' | ')}`);
   });
+  process.exit(0);
+}
+
+
+// ══ 6. --write: 末尾ブロックの生成/更新（DOC_RELATION_PLAN S4）═══════════
+// **冪等**であることが不変条件＝2回走らせても差分が出ない。
+//   ①被参照ブロック（doc_refs:begin〜end）は**毎回まるごと再生成**する（人間は編集しない）
+//   ②更新履歴は**無ければ雛形を1度だけ置く**（以後は人間が追記する＝ツールは触らない）
+const GEN_BEGIN = '<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->';
+const GEN_END   = '<!-- doc_refs:end -->';
+
+// ★載せるのは**現役層の参照元だけ**。凍結 sim・archive は決定3/決定8 で「二度と更新しない」と決めた文書なので、
+//   波及先として並べても実際に直すことはない＝**件数だけ添えて一覧からは外す**。
+//   （CLAUDE.md は被参照48件のうち33件が凍結 sim04 の trial で、そのまま出すと最も読まれる md が
+//     ノイズで埋まる。このブロックの目的は「ここを直したら、どこを直すか」だから、対象は現役層でよい。）
+function genBlock(target) {
+  const all = [...(graph[target] ?? [])].sort();
+  const live = all.filter(r => layerOf(r) === 'active');
+  const rest = all.length - live.length;
+  const body = live.length
+    ? live.map(r => `- [${r}](${rel(target, r)})`).join('\n')
+    : '_（現役層からの参照はない）_';
+  const note = rest ? `\n\n_他に 凍結sim/archive/essays から ${rest} 件（更新対象外）_` : '';
+  return `${GEN_BEGIN}\n## この md を参照している文書（現役層 ${live.length}）\n\n${body}${note}\n${GEN_END}`;
+}
+// リンクは**その md からの相対パス**で書く（GitHub 上でも辿れる形にする）
+function rel(from, to) {
+  const r = path.relative(path.dirname(from), to).replace(/\\/g, '/');
+  return r.startsWith('.') ? r : './' + r;
+}
+
+const HIST_SCAFFOLD = (label) => `## 更新履歴
+
+<!-- 直近5件のみ（それ以前は git log）。「波及確認」列が本体＝git が持たない情報はここだけ。 -->
+
+| 日付 | 変更点 | 波及確認 |
+|---|---|---|
+| 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=${label}） | 参照関係は \`npm run doc:check\` がグリーン |`;
+
+function applyWrite({ dryRun, only }) {
+  let changed = 0, skipped = 0;
+  const targets = allFiles.filter(f => layerOf(f) === 'active' && kindOf(f))
+                          .filter(f => !only || f.startsWith(only));
+  for (const f of targets) {
+    const p = path.join(ROOT, f);
+    let txt = fs.readFileSync(p, 'utf8');
+    const before = txt;
+    const kind = kindOf(f);
+
+    // ① 被参照ブロック: 既存があれば差し替え、無ければ末尾へ追加
+    const gen = genBlock(f);
+    const re = new RegExp(`<!--\\s*doc_refs:begin\\b[\\s\\S]*?<!--\\s*doc_refs:end\\s*-->`, 'm');
+    if (re.test(txt)) {
+      txt = txt.replace(re, gen);
+    } else {
+      // ② 更新履歴の雛形（種別が要求し、まだ無い場合のみ）
+      const needHist = kind.history && !/^##\s*更新履歴\s*$/m.test(txt);
+      txt = txt.replace(/\s*$/, '\n');
+      txt += `\n---\n\n${needHist ? HIST_SCAFFOLD(kind.label) + '\n\n' : ''}${gen}\n`;
+    }
+    if (txt === before) { skipped++; continue; }
+    changed++;
+    if (!dryRun) fs.writeFileSync(p, txt);
+    log(`  ${dryRun ? '[dry]' : '[書込]'} ${f}  （種別=${kind.label} / 被参照 ${(graph[f] ?? new Set()).size}）`);
+  }
+  log(`\n${dryRun ? '[dry-run] ' : ''}対象 ${targets.length} / 変更 ${changed} / 変更なし ${skipped}`);
+  if (dryRun) log('※ --dry-run のため書き込んでいない。実行は --write（--dry-run を外す）');
+}
+
+if (has('--write')) {
+  const onlyIdx = argv.indexOf('--only');
+  applyWrite({ dryRun: has('--dry-run'), only: onlyIdx >= 0 ? argv[onlyIdx + 1] : null });
   process.exit(0);
 }
 

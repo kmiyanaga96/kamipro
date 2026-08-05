@@ -138,3 +138,24 @@ loadConfigC({ enemy:'walpurgis_loki', atkScale:1.10, abilCap:null });  // 実験
   **押し順**を読む（比較自体は同一エンジン内なので成立するが、記録 dmg との照合はできない）。
 - 出力先の JSON パスは **`$SCRATCH`（未設定なら `/tmp`）** を見るよう統一済み。⚠ scratchpad はセッション毎に消えるので、
   恒久的に残す数値は台帳（`archive/SEARCH_QUALITY_EXPERIMENTS.md` 等）へ書くこと。
+
+---
+
+## 更新履歴
+
+<!-- 直近5件のみ（それ以前は git log）。「波及確認」列が本体＝git が持たない情報はここだけ。 -->
+
+| 日付 | 変更点 | 波及確認 |
+|---|---|---|
+| 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=規定・台帳） | 参照関係は `npm run doc:check` がグリーン |
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 4）
+
+- [CALIBRATION_ANALYSIS.md](../CALIBRATION_ANALYSIS.md)
+- [CLAUDE.md](../CLAUDE.md)
+- [workspace/HANDOFF.md](../workspace/HANDOFF.md)
+- [workspace/TODO.md](../workspace/TODO.md)
+
+_他に 凍結sim/archive/essays から 2 件（更新対象外）_
+<!-- doc_refs:end -->

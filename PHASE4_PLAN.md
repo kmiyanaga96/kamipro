@@ -134,3 +134,24 @@
 
 - まず **§3-1（無測定の乖離検出）**: ユーザーが実機でよく使う形成のシム推奨押し順を確認し、疑わしいターンをフラグ。
   そこを起点に序数A/B測定（§6）→ 診断 → 修正 → フィクスチャ化、で駆動フローを一周し Phase 4 の回し方を確立する。
+
+---
+
+## 更新履歴
+
+<!-- 直近5件のみ（それ以前は git log）。「波及確認」列が本体＝git が持たない情報はここだけ。 -->
+
+| 日付 | 変更点 | 波及確認 |
+|---|---|---|
+| 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=規定・台帳・計画） | 参照関係は `npm run doc:check` がグリーン |
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 6）
+
+- [CALIBRATION_ANALYSIS.md](./CALIBRATION_ANALYSIS.md)
+- [CLAUDE.md](./CLAUDE.md)
+- [ROADMAP.md](./ROADMAP.md)
+- [gamedata/md/敵/README.md](./gamedata/md/敵/README.md)
+- [simulation/README.md](./simulation/README.md)
+- [workspace/HANDOFF.md](./workspace/HANDOFF.md)
+<!-- doc_refs:end -->

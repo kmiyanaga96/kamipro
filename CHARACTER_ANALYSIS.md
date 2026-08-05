@@ -216,3 +216,23 @@
 - C22/naB較正（B1のF1）進展 → 絶対値の注記を更新。
 - kill-turnモード実装 → §2.4 の表をボス別自動出力へ置換。
 - 新キャラ追加・英霊武器追加 → 該当節を追記。
+
+---
+
+## 更新履歴
+
+<!-- 直近5件のみ（それ以前は git log）。「波及確認」列が本体＝git が持たない情報はここだけ。 -->
+
+| 日付 | 変更点 | 波及確認 |
+|---|---|---|
+| 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=規定・台帳・計画） | 参照関係は `npm run doc:check` がグリーン |
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 3）
+
+- [CLAUDE.md](./CLAUDE.md)
+- [gamedata/md/神姫/README.md](./gamedata/md/神姫/README.md)
+- [gamedata/md/神姫/arianrhod.md](./gamedata/md/神姫/arianrhod.md)
+
+_他に 凍結sim/archive/essays から 1 件（更新対象外）_
+<!-- doc_refs:end -->

@@ -79,9 +79,17 @@
 |---|---|---|
 | 2026-08-05 | C44 の残ゲートを更新 | CLAUDE.md 較正ステータスと workspace/HANDOFF.md を同時更新。sim05 README は影響なしと確認 |
 
-<!-- doc_refs:begin ── 自動生成。手で編集しない -->
-## この md を参照している文書
-- [CLAUDE.md](CLAUDE.md)
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 6）
+
+- [CLAUDE.md](./CLAUDE.md)
+- [DOC_RELATION_PLAN.md](./DOC_RELATION_PLAN.md)
+- [ROADMAP.md](./ROADMAP.md)
+- [gamedata/md/README.md](./gamedata/md/README.md)
+- [gamedata/md/神姫/README.md](./gamedata/md/神姫/README.md)
+- [workspace/HANDOFF.md](./workspace/HANDOFF.md)
+
+_他に 凍結sim/archive/essays から 1 件（更新対象外）_
 <!-- doc_refs:end -->
 ```
 
@@ -90,6 +98,12 @@
 - **被参照ブロックは手で書かない**。`npm run doc:check`（[tools/doc_refs.mjs](tools/doc_refs.mjs)）が生成・検証する。手書きすると**リスト自体が更新漏れの発生源**になる。
 - 種別別の要否（更新履歴は一次情報には不要 等）は [DOC_RELATION_PLAN.md](DOC_RELATION_PLAN.md) §5.2 が正。
 - **archive/ は末尾ブロックも入れない**＝§2 の「歴史資料として安置する（内容は書き換えない）」を優先する。
+- **★被参照リストに載るのは現役層の参照元だけ**。凍結 sim・archive・essays は「二度と更新しない」と決めた文書なので、
+  波及先として並べても実際に直すことはない＝**件数だけ添えて一覧からは外す**。
+  （このブロックの目的は「ここを直したら、どこを直すか」であり、網羅ではない。
+  CLAUDE.md は被参照48件のうち32件が凍結 sim の trial で、そのまま出すと最も読まれる md がノイズで埋まる。）
+- **生成は冪等**＝`node tools/doc_refs.mjs --write` を何度走らせても差分は出ない。
+  被参照ブロックは毎回まるごと再生成し、更新履歴の雛形は**無いときに1度だけ**置く（以後は人間が追記する）。
 
 ## 5. ライフサイクルと git 運用
 

@@ -84,3 +84,24 @@ cp -r simulation/TEMPLATE simulation/sim04   # 次の試行を開始
 | [sim02](sim02/README.md) | 同編成 vs walpurgis_loki | **T2 漸進較正**（turn-by-turn=T2・試行2でT6撃破） | **完了・統合分析済み**（C22クローズ候補/C7撤回/C23 fixed/C24診断/C25・C26。旧構造・凍結） |
 | [sim03](sim03/README.md) | 同編成 vs **キャスパリーグ**（`cath_palug`・闇/2T討伐・DB登録済み） | **統計的較正・第1走**（絶対レベル本命＝闇有利×ライトレジスト光非適用・raw較正C25/C5/C3・D×5全深測定撃破） | **第1バッチ完了・クローズ（2026-07-16）**: max_hp=400M確定・絶対レベルアンカー×1.430取得・C22クローズ/C28〜C30起票。**実機装備の強化で環境消失＝第2バッチ（序数A/B）は実施せず**。~~フィンブルヴェトルはtrial01全滅で無期限延期~~ |
 | [sim04](sim04/README.md) | 同編成（**強化後装備=configB**）vs キャスパリーグ | **較正セッション**: 構造修正C31〜C35（damage_frames.txt突合）→単独データ取得（M1無アビ素走/M2 judg単独/M3旺盛/M4バーストcap/M5ゲージ）→C25/C5/C3/C30 fit→golden/override再fit | **準備中（開始ゲート=configB export等・README §2）**。小規模だが式構造とgoldenを書き換える較正の本丸。**実施は新セッション（Opus）** |
+
+---
+
+## 更新履歴
+
+<!-- 直近5件のみ（それ以前は git log）。「波及確認」列が本体＝git が持たない情報はここだけ。 -->
+
+| 日付 | 変更点 | 波及確認 |
+|---|---|---|
+| 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=規定・台帳） | 参照関係は `npm run doc:check` がグリーン |
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 4）
+
+- [CLAUDE.md](../CLAUDE.md)
+- [PHASE4_PLAN.md](../PHASE4_PLAN.md)
+- [gamedata/md/敵/README.md](../gamedata/md/敵/README.md)
+- [gamedata/md/敵/fimbulvetr.md](../gamedata/md/敵/fimbulvetr.md)
+
+_他に 凍結sim/archive/essays から 1 件（更新対象外）_
+<!-- doc_refs:end -->
