@@ -300,9 +300,8 @@ napoleon はフルビーム10Tが重く頻回テストに不適のため静的gr
 | 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=規定・台帳） | 参照関係は `npm run doc:check` がグリーン |
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 9）
+## この md を参照している文書（現役層 8）
 
-- [CLAUDE.md](../../CLAUDE.md)
 - [gamedata/md/敵/variant_chimera.md](../../gamedata/md/敵/variant_chimera.md)
 - [gamedata/md/敵/variant_chimera_chi.md](../../gamedata/md/敵/variant_chimera_chi.md)
 - [simulation/napoleon_arian_migration/README.md](../napoleon_arian_migration/README.md)

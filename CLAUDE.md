@@ -1,45 +1,63 @@
 # 神姫PROJECT R — バーストトラッカー 開発ガイド
 
 ## 概要
-バースト編成シミュレーター＆最適押し順トラッカー。**Phase5 S5（2026-06-30）で Vite/ESM モジュール構成へ移行**：`index.html`=薄いシェル、エンジン＝`src/app.js`、Worker＝`src/worker.js`、DB＝`gamedata/js/*.js`（ESM。**旧 `data/`＝2026-07-16 に sim内 `data/` との混同防止で `gamedata/` へリネーム→2026-07-19 に `gamedata/js/`（現在値）と `gamedata/md/`（一次情報）へ大別**）。開発は `npm run dev`、配布は `npm run build`→`dist/`（`npm run preview` で確認。**ESM は file:// 直開き不可＝要http**）。移行の一次情報は archive/VITE_MIGRATION.md。
+
+バースト編成シミュレーター＆最適押し順トラッカー。**Vite/ESM モジュール構成**＝`index.html` は薄いシェル、
+エンジン＝`src/app.js`、Worker＝`src/worker.js`、DB＝`gamedata/js/*.js`。
+開発は `npm run dev`、配布は `npm run build`→`dist/`（`npm run preview` で確認）。
+⚠ **ESM は `file://` 直開き不可＝http 配信が要る**。
 
 ## ドキュメント体系
 
-> **⚠ セッション起動時（必読）**: 起動時に読むのは **本書（CLAUDE.md）＋ `workspace/HANDOFF.md`（現状スナップショット）の2本のみ**。次タスクは `workspace/TODO.md`。他doc（sim / CALIBRATION_ANALYSIS / ROADMAP / Phase / essays / キャラmd）は**下記リストのポインタ経由で必要時のみ**読む（トークン節約＝新セッション移行のコスト低減）。過去の経緯は `archive/SESSION_LOG.md`。**セッション末**は HANDOFF/TODO を更新し、現状化した進行を SESSION_LOG へ畳む（REPO_STANDARDS §6）。
+> **⚠ 起動時に読むのは本書 ＋ [workspace/HANDOFF.md](./workspace/HANDOFF.md) の2本だけ**。次タスクは
+> [workspace/TODO.md](./workspace/TODO.md)。他は下表のポインタ経由で**必要時のみ**開く（トークン節約）。
 >
-> **⚠ 全セッション共通ルール**: 新規ドキュメント作成・新規タスク着手の前に **REPO_STANDARDS.md §1 の振り分け表**を必ず通すこと（分類が曖昧・複数フロー跨ぎならユーザーへ選択肢つきでフロー確認）。ID採番（Cx/Dx/Ax/Mx/Hx）・MD必須ヘッダ（ゴール/完了条件）・archive移動と台帳更新の同一コミット規律も同書が正。
+> **⚠ 新規ドキュメント作成・新規タスク着手の前に [REPO_STANDARDS.md](./REPO_STANDARDS.md) §1 の振り分け表を必ず通す**
+> （分類が曖昧・複数フロー跨ぎならユーザーへ選択肢つきで確認）。ID採番・MD必須ヘッダ・末尾ブロック・
+> archive 移動と台帳更新の同一コミット規律も同書が正。
 
 ### 起動時必読（workspace/）
-- **workspace/HANDOFF.md**: **引継ぎ＝現状スナップショット（有界・生きた台帳）**。現フェーズ・直近成果・アクティブ作業ライン・ポインタ表。CLAUDE.md と対で起動時に読む唯一の「現状」source。
-- **workspace/TODO.md**: **次タスク（優先順・チェックボックス）**。sim05 残ゲート／(A)構造修正／Phase8／並行タスク。完了項はセッション末に SESSION_LOG へ畳む。
+
+| 文書 | 中身 |
+|---|---|
+| [workspace/HANDOFF.md](./workspace/HANDOFF.md) | **現状スナップショット**（有界）。現フェーズ・直近成果・アクティブ作業ライン・ポインタ。「今」の唯一の source |
+| [workspace/TODO.md](./workspace/TODO.md) | **次タスク**（優先順）。冒頭に md リレーション点検の常駐カウンタ |
 
 ### 現役ドキュメント（ルート）
-- **REPO_STANDARDS.md**: **ドキュメント規約＆リクエスト振り分けフロー（2026-07-16 制定・生きた台帳）**。リクエスト種別→フロー/ID/置き場所の分類表・ID接頭辞レジストリ・MD統一テンプレート・ライフサイクルgit運用・セッション定型。
-- **DOC_RELATION_PLAN.md**: **md 相互参照の整備計画（2026-08-05 起草・★S1〜S5 完了＝運用フェーズ）**。md 間の更新漏れインシデントを根絶するため、①参照の機械検証可能化（**✅`tools/doc_refs.mjs`＝S1 完成・`npm run doc:check`**）②単一の正の徹底（統一文言）③大テンプレ末尾の更新履歴＋被参照ブロック（自動生成）④用途別の小テンプレ、を段階計画 S1〜S5 で進める。⚠**§2 が要点＝末尾テンプレ単体で消えるインシデント型はゼロ**（効くのは機械検査と単一の正）。**§0＝ユーザー決定8件**（適用対象＝**現役層 52本**・凍結 sim/archive/essays は対象外・末尾ブロックは本文外メタ領域・数値は ID 置換しない）。**規約は REPO_STANDARDS §4.1／§7 が正**。**§7＝常駐サブタスク（稼働中）**＝イベント駆動＋5セッション定期・カウンタは `workspace/TODO.md` 冒頭・超過はツールが警告。**セッション末の手順は REPO_STANDARDS §6-6 が正**。⚠**md を新設/改名したら `node tools/doc_refs.mjs --write` も回す**（被参照ブロックの再生成・冪等）。
-- **CLAUDE.md**（本書）: 生きた開発ガイド＝**安定リファレンス**。コード地図・開発ルール・確定仕様・検証方法・実機較正ステータス（open-Cx 要約）。**「現状/次タスク」は持たない**（→ workspace/HANDOFF・TODO）。
-- **CALIBRATION_ANALYSIS.md**: 実機較正の確定値＆**根拠アーカイブ**（なぜその値・枠か）＋乖離バックログ（Cx）。較正・英霊武器は実装済み。
-- **PHASE4_PLAN.md**: Phase 4（実機較正の反復＝**現行フェーズ**）の進め方台帳。**押し順優先**・序数比較ハーネス・「押し順は蓄積誤差に頑健、系統誤差だけを狙う」方針・乖離バックログ駆動を規定。
-- **KILL_TURN_DESIGN.md**: **最速撃破モード（kill-turn 自動目標）の設計草案（未実装・2026-07-07 起草＋§7必要性検討）**。§7で「演算量は非障害・真のブロッカーは絶対値精度（実機比×2級）」と整理し、**S3保留・S1+S2はsim02試行2の絶対乖離実測をゲート**に着手判断。ROADMAP の未確定Phase(ii)。
-- **ROADMAP.md**: **Phase 一覧・採番の一次台帳（2026-07-09 再編・2026-07-15 採番改訂）**。Phase 6=幻獣システム拡張／**Phase 7=静的スコア s の機械学習化（クローズ・archive＝PoC×2で安価サロゲートNO-GO）**／**Phase 8=アクセ実装（旧Phase 7から繰り下げ・詳細は PHASE8_PLAN.md）**／未確定Phase=敵行動・味方生存(i)・kill-turn(ii)・VM/ワークフロー(iii)。各Phase詳細は個別docへ委譲。
-- **PHASE8_PLAN.md**: **Phase 8（アクセサリー実装）の計画台帳（2026-07-22 起草・実装未着手）**。アクセ＝押し順非依存の常時ボックス補正が主という仮説のもと `ACCESSORY_REGISTRY` 新設＋`applyGear` 集約で `class Sim` 非改修を狙う設計。一次情報＝damage_frames.md の枠マッピング（攻撃枠40%上限/与ダメ枠=タイムピース・ブレスレット/会心枠=天使）。§6 に着手ゲートの intake（per-char/全体の別・系統全容・発動系有無）。未装備 golden 不変を不変条件とする。
-- **tools/**（2026-07-28 `archive/tools/` からルートへ昇格・ユーザー承認）: **較正・探索ハーネス置き場（現役）**。`tools/README.md` が索引＝どのスクリプトがどの台帳数値を出したかの対応表。従来分（`search_calibrate.mjs`＝**ダメージモデル変更時の再fit必須**・`search_probe.mjs`・`c27_refine_probe.mjs`・`ml_fit_static{,_v2}.mjs`＝Phase7 PoC 温存）＋**実機押し順の強制リプレイ突合 `calib_replay_compare.mjs`（sim05 の較正方式そのもの・C40〜C44 の根拠）**＋**探索品質の実験ハーネス `exp_*.mjs` 15本**（BW掃引/prefix掃引/ATK感度[ナポ・エジソン]/局所探索[単点・多点・対照]/abilCap切り分け/ホライズン感度/C27vsLS[ナポ・エジソン]/prefixルート同一性/buffCount分解/順×ATK比較/**loki安定性[B4]**）＋**押し順抽出 `extract_order_loki.mjs`**。全て production 非改変。<br>**★`tools/lib/config_c.mjs`（2026-08-05 新設）＝configC を受領キャッシュ（台帳）から復元する共有ローダ**。`loadConfigC()`／`verifyE2()`（記録ルートの強制リプレイ bit 一致＝**E2 を自動で通す**・台帳の engineVersion が現行と違えば落とす）／`configBanner()`（走行 config を出力に残す）。**configC 系ハーネス15本が移行済**。⚠**規律＝REPO_STANDARDS §6 E10「config は台帳から読む。ハーネスにハードコードしない」**（ハーネスが最古 GEAR を持ち続け `simulation/sim05/analysis/` 初版の結論を符号ごと反転させた事故に由来）。⚠**移行前に出した napoleon 系の数値は再取得が必要**（C37 の BW 掃引結論を含む）。使い方＝`tools/README.md` §0.5。
-- **CHARACTER_ANALYSIS.md**: キャラ個別評価＆採用論の生きた考察台帳（2026-07-11 起草）。ヤマトvsアリアンのホライズン別比較・ナポレオン評・併用仮説（暫定）。序数比較ベース＝新キャラ/較正確定のたびに更新。
+
+| 文書 | 何が書いてあるか / いつ読むか |
+|---|---|
+| [REPO_STANDARDS.md](./REPO_STANDARDS.md) | **規約の正**。§1 リクエスト振り分け／§3 ID レジストリ／§4 MDテンプレ・末尾ブロック／§6 セッション定型と実験の作法 **E1〜E10**／§7 参照の統一文言。**着手前に §1 を通す** |
+| [CALIBRATION_ANALYSIS.md](./CALIBRATION_ANALYSIS.md) | **較正の確定値と根拠アーカイブ＋乖離バックログ（Cx）**。**Cx の状態と根拠はここが正**（本書の較正ステータスは索引にすぎない） |
+| [ROADMAP.md](./ROADMAP.md) | **Phase 採番の一次台帳**。Phase 6=幻獣拡張／7=ML化（クローズ）／8=アクセ実装／未確定=敵行動・味方生存・kill-turn・VM |
+| [PHASE4_PLAN.md](./PHASE4_PLAN.md) | **現行フェーズ**（実機較正の反復）の進め方。押し順優先・「押し順は蓄積誤差に頑健、系統誤差だけを狙う」方針 |
+| [PHASE8_PLAN.md](./PHASE8_PLAN.md) | Phase 8（アクセサリー）の設計。`ACCESSORY_REGISTRY` 新設＋`applyGear` 集約で `class Sim` 非改修を狙う。**着手ゲート＝§6 intake** |
+| [KILL_TURN_DESIGN.md](./KILL_TURN_DESIGN.md) | 最速撃破モードの設計草案（未実装）。**真のブロッカーは絶対値精度**と整理済み |
+| [CHARACTER_ANALYSIS.md](./CHARACTER_ANALYSIS.md) | キャラ評価・採用論の考察台帳。ヤマト vs アリアン／ナポレオン評 |
+| [DOC_RELATION_PLAN.md](./DOC_RELATION_PLAN.md) | md 相互参照の整備（S1〜S5 完了＝**運用フェーズ**）。**§7 の常駐サブタスクが稼働中**＝セッション末にカウンタ +1、md を新設/改名したら `node tools/doc_refs.mjs --write` |
+| [tools/README.md](./tools/README.md) | **較正・探索ハーネスの索引**（どの数値がどのスクリプト由来か）。§0 並列実行／**§0.5 config は台帳から読む（E10）**／§3 ドキュメント検査 |
 
 ### 現役データディレクトリ
-- **gamedata/md/敵/**（旧 `enemies/`＝2026-07-19 に `gamedata/md/` 配下へ移動）: 敵DB intake。`gamedata/md/敵/README.md`（命名・追加手順・スキーマ）＋ `TEMPLATE.md` ＋ `<key>.md`（実機詳細＝根拠）。`gamedata/js/enemies.js` の `ENEMY_REGISTRY` がそこから蒸留した現在値。Phase4較正ボス `walpurgis_loki`・sim03較正ボス `fimbulvetr` を登録。
-- **simulation/**: Phase 4 の試行データ蓄積。`simulation/README.md`（命名規約・ワークフロー・**較正カデンツ=統計的較正×反復可能ボス（2026-07-12転換）**）＋ `TEMPLATE/` ＋ `simNN/`。**sim03以降の新構造（ユーザー決定）**: `data/`（`simNN/data/record_skeleton.md`＝**各simで唯一の記録テンプレ（コピー原本）** / `trialNN.md`実機原本＝record_skeletonを複製して作成 / `configX_gear_panel.md`＝装備の一次記録。※探索キャッシュ JSON は**無効化したら `archive/caches/` へ退避**する＝sim 直下に溜めない）＋ `analysis/`（**2層構造・コンテキスト有界化**: `per_trial/trialNN_{quant,quali}.md`＝**単trial中間集計**[trialNN1本のみ入力] → `simNN/analysis/quantitative_analysis.md`/`simNN/analysis/qualitative_analysis.md`＝**trial横断rollup**[per_trial全trial入力・決定性/分散/max_hp収束はここ専用] → `simNN/analysis/integrated_analysis.md`＝統合[両rollupのみ]）＋分類不能ファイルはsim直下。sim01/02は旧構造のまま凍結。**新試行は `cp -r simulation/TEMPLATE simulation/simNN` で開始**。**⚠テンプレは record_skeleton のみ・trialNN の複製とpushはユーザーが行う・sim内mdフォーマットは record_skeleton に統一必須（混同防止）**。
+
+| 場所 | 中身 |
+|---|---|
+| [gamedata/md/](./gamedata/md/README.md) | **一次情報（原文ママ・本文は書き換えない）**。`神姫/` `英霊/` `幻獣/` `敵/` `その他/`。**md=根拠 / js=現在値** |
+| [gamedata/md/敵/](./gamedata/md/敵/README.md) | 敵DB intake。`gamedata/js/enemies.js` の `ENEMY_REGISTRY` の蒸留元 |
+| [simulation/](./simulation/README.md) | 統計的較正の試行単位。**新試行は `cp -r simulation/TEMPLATE simulation/simNN`**。構造＝`data/`（一次情報）＋`analysis/`（per_trial → rollup → integrated の2層）。**sim01/02 は旧構造のまま凍結**<br>⚠ trialNN の複製と push は**ユーザーが行う**／sim 内 md の様式は `record_skeleton` に統一 |
 
 ### archive/（クローズ済み・歴史台帳＝現状の一次情報ではない）
-完了・クローズした計画/設計レポート置き場。バックログ（Cx）行から旧パスで参照されている場合も実体はここ。
-- **SESSION_LOG.md**: **セッション進行ログ（append-only・provenance 保全）**。旧 CLAUDE.md「現在の進行状況」を移設。セッション末に現状化した進行を先頭へ畳む。現状は workspace/HANDOFF が正。
-- 設計レポート: `BEAM_SEARCH_DESIGN.md`（C9）/ `ORDER_OPTIMIZATION_DESIGN.md`（C12）/ `SEARCH_ROLLOUT_DESIGN.md`（C13-C15・自動較正§6含む）/ `OPTIMIZATION_ENGINE.md`（エンジン解説旧版）
-- 完了フェーズ台帳: `PHASE2_PLAN.md` / `PHASE3_PLAN.md` / `PHASE5_PLAN.md`（UX刷新+Vite化・完了）/ `VITE_MIGRATION.md`（S5作業記録）/ `PERF_NOTES.md`（高速化台帳）/ **`PHASE7_ML_PLAN.md`（静的スコア s のML化・クローズ＝安価サロゲートNO-GO。§6/§7にPoC結果。`s`＝ダメージ非関与の探索ヒューリスティック前提・レベルA/B/C吟味・★スコープ外＝絶対値乖離C25/C5）**
-- **SEARCH_QUALITY_EXPERIMENTS.md**: **探索品質の実験記録＝C37 の根拠アーカイブ**（2026-07-28 新設 → **2026-08-02 に sim05 から移設**）。BW掃引／PREFIX_TOPK／ATK感度／識別可能性／局所探索（5〜5d）／A1エジソン対照／実測コスト。**状態と結論の要約は C37 が正**・本書は数値の保全に徹する。
-- **`TRANSCRIPTION_DESIGN.md`（2026-08-03 archive へ・**凍結**）**: 実機録画→trialNN 転記の半自動化（設計のみ・未実装）。**ユーザー判断でタスクごと取り下げ**＝TODO/HANDOFF からも除去済み。**頃合いを見てユーザーが再起票する**（それまで着手しない）。内容＝OCR を信用せず検算する設計・S1 リプレイ照合が主役（HP は整数%＝分解能 1%=980万で総和チェックの分解能が足りない）。
-- 運用メモ: `BRANCH_WORKFLOW.md`（main恒久トランク運用）
-- `caches/`: 無効化済み探索キャッシュの歴史保全置き場（C26 followupON・C27証拠キャッシュ。2026-07-14 sim03/data から移設 ／ **`sim05_*.json` 3本を 2026-08-02 に sim05/data から移設**＝engineVersion 2世代前で再現不能だが `tools/exp_{loki_stability,abilcap_isolation,order_compare}.mjs` が読む）
 
----
+**内容は書き換えない**（歴史資料として安置）。Cx から旧パスで参照されている実体もここ。
+
+| 文書 | 中身 |
+|---|---|
+| [archive/SESSION_LOG.md](./archive/SESSION_LOG.md) | **セッション進行ログ**（append-only）。過去の経緯・なぜその判断をしたか |
+| [archive/SEARCH_QUALITY_EXPERIMENTS.md](./archive/SEARCH_QUALITY_EXPERIMENTS.md) | 探索品質の実験記録＝**C37 の根拠**。⚠ napoleon 系の数値は**旧 config で測定＝要再取得** |
+| [archive/PHASE7_ML_PLAN.md](./archive/PHASE7_ML_PLAN.md) | 静的スコアの ML 化（クローズ＝安価サロゲート NO-GO） |
+| 設計レポート | `BEAM_SEARCH_DESIGN`（C9）/ `ORDER_OPTIMIZATION_DESIGN`（C12）/ `SEARCH_ROLLOUT_DESIGN`（C13-C15）/ `OPTIMIZATION_ENGINE` |
+| 完了フェーズ | `PHASE2_PLAN` / `PHASE3_PLAN` / `PHASE5_PLAN`（UX刷新+Vite化）/ `VITE_MIGRATION` / `PERF_NOTES` |
+| `TRANSCRIPTION_DESIGN.md` | 実機録画→trial 転記の半自動化（**凍結**・ユーザーが再起票するまで着手しない） |
+| `archive/caches/` | 無効化済み探索キャッシュの保全（engineVersion が古く再現不能なものを含む） |
 
 ## ファイル構成 & コード地図
 
@@ -50,7 +68,7 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
 - `package.json` / `vite.config.mjs`: Viteビルド、依存モジュール、Workerバンドル設定。
 - `test/golden.mjs`: ローカルNode.js環境から `src/app.js` を読み込み、10ターンのシミュレーション結果アサートを行う回帰テスト用ハーネス。
 
-### 2. `gamedata/` 配下 (データ層 / ESM。2026-07-19 に `js/`＝現在値・`md/`＝一次情報へ大別。旧 `data/`＝2026-07-16 リネーム)
+### 2. `gamedata/` 配下（データ層 / ESM。`js/`＝シムが読む現在値・`md/`＝一次情報）
 #### `gamedata/js/` (シムが読む現在値 / ESM)
 - `gamedata/js/weapons.js`: 武器マスターDB (`WEAPON_MASTER`)
 - `gamedata/js/summons.js`: 幻獣マスターDB (`SUMMON_REGISTRY`)
@@ -58,8 +76,8 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
 - `gamedata/js/characters.js`: 統一キャラDB (`CHAR_REGISTRY`、`DEBUFF_KEYS`/`buffCount` 同梱)。`src/app.js` からの循環インポートを持つが、関数内での遅延評価に限定することでTDZを回避。
 #### `gamedata/md/` (一次情報・基礎データ / source of record)
 - カテゴリ別サブフォルダ `神姫/` `英霊/` `幻獣/` `敵/` `その他/`（各サブフォルダ直下の README に用途）。詳細は `gamedata/md/README.md`。md=根拠 / js=現在値。
-- `gamedata/md/敵/`: 敵DB intake（旧 `enemies/`）。`gamedata/js/enemies.js` の蒸留元。
-- `gamedata/md/その他/damage_frames.md`: **ダメージ枠（バフ/ウェポンスキルの乗り方）の一次情報**（ユーザー提供・2026-07-16・原文ママ。旧 `gamedata/damage_frames.txt`）。エンジンとの突合結果は CALIBRATION_ANALYSIS.md C31〜C35。
+- `gamedata/md/敵/`: 敵DB intake。`gamedata/js/enemies.js` の蒸留元。
+- `gamedata/md/その他/damage_frames.md`: **ダメージ枠（バフ/ウェポンスキルの乗り方）の一次情報**（ユーザー提供・原文ママ）。エンジンとの突合結果は CALIBRATION_ANALYSIS.md C31〜C35。
 - `gamedata/md/その他/attack_phase.md`: **攻撃フェイズの仕様の一次情報**（ユーザー回答・2026-08-03・原文ママ）。**バーストと通常攻撃は排他**（ゲージ100以上かつ「バースト発動」ボタンONならバースト・**OFFなら通常攻撃**）／**反撃は「自身が攻撃されたとき」に発動**（ムーンコード中は回避率ほぼ100%＝**被ダメ0でも反撃する**）／**ゲージは「1ヒット +10」が仕様**。現行シムとの差＝**C45（反撃 未モデル化＝ダメージ式は hecate.md §1.2 にあり・残るブロッカーは敵の行動モデル）/ C46（ボタンOFF不在・非バーストキャラの通常攻撃 未加算）**、ゲージ生成の観測は C24 の材料。
 
 ### 3. `src/` 配下 (エンジン・UI層 / ESM)
@@ -80,33 +98,33 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
 - **毎ターン自動デクリメントする残ターン系state**（ロボ残T・ムーンコード等）は `tickStates: ['key', ...]` を宣言（`buildFormation`が`TICK_STATES`へ集約し`tick()`が汎用処理）。
 - **キャラ固有の反応・マイルストーン処理は汎用フックに記述**（エンジンに分岐を足さない）: `def.onAbility(sim,name,color,T)` / `def.onPartyBurst(sim,owner,T,atk)` / `def.onBurst(sim,atk,owner)` / `def.turnEnd(sim,T)`。フックは`CHARS`順で全キャラ走査され、不在編成では未宣言として自然スキップ。
 - **導入フローの正＝ROADMAP.md §5（新キャラ/新敵 md-first intake）**: ①ユーザーが一次情報md作成・格納→②Claudeが要検証洗い出し（Ax起票）→③registry配線＋golden→④実機/sim走で解消→md更新。本§はその③のコード原則を定める。
-- **キャラ単位 md（`gamedata/md/神姫/<key>.md`・2026-07-19 ユーザー導入。tetra.md が先例）**: 1キャラ=1md で一次情報とシムデータを集約する様式。**§1 一次情報（Claude Code編集不可）**＝ユーザー収集の実機値/文言/有志検証。**§2 シムデータ（Claude Code編集可）**＝§2.1 各データのシム内呼称（`characters.js` のアビキー/バフキー/フック）＋§2.2 シム判明データ（`characters.js`＋`src/constants.js` に現在エンコード済みの値・挙動を**配置**。新規導出はしない）。⚠**一次情報にありシム未モデル化の項目は §2 に「未モデル化」と明記してよい。ただし当該機能を実装した際は、必ず同キャラ md の §2 の該当箇所を更新すること**（実装と md の乖離防止＝ユーザー規律 2026-07-19）。
+- **キャラ単位 md**（`gamedata/md/神姫/<key>.md`）: 1キャラ=1md で一次情報とシムデータを集約する様式。**§1 一次情報（Claude Code編集不可）**＝ユーザー収集の実機値/文言/有志検証。**§2 シムデータ（Claude Code編集可）**＝§2.1 各データのシム内呼称（`characters.js` のアビキー/バフキー/フック）＋§2.2 シム判明データ（`characters.js`＋`src/constants.js` に現在エンコード済みの値・挙動を**配置**。新規導出はしない）。⚠**一次情報にありシム未モデル化の項目は §2 に「未モデル化」と明記してよい。ただし当該機能を実装した際は、必ず同キャラ md の §2 の該当箇所を更新すること**（実装と md の乖離防止＝ユーザー規律 2026-07-19）。
 
 ### 2. 確定仕様・設計不変条件
-- **ジャッジ再発動（C18で表現修正）**: proc で cd.judg=0 になれば**押下可能**（自動発火ではなく押す位置はプレイヤー/探索の裁量。セオリー上デバフ等を先行させうる）。同ターン上限 `judgCap = 5 + (開始時cd===0?1:0)`（`T.ju`・毎ターンリセット）。
-- **ジャッジ3フェーズ循環（C23実機較正 2026-07-12）**: ph0=敵全体10回ダメージ / ph1=バースト / ph2=通常攻撃 の循環は**戦闘通算で連続**（`sim.judgPhase%3`・ターン毎リセットしない）。同ターン発動上限（`T.ju`）とは別カウンタ。旧実装は `T.ju%3`（毎ターンph0リセット）で、実機の各ターン開始judgフェーズ（T4=ph1/T5=ph0/T6=ph2）を3/3外していた（根拠 CALIBRATION_ANALYSIS.md C23）。
+- **ジャッジ再発動**（C18）: proc で cd.judg=0 になれば**押下可能**（自動発火ではなく押す位置はプレイヤー/探索の裁量。セオリー上デバフ等を先行させうる）。同ターン上限 `judgCap = 5 + (開始時cd===0?1:0)`（`T.ju`・毎ターンリセット）。
+- **ジャッジ3フェーズ循環**（C23）: ph0=敵全体10回ダメージ / ph1=バースト / ph2=通常攻撃 の循環は**戦闘通算で連続**（`sim.judgPhase%3`・ターン毎リセットしない）。同ターン発動上限（`T.ju`）とは別カウンタ。旧実装は `T.ju%3`（毎ターンph0リセット）で、実機の各ターン開始judgフェーズ（T4=ph1/T5=ph0/T6=ph2）を3/3外していた（根拠 CALIBRATION_ANALYSIS.md C23）。
 - **コヴァレント・アルカナ**: アビ12回 / バースト2回ごとにproc発火（**メイン＋攻撃フェイズ両対象**・攻撃フェイズprocのcd.judg=0は次ターンへ持ち越し）。連理魔力+1 ＆ ジャッジCD=0を同時付与。同ターン5回上限。
 - **モビウスムーンズ**: パーティ全体のバースト5回ごとに、ヘカテーの全アビCDをリセット。
-- **ムーンコード（ヘカテー2アシ・C18実機較正 2026-07-07）**: 「戦闘開始時または**ヘカテー自身**がアビリティ**12回使用する毎**（戦闘通算 `moon_acc`）に発動・**持続2ターン**（開始時発動も同じ）」。判定は**アビ終了後**（C18r2）＝12回目の押下自身には効かず**同一ターンの後続ヘカテーアビから**有効（effond は `mcAtPress` で押下時点の状態を捕捉）。effond は「ムーンコード発動時のみ即座にゲージ消費なしでバースト」。旧実装（パーティ全体アビ12回・ターン内カウント＝実質常時ON）は誤りで、sim02 試行1 raw の T4/T6「ヘカテー2バースト無し」交互パターン・試行2 T4 の judg#12 発動不能を再現できなかった（根拠 CALIBRATION_ANALYSIS.md C18）。
+- **ムーンコード**（ヘカテー2アシ・C18）: 「戦闘開始時または**ヘカテー自身**がアビリティ**12回使用する毎**（戦闘通算 `moon_acc`）に発動・**持続2ターン**（開始時発動も同じ）」。判定は**アビ終了後**（C18r2）＝12回目の押下自身には効かず**同一ターンの後続ヘカテーアビから**有効（effond は `mcAtPress` で押下時点の状態を捕捉）。effond は「ムーンコード発動時のみ即座にゲージ消費なしでバースト」。旧実装（パーティ全体アビ12回・ターン内カウント＝実質常時ON）は誤りで、sim02 試行1 raw の T4/T6「ヘカテー2バースト無し」交互パターン・試行2 T4 の judg#12 発動不能を再現できなかった（根拠 CALIBRATION_ANALYSIS.md C18）。
 - **イフィシャント早撃ち抑止**: `IFISHANT_MIN_CD = 3`（CD中アビが3つ未満は使用不可）。
 - **ロワ・クモンドの3枠加算**: 通常（`roy_na_frac`）、アビ（`roy_abi_frac`）、バースト（`roy_burst_frac`）をそれぞれ独自枠加算。
-- **ダメージ上限UP枠（C36・2026-07-22）**: 「ダメージ上限UP」は通常/バースト/アビの**各減衰枠の cap へ加算**（damage_frames 一次情報）。`Sim._partyCapUp()`＝アブソ（presence+20%）＋プヴワール（累積+6%/stack）を na/burst/abi 共通で cap に加算。burst は同枠加算（自 `burstCapBonus`[奮起/アリアン2アシ]＋パーティ passiveCap[ARRIVE `cap`]＋`_partyCapUp`＋sub＋GEAR）、**特別減衰[アリアン]のみ別枠乗算**（`burstCapSpecial`）。**golden は default gear で cap 未到達＝不変**（実gear/sim05でのみ binding）。⚠abs-calib スカラは cap-UP 無しで fit 済＝sim05 で再検証。
-- **ゲージ経済（実機確認済・2026-07-04／実装＝実機一致・乖離なし）**: 黄アビのBG付与（funki+10/legend+10/sleur+15/absolute+20/pactcore+100）・マシーンタクトゥ（ロボ反応1回あたり `MACH_BG=5`）は**すべて味方全体対象**（`addG(CHARS,…)`）。エジソンのバーストで攻撃ロボ/補助ロボ**両方のCDを−1**（`edison.def.onBurst`）＝ロボ3T稼働に対し3T周期の再設置が回りきり**常時稼働**しうる。∴ **中盤(T3〜)以降に全員ゲージ満量になるのは正しい帰結**（過去に「ロボ常時稼働はありえない／満量は不自然」と疑義が出たが、実機仕様として3点とも一致・アンプリファ×攻撃ロボの効果窓も整合＝再調査不要）。エジソン4(アンプリファ)の+10万は攻撃ロボ反応（`sim.droid>0` の赤アビ反応）にのみ加算。
-- **Phase3-1 事前計算マップ（ホットパス高速化・実装済）**: `buildFormation` で `ABIL_KEYS`/`ABIL_KC`/`ABIL_CANDS`/`ABIL_BASE_S` を一度だけ構築し、`_stepStatic`/`_candidates` が `Object.entries(ABIL)`・ネスト参照・`computeBaseScore` 再計算をせず `ABIL_KEYS` を1パス走査する。**⚠不変条件**: 走査順は `ABIL` 挿入順（=`Object.keys`順）でタイブレークは厳密 `>`（先頭最大）。キャラ追加・`abilities`/`cands` 変更時はこのマップ構築を経由するため自動追従するが、**走査順や `>` 比較を崩すと最適押し順の選択がズレる**（ゴールデン値 raw 197,775,394 / calibrated 211,462,826 で検証すること）。
+- **ダメージ上限UP枠**（C36）: 「ダメージ上限UP」は通常/バースト/アビの**各減衰枠の cap へ加算**（damage_frames 一次情報）。`Sim._partyCapUp()`＝アブソ（presence+20%）＋プヴワール（累積+6%/stack）を na/burst/abi 共通で cap に加算。burst は同枠加算（自 `burstCapBonus`[奮起/アリアン2アシ]＋パーティ passiveCap[ARRIVE `cap`]＋`_partyCapUp`＋sub＋GEAR）、**特別減衰[アリアン]のみ別枠乗算**（`burstCapSpecial`）。**golden は default gear で cap 未到達＝不変**（実gear/sim05でのみ binding）。⚠abs-calib スカラは cap-UP 無しで fit 済＝sim05 で再検証。
+- **ゲージ経済**（実機確認済・実装は実機一致＝乖離なし）: 黄アビのBG付与（funki+10/legend+10/sleur+15/absolute+20/pactcore+100）・マシーンタクトゥ（ロボ反応1回あたり `MACH_BG=5`）は**すべて味方全体対象**（`addG(CHARS,…)`）。エジソンのバーストで攻撃ロボ/補助ロボ**両方のCDを−1**（`edison.def.onBurst`）＝ロボ3T稼働に対し3T周期の再設置が回りきり**常時稼働**しうる。∴ **中盤(T3〜)以降に全員ゲージ満量になるのは正しい帰結**（過去に「ロボ常時稼働はありえない／満量は不自然」と疑義が出たが、実機仕様として3点とも一致・アンプリファ×攻撃ロボの効果窓も整合＝再調査不要）。エジソン4(アンプリファ)の+10万は攻撃ロボ反応（`sim.droid>0` の赤アビ反応）にのみ加算。
+- **事前計算マップ**（ホットパス高速化）: `buildFormation` で `ABIL_KEYS`/`ABIL_KC`/`ABIL_CANDS`/`ABIL_BASE_S` を一度だけ構築し、`_stepStatic`/`_candidates` が `Object.entries(ABIL)`・ネスト参照・`computeBaseScore` 再計算をせず `ABIL_KEYS` を1パス走査する。**⚠不変条件**: 走査順は `ABIL` 挿入順（=`Object.keys`順）でタイブレークは厳密 `>`（先頭最大）。キャラ追加・`abilities`/`cands` 変更時はこのマップ構築を経由するため自動追従するが、**走査順や `>` 比較を崩すと最適押し順の選択がズレる**（ゴールデン値 raw 197,775,394 / calibrated 211,462,826 で検証すること）。
 <!-- doc_refs:ignore-line ── 次行の `./worker.js` は Worker 起動のコード片であってパス参照ではない -->
 - **ESM Worker起動規律**: 旧 `_buildWorkerCode`（文字列 slice）は廃止済み。Worker は `new Worker(new URL('./worker.js', import.meta.url), {type:'module'})` で起動。**`src/app.js` の worker 用 export に必要な探索関数（`buildFormation`, `recalcGearK`, `Sim`, `_runRootPlan` 等）を含めること**。UI/DOM 依存は INIT の `if(typeof document!=='undefined')` ガード内・window ブリッジに隔離すること。
-- **局所探索による後処理（C37・2026-07-30 実装・`_localSearchRoute`）**: `_runRootPlan` は確定ルートに3種の近傍（①ターン内move ②ターン内swap ③**ターン跨ぎswap**）を総当たりし、`_replayResult` で採点して**厳密改善のみ採用**する。**不変条件**: (1) 改善のみ採用＝総ダメージは単調非減少（golden は下がらない） (2) 停止条件は評価回数 `LS_MAX_EVALS` であって**時間ではない**＝決定的（時間バジェットを入れると golden が環境依存で壊れる） (3) ③を move ではなく swap にするのは手数保存＝`abilCapPerTurn` を持つ敵で受け側が黙って落ちるのを防ぐため。**旧 C27 `_refineRoute` を置換**（LS が包含すると B3b で実測・`_refineRoute` は再現性のため残置＝**production 非経路・新規結線禁止**）。目的関数は `_objective` 第1要素と同一＝エンジンの主目的は変えていない。
-- **探索の2段実行（2026-07-31・LS の重複除去）**: `runSim`/`_fallbackRunSim` は **①全 prefix をビームのみで走らせ（`_runRootPlan(...,skipLS=true)`）→ ②キー列で重複除去 → ③一意ルートにのみ LS（`_runRouteLS`）** の順で回す。**LS は (キー列, config) の決定的な純関数**なので、同一キー列に複数回掛けるのは完全な無駄。ロキ条件では prefix 分散が空回りして 8本中6本が同一ルートになる（`archive/SEARCH_QUALITY_EXPERIMENTS.md` §12）＝旧実装は LS を最大8回重複実行していた。**⚠不変条件: 結果は不変**（同一入力→同一出力）でコストのみ削減＝品質のトレードオフは無い。golden は `_localSearchRoute` を直接呼ぶため本変更の影響を受けない。
-- **LS 評価の高速化（2026-08-01・★結果不変が不変条件）**: 2点。①**`_execKey` の短絡**＝旧実装は1押下ごとに `_candidates()` で**全候補の配列とクロージャを構築**してから1件を `find` していたが、`_stepStatic` と同じく `ABIL_KEYS` を1パス走査して一致で即実行する。同値の根拠＝走査順とフィルタ（abilCap→cd→契晶→guard→variants）が `_candidates` と同一、`find` は最初の一致、`guard`/`s`/`variants` は**全て純粋な参照**（副作用なし）を確認済。②**インクリメンタル replay `_LSReplay`**＝LS の近傍候補は基準ルートと**最初に異なるターン t0 以降しか変わらない**ので、各ターン開始時のスナップショットから t0 以降だけを再生する。⚠**不変条件**: (1) 評価値は full replay と**ビット一致**（復元は `Sim._snapshotForReplay()`＝`clone()` から**planDepth を上げない**点だけが違う。`_primeLookaheads` が内部で `clone()` して +1 するため、深度がズレると lookahead が fresh replay と変わる。※`_naOwner` の複製は **C39(b) fix で `clone()` 本体の責務**になった） (2) **走査順・受理順・評価回数・着地点はすべて不変**＝golden は1円も動かない。**回帰は `tools/exp_ls_incremental_verify.mjs`**（近傍1,000件のビット一致＋受理後の一致）。実測 golden 約10分→**4分07秒**。
-- **forcedKeys リプレイの正規化（2026-07-30）**: `greedyTakeTurn(t, forcedKeys)` は**実際に実行できたキーだけ**を行に記録する（`_execKey` が実行可否を返す）。押せなかったキー（CD中/契晶不足/`abilCap`到達）が「押した手」として残る幽霊キーを防ぐ＝ターン跨ぎ swap を持つ LS の前提。**総ダメージは元から不成立キーを無視して計算されており不変**。
-- **2段ルート選抜（①-A・実装済）**: `runSim`/`_fallbackRunSim` は `enumerateRootPrefixes()` の全prefixを `_staticPrefixDmg`（静的greedy・約数ms）で安価採点し、上位 `PREFIX_TOPK`(=8・C16で10→8) 本のみ本選(BW64・C16で128→64)へ回す（`_selectRootPrefixes`）。空prefixは常に確保。**品質低下は PoC 実測で最大0.013%**（top-8が実証済み安全床・BW64で0%損実測）。新キャラ追加時は PoC（scratchpad `poc.js`）を再実行し `PREFIX_TOPK` の余裕を再確認する。
+- **局所探索による後処理（`_localSearchRoute`）**: `_runRootPlan` は確定ルートに3種の近傍（①ターン内move ②ターン内swap ③**ターン跨ぎswap**）を総当たりし、`_replayResult` で採点して**厳密改善のみ採用**する。**不変条件**: (1) 改善のみ採用＝総ダメージは単調非減少（golden は下がらない） (2) 停止条件は評価回数 `LS_MAX_EVALS` であって**時間ではない**＝決定的（時間バジェットは golden を環境依存で壊す） (3) ③を move ではなく swap にするのは手数保存＝`abilCapPerTurn` を持つ敵で受け側が黙って落ちるのを防ぐため。目的関数は `_objective` 第1要素と同一＝エンジンの主目的は変えていない。⚠ **`_refineRoute`（旧 C27）は production 非経路・新規結線禁止**（再現性のため残置）。根拠 C37。
+- **探索の2段実行（LS の重複除去）**: `runSim`/`_fallbackRunSim` は **①全 prefix をビームのみで走らせ（`_runRootPlan(...,skipLS=true)`）→ ②キー列で重複除去 → ③一意ルートにのみ LS（`_runRouteLS`）** の順で回す。LS は **(キー列, config) の決定的な純関数**なので、同一キー列に複数回掛けるのは完全な無駄（ロキ条件では 8本中6本が同一ルートに潰れる）。**⚠不変条件: 結果は不変**（同一入力→同一出力）でコストのみ削減＝品質のトレードオフは無い。
+- **LS 評価の高速化（★結果不変が不変条件）**: 2点。①**`_execKey` の短絡**＝`_stepStatic` と同じく `ABIL_KEYS` を1パス走査して一致で即実行する（走査順とフィルタが `_candidates` と同一・`guard`/`s`/`variants` はすべて純粋な参照）。②**インクリメンタル replay `_LSReplay`**＝近傍候補は基準ルートと**最初に異なるターン t0 以降しか変わらない**ので、各ターン開始時のスナップショットから t0 以降だけを再生する。**⚠不変条件**: (1) 評価値は full replay と**ビット一致**（復元は `Sim._snapshotForReplay()`＝`clone()` から**planDepth を上げない**点だけが違う。`_primeLookaheads` が内部で `clone()` して +1 するため、深度がズレると lookahead が fresh replay と変わる） (2) **走査順・受理順・評価回数・着地点はすべて不変**＝golden は1円も動かない。**回帰は `node tools/exp_ls_incremental_verify.mjs`**（近傍1,000件のビット一致＋受理後の一致）。
+- **forcedKeys リプレイの正規化**: `greedyTakeTurn(t, forcedKeys)` は**実際に実行できたキーだけ**を行に記録する（`_execKey` が実行可否を返す）。押せなかったキー（CD中/契晶不足/`abilCap`到達）が「押した手」として残る幽霊キーを防ぐ＝ターン跨ぎ swap を持つ LS の前提。**総ダメージは不変**（元から不成立キーは計算に入っていない）。
+- **2段ルート選抜**: `runSim`/`_fallbackRunSim` は `enumerateRootPrefixes()` の全prefixを `_staticPrefixDmg`（静的greedy・約数ms）で安価採点し、上位 `PREFIX_TOPK`(=8・C16で10→8) 本のみ本選(BW64・C16で128→64)へ回す（`_selectRootPrefixes`）。空prefixは常に確保。**品質低下は PoC 実測で最大0.013%**（top-8が実証済み安全床・BW64で0%損実測）。新キャラ追加時は PoC（scratchpad `poc.js`）を再実行し `PREFIX_TOPK` の余裕を再確認する。
 
 ### 3. Git 開発ワークフロー (強制ルール)
 - **作業開始時**
   1. `git checkout main` で main に切り替え、`git pull origin main` を実行。
   2. 作業用ブランチを切って開発を開始。
 - **検証 (作業完了時)**
-  - 必ず `npm run test:golden`（期待値: raw 201,909,711 / calibrated 214,213,430 / napoleon 299,534,299）を実行しパスを確認。⚠**約10分＝背景実行**。
+  - 必ず `npm run test:golden` を実行しパスを確認（**期待値は「検証方法」節が正**＝同じ値を2箇所に書かない）。⚠**約2分・背景実行を推奨**。
 - **反映・プッシュ**
   - コミット後、`main` に戻って `pull`、作業ブランチをマージし、再度検証テストをパスして `git push origin main`。不要な作業ブランチは削除。
 
@@ -117,7 +135,7 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
 3. **計画・検証策定（Antigravity 主担当）**: 設計担当が原因特定し、`simNN/design_report.md` を**必須5節構成**（1.総合比較 / 2.敗北要因 / 3.乖離分析 / 4.影響度検証 / 5.引継ぎ）で作成。
 4. **自律修正とテスト**: 実装担当（Claude Code）が `simNN/design_report.md` を検証して `simNN/integrated_analysis.md` にまとめ、コード修正後テスト実行。期待値 `raw 197,775,394 / calibrated 211,462,826` と追加検証ケースのパスを確認。
 
-### 5. 編成間の転移可能性（2026-08-01 制定・同型の失敗が4例に到達したため明文化）
+### 5. 編成間の転移可能性（同型の失敗が4例に到達したため明文化）
 
 > **原則: エジソン編成で確立した機構・定数は、新編成では必ず再測する。**
 > 「エジソンで最適／飽和／有効」は**エジソン条件下の測定値**であって一般則ではない。編成・敵（`abilCapPerTurn` 等の有無）・ギアのいずれが変わっても転移は保証されない。
@@ -156,26 +174,39 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
 
 ## 検証方法
 
-リファクタリング・機能追加後は、以下でゴールデン値の一致を確認すること。
+```bash
+npm run test:golden      # 3 fixture を並列実行（--serial で逐次 / --fixture <name> で単体）
+npm run doc:check        # md 相互参照の検査（現役層の壊れた参照があれば exit 1）
+```
+
+⚠ **golden は約2分**。600秒上限に余裕はあるが**背景実行を推奨**。docs のみの変更なら golden は不変。
+⚠ `_replayResult` / `_execKey` / `clone` / `_snapshotForReplay` を触ったら
+**`node tools/exp_ls_incremental_verify.mjs`（約4分）も回す**。
+
+**編成別マルチfixture（「1編成=1golden」）**:
+
+| fixture | 期待値 | 備考 |
+|---|---|---|
+| **edison/raw**（beam+LS・較正なし） | `202,005,923` | FB 10/10・maxPress 30 |
+| **edison/cal**（`{judg:145,pactcore:1}` 適用＝production 出荷値） | `215,161,915` | FB 10/10・maxPress 33 |
+| **napoleon/static**（**静的greedy**＋ maxPress<60 ハングガード） | `299,523,354` | FB 10/10・maxPress 34 |
+
+- ⚠ **napoleon は静的greedy値＝beam 最適ではない**。「回帰ガード」であって較正確定値ではない
+  （フルビーム10Tは重く頻回テストに不適）。**buffCount の実機修正（C38）後に再fit**。
+- ⚠ **override `{judg:145,pactcore:1}` は C39 のモデル変更後 未再fit**（`search_calibrate.mjs` の再fit が未履行）。
+- 各値の由来と再fit の経緯は [CALIBRATION_ANALYSIS.md](./CALIBRATION_ANALYSIS.md)（C25/C30/C31/C34/C37/C39）が正。
+
+> 探索は `runSim` 実行時に config 別の静的スコア s を自動較正する（`calibrateStaticScores`・単調安全）。
+> golden は決定的検証のため較正結果を `setStaticOverride` で明示適用する（毎回の較正走行を避ける）。
+
+補助検証（大きな構造変更・Worker/ビルド変更時）:
 
 ```bash
-npm run test:golden          # = node test/golden.mjs（src/app.js を import し10T総ダメージを検証）
+npm run build      # dist/ 生成（worker 別チャンク・minify ON）が成功すること
+npm run preview    # dist を http 配信 → ブラウザで探索/中断/UI を実機確認
 ```
-⚠**所要は約2分**（2026-08-01 LS 高速化 約10分→4分07秒 → 2026-08-02 **fixture 並列化で 2分07秒**）。600秒上限に余裕はできたが**背景実行を推奨**。
-`--serial` で従来の逐次実行、`--fixture <name>` で単体実行（デバッグ用）。**検証内容は不変**＝各 fixture は決定的なので並列化しても値は動かない。
 
-**編成別マルチfixture（2026-07-25 導入・「1編成=1golden」）**。golden.mjs は各編成の回帰アンカーを検証:
-- **edison/raw**（beam+**LS**・較正なし）: `202,005,923`・FB `10/10`（構造修正C31/C34＋絶対値較正calib_na1.835/calib_burst2.07/judg_calib0.62＋C37局所探索）
-- **edison/cal**（beam+**LS**・`{judg:145,pactcore:1}` 適用＝production 出荷値）: `215,161,915`・FB `10/10`
-- **napoleon/static**（移行編成・**静的greedy**の回帰ガード＋**maxPress<60 ハングガード**）: `299,523,354`・FB `10/10`・maxPress `34`
-  - ⚠ napoleon は**静的greedy値＝beam最適ではない・「回帰ガード」であって較正確定値ではない**。フルビーム10Tは~90sで頻回テストに不適のため静的greedyを採用。**buffCount/閾値の実機修正（sim05・点1/2）後に再fit**。beam版napoleon回帰は将来 `test:golden:full` 等へ。
-  - ※sim04較正の内訳（edison）: C31=アビダメUP加算化・C34=バーストダメUP+500%上限・C32=M3で2段cap不支持のため1.0クランプ維持・C25=通常×1.835/バースト×2.07・C30=judg ph0×0.62。根拠 `simulation/sim04/analysis/`・CALIBRATION_ANALYSIS C25/C30/C31/C32/C34。残: C5/C3追撃cap。
-  - ※**C39 による再fit（2026-08-02・★ダメージモデルの変更）**: `_naOwner` の是正＝(a) `effond`/`betaia` が自分を `_naOwner` に設定せず**他キャラのギア係数・自己バフで自分のダメージを計算していた**のを規約どおりに是正／(b) `clone()` が `_naOwner` を落としていた（＝ビーム/先読みだけ本線と評価条件が違った）のを是正。raw +0.048% / cal +0.443% / napoleon/static **−0.004%**。**寄与の切り分けは実行経路から一意**（napoleon/static は静的greedy＝ビーム不使用で `clone()` を通らない＝(a)のみ／edison はナポ不在で `betaia` 無し＝(a)effond+(b)）。⚠**override `{judg:145,pactcore:1}` は未再fit**（モデル変更時の `search_calibrate.mjs` 再fit は未履行＝workspace/TODO に残置）。
-  - ※**C37 局所探索による再fit（2026-07-30）**: ダメージモデルは不変（sim04較正のまま）で、**探索後処理の置換による押し順改善のみ**の上振れ＝raw +2.09% / cal +1.30%。単調安全なので値は下がらない。napoleon/static は静的greedy経路のため**不変**。override `{judg:145,pactcore:1}` は据置（下記の留保あり）。
-
-> 探索は `runSim` 実行時に config別に静的スコア s を自動較正する（`calibrateStaticScores`・proxy-shortlist+full-verify・単調安全）。golden.mjs は決定的検証のため較正結果 `{judg:145,pactcore:1}` を `setStaticOverride` で明示適用する（毎回の較正走行を避ける）。詳細 archive/SEARCH_ROLLOUT_DESIGN.md §6。
-
-### 実測コスト（**2026-08-01 の LS 高速化後で再計測**／実験設計の前提に使う）
+### 実測コスト（実験設計の前提に使う＝E1）
 | 対象 | 実測 |
 |---|---|
 | `npm run test:golden` 全体 | **2分07秒**（3 fixture を並列実行・律速は最重量の edison/raw）。**逐次では 4分07秒**（`--serial`）。旧 約10分（C27 時代は116秒） |
@@ -187,46 +218,51 @@ npm run test:golden          # = node test/golden.mjs（src/app.js を import �
 | napoleon configC（両面宿儺）ビーム 1ルート | **130〜138秒**（旧記載 ~127s） |
 | BW384 1ルート | 545秒（単独）／762秒（他ジョブと同時実行時＝**約40%増**）※LS 高速化前の値 |
 
-> **LS 高速化（2026-08-01・結果不変）**: ①`_execKey` を「全候補配列を構築して find」から **ABIL_KEYS 1パス短絡**へ
-> ②LS の評価を `_LSReplay` の**インクリメンタル replay**（候補が基準と最初に異なるターン t0 以降だけ再生）へ。
-> **評価回数・受理順・着地点はすべて不変＝golden 値は1円も動かない**（`tools/exp_ls_incremental_verify.mjs` で
-> 近傍1,000件のビット一致を検証＋golden 3/3 一致）。
+> **LS 高速化は結果不変**が不変条件（評価回数・受理順・着地点まで同一）。機構は「開発ルール §2」が正。
 
 ⚠**旧 `test/golden.mjs` コメントの「edison ~2s」は約29倍の誤りだった**（napoleon ~90s はほぼ整合）。
 **コード内の性能数値は測定条件が不明なら実験計画の前提にしない**（必ず実測してから使う）。根拠 CALIBRATION_ANALYSIS C37。
 
-補助検証（大きな構造変更・Worker/ビルド変更時）:
-```bash
-npm run build                # dist/ 生成（worker 別チャンク・minify ON）が成功すること
-npm run preview              # dist を http 配信 → ブラウザで探索/中断/UIを実機確認（ESMは file:// 直開き不可）
-```
 
 ---
 
-## 実機較正ステータス（詳細は CALIBRATION_ANALYSIS.md 参照）
-- **確定パラメータ**:
-  - バースト係数: ヤマト/ヘカテー/テトラ = 5.0/2500, エレイン = 5.5/3000
-  - 追加ダメージフレーム: **アビ枠 (`'abi'` / 減衰率 0.04)**
-  - エレインバースト追加: 常時1回、契晶80以上で3回発動
-  - エジソン英霊武器追加ダメ: 2.5倍/80万 (アビ枠・onBurst実装済み)
-  - ヤマト1アシ バーストダメージプラス: +10万/stack・味方全体のバースト対象 (C8)
-  - ナイツサプレス(エレイン3): バーストダメ+20%・非累積(refresh)・2T (C11)
-- **バックログ状態（open のみ・fixed/wontfix/closed の詳細と根拠は CALIBRATION_ANALYSIS.md が正）**:
-  - **C25**（★絶対値較正の本丸・open/再定式化・**2026-08-03 成分別に分解**）: sim04 で frame calib（calib_na/burst/judg）確定。sim05 pre-trial ＋ M1（sim03 過去データ）の**成分別強制リプレイ**で、乖離は**成分ごとに符号が逆**と判明＝**一律スカラは不可**。**不足**＝betaia（C41）/ バースト追加ダメージ（C40・**編成横断**）/ holy / ロボ追撃 ／ **過大**＝バースト本体（C44）。**一致**＝アビリティ ×1.008・ストリーク ×1.019・DOT ×1.000・通常攻撃 ×1.09（`calib_na` は転移）。⚠ **総ダメージ一致は何も保証しない**（過大と過小が相殺する＝pre-trial ×1.41・sim03 ×1.065 とも相殺後の値）。
-  - **C3 / C5**（追撃・investigating・**2026-08-03 主題から降格**）: 従来「追撃 実機比×2.3〜6.9」と見えていたのは**アリアンの①バースト効果「追加ダメージ」を追撃と混同**していたため（→C40）。純粋な追撃（②1アシ）は **×1.55・T1 乖離寄与 1.3%**＝「②の cap を実効117.5万→160万級へ」という小さく確定的な作業に縮小。
-  - **C40 / C41 / C44**（**★sim05 pre-trial で起票 2026-08-03**・T1 の**不足** 49.7% / 59.9% と**過大** −33.9%）: **C41=`DMG.betaia_cap`=800,000 が過小**（シム raw 281万を硬capが34%切り捨て・実機1ヒットは 206〜247万で**ターン毎に変動＝cap 非拘束**） ／ **C40=バースト「追加ダメージ」の定式化が違う**（**cap を無限大にしても届かない**＝実機はシム raw の 1.8〜2.4倍。実機は**本体の 0.51〜0.77 倍**・4キャラ21バーストが同帯。**★M1 で編成横断と判明**＝エジソン×configA でも ×2.689 で同じ向き・同じオーダー＝**edison golden にも効く**） ／ **C44=バースト本体がシム過大**（configC ×0.77 / configA ×0.705。⚠ `calib_na` は ×0.99 で転移＝**ズレは burst 枠だけ**）。**符号が成分ごとに逆＝一律スカラ不可**。**修正順序は C44 → C40**。⚠ **`calib_burst` の値は確定できない**（configA が要求する ≈1.46 と configC の ≈1.66 が 13% 食い違い、原因未特定＝A7 / 編成依存 / config 誤差 / 敵 def のいずれも未排除）。⚠ **`decay_burst.slope=0.10` は支持**（一時は 0.30〜0.40 と推定したが、本体比では calib と slope が**縮退**する誤り＋sim03 T3 の**打ち切りデータ汚染**による。`calib_burst` を通らない**ストリーク**で破って棄却）。実装はキャスパリーグ M2〜M4 待ち。根拠 `simulation/sim05/analysis/`（`m1_history_replay.md` 含む）。
-  - **⚠ C40〜C44 の解き方（2026-08-03 ユーザー判断）**: 両面宿儺は「障壁 rate/abi」「アビ上限＋バフ消去(C43)」「def=20 未検証」を**同時に**抱え、そこで fit すると多変数の連立になる。∴ **ナポ/アリアン固有の仕様は `cath_palug`（キャスパリーグ＝sim04 で frame calib を fit した環境そのもの）で先に確定させ、宿儺は最終検証に回す**。測定メニュー＝`simulation/sim05/README.md` §4.8（M1〜M6）。**順序の原則＝「カウントで閉じる → 比で閉じる → 絶対で閉じる」**。
-  - **C42 / C43 / C44**（同上・open）: **C42=同ターン発動回数の上限が実機より厳しい**（alone 2 vs 実機3・holy 6 vs 実機7・legend 2 vs 実機3。⏳契晶記録待ち） ／ **C43=アビ上限超過ペナルティが「硬い剪定」**（実機は**超えられる**＝ペナルティはバフ消去のトレードオフ。実機は T1 に 42手を通した。⏳消去範囲の実機観測待ち・既定敵は golden 影響なし） ／ **C44 は上記**（2026-08-03 の config 訂正で「judg_calib の非転移」から「バースト系基底の過大」へ内容が入れ替わった）。
-  - **C45 / C46**（**★M1 で検出・仕様は 2026-08-03 ユーザー回答で確定**・一次情報＝`gamedata/md/その他/attack_phase.md`）: **C45=反撃が未モデル化**（sim03 T1/T2 で実機 21.8M）。**ダメージ側は一次情報でほぼ解ける**＝`gamedata/md/神姫/hecate.md` §1.2「攻撃を回避したとき10倍・減衰150万」で検算 ×0.916。**本当のブロッカーは「いつ・何回 攻撃されるか」＝敵の行動モデル**（ROADMAP 未確定Phase「敵行動」）。⚠ **ムーンコード中は回避率ほぼ100%＝被ダメ0でも反撃する**。 ／ **C46=攻撃フェイズのモデルが2点違う**（実機は**バーストと通常攻撃が排他**・ゲージ100以上**かつボタンON**でバースト＝**「溜める」選択肢がシムに無い**／**非バーストキャラの通常攻撃を加算しない**）。⚠ **影響は限定的**＝全員バーストするターンでは定義上ゼロで、較正走は**ほぼ全ターン FB 成立**（golden 3 fixture 10/10・pre-trial 全3T・sim03 T1/T2）。**ただし C43 や新しい敵/編成で FB が途切れれば即座に binding する**。
-  - **C1 / C2**（open）・**C24**（診断済・低severity・fixは実機ゲート＝ゲージ±5〜10 の系統乖離・黄ロボ反応の計数差に局在。**2026-08-03: 「1ヒット +10」はゲームの仕様と確定**＝シムは通常攻撃由来のゲージ生成を持たない。⚠ **T1 だけ全員 0→100 に達する**理由は未解明。**ゲージ増分は通常攻撃ヒット数の転記チェックサムに使える**）。
-  - **C31〜C35**（damage_frames 突合起票・修正は較正セッションゲート）: C31/C34 は sim04 で fixed（アビダメUP加算化・バーストダメUP+500%上限）。C32=M3実測で現行1.0クランプ維持。C33/C35 は軽微・open。
-  - **C39**（**fixed 2026-08-02**）: `_naOwner`（今の攻撃者）がターンを跨いで残留し `clone()` もコピーしていなかった。`effond`/`betaia` が**他キャラのギア係数・自己バフで自分のダメージを計算**していたのと、**ビーム/先読みのクローンだけ本線と評価条件が違った**のを是正。golden 3件とも再fit（詳細は CALIBRATION_ANALYSIS C39）。
-  - **C37**（open・**局所探索は 2026-07-30 に実装済／幅の問題は未解決**）: **探索パラメータ `BEAM_W=64` は編成依存**＝ナポ/アリアン×宿儺では最悪点で、幅を変えると総ダメが **+3.0〜+5.6% 変動しかつ非単調**（BW384=+5.64%）。根拠の C16 はエジソン編成の測定値で本編成へ転移せず。本質は幅不足でなく**枝刈りの代理採点（ロールアウト静的greedy）**。⚠**A1 でエジソンは健全と判明**（ダメージ厳密単調・押し順一致99.2〜100%）＝**エンジン全体の病理ではなくナポ/アリアン×宿儺(abilCap19)に固有**（編成と cap は未分離＝B1 で切り分け）。派生: `PREFIX_TOPK=8` は転移確認（損失0.017%）／**局所探索＝C27 の上位互換・✅2026-07-30 に `_localSearchRoute` として実装（`_refineRoute` を production 経路から置換）**（B3b: エジソンで C27 +0.140% に対し LS +0.779%・refine有/無が同一終点へ収束。ナポでは**C27 自体が発火せず**＝4例目の編成依存。実装時の golden 再fit＝raw +2.09%/cal +1.30%。⚠**改善幅もギア/敵依存**＝B3b の実gear条件 +0.78% に対し golden の default gear では +2.09%）だが**幅の代替にはならない**（5d 対照: 幅と LS は加算的）／**押し順の識別可能性が根本的に低い**（C1: 総ダメが1円単位で同値の別ルートが7本以上・prefix分散は中位で空回り）／`CALIB_GRID` はナポ/アリアンのアビを含まない構造的欠落／**Phase 7 のクローズ根拠もエジソン依存＝再評価対象**。一般則: **編成を移したら探索パラメータは再測する**・**コード内の性能数値は実測してから使う**。**全実験の数値＝`archive/SEARCH_QUALITY_EXPERIMENTS.md`**。
-  - **C38**（open・**押し順への影響は最大級**）: **`buffCount` が実機と別のものを数えている**（同一効果の内部スタックを1個ずつ加算）＝T1で既に bc=34・以降88〜100 で**強化効果数tierが全て常時到達＝機能停止**。ナポの4アビは全て tier 依存スコアだが定数に張り付き、「6で撃つか10で撃つか」の判断が存在しない。**予測探索の実装は本Cxが前提**（未解決なら全ルールが即撃ちに縮退）。**取得方式は 2026-08-02 に変更**＝実機UIが付与先を表示せず効果量のストック表示のため**アイコン計数は不可**＝**各 tier の効果の成立/不成立から bc を区間推定**する（`simulation/sim05/data/record_skeleton.md` §3・sim05 README §4.6）。
-  - **fixed 済の主要 Cx**（詳細は CALIBRATION_ANALYSIS.md）: C4/C8/C9/C11/C12/C13/C14/C16・C18（ムーンコード）・C19（tenya_re アビ計数）・C21（ifishant 条件付き+1）・C22（経済 clean・クローズ）・C23（judgフェーズ戦闘通算）・C26（追撃UI設定・_configSig拡張）・C27（whole-route refine＝**2026-07-30 に C37 局所探索へ置換・production 非経路**）。**wontfix**: C6/C17。**撤回**: C7（与ダメ2フェーズ倍率は非実在）。
-  * 現ゴールデン値: **raw 202,005,923 / calibrated 215,161,915 / napoleon/static 299,523,354** (C39 `_naOwner` 是正にて再fit・2026-08-02・**ダメージモデルの変更**・override {judg:145,pactcore:1} は**未再fit**・ENGINE_VERSION `sim05-c39-naowner`)
+## 実機較正ステータス
 
----
+> ⚠ **状態（open/fixed）と根拠の正は [CALIBRATION_ANALYSIS.md](./CALIBRATION_ANALYSIS.md) の Cx 行**。
+> 本節は**索引**であって台帳ではない（REPO_STANDARDS §7.2＝状態は例外なく ID 参照）。
+
+**確定パラメータ**（日常的に参照する値・変更時は Cx を起票）:
+
+| 項目 | 値 | 根拠 |
+|---|---|---|
+| バースト係数 | ヤマト/ヘカテー/テトラ = 5.0/2500 ／ エレイン = 5.5/3000 | — |
+| 追加ダメージフレーム | **アビ枠**（`'abi'` / 減衰率 0.04） | — |
+| エレインバースト追加 | 常時1回・契晶80以上で3回 | — |
+| エジソン英霊武器 追加ダメ | 2.5倍 / 80万（アビ枠・`onBurst`） | — |
+| ヤマト1アシ バーストダメージプラス | +10万/stack・**味方全体**のバースト対象 | C8 |
+| ナイツサプレス（エレイン3） | バーストダメ +20%・非累積（refresh）・2T | C11 |
+
+**open な乖離バックログ（索引）**:
+
+| ID | 一行要約 | ゲート |
+|---|---|---|
+| **C25** | 絶対値較正の本丸。乖離は**成分ごとに符号が逆**＝一律スカラ不可 | C40/C41/C44 の解決 |
+| **C40** | バースト「追加ダメージ」の定式化が違う（cap 引上げでは解けない）。**編成横断** | 実機 M2/M3 |
+| **C41** | `DMG.betaia_cap` が過小 | 実機 M4 |
+| **C44** | バースト本体がシム過大 | 実機 M2〜M6 |
+| **C42** | 同ターン発動回数の上限が実機より厳しい | 実機 M5 |
+| **C43** | アビ上限超過ペナルティが「硬い剪定」（実機は超えられる） | 宿儺固有・後ろ倒し可 |
+| **C3 / C5** | 追撃 cap が過小（2026-08-03 に主題から降格・寄与 1.3%） | C40 と同時 |
+| **C37** | 探索パラメータが編成依存／枝刈りの代理採点は未解決 | LS は実装済・幅は open |
+| **C38** | `buffCount` が実機と別のものを数えている＝tier が機能停止 | 実機データ |
+| **C45** | 反撃が未モデル化（ダメージ式は一次情報にあり・**敵の行動モデルが本体**） | ROADMAP 未確定Phase |
+| **C46** | 攻撃フェイズが実機と2点違う（バースト/通常攻撃の排他・非バーストキャラの通常攻撃） | FB 非成立ターンのみ binding |
+| **C24** | ゲージ生成（1ヒット +10）が未実装。低 severity | 較正走に相乗り |
+| **C1 / C2** | — | — |
+| **C33 / C35** | damage_frames 突合の軽微な残り | — |
+
+**現ゴールデン値**: raw **202,005,923** / calibrated **215,161,915** / napoleon/static **299,523,354**
+（ENGINE_VERSION `sim05-c39-naowner`。⚠ override `{judg:145,pactcore:1}` は C39 のモデル変更後**未再fit**）
 
 ## 現状・次タスク（→ workspace/）
 
@@ -246,6 +282,7 @@ npm run preview              # dist を http 配信 → ブラウザで探索/�
 
 | 日付 | 変更点 | 波及確認 |
 |---|---|---|
+| 2026-08-05 | 本文内の変更経緯・重複説明を整理（28,985→19,819字）。較正ステータスを索引化・ドキュメント体系を表へ | **Git ワークフロー節が2世代前の golden 値を持っていた**のを検出し「検証方法」節への参照へ一本化。仕様16項目は全て健在を差分確認 |
 | 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=規定・台帳・計画） | 参照関係は `npm run doc:check` がグリーン |
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->

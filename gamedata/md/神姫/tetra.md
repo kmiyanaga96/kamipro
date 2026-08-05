@@ -141,9 +141,8 @@
 ---
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 2）
+## この md を参照している文書（現役層 1）
 
-- [CLAUDE.md](../../../CLAUDE.md)
 - [gamedata/md/神姫/README.md](./README.md)
 
 _他に 凍結sim/archive/essays から 1 件（更新対象外）_
