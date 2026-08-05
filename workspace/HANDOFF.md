@@ -4,7 +4,7 @@
 > **次タスクの詳細リスト**は `workspace/TODO.md`。過去の経緯・provenance は `archive/SESSION_LOG.md`（オンデマンド）。
 > **更新規律（セッション末）**: 本書は「今」だけを短く保つ。現状化した記述は `archive/SESSION_LOG.md` の先頭へ1ブロック畳み、本書は最新状態へ上書きする（規律は REPO_STANDARDS §6）。
 >
-> 最終更新: 2026-08-03（セッション末・クローズ）
+> 最終更新: 2026-08-05（セッション末・クローズ）
 
 ---
 
@@ -15,6 +15,30 @@
 **sim05 の主題は 2026-08-03 に入れ替わった**。当初＝【追撃 C3/C5】＋【tier 観測 C38】＋【鬼神障壁】。
 現在＝**バーストまわりの成分別較正（C40 / C41 / C44）**。詳細は `simulation/sim05/README.md` §1。
 押し順の序数検証は目的外＝**実走はフリー押しでよく、実際に押した順の記録が必須要件**。
+
+## ✅ 直近の成果（2026-08-05）── 実機走待ちの間に「土台」を3つ直した
+
+詳細な経緯は [archive/SESSION_LOG.md](../archive/SESSION_LOG.md) の 2026-08-05 の3ブロック。
+
+**① ハーネスの config 汚染を根治**（A トラックの前提）
+2026-08-03 の事故（GEAR が2世代前で `calib_burst` の転移判定が反転）で直したのは1本だけだった。
+**残り15本を台帳駆動へ移行**（`tools/lib/config_c.mjs`＝受領キャッシュから config を復元し、走行前に
+**記録ルートの強制リプレイ bit 一致（E2）を自動で通す**）。規律は **REPO_STANDARDS §6 E10**。
+⚠ 汚染は GEAR だけでなく**サブ枠・パーティ順・override** にも及んでいた。
+✅ **エジソン系（configB）は無汚染**＝C37 の A1「エジソンは健全」は影響を受けない。
+⏳ **残＝汚染された数値の再取得は未実施**（C37 の BW 掃引ほか）。**C43 実装後に**・優先度は A トラックより下。
+
+**② md 相互参照の整備（S1〜S5 完了＝運用フェーズ）** → [DOC_RELATION_PLAN.md](../DOC_RELATION_PLAN.md)
+検査ツール `npm run doc:check` ／ 規約 REPO_STANDARDS **§4.1・§7・§6-6** ／ **現役層の壊れた参照 48→0・曖昧 33→0** ／
+末尾ブロックを**現役層 51本**へ（冪等）／**常駐サブタスク稼働**（カウンタは TODO 冒頭・5到達でツールが警告）。
+⚠ **セッション末の手順が増えた**: カウンタ +1／md を新設・改名したら `node tools/doc_refs.mjs --write` も回す。
+⏳ 残＝常駐が2周回ること（完了条件③）。
+
+**③ 高被参照 md の可読性整理**
+本文内の変更経緯・重複説明を末尾の更新履歴と ID 参照へ寄せた。**CLAUDE.md 32%減**・仕様16項目は全て健在。
+⚠**副産物として実害のある陳腐化を3件検出**＝CLAUDE.md と ROADMAP が**2世代前の golden 値**を保持、
+REPO_STANDARDS の **ID レンジが陳腐化**。→ 値の正を1箇所へ集約し、**件数は持たせない**形に変えた。
+⚠ `gamedata/md` の16本は「原文ママ・編集不可」＝**本文は触っていない**（触ったのは README のみ）。
 
 ## ✅ 直近の成果（2026-08-03）
 
@@ -53,7 +77,8 @@
 
 **起票**: **C40 / C41 / C42 / C43 / C44**（pre-trial）＋ **C45（反撃）/ C46（攻撃フェイズの排他）**（M1）。
 **成果物**: `simulation/sim05/analysis/`（`per_trial/pre-trial_{quant,quali}.md` ／ `PROVISIONAL_ANALYSIS.md` ／ `m1_history_replay.md`）。
-⚠ trial が1本のみのため **rollup は作らず**、正式 `integrated_analysis.md` は**本trialに対して**行う（ユーザー指示）。
+<!-- doc_refs:ignore-line ── 未作成: 本trial 受領後に作成する -->
+⚠ trial が1本のみのため **rollup は作らず**、正式 `simulation/sim05/analysis/integrated_analysis.md` は**本trialに対して**行う（ユーザー指示）。
 
 ### ⚠ 同日中に結論が5つ動いた（読み手への警告）
 
@@ -84,7 +109,7 @@
 
 **順序の原則＝「カウントで閉じる → 比で閉じる → 絶対で閉じる」**（M5/M6 → M2/M3 → M4）。
 ⚠ キャスパリーグは **HP 4億＝全力だと T1 で溶ける**。M4 は「撃たずに生かす」設計が必須。
-⚠ **config の正は今後 `data/<config>_slot.json`（UI の編成保存スロット JSON）**＝サブ枠・GEAR の食い違い事故を構造的に潰す。**ユーザーから受領待ち**。
+⚠ **config の正は今後 `simulation/sim05/data/<config>_slot.json`（UI の編成保存スロット JSON）**＝サブ枠・GEAR の食い違い事故を構造的に潰す。**ユーザーから受領待ち**。
 
 ## 3トラックとゲート状況
 
@@ -101,7 +126,7 @@
 | **★M2〜M7 の実機走** | ⏳ **ユーザー作業＝本セッションの唯一のブロッカー** | README §4.8 の表をそのまま渡す。あわせて **configC の slot JSON** を `data/` へ |
 | **宿儺での最終検証（G4.9）** | ⏳ **後ろ倒し** | ≦19手の走を1本／C43 は「≦19手運用」で無期限に後回し可 |
 | **★メタトロン A7（AnotherLink 重複規則）** | ⏳ **M6 で閉じる** | `final_dmg` 1.10 vs 1.21。**サブ枠は `[metatron, artemis]` で確定**。⚠ **`calib_burst` の configA/configC 食い違い 13% の第1候補**（1.21 が正なら configC 0.800→0.73 で configA 0.705 に近づく） |
-| **★他ハーネスの GEAR 汚染** | ⚠ **未修正** | ナポ編成ハーネス5本が2世代前の GEAR を持つ＝**出した数値は再取得が必要**（**C37 の BW 掃引結論も再測対象**）。TODO「★再発防止」 |
+| **★他ハーネスの config 汚染** | ✅ **2026-08-05 根治**（15本を台帳駆動へ・E10 制定） | ⏳ 残＝**汚染された数値の再取得**（C37 の BW 掃引ほか）。⚠**C43 実装後に**（探索空間が変わる）・優先度は A トラックより下 |
 | **★override の再fit** | ⏳ **未履行・ただし着手禁止** | C39 でモデルが動いたが、**C40/C41/C44 でまた動く**＝二重fitになるので**確定後に1回だけ** |
 | **長時間ジョブ** | ✅ ①②並列化済 | 残＝③LS内部の投機並列・他ハーネス横展開・ローカル移行 |
 | **Phase 8 アクセ実装** | ⏳ intake ゲート | §6 intake をユーザーと確定後 |
@@ -115,11 +140,11 @@
 - **攻撃フェイズの仕様（一次情報・2026-08-03 ユーザー回答）**: `gamedata/md/その他/attack_phase.md`
   （バーストと通常攻撃は**排他**／ボタンOFFで溜められる／**反撃は被回避でも発動**／**ゲージは1ヒット +10**＝**C45/C46/C24**）
 - **sim05**: `simulation/sim05/README.md`（**§4.4=較正ボス2段構え / §4.4.2=T1局在[決着済] / §4.6=tier観測 / ★§4.8=アイソレーション走 M1〜M7 / §6=残ゲート / §7=受入基準**）
-  ／**`analysis/PROVISIONAL_ANALYSIS.md`（暫定統合＝ここから読む）**／`analysis/m1_history_replay.md`（★M1 の全成分突合）
-  ／`analysis/per_trial/pre-trial_{quant,quali}.md`／`data/pre-trial.md`（実機原本）／`data/record_skeleton.md`（記入テンプレ）
-  ／**`data/configC_gear_panel.md`（★冒頭注記2＝GEAR の正）**／**`data/configC_cache_20260803.json`（config の正・E2 通過）**
-- **計測ハーネス**: `tools/`（`README.md` が索引・**§0 に並列実行**・**`calib_replay_compare.mjs` が sim05 の較正方式そのもの**）
-- **実験・計測の作法**: `REPO_STANDARDS.md` §6 の **E1〜E9**（着手前に通す）
+  ／**`simulation/sim05/analysis/PROVISIONAL_ANALYSIS.md`（暫定統合＝ここから読む）**／`simulation/sim05/analysis/m1_history_replay.md`（★M1 の全成分突合）
+  ／`simulation/sim05/analysis/per_trial/pre-trial_{quant,quali}.md`／`simulation/sim05/data/pre-trial.md`（実機原本）／`simulation/sim05/data/record_skeleton.md`（記入テンプレ）
+  ／**`simulation/sim05/data/configC_gear_panel.md`（★冒頭注記2＝GEAR の正）**／**`simulation/sim05/data/configC_cache_20260803.json`（config の正・E2 通過）**
+- **計測ハーネス**: `tools/`（`tools/README.md` が索引・**§0 に並列実行**・**★§0.5 に config の台帳駆動（`tools/lib/config_c.mjs`）**・**`calib_replay_compare.mjs` が sim05 の較正方式そのもの**）
+- **実験・計測の作法**: `REPO_STANDARDS.md` §6 の **E1〜E10**（着手前に通す。**★E10=config は台帳から読む**）
 - **探索品質の実験の全数値**: `archive/SEARCH_QUALITY_EXPERIMENTS.md`（C37 の根拠アーカイブ）
 - **新キャラ/幻獣の一次情報と Ax**: `gamedata/md/神姫/metatron.md`（§3.2 A0〜A10）／`gamedata/md/幻獣/`
 - **Phase 一覧**: `ROADMAP.md` ／ **現行フェーズ**: `PHASE4_PLAN.md` ／ **規約**: `REPO_STANDARDS.md`
@@ -132,3 +157,24 @@ npm run test:golden   # edison/raw 202,005,923・edison/cal 215,161,915・napole
 ```
 ⚠**実測 2分07秒**（fixture 並列。`--serial` で逐次・`--fixture <name>` で単体）。**背景実行を推奨**。docs のみの変更なら golden は不変。
 `_replayResult`/`_execKey`/`clone`/`_snapshotForReplay` を触ったら **`node tools/exp_ls_incremental_verify.mjs`（約4分）も回す**。
+
+---
+
+## 更新履歴
+
+<!-- 直近5件のみ（それ以前は git log）。「波及確認」列が本体＝git が持たない情報はここだけ。 -->
+
+| 日付 | 変更点 | 波及確認 |
+|---|---|---|
+| 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=現状スナップショット） | 参照関係は `npm run doc:check` がグリーン |
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 4）
+
+- [CLAUDE.md](../CLAUDE.md)
+- [DOC_RELATION_PLAN.md](../DOC_RELATION_PLAN.md)
+- [REPO_STANDARDS.md](../REPO_STANDARDS.md)
+- [workspace/TODO.md](./TODO.md)
+
+_他に 凍結sim/archive/essays から 1 件（更新対象外）_
+<!-- doc_refs:end -->

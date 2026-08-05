@@ -115,3 +115,20 @@
   - **★同 追記**: 「ムーンコード中は回避率ほぼ100%」＝**被ダメージ0でも『攻撃された』ので反撃は発動する**
     （ユーザー回答 2026-08-03）。これまでの trial で「味方被ダメ0なのに反撃が出ている」のはこのため。
 
+---
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 9）
+
+- [CALIBRATION_ANALYSIS.md](../../../CALIBRATION_ANALYSIS.md)
+- [CLAUDE.md](../../../CLAUDE.md)
+- [gamedata/md/その他/attack_phase.md](../その他/attack_phase.md)
+- [gamedata/md/神姫/README.md](./README.md)
+- [simulation/sim05/README.md](../../../simulation/sim05/README.md)
+- [simulation/sim05/analysis/m1_history_replay.md](../../../simulation/sim05/analysis/m1_history_replay.md)
+- [simulation/sim05/data/record_skeleton.md](../../../simulation/sim05/data/record_skeleton.md)
+- [workspace/HANDOFF.md](../../../workspace/HANDOFF.md)
+- [workspace/TODO.md](../../../workspace/TODO.md)
+
+_他に 凍結sim/archive/essays から 2 件（更新対象外）_
+<!-- doc_refs:end -->

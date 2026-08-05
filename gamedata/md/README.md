@@ -17,3 +17,19 @@
 ## 原則（md と js の分離）
 - md は**根拠**、js は**現在値**。値の変更履歴は git で追う（別途の履歴 md は作らない）。
 - ファイル追加・分類の判断は [REPO_STANDARDS.md](../../REPO_STANDARDS.md) の振り分け表に従う。
+
+---
+
+## 更新履歴
+
+<!-- 直近5件のみ（それ以前は git log）。「波及確認」列が本体＝git が持たない情報はここだけ。 -->
+
+| 日付 | 変更点 | 波及確認 |
+|---|---|---|
+| 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=規定） | 参照関係は `npm run doc:check` がグリーン |
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 1）
+
+- [CLAUDE.md](../../CLAUDE.md)
+<!-- doc_refs:end -->

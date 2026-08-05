@@ -1,7 +1,7 @@
 # pre-trial — 実機データ原本（加工せず）／sim05
 
 <!--
-  ■ 記録スケルトン（コピー原本・sim05 で唯一のテンプレ）。**複製して trial01.md〜 を作成**し実機値を記入する。
+  ■ 記録スケルトン（コピー原本・sim05 で唯一のテンプレ）。**複製して trialNN.md を作成**し実機値を記入する。
   ■ フォーマットは sim05 全 trial で厳守。整形・解釈は analysis/ 側で行い、ここは加工しない。
   ■ 押し順は**実機勘のフリー押しでよい**。ただし**実際に押した順の記録は必須**（無いとリプレイできず較正が成立しない）。
   ■ 各項目の「なぜ要るか」は README §4.3（追撃較正）／§4.4（較正ボス）／§4.6（tier 観測）を見ること。ここには書かない。
@@ -196,3 +196,19 @@ T3
 - pactcoreは強化効果カウントに含まれる。
 - ナポレオンの闘気は「ナポレオンが先述のアイデアを得た状態」というバフアイコンの累計で管理されている。当初、「強化効果」もまとめてこのアイコンで管理されていると考えていたが、T3で「ナポレオンが先述のアイデアを得た状態」が13にもかかわらずconsortが2回発動したことから、「強化効果」はアイコンとして表示されない内部データの可能性がある。この場合、バフアイコン1個を強化効果としてカウントしている可能性がある。そのため、ナポアビの「強化効果」については、ダメージ較正の側面から分解する必要性もありそうだ。
 - T3のbetaiaの1回目にて撃破。ターン終了時の処理順は、敵の攻撃⇒（反撃⇒）betaia⇒holy⇒（鬼神一擲⇒）DOTダメージ。
+
+---
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 7）
+
+- [simulation/sim05/analysis/PROVISIONAL_ANALYSIS.md](../analysis/PROVISIONAL_ANALYSIS.md)
+- [simulation/sim05/analysis/m1_history_replay.md](../analysis/m1_history_replay.md)
+- [simulation/sim05/analysis/per_trial/pre-trial_quali.md](../analysis/per_trial/pre-trial_quali.md)
+- [simulation/sim05/analysis/per_trial/pre-trial_quant.md](../analysis/per_trial/pre-trial_quant.md)
+- [simulation/sim05/data/configC_gear_panel.md](./configC_gear_panel.md)
+- [tools/README.md](../../../tools/README.md)
+- [workspace/HANDOFF.md](../../../workspace/HANDOFF.md)
+
+_他に 凍結sim/archive/essays から 1 件（更新対象外）_
+<!-- doc_refs:end -->

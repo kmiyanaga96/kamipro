@@ -3,21 +3,18 @@
 //   短い n の方が実戦に適した順を返す＝kill-turn 実装の必要性/実現可能性に直結。
 // ★cap=null（B1 で確立した安定域）で測る＝変化がホライズン由来か不安定性由来かを切り分けるため。
 // ★リポジトリ非改変
-import { buildFormation, applyEnemy, recalcGearK, recalcGearKCFromDispAtk, GEAR, DMG, setCurrentSubs,
-         displayAtkOverrideFor, setStaticOverride, _runRootPlan, _replayResult } from '/home/user/kamipro/src/app.js';
+//
+// ⚠ 旧版は config を**最古 GEAR でハードコード**し、基準ファイルもセッション固有のスクラッチパス（揮発）だった。
+//   2026-08-05 に台帳駆動へ移行（REPO_STANDARDS §6 E10）＝出した数値は再取得が必要。
+import { DMG, _runRootPlan, _replayResult } from '/home/user/kamipro/src/app.js';
+import { loadConfigC, verifyE2, configBanner } from './lib/config_c.mjs';
 import fs from 'fs';
 const nArg=parseInt(process.argv[2]);
-const REF='/tmp/claude-0/-home-user-kamipro/2e479ca7-804e-57dc-ba4e-837db3d4c3c4/scratchpad/b2_n10.json';
-const GEAR_C={assault:3.06,elem:0.54,vigor:0.6876,spec:0,dmgup:0,acute:0.144,crit_rate:0.405,other:0,
-              na_dmg:1.116,abi_dmg:2.52,burst_dmg:5.22,na_cap:0.36,abi_cap:0.99,burst_cap:2.016};
-setCurrentSubs(['freyja_christmas','artemis']);
-buildFormation('napoleon',['hecate','tetra','arianrhod','elaine']);
-applyEnemy('ryomen_sukuna');
-for(const k of Object.keys(GEAR)) GEAR[k]=GEAR_C[k]??0;
-DMG.betaia_mult=3.5; DMG.betaia_cap=800000; DMG.napo_burst_cd_reduce=true;
-recalcGearK(); recalcGearKCFromDispAtk(displayAtkOverrideFor('napoleon'));
-setStaticOverride({pactcore:1,effond:120});
-DMG.enemy_abil_cap=null;                       // 安定域で測る（B1）
+const REF=(process.env.SCRATCH||'/tmp')+'/b2_n10.json';
+// ★E2: 台帳条件で bit 一致を確認 → 本番は cap=null（B1 で確立した安定域）だけをずらす。
+verifyE2(loadConfigC(), {silent: nArg!==10});
+const cfg=loadConfigC({abilCap:null});
+if(nArg===10) console.log(configBanner(cfg));
 
 const r=_runRootPlan(['factor'],nArg);
 const keys=r.rows.map(x=>x.keys);

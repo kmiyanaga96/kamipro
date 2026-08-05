@@ -102,3 +102,19 @@
 エラボレイト上限・テクニカ上限や、神姫バフが該当。例＝テトラ アブソ（通常/バースト/アビ 各+20%）・ヘカテー プヴワール
 （各+6%累積）・エレイン ARRIVE（バースト+10%・エクシードと同枠）・ヤマト奮起（バースト+10%/stack）・
 アリアン特別減衰（バースト+100%）。「同枠」のものは合計加算、「特別減衰」は別枠。各キャラの実測値は該当キャラmd §1 を正とする。）
+
+---
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 7）
+
+- [CALIBRATION_ANALYSIS.md](../../../CALIBRATION_ANALYSIS.md)
+- [CLAUDE.md](../../../CLAUDE.md)
+- [PHASE8_PLAN.md](../../../PHASE8_PLAN.md)
+- [REPO_STANDARDS.md](../../../REPO_STANDARDS.md)
+- [gamedata/md/その他/README.md](./README.md)
+- [gamedata/md/その他/attack_phase.md](./attack_phase.md)
+- [simulation/sim05/data/configC_gear_panel.md](../../../simulation/sim05/data/configC_gear_panel.md)
+
+_他に 凍結sim/archive/essays から 3 件（更新対象外）_
+<!-- doc_refs:end -->

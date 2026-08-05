@@ -85,3 +85,12 @@
 - **一次情報**: ユーザー実機所感＋敵行動データ（本セッションで添付・原文は §4 に加工せず保全）。
 - def / max_hp は**未確定**（実機データ複数回で確定予定）。affinity は幻の相互有利則（walpurgis_loki 実機確定）を適用＝1.5。
 - 与ダメ側フェーズ倍率は walpurgis_loki C7 の結論に倣い**モデル化しない**（実機アンカーで raw 局在を検証する方針）。
+
+---
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 2）
+
+- [gamedata/md/敵/README.md](./README.md)
+- [gamedata/md/敵/cath_palug.md](./cath_palug.md)
+<!-- doc_refs:end -->

@@ -146,3 +146,23 @@ kill-turn 最小化を辞書式の**最上位**に置く:
    （これは kill-turn 抜きでも較正ロードマップと同一の道＝無駄にならない）。
 3. **S3 の着手条件**（両方成立時のみ）: ① S2 の撃破ターン予測が実機±1Tに収まる、
    ② front-load が実際に撃破を1T落とす実例が観測される。
+
+---
+
+## 更新履歴
+
+<!-- 直近5件のみ（それ以前は git log）。「波及確認」列が本体＝git が持たない情報はここだけ。 -->
+
+| 日付 | 変更点 | 波及確認 |
+|---|---|---|
+| 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=規定・台帳・計画） | 参照関係は `npm run doc:check` がグリーン |
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 3）
+
+- [CHARACTER_ANALYSIS.md](./CHARACTER_ANALYSIS.md)
+- [CLAUDE.md](./CLAUDE.md)
+- [ROADMAP.md](./ROADMAP.md)
+
+_他に 凍結sim/archive/essays から 3 件（更新対象外）_
+<!-- doc_refs:end -->

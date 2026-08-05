@@ -6,6 +6,9 @@
 // ★リポジトリ非改変
 import { Sim, buildFormation, applyEnemy, recalcGearK, recalcGearKCFromDispAtk, GEAR, DMG, setCurrentSubs,
          displayAtkOverrideFor, setStaticOverride, _refineRoute, _replayResult } from '../src/app.js';
+// ✅ E10（台帳の版を併記）: 本 GEAR_B は `simulation/sim04/data/config.json` の `_configSig` と**値が一致**する
+//   （2026-08-05 照合済）。configB は sim04 較正編成＝**凍結**で、configC と違い一度も更新されていないため
+//   ハードコードのままとする。⚠configB を更新したら本コメントごと台帳駆動（`lib/config_c.mjs` 方式）へ移すこと。
 const GEAR_B={assault:3.06,elem:0,vigor:0.6876,spec:0,dmgup:0.09,acute:0.144,crit_rate:0.405,other:0,
               na_dmg:1.116,abi_dmg:2.52,burst_dmg:5.22,na_cap:0.36,abi_cap:0.99,burst_cap:2.016};
 const n=10, log=s=>process.stdout.write(s+'\n');

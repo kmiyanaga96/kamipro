@@ -77,3 +77,15 @@
 - **一次情報**: ユーザー実機所感＋敵行動データ（2026-07-14 添付・原文は §4 に加工せず保全）。
 - def / max_hp は**未確定**（sim03 で推定）。affinity=1.5 は光⇔闇相互有利の標準則を適用。
 - **経緯**: フィンブルヴェトル trial01 でパーティ全滅→較正対象を本ボスへ緊急置換（フィンブルは無期限延期＝`fimbulvetr.md` 冒頭注記）。
+
+---
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 3）
+
+- [REPO_STANDARDS.md](../../../REPO_STANDARDS.md)
+- [gamedata/md/敵/README.md](./README.md)
+- [gamedata/md/敵/fimbulvetr.md](./fimbulvetr.md)
+
+_他に 凍結sim/archive/essays から 2 件（更新対象外）_
+<!-- doc_refs:end -->

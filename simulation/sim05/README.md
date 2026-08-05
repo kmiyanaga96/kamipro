@@ -236,7 +236,7 @@ pre-trial で **C44 は係数2つ（`calib_burst` ≈1.66 / アリアン `arian_
 | 使い方 | なぜバフ量を知らなくてよいか | 在庫 |
 |---|---|---|
 | **同一 FB 内のキャラ間比** | 5人が**同時刻・同一パーティバフ**で撃つ＝比を取るとパーティバフが**完全に約分される**。per-char 係数（`burst_coef_a/b`・`burstBonus`・`burstCapSpecial`）を**バフ非依存に**同定できる | sim04 trial01〜09 / sim03 trial01〜05 の**全攻撃フェイズ行** |
-| **GEAR の違いを使う** | sim03/sim04 は `burst_cap` 等が configC と違う＝**cap と slope の共線性を破れる唯一の在庫** | 同上（config は各 sim の `config.json` / gear_panel） |
+| **GEAR の違いを使う** | sim03/sim04 は `burst_cap` 等が configC と違う＝**cap と slope の共線性を破れる唯一の在庫** | 同上（config は各 sim の `simNN/data/config.json` / gear_panel） |
 
 ⚠ **限界**: sim03/sim04 は**エジソン/ヤマト編成＝アリアン不在**。取れるのは**共通構造**
 （slope・cap 構成・`calib_burst`・フラット項）であって、アリアン固有値ではない。
@@ -288,3 +288,28 @@ napoleon はフルビーム10Tが重く頻回テストに不適のため静的gr
 2. **成分別 fit**（2026-08-03 改訂・旧「追撃 fit」）: **C41（betaia cap）／C40（追加ダメージの式）／C44（バースト本体）** がキャスパリーグのアイソレーション走で確定し、**成分ごとに 実機/シム が 0.95〜1.05 に収まる**。⚠ **総ダメージ一致は受入基準にしない**（過大と過小が相殺するため何も保証しない＝pre-trial ×1.41・sim03 ×1.065 とも相殺後）。C5/C3（追撃②の cap）は C40 と同時に1回で入れる。非決定性が残るなら残差を明記（保留可・sim04 と同じ誠実さ）。
 3. **T1 局在の説明**: §4.4.1 の ×2.43 が「手数 ×1.39 × モデル ×1.41」に分解でき、モデル側が成分（C40/C41/C44/holy）へ配分されて残差が明示される。
 4. **golden**: §5 に沿って回帰基準が維持 or 意図的再fit（変動は理由つきで CLAUDE.md 台帳へ）。
+
+---
+
+## 更新履歴
+
+<!-- 直近5件のみ（それ以前は git log）。「波及確認」列が本体＝git が持たない情報はここだけ。 -->
+
+| 日付 | 変更点 | 波及確認 |
+|---|---|---|
+| 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=規定・台帳） | 参照関係は `npm run doc:check` がグリーン |
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 8）
+
+- [gamedata/md/敵/variant_chimera.md](../../gamedata/md/敵/variant_chimera.md)
+- [gamedata/md/敵/variant_chimera_chi.md](../../gamedata/md/敵/variant_chimera_chi.md)
+- [simulation/napoleon_arian_migration/README.md](../napoleon_arian_migration/README.md)
+- [simulation/sim05/analysis/PROVISIONAL_ANALYSIS.md](./analysis/PROVISIONAL_ANALYSIS.md)
+- [simulation/sim05/analysis/m1_history_replay.md](./analysis/m1_history_replay.md)
+- [simulation/sim05/analysis/per_trial/pre-trial_quant.md](./analysis/per_trial/pre-trial_quant.md)
+- [workspace/HANDOFF.md](../../workspace/HANDOFF.md)
+- [workspace/TODO.md](../../workspace/TODO.md)
+
+_他に 凍結sim/archive/essays から 2 件（更新対象外）_
+<!-- doc_refs:end -->

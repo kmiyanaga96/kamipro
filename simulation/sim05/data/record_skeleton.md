@@ -1,7 +1,7 @@
 # trialNN — 実機データ原本（加工せず）／sim05
 
 <!--
-  ■ 記録スケルトン（コピー原本・sim05 で唯一のテンプレ）。**複製して trial01.md〜 を作成**し実機値を記入する。
+  ■ 記録スケルトン（コピー原本・sim05 で唯一のテンプレ）。**複製して trialNN.md を作成**し実機値を記入する。
   ■ フォーマットは sim05 全 trial で厳守。整形・解釈は analysis/ 側で行い、ここは加工しない。
   ■ 押し順は**実機勘のフリー押しでよい**。ただし**実際に押した順の記録は必須**（無いとリプレイできず較正が成立しない）。
   ■ 各項目の「なぜ要るか」は README §4.3（追撃較正）／§4.4（較正ボス）／§4.6（tier 観測）を見ること。ここには書かない。
@@ -106,3 +106,16 @@
 ## 5. 所感（自由記入・qualitative へ転記される一次メモ）
 
 -
+
+---
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 4）
+
+- [CALIBRATION_ANALYSIS.md](../../../CALIBRATION_ANALYSIS.md)
+- [simulation/sim05/analysis/per_trial/pre-trial_quali.md](../analysis/per_trial/pre-trial_quali.md)
+- [tools/README.md](../../../tools/README.md)
+- [workspace/HANDOFF.md](../../../workspace/HANDOFF.md)
+
+_他に 凍結sim/archive/essays から 2 件（更新対象外）_
+<!-- doc_refs:end -->

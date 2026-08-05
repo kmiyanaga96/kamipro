@@ -41,6 +41,7 @@
 
 ### 4.1 DBスキーマ — `ACCESSORY_REGISTRY` 新設（推奨）
 
+<!-- doc_refs:ignore-line ── 未作成: Phase 8 実装時に新設する -->
 - **推奨**: `gamedata/js/accessories.js` に `ACCESSORY_REGISTRY` を新設（`SUMMON_REGISTRY`/`WEAPON_MASTER` と並列の source-of-record）。各アクセは**box宣言型**（幻獣 box と同型）:
   ```js
   export const ACCESSORY_REGISTRY = {
@@ -103,6 +104,7 @@
 ## 5. 実装ステップ（依存順・着手時）
 
 1. **intake（§6）を埋める** — ユーザーからアクセ系統・効果・数値・スロット/装備モデルを受領。branch を切る（CLAUDE.md Git ワークフロー）。
+<!-- doc_refs:ignore-line ── 未作成: Phase 8 実装時に新設する -->
 2. **`gamedata/js/accessories.js` に `ACCESSORY_REGISTRY`** を作成（判明系統から・box宣言型）。md 一次情報を intake として格納。
 3. **applyGear にアクセ収集ループ＋40%クランプ**（§4.2）。案Aで実装。
 4. **UI枠**（§4.4）＋ config 保存/復元。
@@ -126,3 +128,23 @@
 2. **装備時の枠準拠**: 代表アクセ（攻撃系・タイムピース・天使 各1）を装備した headless replay で、該当 GEAR box への加算が §2 の枠マッピングと一致（攻撃UP合計>40%で40%にクランプされることを含む）。
 3. **キャッシュ整合**: アクセ構成違いが別 `_configSig` になり、同一構成の再探索がキャッシュヒット時に決定的 replay で1円一致（既存のヒント検証機構で担保）。
 4. **押し順非改変**: アクセ導入で `class Sim`・探索ロジックに分岐が入らない（常時box のみ）。発動系が必要になった時点で本条件を明示的に解除し §4.6 を起票。
+
+---
+
+## 更新履歴
+
+<!-- 直近5件のみ（それ以前は git log）。「波及確認」列が本体＝git が持たない情報はここだけ。 -->
+
+| 日付 | 変更点 | 波及確認 |
+|---|---|---|
+| 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=規定・台帳・計画） | 参照関係は `npm run doc:check` がグリーン |
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 3）
+
+- [CLAUDE.md](./CLAUDE.md)
+- [ROADMAP.md](./ROADMAP.md)
+- [workspace/TODO.md](./workspace/TODO.md)
+
+_他に 凍結sim/archive/essays から 1 件（更新対象外）_
+<!-- doc_refs:end -->

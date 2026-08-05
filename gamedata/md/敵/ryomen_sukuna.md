@@ -106,3 +106,15 @@
   - golden 不変検証済み（既定敵は barrier/abilCap とも null＝不活性）。UIの敵ドロップダウンに本ボスが自動出現＝**選択して生存/討伐再現性（採用の最終ゲート）を実機測定できる**。
 - **採用の最終ゲート＝生存**: 自己強化/デバフ/全滅時計（鬼の魔力≥10）ゆえ、**ナポ/アリアン編成が安定討伐（回復・状態異常回復・火力）できるか**を実機確認。全滅頻発なら fimbulvetr 同様に不適→強機獣 T1窓へフォールバック（`variant_chimera_chi.md`）。
 - ⚠**アビ上限（不明）と補正率70%の解釈**は第1走で実測して §2/§4 を更新。
+
+---
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 3）
+
+- [gamedata/md/敵/README.md](./README.md)
+- [gamedata/md/敵/variant_chimera.md](./variant_chimera.md)
+- [gamedata/md/敵/variant_chimera_chi.md](./variant_chimera_chi.md)
+
+_他に 凍結sim/archive/essays から 1 件（更新対象外）_
+<!-- doc_refs:end -->

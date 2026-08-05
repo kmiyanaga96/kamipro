@@ -176,3 +176,26 @@ pre-trial（ナポ/アリアン×configC）で「追加ダメージがシムの 
 > 縮退した2変数の組み合わせを1つ選んだにすぎなかった。
 > **縮退を破るには、片方の変数だけを通る別の観測量が要る**（ここではストリーク＝`calib_burst` を通らない）。
 > 併せて、**データ側の打ち切り（sim03 T3 の撃破）を確認せずに fit すると系統的に誤る**。
+
+---
+
+## 更新履歴
+
+<!-- 直近5件のみ（それ以前は git log）。「波及確認」列が本体＝git が持たない情報はここだけ。 -->
+
+| 日付 | 変更点 | 波及確認 |
+|---|---|---|
+| 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=分析） | 参照関係は `npm run doc:check` がグリーン |
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 6）
+
+- [CALIBRATION_ANALYSIS.md](../../../CALIBRATION_ANALYSIS.md)
+- [simulation/sim05/README.md](../README.md)
+- [simulation/sim05/analysis/PROVISIONAL_ANALYSIS.md](./PROVISIONAL_ANALYSIS.md)
+- [tools/README.md](../../../tools/README.md)
+- [workspace/HANDOFF.md](../../../workspace/HANDOFF.md)
+- [workspace/TODO.md](../../../workspace/TODO.md)
+
+_他に 凍結sim/archive/essays から 1 件（更新対象外）_
+<!-- doc_refs:end -->

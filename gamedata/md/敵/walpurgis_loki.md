@@ -51,3 +51,14 @@
 - 有志ソロ攻略記事（hatenablog: spicycurryboy / kamioai 等）・ソロ討伐動画（YouTube）・X(@romusu7)。
 - ⚠ サイトが軒並み 403（bot拒否）で原文直接取得は不可。属性相性・2フェーズ被ダメは WebSearch スニペット＋実機で確認。
   **HP=9.8億は実機検証で確定**（旧有志値2.5億は誤り）。**def は暫定10・実機データ複数回で確定予定**。
+
+---
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 2）
+
+- [CALIBRATION_ANALYSIS.md](../../../CALIBRATION_ANALYSIS.md)
+- [gamedata/md/敵/README.md](./README.md)
+
+_他に 凍結sim/archive/essays から 1 件（更新対象外）_
+<!-- doc_refs:end -->

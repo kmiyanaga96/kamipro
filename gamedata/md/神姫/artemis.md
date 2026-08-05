@@ -120,3 +120,10 @@
 - `subAssists: { burst_dmg: 0.25, burst_cap: 0.10, final_dmg: 0.10 }`
 - buildFormation が**全員光属性編成のとき**に `DMG.sub_burst_dmg`（バーストダメ+25%）/ `DMG.sub_burst_cap`（バースト上限+10%）/ `DMG.final_dmg`（最終ダメージ×1.10・`_na` 最外殻）へ集約。サブメンバー時にも同経路で適用（メイン/サブ共通・1回だけ）
 
+---
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 1）
+
+- [gamedata/md/神姫/README.md](./README.md)
+<!-- doc_refs:end -->

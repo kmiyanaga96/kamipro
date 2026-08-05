@@ -1,21 +1,16 @@
 // 実験2（圧縮版）: prefix=[factor] 固定で ATK スケールのみを振り、押し順の変化を測る。
 // 目的は「大域最良の探索」ではなく「条件間の押し順比較」なので prefix 固定で十分（実験1: prefix寄与は最大0.13%）。
-import { buildFormation, applyEnemy, recalcGearK, recalcGearKCFromDispAtk, GEAR, DMG, setCurrentSubs,
-         displayAtkOverrideFor, setStaticOverride, _runRootPlan } from '/home/user/kamipro/src/app.js';
+// ⚠ 旧版は config を**最古 GEAR でハードコード**していた＝出した数値（×0.90 同位置55.3% 等）は再測対象。
+//   2026-08-05 に config 駆動へ移行（REPO_STANDARDS §6 E10）。基準 ATK は台帳 `dispAtk` の一律スケール。
+import { _runRootPlan } from '/home/user/kamipro/src/app.js';
+import { loadConfigC, verifyE2, configBanner } from './lib/config_c.mjs';
 import fs from 'fs';
-const GEAR_C={assault:3.06,elem:0.54,vigor:0.6876,spec:0,dmgup:0,acute:0.144,crit_rate:0.405,other:0,
-              na_dmg:1.116,abi_dmg:2.52,burst_dmg:5.22,na_cap:0.36,abi_cap:0.99,burst_cap:2.016};
 const n=10, scale=parseFloat(process.argv[2]);
-const REF='/tmp/claude-0/-home-user-kamipro/2e479ca7-804e-57dc-ba4e-837db3d4c3c4/scratchpad/atk2_base.json';
-setCurrentSubs(['freyja_christmas','artemis']);
-buildFormation('napoleon',['hecate','tetra','arianrhod','elaine']);
-applyEnemy('ryomen_sukuna');
-for(const k of Object.keys(GEAR)) GEAR[k]=GEAR_C[k]??0;
-DMG.betaia_mult=3.5; DMG.betaia_cap=800000; DMG.napo_burst_cd_reduce=true;
-recalcGearK();
-const atk={}; for(const [k,v] of Object.entries(displayAtkOverrideFor('napoleon'))) atk[k]=Math.round(v*scale);
-recalcGearKCFromDispAtk(atk);
-setStaticOverride({pactcore:1,effond:120});
+const REF=(process.env.SCRATCH||'/tmp')+'/atk2_base.json';
+// ★E2: 台帳条件で bit 一致を確認してから、ATK だけを 1 変数ずらす。
+verifyE2(loadConfigC(), {silent: scale!==1.00});
+const cfg=loadConfigC({atkScale:scale});
+if(scale===1.00) console.log('  '+configBanner(cfg));
 const r=_runRootPlan(['factor'],n);
 const keys=r.rows.map(x=>x.keys);
 if(scale===1.00){ fs.writeFileSync(REF,JSON.stringify(keys)); console.log(`  ×1.00(基準) dmg=${Math.round(r.dmg).toLocaleString()}`); process.exit(0); }

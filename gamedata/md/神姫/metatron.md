@@ -177,3 +177,15 @@
 - **⚠ 現時点で本シムが考察する必要は皆無**（ユーザー判断）。理由: ①メタトロンはサブ運用が前提 ②較正ボスのロキはノーダメージ討伐＝
   フルHP前提が厳密に成立する ③`反逆` を扱うには HP を状態として持つ必要があり、ROADMAP 未確定Phase(i)「敵行動・味方生存」の領域。
 - ∴ **A2/A3 はクローズ**。将来 `反逆` 編成を扱う判断が出たときに、本節を起点に再開する。
+
+---
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 5）
+
+- [CHARACTER_ANALYSIS.md](../../../CHARACTER_ANALYSIS.md)
+- [gamedata/md/神姫/README.md](./README.md)
+- [simulation/sim05/README.md](../../../simulation/sim05/README.md)
+- [workspace/HANDOFF.md](../../../workspace/HANDOFF.md)
+- [workspace/TODO.md](../../../workspace/TODO.md)
+<!-- doc_refs:end -->

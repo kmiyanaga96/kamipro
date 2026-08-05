@@ -7,6 +7,7 @@
 > - シムの絶対値は実機比で過小（B1所見: naB基準で約2×・バフ蓄積で拡大＝`simulation/sim02/b1_manual_replay_c21.md`）。
 >   ただし**編成間・ホライズン間の序数比較は系統誤差に頑健**（PHASE4_PLAN の基本方針）＝本書の比較はすべて序数で読む。
 > - 本書のシム実測はすべて **raw（較正なし）・genericギア・サブ未設定・エンジン `C21-ifishant-conditional`** の同一条件（サブの寄与は§1アルテミス/フレイヤ節と§3に分離して測定）。
+> <!-- doc_refs:ignore-line -->
 > - アリアンロッドは**登録較正第1回（2026-07-17・`gamedata/md/神姫/arianrhod.md` §3＝旧ARIANROD_REGISTRATION.md）で A1〜A7/A9 が実機確定**（残: A8=急所倍率、絶対値fit=sim04後）。ただし本書 §2〜§3 の数値は**確定前の旧モデル（9仮定版）での測定値**＝モデル更新（追撃2本化・自動発動上限撤廃等）後の再測までは暫定として読む。
 
 ---
@@ -215,3 +216,23 @@
 - C22/naB較正（B1のF1）進展 → 絶対値の注記を更新。
 - kill-turnモード実装 → §2.4 の表をボス別自動出力へ置換。
 - 新キャラ追加・英霊武器追加 → 該当節を追記。
+
+---
+
+## 更新履歴
+
+<!-- 直近5件のみ（それ以前は git log）。「波及確認」列が本体＝git が持たない情報はここだけ。 -->
+
+| 日付 | 変更点 | 波及確認 |
+|---|---|---|
+| 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=規定・台帳・計画） | 参照関係は `npm run doc:check` がグリーン |
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 3）
+
+- [CLAUDE.md](./CLAUDE.md)
+- [gamedata/md/神姫/README.md](./gamedata/md/神姫/README.md)
+- [gamedata/md/神姫/arianrhod.md](./gamedata/md/神姫/arianrhod.md)
+
+_他に 凍結sim/archive/essays から 1 件（更新対象外）_
+<!-- doc_refs:end -->

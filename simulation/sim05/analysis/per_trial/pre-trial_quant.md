@@ -2,7 +2,7 @@
 
 > **種別**: 分析（単trial中間集計・**暫定**）
 > **ゴール**: pre-trial 1本だけから、T1 の乖離 ×2.4 が**どの成分に・どれだけ**あるかを成分別に確定させる
-> **完了条件**: 本trial（trial01〜）受領後、`quantitative_analysis.md`（trial横断rollup）に吸収された時点でクローズ
+> **完了条件**: 本trial（trial01〜）受領後、`simNN/analysis/quantitative_analysis.md`（trial横断rollup）に吸収された時点でクローズ
 > **状態**: 進行中（**trial は pre-trial 1本のみ＝分散・決定性・収束の議論はできない**）
 > 作成 2026-08-03 ／ 関連: C3 / C5 / C25 / C37 / C38 / C40〜C44・`simulation/sim05/README.md` §4.3〜§4.6
 >
@@ -345,3 +345,25 @@ pre-trial で空欄・不明だった項目のうち、**上の結論を確定�
 
 ⚠ **限界**: sim03/sim04 はエジソン/ヤマト編成＝**アリアンは居ない**。取れるのは
 **共通構造（slope・cap 構成・`calib_burst`・フラット項）**であって、アリアン固有値ではない。
+
+---
+
+## 更新履歴
+
+<!-- 直近5件のみ（それ以前は git log）。「波及確認」列が本体＝git が持たない情報はここだけ。 -->
+
+| 日付 | 変更点 | 波及確認 |
+|---|---|---|
+| 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=分析） | 参照関係は `npm run doc:check` がグリーン |
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 7）
+
+- [CALIBRATION_ANALYSIS.md](../../../../CALIBRATION_ANALYSIS.md)
+- [simulation/sim05/README.md](../../README.md)
+- [simulation/sim05/analysis/PROVISIONAL_ANALYSIS.md](../PROVISIONAL_ANALYSIS.md)
+- [simulation/sim05/analysis/m1_history_replay.md](../m1_history_replay.md)
+- [simulation/sim05/analysis/per_trial/pre-trial_quali.md](./pre-trial_quali.md)
+- [simulation/sim05/data/configC_gear_panel.md](../../data/configC_gear_panel.md)
+- [tools/README.md](../../../../tools/README.md)
+<!-- doc_refs:end -->

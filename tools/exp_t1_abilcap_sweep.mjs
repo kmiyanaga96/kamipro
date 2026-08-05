@@ -9,41 +9,15 @@
 //   （cap 以外の条件は完全同一＝cap の効果だけが差分になる）。絶対値ではなく**cap=19 に対する比**を読む。
 //
 // 実行: node tools/exp_t1_abilcap_sweep.mjs
-import fs from 'node:fs';
-import { Sim, buildFormation, applyEnemy, recalcGearK, recalcGearKCFromDispAtk, GEAR, DMG,
-         setCurrentSubs, displayAtkOverrideFor, setStaticOverride, _replayResult } from '/home/user/kamipro/src/app.js';
+//
+// ⚠ 旧版は config を**最古 GEAR でハードコード**し、E2 も自前生成のスクラッチキャッシュ（セッション固有パス＝揮発）
+//   に依存していた＝出した T1 掃引の数値は再測対象。2026-08-05 に config 駆動へ移行（REPO_STANDARDS §6 E10）。
+import { Sim, DMG } from '/home/user/kamipro/src/app.js';
+import { loadConfigC, verifyE2, configBanner } from './lib/config_c.mjs';
 
 const log=s=>process.stdout.write(s+'\n');
-const GEAR_C={assault:3.06,elem:0.54,vigor:0.6876,spec:0,dmgup:0,acute:0.144,crit_rate:0.405,other:0,
-              na_dmg:1.116,abi_dmg:2.52,burst_dmg:5.22,na_cap:0.36,abi_cap:0.99,burst_cap:2.016};
-setCurrentSubs(['freyja_christmas','artemis']);
-buildFormation('napoleon',['hecate','tetra','arianrhod','elaine']);
-applyEnemy('ryomen_sukuna');
-for(const k of Object.keys(GEAR)) GEAR[k]=GEAR_C[k]??0;
-DMG.betaia_mult=3.5; DMG.betaia_cap=800000; DMG.napo_burst_cd_reduce=true;
-recalcGearK(); recalcGearKCFromDispAtk(displayAtkOverrideFor('napoleon'));
-setStaticOverride({pactcore:1,effond:120});
-
-// ── E2: config 再現の検証（ビーム出力 vs 強制リプレイの bit 一致）──
-// キャッシュには {route, dmg} を持たせる。dmg はビーム走行が出した値で、リプレイは独立経路なので
-// 両者の一致は「この config でエンジンが同じ状態を再現できている」ことの検証になる（E2）。
-// ⚠ダメージモデルを変えたらキャッシュは無効＝削除して再生成すること（C39 で1度失効した）。
-const CACHE='/tmp/claude-0/-home-user-kamipro/21dd8fe3-058a-518b-9720-4e11617bb04c/scratchpad/napo_route_c39.json';
-let cache;
-if(fs.existsSync(CACHE)) cache=JSON.parse(fs.readFileSync(CACHE,'utf8'));
-else {
-  const s=new Sim(); const route=[]; const t0=Date.now();
-  for(let t=1;t<=10;t++) route.push(s.takeTurn(t).keys);
-  cache={route, dmg:s.dmg};
-  fs.writeFileSync(CACHE, JSON.stringify(cache));
-  log(`[E2] 基準ルートをビームで生成: ${((Date.now()-t0)/1000).toFixed(1)}s`);
-}
-{
-  const d=_replayResult(cache.route, 10).dmg;
-  log(`[E2] ビーム ${cache.dmg} / 強制リプレイ ${d} → ${d===cache.dmg?'✅ bit 一致':'★不一致（config 再現に失敗＝以降の数値は無効）'}`);
-  if(d!==cache.dmg) process.exit(1);
-  log(`     基準ルートの押下数: ${cache.route.map(k=>k.length).join(' / ')}`);
-}
+// ★E2: config は台帳から読み、記録ルートの強制リプレイが bit 一致することを先に確認する。
+const cfg=loadConfigC(); log(configBanner(cfg)); verifyE2(cfg);
 
 const HP=9.8e8;  // 両面宿儺 HP（§4.4.3）
 function t1(cap){

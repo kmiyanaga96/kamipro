@@ -167,3 +167,12 @@
   - バーストCD短縮（`napoBurstCdReduce`）: バースト発動時に自身の全アビCD−1（`def.onBurst`・`DMG.napo_burst_cd_reduce` フラグ）
 - 英霊武器2（レジオンドヌール）は `WEAPON_MASTER` 未登録＝シム未対応
 
+---
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 0）
+
+_（現役層からの参照はない）_
+
+_他に 凍結sim/archive/essays から 1 件（更新対象外）_
+<!-- doc_refs:end -->

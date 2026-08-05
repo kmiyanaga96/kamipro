@@ -3,35 +3,21 @@
 //   比較対象: 実験2（cap=19・同一手続き）＝×0.90 55.3% / ×1.10 29.5% / ×1.25 25.3%・ダメージ非単調。
 //   判定: cap を外して単調＆押し順安定になれば原因は abilCap、変わらなければ原因はアリアン holy（編成側）。
 // ★E2: 実験前に既知値（config_sukuna_v2 の記録値）との bit 一致を確認する。★リポジトリ非改変
-import { buildFormation, applyEnemy, recalcGearK, recalcGearKCFromDispAtk, GEAR, DMG, setCurrentSubs,
-         displayAtkOverrideFor, setStaticOverride, _runRootPlan, _replayResult } from '/home/user/kamipro/src/app.js';
+// ⚠ 旧版は config を**最古 GEAR でハードコード**し、E2 も `archive/caches/sim05_sukuna_v2.json`
+//   （engineVersion 2世代前）を見ていたため**現行エンジンでは通らない**。出した数値（cap=null で厳密単調 等）は再測対象。
+//   2026-08-05 に config 駆動へ移行し、E2 の照合先を現行台帳へ差し替えた（REPO_STANDARDS §6 E10）。
+import { DMG, _runRootPlan } from '/home/user/kamipro/src/app.js';
+import { loadConfigC, verifyE2, configBanner } from './lib/config_c.mjs';
 import fs from 'fs';
 const n=10, scale=parseFloat(process.argv[2]);
-const REF='/tmp/claude-0/-home-user-kamipro/2e479ca7-804e-57dc-ba4e-837db3d4c3c4/scratchpad/b1_base.json';
-const GEAR_C={assault:3.06,elem:0.54,vigor:0.6876,spec:0,dmgup:0,acute:0.144,crit_rate:0.405,other:0,
-              na_dmg:1.116,abi_dmg:2.52,burst_dmg:5.22,na_cap:0.36,abi_cap:0.99,burst_cap:2.016};
+const REF=(process.env.SCRATCH||'/tmp')+'/b1_base.json';
 
-function setup(){
-  setCurrentSubs(['freyja_christmas','artemis']);
-  buildFormation('napoleon',['hecate','tetra','arianrhod','elaine']);
-  applyEnemy('ryomen_sukuna');
-  for(const k of Object.keys(GEAR)) GEAR[k]=GEAR_C[k]??0;
-  DMG.betaia_mult=3.5; DMG.betaia_cap=800000; DMG.napo_burst_cd_reduce=true;
-  recalcGearK();
-}
-// ── E2: config 再現の検証（cap=19 のまま・override {}・正しいATK → 1,988,538,373）
-setup();
-const c=JSON.parse(fs.readFileSync('/home/user/kamipro/archive/caches/sim05_sukuna_v2.json','utf8')).entries[0][1];
-recalcGearKCFromDispAtk(c.dispAtk); setStaticOverride(c.override||{});
-const chk=Math.round(_replayResult(c.turnsKeys,10).dmg);
-if(chk!==Math.round(c.dmg)){ console.log(`  ❌config再現 失敗: ${chk.toLocaleString()} != ${Math.round(c.dmg).toLocaleString()}`); process.exit(1); }
-if(scale===1.00) console.log(`  ✅config再現 bit一致 (${chk.toLocaleString()})`);
+// ── ★E2: 台帳条件（cap=19・台帳 ATK/override）で bit 一致を確認してから実験条件へ。
+verifyE2(loadConfigC(), {silent: scale!==1.00});
 
-// ── 本番: cap のみ無効化
-setup();
-recalcGearKCFromDispAtk(Object.fromEntries(Object.entries(displayAtkOverrideFor('napoleon')).map(([k,v])=>[k,Math.round(v*scale)])));
-setStaticOverride({pactcore:1,effond:120});
-DMG.enemy_abil_cap=null;                       // ★これだけが実験2との差分
+// ── 本番: cap のみ無効化（★これだけが実験2との差分）
+const cfg=loadConfigC({abilCap:null, atkScale:scale});
+if(scale===1.00) console.log('  '+configBanner(cfg));
 const r=_runRootPlan(['factor'],n);
 const keys=r.rows.map(x=>x.keys);
 const mp=Math.max(...r.rows.map(x=>x.ability));

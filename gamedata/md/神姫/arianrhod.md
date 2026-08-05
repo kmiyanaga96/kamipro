@@ -105,6 +105,7 @@
 
 
 
+<!-- doc_refs:ignore-line -->
 ## 3. 登録較正記録（旧 ARIANROD_REGISTRATION.md 統合・2026-07-19） ##
 
 > 実機入手に伴う9仮定（`archive/arianrhod_impl_notes.md`）の実機確定作業の記録。root一般フローの独立ドキュメントとして 2026-07-16 起草・2026-07-17 に第1回実測を実施し、2026-07-19 に本mdへ統合（ユーザー指示・原本は git 履歴参照）。
@@ -143,3 +144,14 @@
 - DB反映時の検証: アリアンは golden 編成外＝golden不変を確認（変わったら混入バグ）。proc連鎖（`_countAbilityUse`）はヘカテー/テトラに波及するため、アリアン入り編成の10T無クラッシュも確認。
 - アリアン測定でメンバーを入れ替えた走を sim04 の trial に混ぜない（記録は本md §3）。
 
+---
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 3）
+
+- [CHARACTER_ANALYSIS.md](../../../CHARACTER_ANALYSIS.md)
+- [gamedata/md/神姫/README.md](./README.md)
+- [simulation/sim05/README.md](../../../simulation/sim05/README.md)
+
+_他に 凍結sim/archive/essays から 3 件（更新対象外）_
+<!-- doc_refs:end -->

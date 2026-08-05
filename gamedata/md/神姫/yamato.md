@@ -108,3 +108,10 @@
 - ゲージ最大値200: `gmax: 200`（=`BG.yamato_max`・バースト消費は100のみ）
 - ※ゲージ上昇量+50%・バーストヒールは現状シム未モデル化
 
+---
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 1）
+
+- [gamedata/md/神姫/README.md](./README.md)
+<!-- doc_refs:end -->

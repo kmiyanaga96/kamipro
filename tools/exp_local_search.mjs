@@ -1,22 +1,18 @@
 // 実験5b: 局所探索の近傍を拡張。①ターン内move ②ターン内swap ③ターン跨ぎswap。
 // ⚠ターン跨ぎは「move」にすると受け側が20手＝abilCap19で黙って落ちるため swap（交換）にする。
 // 目的関数は _objective 第1要素＝総ダメージ（engine と一致することを確認済み）。★リポジトリ非改変
-import { buildFormation, applyEnemy, recalcGearK, recalcGearKCFromDispAtk, GEAR, DMG, setCurrentSubs,
-         displayAtkOverrideFor, setStaticOverride, _runRootPlan, _replayResult } from '/home/user/kamipro/src/app.js';
+//
+// ⚠ 旧版は config を**最古 GEAR でハードコード**していた（2026-08-05 に台帳駆動へ移行＝REPO_STANDARDS §6 E10）。
+//   ∴ 下の比較定数（BASE_DMG / INTRA_ONLY / BW384）は**旧 config での値＝現行と比較できない**。要再取得。
+//   ※本ハーネスの結論（LS の採用）は既に `_localSearchRoute` として production 実装済み＝再測は歴史検証の位置づけ。
+import { _runRootPlan, _replayResult } from '/home/user/kamipro/src/app.js';
+import { loadConfigC, verifyE2, configBanner } from './lib/config_c.mjs';
 import fs from 'fs';
-const GEAR_C={assault:3.06,elem:0.54,vigor:0.6876,spec:0,dmgup:0,acute:0.144,crit_rate:0.405,other:0,
-              na_dmg:1.116,abi_dmg:2.52,burst_dmg:5.22,na_cap:0.36,abi_cap:0.99,burst_cap:2.016};
 const n=10, log=s=>process.stdout.write(s+'\n');
-const BASE_DMG=2007021635, INTRA_ONLY=2038000036, BW384=2120186028;
-const CACHE='/tmp/claude-0/-home-user-kamipro/2e479ca7-804e-57dc-ba4e-837db3d4c3c4/scratchpad/base_route.json';
+const BASE_DMG=2007021635, INTRA_ONLY=2038000036, BW384=2120186028;   // ★旧 config での値＝要再取得
+const CACHE=(process.env.SCRATCH||'/tmp')+'/base_route.json';
 
-setCurrentSubs(['freyja_christmas','artemis']);
-buildFormation('napoleon',['hecate','tetra','arianrhod','elaine']);
-applyEnemy('ryomen_sukuna');
-for(const k of Object.keys(GEAR)) GEAR[k]=GEAR_C[k]??0;
-DMG.betaia_mult=3.5; DMG.betaia_cap=800000; DMG.napo_burst_cd_reduce=true;
-recalcGearK(); recalcGearKCFromDispAtk(displayAtkOverrideFor('napoleon'));
-setStaticOverride({pactcore:1,effond:120});
+const cfg=loadConfigC(); log(configBanner(cfg)); verifyE2(cfg);
 
 let baseRoute;
 if(fs.existsSync(CACHE)){ baseRoute=JSON.parse(fs.readFileSync(CACHE,'utf8')); log('基準ルート: キャッシュから復元'); }
