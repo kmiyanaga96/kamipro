@@ -2,7 +2,7 @@
 
 > **種別**: 分析（単trial中間集計・**暫定**）
 > **ゴール**: pre-trial の所感・非数値観測から、**モデル化されていない仕様**と**次の取得物**を洗い出す
-> **完了条件**: 本trial受領後、`qualitative_analysis.md`（trial横断rollup）に吸収された時点でクローズ
+> **完了条件**: 本trial受領後、`simNN/analysis/qualitative_analysis.md`（trial横断rollup）に吸収された時点でクローズ
 > **状態**: 進行中（trial は pre-trial 1本のみ）
 > 作成 2026-08-03 ／ 関連: C38 / C40〜C44・`pre-trial_quant.md`・`simulation/sim05/data/pre-trial.md` §5
 >
@@ -113,7 +113,7 @@ sim05 README §4.3 の較正原則「**非会心・非急所の非飽和アン�
 
 ## 8. 記録運用へのフィードバック
 
-`record_skeleton.md` の様式自体は機能した（総和チェック +1.1pt で通過）。改善点:
+`simulation/sim05/data/record_skeleton.md` の様式自体は機能した（総和チェック +1.1pt で通過）。改善点:
 
 | # | 改善 | 理由 |
 |---|---|---|

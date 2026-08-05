@@ -14,9 +14,9 @@
 | 実機とシムの乖離・バグ報告 | CALIBRATION_ANALYSIS.md §4 バックログへ **Cx 起票** → 修正は較正セッション or 通常dev | Cx（全リポ一意） | 台帳=CALIBRATION_ANALYSIS.md（根拠が大きければ simNN/ へ） |
 | 較正値・設計判断の確定 | CALIBRATION_ANALYSIS.md §2〜3 へ **Dx 記録**（なぜその値/枠かの根拠つき） | Dx（全リポ一意） | CALIBRATION_ANALYSIS.md |
 | 大規模な統計的較正（複数trial・実機バッチ） | `cp -r simulation/TEMPLATE simulation/simNN` → README確定 → trial → 2層分析 | simNN・**Mx**（測定メニュー・sim内連番） | simulation/simNN/ |
-| 新キャラ入手・登録較正 | **md-first intake**（ユーザーが §1 一次情報 md 作成→Claude が要検証洗い出し→registry 配線→実機/sim で解消。**フロー詳細＝ROADMAP.md §5**）。要検証は当該キャラの `gamedata/md/神姫|英霊/<key>.md` **§3 登録較正記録**へ直接記録（先例: `gamedata/md/神姫/arianrhod.md` §3＝旧 ARIANROD_REGISTRATION.md を 2026-07-19 統合） | **Ax**（キャラdoc内連番・A0=文言転記から） | キャラmd §3（独立rootドキュメントは作らない） |
+| 新キャラ入手・登録較正 | **md-first intake**（ユーザーが §1 一次情報 md 作成→Claude が要検証洗い出し→registry 配線→実機/sim で解消。**フロー詳細＝ROADMAP.md §5**）。要検証は当該キャラの `gamedata/md/神姫|英霊/<key>.md` **§3 登録較正記録**へ直接記録（先例: [gamedata/md/神姫/arianrhod.md](gamedata/md/神姫/arianrhod.md) §3＝旧 ARIANROD_REGISTRATION.md を 2026-07-19 統合）<!-- doc_refs:ignore-line --> | **Ax**（キャラdoc内連番・A0=文言転記から） | キャラmd §3（独立rootドキュメントは作らない） |
 | 仮説の起票・検証 | 関連する考察台帳（CHARACTER_ANALYSIS 等）へ **Hx 起票**。台帳がなければ起票先をユーザーへ確認 | Hx（起票文書内連番・引用は `文書名 Hx`） | 既存台帳内（新規docは乱立させない） |
-| 一次情報の受領（txt/スクショ転記/実機値） | 内容で振り分け: ゲーム仕様→`gamedata/md/`（神姫/英霊/幻獣/その他）・敵→`gamedata/md/敵/`（README手順）・sim測定→`simNN/data/`・キャラ→`<CHAR>_REGISTRATION.md` 記録欄 | — | 各所（原文ママ＋出所ヘッダ） |
+| 一次情報の受領（txt/スクショ転記/実機値） | 内容で振り分け: ゲーム仕様→`gamedata/md/`（神姫/英霊/幻獣/その他）・敵→`gamedata/md/敵/`（README手順）・sim測定→`simNN/data/`・キャラ→キャラ md §3（`gamedata/md/神姫|英霊/<key>.md`） | — | 各所（原文ママ＋出所ヘッダ） |
 | エンジン改修・機能追加・リファクタ | CLAUDE.md「Git 開発ワークフロー」＝branch → 実装 → **golden必須** → merge。設計検討が要る規模なら `*_DESIGN.md` を root に | — | src/・root設計doc → 完了後 archive/ |
 | フェーズ級の計画（新機能領域） | ROADMAP.md で採番 → `PHASEN_PLAN.md` 作成 | Phase N（ROADMAP が採番台帳） | root → 完了後 archive/ |
 | 読み物・振り返り・ガイド | essays/ へ（ゴール/完了条件は不要な唯一の区分） | — | essays/ |
@@ -28,7 +28,7 @@
 | root `*.md` | **現役の**規定・台帳・計画（クローズしたら archive/ へ git mv。キャラ登録較正はキャラmd §3 へ＝2026-07-19 改訂） | CLAUDE.md・CALIBRATION_ANALYSIS.md |
 | `workspace/` | **起動時必読の変動情報**（現状スナップショット＋次タスク・有界）。2026-07-24 新設 | HANDOFF.md・TODO.md |
 | `gamedata/js/` | シムが読むランタイムDB＝現在値（ESM） | weapons.js・characters.js |
-| `gamedata/md/` | ゲーム側データの一次情報（神姫/英霊/幻獣/敵/その他） | damage_frames.md・敵/cath_palug.md |
+| `gamedata/md/` | ゲーム側データの一次情報（神姫/英霊/幻獣/敵/その他） | [gamedata/md/その他/damage_frames.md](gamedata/md/その他/damage_frames.md)・[gamedata/md/敵/cath_palug.md](gamedata/md/敵/cath_palug.md) |
 | `gamedata/md/敵/` | 敵DBの intake（一次情報 md → ENEMY_REGISTRY へ蒸留・旧 `enemies/`） | cath_palug.md |
 | `simulation/simNN/` | 統計的較正の試行単位（data=一次情報 / analysis=2層構造） | sim03・sim04 |
 | `essays/` | 読み物（開発に拘束力なし） | ENGINE_CHRONICLE.md |
@@ -65,7 +65,31 @@
 
 - **一次情報**は加えて「出所（ユーザー提供・実機転記等）＋受領日＋原文ママ宣言」を必須とし、**本文は書き換えない**（訂正は冒頭注記で行う＝damage_frames.md 方式）。
 - **分析**は入力（どのファイル・どのID）と出力（起票したCx等）を明記する（sim の2層構造ルールに従う）。
-- 既存MDへの遡及適用はしない（現状ファイル群は精密に作成済み＝改変コスト＞統一益。次回その文書を大改訂する機会があればヘッダを付ける）。
+- ~~既存MDへの遡及適用はしない~~ → **2026-08-05 改訂**: ユーザー決定により**現役層 52本へ遡及適用する**（[DOC_RELATION_PLAN.md](DOC_RELATION_PLAN.md) §0 決定表）。対象外＝**凍結 sim01〜04 / archive / essays / TEMPLATE**。
+
+### 4.1 末尾ブロック（2026-08-05 新設・★対象は現役層のみ）
+
+冒頭ヘッダに加え、**末尾**に次の2ブロックを置く。⚠ **適用対象は 52本**（除外＝凍結 sim01〜04 86本・**archive 15本**・essays 4本・TEMPLATE 7本）。
+
+```markdown
+---
+## 更新履歴
+<!-- 直近5件のみ。それ以前は git log。「波及確認」は必須（git に無い情報はここだけ） -->
+| 日付 | 変更点 | 波及確認 |
+|---|---|---|
+| 2026-08-05 | C44 の残ゲートを更新 | CLAUDE.md 較正ステータスと workspace/HANDOFF.md を同時更新。sim05 README は影響なしと確認 |
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない -->
+## この md を参照している文書
+- [CLAUDE.md](CLAUDE.md)
+<!-- doc_refs:end -->
+```
+
+- **★末尾ブロックは「本文外のメタ領域」と定義する**（ユーザー承認 2026-08-05）。∴ **一次情報の「原文ママ・本文は書き換えない」原則と抵触しない**。
+- **更新履歴は直近5件で打ち切る**（それ以前は git log に委ねる）。**「波及確認」列が本体**＝git が持たない唯一の情報。
+- **被参照ブロックは手で書かない**。`npm run doc:check`（[tools/doc_refs.mjs](tools/doc_refs.mjs)）が生成・検証する。手書きすると**リスト自体が更新漏れの発生源**になる。
+- 種別別の要否（更新履歴は一次情報には不要 等）は [DOC_RELATION_PLAN.md](DOC_RELATION_PLAN.md) §5.2 が正。
+- **archive/ は末尾ブロックも入れない**＝§2 の「歴史資料として安置する（内容は書き換えない）」を優先する。
 
 ## 5. ライフサイクルと git 運用
 
@@ -101,3 +125,46 @@
 3. **`workspace/TODO.md` を更新**（完了項は `[x]`→ 該当を SESSION_LOG へ畳んで本書から削除・新規タスクは §1 分類を通してから追加）。
 4. **`workspace/HANDOFF.md` を最新状態へ上書き**（「今」だけを短く）。押し出された進行＝現状化した経緯は **`archive/SESSION_LOG.md` の先頭（最新が上）へ1ブロック畳む**（provenance 保全・HANDOFF の青天井化防止）。
 5. トークンコスト配慮: 生trialや大型台帳の全文読みは避け、sim の2層構造（per_trial→rollup→integrated）と ID 参照で必要最小限を読む。**CLAUDE.md には「現状/次タスク」を書かない**（安定リファレンスに留め、変動情報は workspace/ と SESSION_LOG が持つ）。
+6. **★md リレーション点検（常駐サブタスク・2026-08-05 新設）**: `workspace/TODO.md` 冒頭のカウンタを **+1** する。
+   次のいずれかなら **`npm run doc:check` を実行してカウンタを 0 に戻す**:
+   - **イベント駆動（必須）**: md の**新設・リネーム・archive 移動**があったセッション
+   - **定期**: カウンタが **5 に到達**したセッション（`doc_refs.mjs` が超過を警告する）
+   検査が現役層の壊れた参照を出したら**そのセッションで直す**（archive/ と凍結 sim01〜04 の警告は**対象外＝直さない**）。
+   設計と段階計画は [DOC_RELATION_PLAN.md](DOC_RELATION_PLAN.md) §7。
+
+---
+
+## 7. 参照の統一文言（2026-08-05 制定・[DOC_RELATION_PLAN.md](DOC_RELATION_PLAN.md) §4 が設計の正）
+
+**目的**: 参照を**機械検証可能**にし、「関連 md の更新漏れ」を構造的に潰す。`npm run doc:check` が本節への適合を検査する。
+
+### 7.1 参照の書式
+
+```markdown
+→ 詳細は [CALIBRATION_ANALYSIS.md](CALIBRATION_ANALYSIS.md) C37
+→ 詳細は [simulation/sim05/README.md](simulation/sim05/README.md) §4.8
+```
+
+- **リポジトリ根からのパス**を markdown リンクで書く。**裸の basename は使わない**（`README.md` は15本あり一意に解決できない）。 <!-- doc_refs:ignore-line -->
+- **文脈依存の略記を使わない**（例: `workspace/HANDOFF.md` に `analysis/PROVISIONAL_ANALYSIS.md` と書いても、HANDOFF の位置では解決しない）。 <!-- doc_refs:ignore-line -->
+- ID がある台帳（Cx/Dx/Ax/Mx/Hx/Ex）は**必ず ID まで書く**。
+
+### 7.2 引用は最低限にする（単一の正）
+
+| 引用の中身 | 扱い |
+|---|---|
+| **軽量な数値**（1値・その場で意味が閉じる） | **そのまま書いてよい**（例: `golden = 202,005,923`・`BW=64`） |
+| **情報量が多いもの**（複数行の表・手順・結論の連なり） | **ID 参照にする**（本文をコピーしない） |
+| **状態**（open / fixed / investigating） | **例外なく ID 参照**（§3 の再掲＝台帳文書の1箇所だけを正とする） |
+| どちらとも言えない | **出所と日付を併記して書く**（E1 と対。例: `×0.77（CALIBRATION_ANALYSIS C44・2026-08-03 時点）`） |
+
+**判定基準**: 「その情報が**更新されたとき、ここも直さないと嘘になるか**」。
+1値なら検知も修正も容易だが、**表・手順・状態の塊は部分的にズレたまま気づかれない**＝そこだけを潰す。
+
+**例外**: 起動時必読の2本（[CLAUDE.md](CLAUDE.md) / [workspace/HANDOFF.md](workspace/HANDOFF.md)）は要約を持ってよい。
+「読むのはこれだけ」という設計上、要約の保持が本質だから。ただし**正がどこかを明示**する。
+
+### 7.3 検査の除外
+
+- **死んだパスを資料として引用する区間**（歴史記述・リンク切れ一覧）は `<!-- doc_refs:ignore-begin -->` 〜 `<!-- doc_refs:ignore-end -->` で囲む。1行なら `<!-- doc_refs:ignore-line -->`。
+- **未作成ファイルへの前方参照**（計画中のファイル）も同様に囲み、**いつ作るか**をその場に書く。

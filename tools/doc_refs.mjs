@@ -74,7 +74,7 @@ const PROSE = /^(Node|Vite|package)\.js$/;
 function extractRefs(file) {
   const lines = fs.readFileSync(path.join(ROOT, file), 'utf8').split('\n');
   const out = [];
-  let fenced = false, ignoring = false;
+  let fenced = false, ignoring = false, skipNext = false;
   lines.forEach((line, i) => {
     if (/^\s*```/.test(line)) { fenced = !fenced; return; }
     if (fenced) return;                       // コードブロック内は例示＝参照ではない
@@ -83,7 +83,13 @@ function extractRefs(file) {
     if (/<!--\s*doc_refs:ignore-begin\b/.test(line)) { ignoring = true; return; }
     if (/<!--\s*doc_refs:ignore-end\b/.test(line))   { ignoring = false; return; }
     if (ignoring) return;
-    if (/<!--\s*doc_refs:ignore-line\b/.test(line)) return;
+    // ignore-line は2通りの書き方を許す（どちらも自然に書けるようにするため）:
+    //   ①行末にインラインで置く → **その行**を無視  ②単独行に置く → **次の行**を無視（見出し行などに使う）
+    if (/<!--\s*doc_refs:ignore-line\b/.test(line)) {
+      if (/^\s*(?:>\s*)?<!--\s*doc_refs:ignore-line\b[^>]*-->\s*$/.test(line)) skipNext = true;
+      return;
+    }
+    if (skipNext) { skipNext = false; return; }
     for (const m of line.matchAll(REF_RE)) {
       const raw = m[0];
       if (PLACEHOLDER.test(raw)) continue;

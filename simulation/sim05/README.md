@@ -236,7 +236,7 @@ pre-trial で **C44 は係数2つ（`calib_burst` ≈1.66 / アリアン `arian_
 | 使い方 | なぜバフ量を知らなくてよいか | 在庫 |
 |---|---|---|
 | **同一 FB 内のキャラ間比** | 5人が**同時刻・同一パーティバフ**で撃つ＝比を取るとパーティバフが**完全に約分される**。per-char 係数（`burst_coef_a/b`・`burstBonus`・`burstCapSpecial`）を**バフ非依存に**同定できる | sim04 trial01〜09 / sim03 trial01〜05 の**全攻撃フェイズ行** |
-| **GEAR の違いを使う** | sim03/sim04 は `burst_cap` 等が configC と違う＝**cap と slope の共線性を破れる唯一の在庫** | 同上（config は各 sim の `config.json` / gear_panel） |
+| **GEAR の違いを使う** | sim03/sim04 は `burst_cap` 等が configC と違う＝**cap と slope の共線性を破れる唯一の在庫** | 同上（config は各 sim の `simNN/data/config.json` / gear_panel） |
 
 ⚠ **限界**: sim03/sim04 は**エジソン/ヤマト編成＝アリアン不在**。取れるのは**共通構造**
 （slope・cap 構成・`calib_burst`・フラット項）であって、アリアン固有値ではない。

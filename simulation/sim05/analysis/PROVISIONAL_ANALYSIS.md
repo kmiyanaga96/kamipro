@@ -2,7 +2,8 @@
 
 > **種別**: 分析（**暫定統合**・trial 1本）
 > **ゴール**: pre-trial から「何が確定し／何が反証され／次に何を測るか」を1枚にまとめ、本trial設計の入力にする
-> **完了条件**: 本trial（trial01〜）受領後に **`integrated_analysis.md`（正式版）へ差し替え**、本書は削除するか archive へ畳む
+<!-- doc_refs:ignore-line ── 未作成: 本trial 受領後に作成する正式版 -->
+> **完了条件**: 本trial（trial01〜）受領後に **`simulation/sim05/analysis/integrated_analysis.md`（正式版）へ差し替え**、本書は削除するか archive へ畳む
 > **状態**: 暫定（★**較正値の確定・コード修正はまだ行わない**）
 > 作成 2026-08-03 ／ 関連: C3 / C5 / C25 / C37 / C38 / **C40〜C44（本分析で起票）**
 >
@@ -10,8 +11,9 @@
 > **出力**: CALIBRATION_ANALYSIS.md §4 への C40〜C44 起票／`workspace/TODO.md` の A トラック更新
 >
 > ⚠ **通常フローとの差（ユーザー指示 2026-08-03）**: trial が pre-trial 1本しかないため、
-> trial横断 rollup（`quantitative_analysis.md` / `qualitative_analysis.md`）は**作らない**。
-> 正式な `integrated_analysis.md` は**本trialに対して**行う。本書はその前段の暫定。
+> trial横断 rollup（`simNN/analysis/quantitative_analysis.md` / `simNN/analysis/qualitative_analysis.md`）は**作らない**。
+<!-- doc_refs:ignore-line ── 未作成: 本trial 受領後に作成する -->
+> 正式な `simulation/sim05/analysis/integrated_analysis.md` は**本trialに対して**行う。本書はその前段の暫定。
 
 ---
 

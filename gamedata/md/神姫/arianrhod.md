@@ -105,6 +105,7 @@
 
 
 
+<!-- doc_refs:ignore-line -->
 ## 3. 登録較正記録（旧 ARIANROD_REGISTRATION.md 統合・2026-07-19） ##
 
 > 実機入手に伴う9仮定（`archive/arianrhod_impl_notes.md`）の実機確定作業の記録。root一般フローの独立ドキュメントとして 2026-07-16 起草・2026-07-17 に第1回実測を実施し、2026-07-19 に本mdへ統合（ユーザー指示・原本は git 履歴参照）。

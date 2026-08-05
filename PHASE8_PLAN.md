@@ -41,6 +41,7 @@
 
 ### 4.1 DBスキーマ — `ACCESSORY_REGISTRY` 新設（推奨）
 
+<!-- doc_refs:ignore-line ── 未作成: Phase 8 実装時に新設する -->
 - **推奨**: `gamedata/js/accessories.js` に `ACCESSORY_REGISTRY` を新設（`SUMMON_REGISTRY`/`WEAPON_MASTER` と並列の source-of-record）。各アクセは**box宣言型**（幻獣 box と同型）:
   ```js
   export const ACCESSORY_REGISTRY = {
@@ -103,6 +104,7 @@
 ## 5. 実装ステップ（依存順・着手時）
 
 1. **intake（§6）を埋める** — ユーザーからアクセ系統・効果・数値・スロット/装備モデルを受領。branch を切る（CLAUDE.md Git ワークフロー）。
+<!-- doc_refs:ignore-line ── 未作成: Phase 8 実装時に新設する -->
 2. **`gamedata/js/accessories.js` に `ACCESSORY_REGISTRY`** を作成（判明系統から・box宣言型）。md 一次情報を intake として格納。
 3. **applyGear にアクセ収集ループ＋40%クランプ**（§4.2）。案Aで実装。
 4. **UI枠**（§4.4）＋ config 保存/復元。

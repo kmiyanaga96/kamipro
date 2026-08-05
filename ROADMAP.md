@@ -55,7 +55,7 @@
 > **実装ステータス（2026-07-10）**
 > - ✅ **(A) 受動スロット効果の骨格＝実装済み（main へマージ済み）**: 幻獣2枠→**7枠（メイン1+サブ5+サポート1・重複可）**へ拡張。
 >   `SUMMON_LAYOUT`/`SUMMON_ROLES`（`src/app.js`）でスロット区分を定義し、`applyGear` が **main/support→`mainEffect`（加護 weapon_amp 含む）・
->   sub→`subEffect` のみ（加護禁止）** をゲート。DB は `weapon_amp`/`box` を `mainEffect` 配下へ移設済み（`data/summons.js`）。旧length-2
+>   sub→`subEffect` のみ（加護禁止）** をゲート。DB は `weapon_amp`/`box` を `mainEffect` 配下へ移設済み（`gamedata/js/summons.js`）。旧length-2
 >   プリセットは加護保存のためサポート枠へ移行。golden 不変（raw 195,518,168 / calibrated 212,010,783）・build成功・7枠UI/区分ゲートを実測検証済み。
 > - ⬜ **残タスク**:
 >   1. **サブ幻獣効果（`subEffect`）を持つ幻獣の実DB登録**: 構造は配線済み＝該当幻獣が出た段でエントリに `subEffect:{box:{…}}` を足すだけ。
@@ -189,7 +189,7 @@ graph TD
 ```
 
 **進化ステップ（草案）**:
-1. **敵行動定義のスキーマ化（`data/enemies.js` 拡張）**: 防御値・最大HPに加え、ターンごとの行動パターン（AI）を宣言的
+1. **敵行動定義のスキーマ化（`gamedata/js/enemies.js` 拡張）**: 防御値・最大HPに加え、ターンごとの行動パターン（AI）を宣言的
    データで定義（`charge_max`／`actions.normal`／`actions.charge_attack` に `type`・`raw_dmg`・`debuffs`）。
    ※較正ボス `walpurgis_loki` の2フェーズ被ダメ倍率（**C7** deferred）はこのスキーマの最初の実顧客になる。
 2. **味方HP概念と生存・防御の導入（`class Sim` 拡張）**: `this.hp`/`this.shield` 追加。`sleur` 等の防壁が `shield` 加算、
@@ -209,8 +209,8 @@ S1+S2（フェーズ倍率モデル化＋撃破ターン表示）は **sim02 試
 
 - **構成**: 宣言的データ（`effects` 記述子）＋命令的フック（複雑ギミックはJS関数）のハイブリッド。標準アクション
   （アサルトバフ付与・ゲージ増加・ダメージ計算等）を**VMループ**で実行し、アビの6割以上を宣言的データだけで動作可能にする。
-- **コードジェネレータ構想**: 簡易仕様テキスト → JSON宣言＋フック関数を自動生成し `data/characters.js` へ追記する
-  `tools/add_character.js`（未実装）。チャットコストを「仕様提示 → 1回の自動コード追記＋テスト」へ削減する。
+- **コードジェネレータ構想**: 簡易仕様テキスト → JSON宣言＋フック関数を自動生成し `gamedata/js/characters.js` へ追記する
+  `tools/add_character.js`<!-- doc_refs:ignore-line ── 未作成: 新キャラ intake 自動化の構想 -->（未実装）。チャットコストを「仕様提示 → 1回の自動コード追記＋テスト」へ削減する。
 - 効果が出るのは**新キャラ/新システムの導入頻度が上がった段階**（Phase 6/8 の実キャラ配線が本格化する頃）。
 
 ---
@@ -222,7 +222,7 @@ S1+S2（フェーズ倍率モデル化＋撃破ターン表示）は **sim02 試
 変わらない前提のため「暫定」ではなく確立フローとして扱う。**workspace は本フローでは使わない**（一次情報の置き場は `gamedata/md/`）。
 
 1. **一次情報 md の作成・格納（ユーザー）**: 実機値/文言/有志検証を収集して直接 md に記入し、ディレクトリへ格納する（**Claude Code は編集不可**・原文ママ）。
-   置き場所は種別で分かれる — 神姫/英霊＝`gamedata/md/神姫|英霊/<key>.md` §1 一次情報 ／ 敵＝`gamedata/md/敵/<key>.md` §4 敵行動全文（`敵/README.md` の手順）。
+   置き場所は種別で分かれる — 神姫/英霊＝`gamedata/md/神姫|英霊/<key>.md` §1 一次情報 ／ 敵＝`gamedata/md/敵/<key>.md` §4 敵行動全文（[gamedata/md/敵/README.md](gamedata/md/敵/README.md) の手順）。
 2. **要検証項目の洗い出し（Claude Code）**: md の一次情報を読み、シム化に必要な未確定点・要実機確認項目を抽出する。
    神姫/英霊は当該 md **§3 登録較正記録**に **Ax** として起票（A0=文言転記から）／敵は intake md の該当欄に整理。
 3. **シム実装（Claude Code）**: `CHAR_REGISTRY`（`gamedata/js/characters.js`）／`ENEMY_REGISTRY`（`gamedata/js/enemies.js`）へ

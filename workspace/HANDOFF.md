@@ -37,6 +37,19 @@
 **C37 の BW 掃引（非単調・BW384 +5.64%）／ATK 感度／LS 利得率／PREFIX_TOPK 損失／C1 の中位7本分類**が対象。
 **「結論が変わる」とは限らないが裏付けとして引用できない**（E1）。⚠ **再測は C43 実装後に**（探索空間が変わる）。
 
+## ✅ 直近の成果（2026-08-05・その2）── md 相互参照の整備（S1〜S3）
+
+**ユーザー指示で常駐サブタスク化**。設計と決定は [DOC_RELATION_PLAN.md](DOC_RELATION_PLAN.md)（§0 決定8件・§6 段階計画）。
+
+- **S1 検査ツール** `tools/doc_refs.mjs`（`npm run doc:check`）＝参照グラフ／壊れた参照／曖昧参照／被参照ランキング。
+  ⚠**「解決できない＝壊れている」ではない**の分離が要点（初版は実数の約10倍を報告した）。
+- **S2 規約** ＝ REPO_STANDARDS **§4.1**（末尾ブロック＝更新履歴＋被参照・**本文外のメタ領域**と定義）
+  ／**§7**（参照の統一文言）／**§6-6**（常駐サブタスクをセッション定型へ）。
+- **S3** ＝ **現役層の壊れた参照 48→0・曖昧参照 33→0**（`data/`→`gamedata/js/` の追従漏れ15件ほか）。
+- **適用対象は 52本**（164本から、凍結 sim 86・**archive 15**・essays 4・TEMPLATE 7 を除外）。
+  **archive は歴史資料として安置＝末尾ブロックも入れない**（ユーザー決定8）。
+- ⏳ **残＝S4（末尾ブロックの一括挿入）・S5（常駐運用の開始）**。カウンタは `workspace/TODO.md` 冒頭。
+
 ## ✅ 直近の成果（2026-08-03）
 
 **実機の押し順をそのまま強制リプレイして成分別に突き合わせる**方式を確立
@@ -74,7 +87,8 @@
 
 **起票**: **C40 / C41 / C42 / C43 / C44**（pre-trial）＋ **C45（反撃）/ C46（攻撃フェイズの排他）**（M1）。
 **成果物**: `simulation/sim05/analysis/`（`per_trial/pre-trial_{quant,quali}.md` ／ `PROVISIONAL_ANALYSIS.md` ／ `m1_history_replay.md`）。
-⚠ trial が1本のみのため **rollup は作らず**、正式 `integrated_analysis.md` は**本trialに対して**行う（ユーザー指示）。
+<!-- doc_refs:ignore-line ── 未作成: 本trial 受領後に作成する -->
+⚠ trial が1本のみのため **rollup は作らず**、正式 `simulation/sim05/analysis/integrated_analysis.md` は**本trialに対して**行う（ユーザー指示）。
 
 ### ⚠ 同日中に結論が5つ動いた（読み手への警告）
 
@@ -105,7 +119,7 @@
 
 **順序の原則＝「カウントで閉じる → 比で閉じる → 絶対で閉じる」**（M5/M6 → M2/M3 → M4）。
 ⚠ キャスパリーグは **HP 4億＝全力だと T1 で溶ける**。M4 は「撃たずに生かす」設計が必須。
-⚠ **config の正は今後 `data/<config>_slot.json`（UI の編成保存スロット JSON）**＝サブ枠・GEAR の食い違い事故を構造的に潰す。**ユーザーから受領待ち**。
+⚠ **config の正は今後 `simulation/sim05/data/<config>_slot.json`（UI の編成保存スロット JSON）**＝サブ枠・GEAR の食い違い事故を構造的に潰す。**ユーザーから受領待ち**。
 
 ## 3トラックとゲート状況
 
@@ -136,10 +150,10 @@
 - **攻撃フェイズの仕様（一次情報・2026-08-03 ユーザー回答）**: `gamedata/md/その他/attack_phase.md`
   （バーストと通常攻撃は**排他**／ボタンOFFで溜められる／**反撃は被回避でも発動**／**ゲージは1ヒット +10**＝**C45/C46/C24**）
 - **sim05**: `simulation/sim05/README.md`（**§4.4=較正ボス2段構え / §4.4.2=T1局在[決着済] / §4.6=tier観測 / ★§4.8=アイソレーション走 M1〜M7 / §6=残ゲート / §7=受入基準**）
-  ／**`analysis/PROVISIONAL_ANALYSIS.md`（暫定統合＝ここから読む）**／`analysis/m1_history_replay.md`（★M1 の全成分突合）
-  ／`analysis/per_trial/pre-trial_{quant,quali}.md`／`data/pre-trial.md`（実機原本）／`data/record_skeleton.md`（記入テンプレ）
-  ／**`data/configC_gear_panel.md`（★冒頭注記2＝GEAR の正）**／**`data/configC_cache_20260803.json`（config の正・E2 通過）**
-- **計測ハーネス**: `tools/`（`README.md` が索引・**§0 に並列実行**・**★§0.5 に config の台帳駆動（`tools/lib/config_c.mjs`）**・**`calib_replay_compare.mjs` が sim05 の較正方式そのもの**）
+  ／**`simulation/sim05/analysis/PROVISIONAL_ANALYSIS.md`（暫定統合＝ここから読む）**／`simulation/sim05/analysis/m1_history_replay.md`（★M1 の全成分突合）
+  ／`simulation/sim05/analysis/per_trial/pre-trial_{quant,quali}.md`／`simulation/sim05/data/pre-trial.md`（実機原本）／`simulation/sim05/data/record_skeleton.md`（記入テンプレ）
+  ／**`simulation/sim05/data/configC_gear_panel.md`（★冒頭注記2＝GEAR の正）**／**`simulation/sim05/data/configC_cache_20260803.json`（config の正・E2 通過）**
+- **計測ハーネス**: `tools/`（`tools/README.md` が索引・**§0 に並列実行**・**★§0.5 に config の台帳駆動（`tools/lib/config_c.mjs`）**・**`calib_replay_compare.mjs` が sim05 の較正方式そのもの**）
 - **実験・計測の作法**: `REPO_STANDARDS.md` §6 の **E1〜E10**（着手前に通す。**★E10=config は台帳から読む**）
 - **探索品質の実験の全数値**: `archive/SEARCH_QUALITY_EXPERIMENTS.md`（C37 の根拠アーカイブ）
 - **新キャラ/幻獣の一次情報と Ax**: `gamedata/md/神姫/metatron.md`（§3.2 A0〜A10）／`gamedata/md/幻獣/`

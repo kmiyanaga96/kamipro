@@ -2,7 +2,7 @@
 
 > **種別**: 分析（単trial中間集計・**暫定**）
 > **ゴール**: pre-trial 1本だけから、T1 の乖離 ×2.4 が**どの成分に・どれだけ**あるかを成分別に確定させる
-> **完了条件**: 本trial（trial01〜）受領後、`quantitative_analysis.md`（trial横断rollup）に吸収された時点でクローズ
+> **完了条件**: 本trial（trial01〜）受領後、`simNN/analysis/quantitative_analysis.md`（trial横断rollup）に吸収された時点でクローズ
 > **状態**: 進行中（**trial は pre-trial 1本のみ＝分散・決定性・収束の議論はできない**）
 > 作成 2026-08-03 ／ 関連: C3 / C5 / C25 / C37 / C38 / C40〜C44・`simulation/sim05/README.md` §4.3〜§4.6
 >
