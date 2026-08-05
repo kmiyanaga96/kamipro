@@ -29,9 +29,9 @@
 //   ・**C39（2026-08-02）でダメージモデルが変わった**＝ここで得た数値は現行エンジンと一致しない
 //
 // 使い方: node tools/extract_order_loki.mjs [LS対象本数]
-import { Sim, buildFormation, applyEnemy, recalcGearK, recalcGearKCFromDispAtk, GEAR, DMG, setCurrentSubs,
-         displayAtkOverrideFor, setStaticOverride, _selectRootPrefixes, _localSearchRoute, _replayResult,
+import { Sim, DMG, _selectRootPrefixes, _localSearchRoute, _replayResult,
          LABEL } from '/home/user/kamipro/src/app.js';
+import { loadConfigC, verifyE2, configBanner } from './lib/config_c.mjs';
 import fs from 'fs';
 import { parallelMap, pmapTask, pmapRecv, PMAP_CORES } from './lib/parallel_map.mjs';
 
@@ -41,23 +41,17 @@ const OUT = (process.env.SCRATCH || '/tmp') + '/g3_v4_loki_proper.json';
 const LIMIT = Number(process.env.PMAP_LIMIT) || PMAP_CORES;
 const log = s => process.stdout.write(s + '\n');
 
-// ✅ proper configC の GEAR（2026-07-31 受領キャッシュから抽出・E2 リプレイ bit 一致で検証済み）。
-// 旧 placeholder との差: assault 3.06→3.204 / vigor 0.6876→0.9666 / acute 0.144→0.288 /
-//   abi_dmg 2.52→**1.8（減）** / burst_dmg 5.22→6.39 / abi_cap 0.99→0.9 / burst_cap 2.016→2.106。
-//   ⚠ elem 1.04 は placeholder の推定（0.54＋ラジエル0.50）と**実値が一致**していた。
-const GEAR_C = { assault:3.204, elem:1.04, vigor:0.9666, spec:0, dmgup:0, acute:0.288, crit_rate:0.405, other:0,
-                 na_dmg:1.116, abi_dmg:1.8, burst_dmg:6.39, na_cap:0.36, abi_cap:0.9, burst_cap:2.106 };
-
-setCurrentSubs(['metatron','artemis']);
-buildFormation('napoleon', ['hecate','tetra','arianrhod','elaine']);
-applyEnemy('walpurgis_loki');
-for(const k of Object.keys(GEAR)) GEAR[k] = GEAR_C[k] ?? 0;
-DMG.betaia_mult = 3.5; DMG.betaia_cap = 800000; DMG.napo_burst_cd_reduce = true;   // 英霊武器
-recalcGearK();
-recalcGearKCFromDispAtk(displayAtkOverrideFor('napoleon'));
-// ⚠ override は受領キャッシュで自動較正が採用した値。旧 v3 は宿儺時代の {pactcore:1, effond:120} を
-//    流用しており誤りだった。⚠これは**旧ATKで較正された値**＝proper ATK では最適 override が動きうる（follow-up）。
-setStaticOverride({ judg:130, pactcore:1 });
+// ⚠ 2026-08-05: config を**ハードコード（proper v1 世代）**から台帳駆動へ移行（REPO_STANDARDS §6 E10）。
+//   旧値は assault 3.204 / burst_cap 2.106 の **proper v1** で、現行 proper v2（5.56 / 2.34）とは別水準。
+//   パーティ順も `[hecate,tetra,arianrhod,elaine]` と台帳の `[hecate,tetra,elaine,arianrhod]` で食い違っていた。
+//   ∴ **本ハーネスが過去に出した押し順・数値は再取得が必要**。
+// ★E2 は台帳条件（宿儺）で通してから、敵だけ loki へ差し替える。
+const _isChild = pmapTask() !== null;   // 子は同じスクリプトを頭から実行する＝config は再現されるが出力は親だけで足りる
+verifyE2(loadConfigC(), { silent:true });
+// ⚠ override は loki 条件の自動較正値だが **C37 世代・旧 ATK/GEAR で較正**されている＝proper v2 では
+//    最適 override が動きうる（follow-up）。台帳 override（宿儺条件の {pactcore:1, effond:127}）とも別物なので明示で与える。
+const cfg = loadConfigC({ enemy:'walpurgis_loki', override:{ judg:130, pactcore:1 } });
+if(!_isChild) log(configBanner(cfg));
 
 // ── タスク本体（親も子も同じ関数を使う＝挙動の二重管理を避ける）──
 function beamOne(prefix){
@@ -132,8 +126,9 @@ log(`prefix = [${best.prefix.join(',')||'(空)'}]   総ダメージ = ${Math.rou
 for(let t=0;t<n;t++)
   log(`  T${String(t+1).padStart(2)}: ${best.keys[t].map(k=>LABEL[k]||k).join(' → ')}`);
 
-fs.writeFileSync(OUT, JSON.stringify({ meta:{ enemy:'walpurgis_loki', hero:'napoleon',
-  party:['hecate','tetra','arianrhod','elaine'], subs:['metatron','artemis'], gear:GEAR_C,
-  override:{judg:130,pactcore:1}, n, note:'proper configC（2026-07-31 受領・E2 bit一致検証済み）' }, dedupe:{ beam:scored.length, unique:sigs.size },
+// meta は**実際に適用した config**（loadConfigC の返り値）から書く＝手写しによる食い違いを構造的に潰す。
+fs.writeFileSync(OUT, JSON.stringify({ meta:{ enemy:cfg.enemy, hero:cfg.hero,
+  party:cfg.kami, subs:cfg.subs, gear:cfg.gear, atk:cfg.atk,
+  override:cfg.override, n, note:'config は台帳 configC_cache_20260803.json 由来（E2 bit一致検証済み）' }, dedupe:{ beam:scored.length, unique:sigs.size },
   beamScored: scored.map(x=>({prefix:x.prefix, dmg:x.beamDmg})), results }, null, 1));
 log(`\n保存: ${OUT}`);

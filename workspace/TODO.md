@@ -53,23 +53,37 @@
       ✅ **ゲージ増分は通常攻撃ヒット数の検算に使える**＝`record_skeleton` の記録品質チェックに反映済み。
       ⏳ 残＝**ゲージ±5〜10 の系統乖離**の診断更新（較正走に相乗り）。
 
-## ★再発防止（今回の事故から・**結論が反転した**）
+## ★再発防止（今回の事故から・**結論が反転した**）── ✅ **2026-08-05 完了**
 
 > **何が起きたか**: `tools/` のハーネスが GEAR を**最古値（2026-07-27 暫定）でハードコード**していた。
 > 正しい値（proper v2）は `simulation/sim05/data/configC_gear_panel.md` §2.0 に**最初からあった**のに
 > 参照していなかった。結果、pre-trial 突合の初版は **T1 ×1.77（正 ×1.41）／バースト本体 ×1.04（正 ×0.77）**
 > と**符号ごと誤った結論**を出した（`calib_burst` が転移している/していない が逆転）。
 
-> ✅ **対策済**: `calib_replay_compare.mjs` は config データ駆動になった（受領キャッシュ `_configSig` から
-> GEAR/サブ枠/パーティ順/敵、trial md ヘッダから表示ATK。E2 bit 一致で検証済み）。**残りは以下**。
+- [x] **⚠ 他のナポ編成ハーネスの config を直す** → **15本を台帳駆動へ移行**（2026-08-05）。
+      **⚠ 汚染は GEAR だけではなかった**＝**サブ枠**（`freyja_christmas`→正 `metatron`）・**パーティ順**
+      （`[…,arianrhod,elaine]`→正 `[…,elaine,arianrhod]`）・**override**（`effond` 120→127）も食い違っていた。
+      対象＝`exp_t1_abilcap_sweep` / `exp_atk_sensitivity_napoleon` / `exp_beam_width_sweep` / `exp_abilcap_isolation` /
+      `exp_loki_stability` / `exp_prefix_sweep` / `exp_order_compare` / `exp_c27_vs_localsearch` / `exp_horizon_sensitivity` /
+      `exp_local_search{,_control,_multistart}` / `exp_prefix_route_identity` / `exp_ls_incremental_verify`(configC節) / `extract_order_loki`。
+      **✅ エジソン系（configB）は無汚染**＝ハードコード値が `simulation/sim04/data/config.json` の `_configSig` と一致することを照合済
+      （configB は sim04 較正編成＝凍結で一度も動いていない）。**∴ A1「エジソンは健全」は影響を受けない**。
+- [x] **共有ローダ `tools/lib/config_c.mjs` を新設**（`loadConfigC()` / `verifyE2()` / `configBanner()`）。
+      受領キャッシュ1本から **GEAR/サブ枠/パーティ順/敵/表示ATK/override** を復元し、走行前に
+      **記録ルートの強制リプレイ bit 一致（E2）を自動で通す**。台帳の `engineVersion` が現行と違えば**落ちる**
+      （＝モデルが動いた後の台帳が無い状態で黙って走らせない）。全ハーネスが**走行 config を1行で出力**するようにした（provenance）。
+      ⚠ 当初案の「`applyGear()` の純関数コア抽出」は**不要だった**＝受領キャッシュの `_configSig` に GEAR が
+      **計算済みの値として入っている**ため、DOM 依存部を切り出さなくても config は完全再現できる。
+      （slot JSON から config を作る経路が要るようになったら、その時点で再検討する。）
+- [x] **REPO_STANDARDS §6 に E10 を起票** ＝「**config は台帳から読む。ハーネスにハードコードしない。
+      やむを得ずハードコードするなら台帳の版を併記する**」。使い方は `tools/README.md` §0.5。
 
-- [ ] **⚠ 他のナポ編成ハーネスの GEAR を直す**（`exp_t1_abilcap_sweep` / `exp_atk_sensitivity_napoleon` /
-      `exp_beam_width_sweep` / `exp_abilcap_isolation` / `exp_loki_stability` 等）。**出した数値は再取得が必要**。
-      ⚠ C37 の結論（BW 掃引の非単調・+5.64% 等）も**この GEAR で測られている**＝**再測対象**。
-- [ ] **`applyGear()` の純関数コアを抽出**し、ハーネスが **slot JSON / キャッシュ JSON から config を再現**できるようにする。
-      `applyGear` は DOM 依存なので「DOM から読む部分」と「値から GEAR を計算する部分」を分ける。**E2 の自動化に直結**。
-- [ ] **REPO_STANDARDS §6 に E10 を起票するか判断**: 「**config は台帳（gear_panel / キャッシュ JSON）から読む。
-      ハーネスにハードコードしない。ハードコードするなら台帳の版を併記する**」。
+- [ ] **⚠★ 汚染された数値の再取得**（上記の修正は「再発を止めた」だけで、**過去の数値は再測していない**）。
+      対象＝**C37 の BW 掃引（非単調・BW384 +5.64%）／実験2・B1・B4 の ATK 感度／実験5系の LS 利得／
+      実験1 の PREFIX_TOPK 損失／C1 の「中位7本」分類**。台帳＝`archive/SEARCH_QUALITY_EXPERIMENTS.md`（冒頭注記済）。
+      ⚠**「結論が変わる」とは限らないが、裏付けとして引用できない**（E1）。
+      ⚠**コストが高い**（BW 掃引は1条件 130〜545秒×条件数）＝**A トラック（M2〜M7）より優先度は低い**。
+      **⚠ 再測するなら C43 実装後にすること**（上限超過ルートが候補に入る＝探索空間が変わるので二度手間になる）。
 
 ## A. sim05 ダメージ較正 ★キャスパリーグ M2〜M7 待ち
 
@@ -150,7 +164,10 @@
 ## 並行・後続（低優先）
 
 - [ ] **`_configSig` に `DMG.affinity` が入っていない**（2026-07-30 発見・低severity）。UI の属性相性トグルや、def/HP が同じで affinity だけ違う敵の間で**結果キャッシュのキーが衝突**する。実害はリプレイ検証で evict されるため**誤答にはならない**＝キャッシュが無駄になるだけ。
-- [ ] **陳腐化したハーネスの整理**: `extract_order_loki`（敵が loki のまま・override が C37 世代）と `archive/caches/sim05_*.json` を読む3本（engineVersion 2世代前＝E2 が通らない）。再実行が必要になった時点で現行エンジンのアンカーを取り直す。
+- [ ] **陳腐化したハーネスの整理**（**2026-08-05 に config は台帳駆動へ移行済＝残るのは下記のみ**）:
+      ①`extract_order_loki` の **override `{judg:130, pactcore:1}` は C37 世代・旧 ATK/GEAR で較正**された値＝loki を使うなら再較正が要る。
+      ②`exp_order_compare` の入力 `archive/caches/sim05_sukuna.json` は **engineVersion 2世代前**＝記録 dmg との照合はできない（比較自体は同一エンジン内なので成立）。
+      ③`exp_abilcap_isolation` / `exp_loki_stability` が見ていた `archive/caches/sim05_sukuna_v2.json` は**現行台帳へ差し替え済**（E2 は通るようになった）。
 - [ ] **ターン終了時の処理順**（実機確定: 敵の攻撃⇒反撃⇒betaia⇒holy⇒鬼神一擲⇒DOT）。現状は総ダメージしか見ないので実害なし＝**kill-turn 実装時の一次情報**として保全（quali §7）。
 - [ ] **consort 2hit の順序性**（実機は 1回目→デバフ→2回目でデバフ1回分が乗る／シムは同時計算）。微小・低優先。
 - [ ] CHARACTER_ANALYSIS §2（ヤマト vs アリアン）を較正確定後に再測。

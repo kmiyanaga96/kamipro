@@ -1,17 +1,11 @@
 // 実験1: PREFIX_TOPK の再測。全prefix(17本)を本探索にかけ、top-8 の枝刈りで最良を取り逃していないかを測る。
 // C16 の「top-8 loss ≤0.013%」はエジソン編成での測定値＝本編成へ転移しているかの検証。
-import { buildFormation, applyEnemy, recalcGearK, recalcGearKCFromDispAtk, GEAR, DMG, setCurrentSubs,
-         displayAtkOverrideFor, setStaticOverride, enumerateRootPrefixes, _selectRootPrefixes, _runRootPlan } from '/home/user/kamipro/src/app.js';
-const GEAR_C={assault:3.06,elem:0.54,vigor:0.6876,spec:0,dmgup:0,acute:0.144,crit_rate:0.405,other:0,
-              na_dmg:1.116,abi_dmg:2.52,burst_dmg:5.22,na_cap:0.36,abi_cap:0.99,burst_cap:2.016};
+// ⚠ 旧版は config（GEAR/サブ枠/パーティ順/ATK/override）をハードコードしており**最古 GEAR で測っていた**
+//   ＝出した数値は無効。config は台帳から読む（REPO_STANDARDS §6 E10）。2026-08-05 に config 駆動へ移行。
+import { enumerateRootPrefixes, _selectRootPrefixes, _runRootPlan } from '/home/user/kamipro/src/app.js';
+import { loadConfigC, verifyE2, configBanner } from './lib/config_c.mjs';
 const n=10, log=s=>process.stdout.write(s+'\n');
-setCurrentSubs(['freyja_christmas','artemis']);
-buildFormation('napoleon',['hecate','tetra','arianrhod','elaine']);
-applyEnemy('ryomen_sukuna');
-for(const k of Object.keys(GEAR)) GEAR[k]=GEAR_C[k]??0;
-DMG.betaia_mult=3.5; DMG.betaia_cap=800000; DMG.napo_burst_cd_reduce=true;
-recalcGearK(); recalcGearKCFromDispAtk(displayAtkOverrideFor('napoleon'));
-setStaticOverride({pactcore:1,effond:120});
+const cfg=loadConfigC(); log(configBanner(cfg)); verifyE2(cfg);
 
 const all=enumerateRootPrefixes();
 const sel=new Set(_selectRootPrefixes(n).map(p=>JSON.stringify(p)));

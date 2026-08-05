@@ -7,6 +7,14 @@
 > 作成 2026-07-28 ／ 更新 2026-07-30 ／ 関連: **CALIBRATION_ANALYSIS C37（要約・状態の正）**・C28（乱数）・C38（buffCount）・`archive/PHASE7_ML_PLAN.md` §7.2
 >
 > ⚠ **状態管理（open/fixed 等）と結論の要約は C37 が正**。本書は根拠・数値の保全に徹する（REPO_STANDARDS §3「台帳文書の1箇所だけを正とする」）。
+>
+> ### ⚠⚠ 冒頭注記（2026-08-05）── **napoleon 系の全数値は「旧 config」で測定されている＝再取得が必要**
+>
+> **本書の napoleon 系実験（実験1〜5d・B1・B2・B3b・B4・C1）は、ハーネスが config を各自ハードコードしていた時期のもので、
+> その値が configC の実条件と食い違っていた。** 詳細は §0 の表の直後の注記。**edison 系（A1）は無汚染**。
+> **⚠「結論が変わる」とは限らないが、裏付けとして引用してはならない**（E1: 条件が誤っている数値は実験設計の前提にしない）。
+> ✅ 対策済＝ハーネス15本を `tools/lib/config_c.mjs` 経由の**台帳駆動**へ移行し、走行前に **E2 の bit 一致を自動で通す**
+> ようにした（REPO_STANDARDS §6 **E10**・使い方は `tools/README.md` §0.5）。**再測は未実施**。
 
 ---
 
@@ -23,6 +31,25 @@
 | ホライズン | n=10 | n=10 |
 
 config 再現はいずれも **bit 一致を先に検証**（E2）。napoleon はユーザーキャッシュの記録値 1,853,003,034 と一致、edison は golden 条件で 197,775,394 と一致。
+
+> ### ⚠⚠ 上表の napoleon 列は**当時のハーネスが使っていた値**であって、configC の実条件ではない（2026-08-05 判明）
+>
+> **E2 は通っていたが、それは「当時のキャッシュ」との一致であって、キャッシュ自体が古かった。**
+> configC の GEAR は **2026-07-31 中に2回更新された**（暫定 → proper v1 → **proper v2**）が、ハーネスは最古値のまま動き続けた。
+>
+> | 項目 | 本書の実験が使っていた値 | **configC の実条件（`configC_cache_20260803.json`）** |
+> |---|---|---|
+> | GEAR `assault` / `burst_cap` | 3.06 / **2.016** | **5.56 / 2.34** |
+> | GEAR `burst_dmg` / `abi_dmg` | 5.22 / 2.52 | **7.10 / 2.00** |
+> | サブ枠 | `[freyja_christmas, artemis]` | **`[metatron, artemis]`** |
+> | パーティ順 | `[hecate, tetra, arianrhod, elaine]` | **`[hecate, tetra, elaine, arianrhod]`** |
+> | override | `{pactcore:1, effond:120}` | **`{pactcore:1, effond:127}`** |
+>
+> **同じ事故が `simulation/sim05/analysis/` の初版で結論を反転させた**（バースト本体の実機比 ×1.04〔一致〕→ **×0.77**〔30%過大〕。
+> 根拠 `simulation/sim05/data/configC_gear_panel.md` 冒頭注記2）。
+> ∴ 以下の napoleon 系の数値（**BW 掃引の非単調性・BW384 +5.64%／ATK 感度の同位置率と単調性／LS の利得率／
+> PREFIX_TOPK 損失／C1 の「中位7本」分類**）は**すべて再取得が必要**。**GEAR の変化は cap 到達点を動かすため、
+> 減衰・cap まわりに依存する結論（幅の非単調性はその典型）ほど影響を受けやすい。**
 
 ## 1. 探索幅（BEAM_W）掃引 — 非単調・BW64 が最悪点
 

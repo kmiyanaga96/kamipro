@@ -8,7 +8,10 @@ import { buildFormation, applyEnemy, recalcGearK, recalcGearKCFromDispAtk, GEAR,
          displayAtkOverrideFor, setStaticOverride, _runRootPlan, _replayResult } from '/home/user/kamipro/src/app.js';
 import fs from 'fs';
 const n=10, scale=parseFloat(process.argv[2]);
-const REF='/tmp/claude-0/-home-user-kamipro/2e479ca7-804e-57dc-ba4e-837db3d4c3c4/scratchpad/a1_base.json';
+const REF=(process.env.SCRATCH||'/tmp')+'/a1_base.json';   // 旧: セッション固有の scratchpad 絶対パス（揮発・2026-08-05 修正）
+// ✅ E10（台帳の版を併記）: 本 GEAR_B は `simulation/sim04/data/config.json` の `_configSig` と**値が一致**する
+//   （2026-08-05 照合済）。configB は sim04 較正編成＝**凍結**で、configC と違い一度も更新されていないため
+//   ハードコードのままとする。⚠configB を更新したら本コメントごと台帳駆動（`lib/config_c.mjs` 方式）へ移すこと。
 const GEAR_B={assault:3.06,elem:0,vigor:0.6876,spec:0,dmgup:0.09,acute:0.144,crit_rate:0.405,other:0,
               na_dmg:1.116,abi_dmg:2.52,burst_dmg:5.22,na_cap:0.36,abi_cap:0.99,burst_cap:2.016};
 const PREFIX=process.env.A1_PREFIX ? process.env.A1_PREFIX.split(',') : [];

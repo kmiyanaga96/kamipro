@@ -1,20 +1,16 @@
 // 探索幅スケーリング実験: 「もっと探索したら押し順は良くなるのか」を実測する。
 // prefix を [factor] に固定し、BEAM_W だけを変えて 10T 総ダメージを比較する。
 // 幅を増やしてダメージが伸びないなら「現行探索は既にプラトー上＝大域最適に近い」の証拠になる。
-import { Sim, buildFormation, applyEnemy, recalcGearK, recalcGearKCFromDispAtk, GEAR, DMG, setCurrentSubs,
-         displayAtkOverrideFor, setStaticOverride, _refineRoute, _replayResult } from '/home/user/kamipro/src/app.js';
-const GEAR_C={assault:3.06,elem:0.54,vigor:0.6876,spec:0,dmgup:0,acute:0.144,crit_rate:0.405,other:0,
-              na_dmg:1.116,abi_dmg:2.52,burst_dmg:5.22,na_cap:0.36,abi_cap:0.99,burst_cap:2.016};
+// ⚠⚠ **C37 の「BW 掃引は非単調・BW384=+5.64%」はこのハーネスが最古 GEAR で出した数値＝再測対象**
+//   （config ハードコードによる事故。2026-08-05 に config 駆動へ移行＝REPO_STANDARDS §6 E10）。
+// ⚠ 後処理に `_refineRoute`（C27）を使っているが、**production は 2026-07-30 に `_localSearchRoute`（LS）へ置換済**
+//   ＝本ハーネスは現行 production と別の後処理で測っている。再測するなら後処理も production に揃えるか、
+//   「ビーム単体で比較する」設計に倒すこと（LS は幅と加算的＝C37 の 5d 対照）。
+import { Sim, _refineRoute, _replayResult } from '/home/user/kamipro/src/app.js';
+import { loadConfigC, verifyE2, configBanner } from './lib/config_c.mjs';
 const n=10, PREFIX=['factor'];
-setCurrentSubs(['freyja_christmas','artemis']);
-buildFormation('napoleon',['hecate','tetra','arianrhod','elaine']);
-applyEnemy('ryomen_sukuna');
-for(const k of Object.keys(GEAR)) GEAR[k]=GEAR_C[k]??0;
-DMG.betaia_mult=3.5; DMG.betaia_cap=800000; DMG.napo_burst_cd_reduce=true;
-recalcGearK(); recalcGearKCFromDispAtk(displayAtkOverrideFor('napoleon'));
-setStaticOverride({pactcore:1,effond:120});
-
 const log=s=>process.stdout.write(s+'\n');
+const cfg=loadConfigC(); log(configBanner(cfg)); verifyE2(cfg);
 log(`beam幅スケーリング（prefix=[${PREFIX}] n=${n} 宿儺/configC）`);
 let base=null, baseKeys=null;
 for(const W of [64,128,256]){

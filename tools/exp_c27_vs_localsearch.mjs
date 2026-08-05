@@ -5,19 +5,14 @@
 //   同じ終点に着けば包含・低ければ C27 は独自の価値を持つ（LS では届かない改善を含む）。
 // 条件: napoleon/configC/両面宿儺(cap=19・実験5b と同一)・prefix=[factor]・BW64・n=10
 // ★リポジトリ非改変（src/* を import するのみ）
-import { Sim, buildFormation, applyEnemy, recalcGearK, recalcGearKCFromDispAtk, GEAR, DMG, setCurrentSubs,
-         displayAtkOverrideFor, setStaticOverride, _refineRoute, _replayResult } from '../src/app.js';
-const GEAR_C={assault:3.06,elem:0.54,vigor:0.6876,spec:0,dmgup:0,acute:0.144,crit_rate:0.405,other:0,
-              na_dmg:1.116,abi_dmg:2.52,burst_dmg:5.22,na_cap:0.36,abi_cap:0.99,burst_cap:2.016};
+//
+// ⚠ 旧版は config を**最古 GEAR でハードコード**していた（2026-08-05 に台帳駆動へ移行＝REPO_STANDARDS §6 E10）。
+//   ∴ 下の比較定数 `REFINE_PLUS_LS` は**旧 config で測った値＝現行 config とは比較できない**。再取得が必要。
+import { Sim, _refineRoute, _replayResult } from '../src/app.js';
+import { loadConfigC, verifyE2, configBanner } from './lib/config_c.mjs';
 const n=10, log=s=>process.stdout.write(s+'\n');
-const REFINE_PLUS_LS=2067708897;   // 実験5b（refine 有り → LS）
-setCurrentSubs(['freyja_christmas','artemis']);
-buildFormation('napoleon',['hecate','tetra','arianrhod','elaine']);
-applyEnemy('ryomen_sukuna');
-for(const k of Object.keys(GEAR)) GEAR[k]=GEAR_C[k]??0;
-DMG.betaia_mult=3.5; DMG.betaia_cap=800000; DMG.napo_burst_cd_reduce=true;
-recalcGearK(); recalcGearKCFromDispAtk(displayAtkOverrideFor('napoleon'));
-setStaticOverride({pactcore:1,effond:120});
+const REFINE_PLUS_LS=2067708897;   // 実験5b（refine 有り → LS）★旧 config での値＝要再取得
+const cfg=loadConfigC(); log(configBanner(cfg)); verifyE2(cfg);
 
 const clone=r=>r.map(a=>a.slice());
 function localSearch(route, budgetMs){

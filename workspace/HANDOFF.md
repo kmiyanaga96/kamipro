@@ -4,7 +4,7 @@
 > **次タスクの詳細リスト**は `workspace/TODO.md`。過去の経緯・provenance は `archive/SESSION_LOG.md`（オンデマンド）。
 > **更新規律（セッション末）**: 本書は「今」だけを短く保つ。現状化した記述は `archive/SESSION_LOG.md` の先頭へ1ブロック畳み、本書は最新状態へ上書きする（規律は REPO_STANDARDS §6）。
 >
-> 最終更新: 2026-08-03（セッション末・クローズ）
+> 最終更新: 2026-08-05（セッション末・クローズ）
 
 ---
 
@@ -15,6 +15,27 @@
 **sim05 の主題は 2026-08-03 に入れ替わった**。当初＝【追撃 C3/C5】＋【tier 観測 C38】＋【鬼神障壁】。
 現在＝**バーストまわりの成分別較正（C40 / C41 / C44）**。詳細は `simulation/sim05/README.md` §1。
 押し順の序数検証は目的外＝**実走はフリー押しでよく、実際に押した順の記録が必須要件**。
+
+## ✅ 直近の成果（2026-08-05）── ハーネスの config 汚染を根治
+
+**実機走がブロッカーの間に、A トラックの前提を潰した。** 2026-08-03 に「ハーネスの GEAR が2世代前で
+`calib_burst` の転移判定が反転した」事故が起きたが、直したのは `calib_replay_compare.mjs` 1本だけだった。
+**残り 15本を台帳駆動へ移行し、規律を E10 として明文化した。**
+
+- **⚠ 汚染は GEAR だけではなかった**: **サブ枠**（`freyja_christmas`→正 `metatron`）・**パーティ順**
+  （`[…,arianrhod,elaine]`→正 `[…,elaine,arianrhod]`）・**override**（`effond` 120→127）も食い違っていた。
+- **共有ローダ `tools/lib/config_c.mjs`**（`loadConfigC` / `verifyE2` / `configBanner`）＝受領キャッシュ1本から
+  GEAR/サブ枠/パーティ順/敵/表示ATK/override を復元し、走行前に**記録ルートの強制リプレイ bit 一致（E2）を自動で通す**。
+  台帳の `engineVersion` が現行と違えば**落ちる**＝モデルが動いた後に黙って古い条件で走らせない。
+  全ハーネスが**走行 config を1行出力**するようにした（provenance）。
+- **✅ エジソン系（configB）は無汚染**＝ハードコード値が `simulation/sim04/data/config.json` の `_configSig` と一致（照合済）。
+  configB は sim04 較正編成＝**凍結**で一度も動いていない。**∴ C37 の A1「エジソンは健全」は影響を受けない。**
+- **規律**: REPO_STANDARDS §6 に **E10**（config は台帳から読む／ハードコードするなら台帳の版を併記）。使い方＝`tools/README.md` §0.5。
+- **golden 3/3 不変**（202,005,923 / 215,161,915 / 299,523,354）＝`tools/` は production 非改変なので当然だが確認済。
+
+**⚠ 残: 汚染された数値の再取得は未実施**（修正は「再発を止めた」だけ）。
+**C37 の BW 掃引（非単調・BW384 +5.64%）／ATK 感度／LS 利得率／PREFIX_TOPK 損失／C1 の中位7本分類**が対象。
+**「結論が変わる」とは限らないが裏付けとして引用できない**（E1）。⚠ **再測は C43 実装後に**（探索空間が変わる）。
 
 ## ✅ 直近の成果（2026-08-03）
 
@@ -101,7 +122,7 @@
 | **★M2〜M7 の実機走** | ⏳ **ユーザー作業＝本セッションの唯一のブロッカー** | README §4.8 の表をそのまま渡す。あわせて **configC の slot JSON** を `data/` へ |
 | **宿儺での最終検証（G4.9）** | ⏳ **後ろ倒し** | ≦19手の走を1本／C43 は「≦19手運用」で無期限に後回し可 |
 | **★メタトロン A7（AnotherLink 重複規則）** | ⏳ **M6 で閉じる** | `final_dmg` 1.10 vs 1.21。**サブ枠は `[metatron, artemis]` で確定**。⚠ **`calib_burst` の configA/configC 食い違い 13% の第1候補**（1.21 が正なら configC 0.800→0.73 で configA 0.705 に近づく） |
-| **★他ハーネスの GEAR 汚染** | ⚠ **未修正** | ナポ編成ハーネス5本が2世代前の GEAR を持つ＝**出した数値は再取得が必要**（**C37 の BW 掃引結論も再測対象**）。TODO「★再発防止」 |
+| **★他ハーネスの config 汚染** | ✅ **2026-08-05 根治**（15本を台帳駆動へ・E10 制定） | ⏳ 残＝**汚染された数値の再取得**（C37 の BW 掃引ほか）。⚠**C43 実装後に**（探索空間が変わる）・優先度は A トラックより下 |
 | **★override の再fit** | ⏳ **未履行・ただし着手禁止** | C39 でモデルが動いたが、**C40/C41/C44 でまた動く**＝二重fitになるので**確定後に1回だけ** |
 | **長時間ジョブ** | ✅ ①②並列化済 | 残＝③LS内部の投機並列・他ハーネス横展開・ローカル移行 |
 | **Phase 8 アクセ実装** | ⏳ intake ゲート | §6 intake をユーザーと確定後 |
@@ -118,8 +139,8 @@
   ／**`analysis/PROVISIONAL_ANALYSIS.md`（暫定統合＝ここから読む）**／`analysis/m1_history_replay.md`（★M1 の全成分突合）
   ／`analysis/per_trial/pre-trial_{quant,quali}.md`／`data/pre-trial.md`（実機原本）／`data/record_skeleton.md`（記入テンプレ）
   ／**`data/configC_gear_panel.md`（★冒頭注記2＝GEAR の正）**／**`data/configC_cache_20260803.json`（config の正・E2 通過）**
-- **計測ハーネス**: `tools/`（`README.md` が索引・**§0 に並列実行**・**`calib_replay_compare.mjs` が sim05 の較正方式そのもの**）
-- **実験・計測の作法**: `REPO_STANDARDS.md` §6 の **E1〜E9**（着手前に通す）
+- **計測ハーネス**: `tools/`（`README.md` が索引・**§0 に並列実行**・**★§0.5 に config の台帳駆動（`lib/config_c.mjs`）**・**`calib_replay_compare.mjs` が sim05 の較正方式そのもの**）
+- **実験・計測の作法**: `REPO_STANDARDS.md` §6 の **E1〜E10**（着手前に通す。**★E10=config は台帳から読む**）
 - **探索品質の実験の全数値**: `archive/SEARCH_QUALITY_EXPERIMENTS.md`（C37 の根拠アーカイブ）
 - **新キャラ/幻獣の一次情報と Ax**: `gamedata/md/神姫/metatron.md`（§3.2 A0〜A10）／`gamedata/md/幻獣/`
 - **Phase 一覧**: `ROADMAP.md` ／ **現行フェーズ**: `PHASE4_PLAN.md` ／ **規約**: `REPO_STANDARDS.md`

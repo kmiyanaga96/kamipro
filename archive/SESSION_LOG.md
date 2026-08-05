@@ -9,6 +9,51 @@
 
 ---
 
+## 2026-08-05（ハーネスの config 汚染を根治・E10 制定）
+
+**状況**: A トラック（ダメージ較正）は **M2〜M7 の実機走がユーザー作業＝唯一のブロッカー**で待ち。
+その間に、2026-08-03 の事故（ハーネスの GEAR が2世代前で `calib_burst` の転移判定が符号ごと反転した）の
+**未完部分**を潰した。前回直したのは `calib_replay_compare.mjs` **1本だけ**で、TODO には「他5本」と書いてあった。
+
+**やったこと**:
+
+1. **実態調査**＝汚染は「5本の GEAR」ではなかった。
+   - **configC 系ハーネスは15本**（TODO の列挙は「等」で5本しか挙げていなかった）。
+   - **汚染項目も GEAR だけではない**: **サブ枠** `[freyja_christmas, artemis]`（正 `[metatron, artemis]`）・
+     **パーティ順** `[hecate,tetra,arianrhod,elaine]`（正 `[hecate,tetra,elaine,arianrhod]`）・
+     **override** `{pactcore:1, effond:120}`（正 `effond:127`）。
+   - `extract_order_loki` だけ **proper v1**（`assault 3.204`）＝**世代が3つ混在**していた。
+   - **`exp_abilcap_isolation` / `exp_loki_stability` の E2 は現行エンジンでは落ちる**（照合先の
+     `archive/caches/sim05_sukuna_v2.json` が engineVersion 2世代前）＝**E2 が機能していない状態**だった。
+2. **共有ローダ `tools/lib/config_c.mjs` を新設**。受領キャッシュ `configC_cache_20260803.json` 1本から
+   config を完全復元する（`_configSig` に GEAR/サブ枠/パーティ順/敵、value に `dispAtk`/`override`/`turnsKeys`/`dmg`）。
+   - `loadConfigC({enemy, abilCap, atk, atkScale, override})`＝**実験条件は1変数ずつずらす**設計。
+   - `verifyE2()`＝**記録ルートの強制リプレイが bit 一致するか**（`2,823,338,240.3926167`）。
+     **台帳の `engineVersion` が現行と違えば落とす**＝モデルが動いた後に黙って古い条件で走らせない。
+   - `configBanner()`＝**走行 config を1行で出力**（provenance を出力に残す）。
+   - ⚠ **当初 TODO にあった「`applyGear()` の純関数コア抽出」は不要だった**＝受領キャッシュの `_configSig` には
+     GEAR が**計算済みの値**として入っており、DOM 依存部を切り出さなくても config は完全再現できる。
+3. **15本を台帳駆動へ移行**し、全本で E2 の bit 一致を実走確認した。
+   汚染由来の比較定数（`BW384=2120186028` 等）には「★旧 config での値＝要再取得」を明記。
+4. **configB（エジソン）は無汚染と確認**＝ハードコード値が `simulation/sim04/data/config.json` の `_configSig` と一致。
+   configB は sim04 較正編成＝**凍結**で一度も動いていない。**∴ C37 の A1「エジソンは健全」は影響を受けない。**
+   該当2本には「台帳の版を併記」するコメントを入れた（E10 の但し書きの運用）。
+5. **REPO_STANDARDS §6 に E10 を制定**（TODO は「起票するか判断」だったが、同型の事故が15本に及んでいたので制定）。
+   使い方は `tools/README.md` §0.5。
+6. **台帳へ「再測対象」を明記**: `CALIBRATION_ANALYSIS` C37 行末＋`archive/SEARCH_QUALITY_EXPERIMENTS.md`
+   の冒頭注記と §0 の対比表。**BW 掃引の非単調性・BW384 +5.64%・ATK 感度・LS 利得率・PREFIX_TOPK 損失・
+   C1 の中位7本分類**はすべて旧 config の値。
+
+**判断のログ**:
+- **実験の方法論には手を付けなかった**（`exp_beam_width_sweep` が production 非経路の `_refineRoute` を
+  使っている等）。config の正しさと実験設計の妥当性は**別の問題**で、同じコミットで混ぜると
+  「数値が変わったのはどちらのせいか」が分からなくなる。**注記だけ残した**。
+- **再測は実施しなかった**。①コストが高い（BW 掃引は1条件 130〜545秒）②**C43 実装後に探索空間が変わる**ため
+  今測ると二度手間 ③A トラック（M2〜M7）の方が優先。**TODO に条件付きで残置**。
+
+**検証**: `npm run test:golden` **3/3 不変**（202,005,923 / 215,161,915 / 299,523,354・FB 全10/10）。
+`tools/` は production 非改変なので当然だが、`exp_ls_incremental_verify` を触ったため実走で確認した。
+
 ## 2026-08-03（sim05 pre-trial の受領・成分別突合・C40〜C46 起票）
 
 > ### ⚠ 本ブロックの読み方（8ラウンド・**初期ラウンドの結論は後続で訂正されている**）

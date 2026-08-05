@@ -10,7 +10,7 @@
 ## 使い方の原則
 
 - **すべて production 非改変**（`src/*` を import するだけ）。実行しても golden に影響しない。
-- 実験を回す前に **REPO_STANDARDS §6「実験・計測を回すときの作法」E1〜E8** を通すこと。とくに **E2（config 再現は既知値との bit 一致を先に確認）** と **E8（1条件=1プロセス）**。
+- 実験を回す前に **REPO_STANDARDS §6「実験・計測を回すときの作法」E1〜E10** を通すこと。とくに **E2（config 再現は既知値との bit 一致を先に確認）**・**E8（1条件=1プロセス）**・**★E10（config は台帳から読む＝§0.5）**。
 - **実測コストは CLAUDE.md「実測コスト」表が正**（napoleon 1ルート ~130s 等）。コード内の古い性能記述を前提にしないこと（E1）。
 - **長時間ジョブは §0 の並列実行を検討する**（逐次だとコアを1つしか使わない）。
 
@@ -29,6 +29,39 @@
 |---|---|
 | `test/golden.mjs`（fixture 間） | **4分07秒 → 2分07秒（×1.94）**・値は 3/3 完全一致 |
 | `extract_order_loki.mjs`（①prefix 間・②ルート間） | ①8 prefix が **約19分 → 実時間 6.5分（×2.9）**。TOPN=1 の全体は **542秒**（②は1本＝並列の余地なし・152秒） |
+
+## 0.5 ★ config は台帳から読む（`lib/config_c.mjs`・2026-08-05・REPO_STANDARDS §6 **E10**）
+
+**何が起きたか**: ハーネスが configC の GEAR を**各自ハードコード**していた。configC の GEAR は 2026-07-31 中に
+2回更新された（暫定 → proper v1 → **proper v2**）が、ハーネスは**最古値のまま**動き続け、
+`simulation/sim05/analysis/` の初版はその GEAR で計算された。結果 **バースト本体 ×1.04（一致）→ ×0.77（30%過大）**
+と**結論が符号ごと反転**した（詳細＝`simulation/sim05/data/configC_gear_panel.md` 冒頭注記2）。
+
+**対策**: configC は `lib/config_c.mjs` 経由で**受領キャッシュ JSON から復元する**。
+`_configSig` に GEAR/サブ枠/パーティ順/敵が、value に `dispAtk`/`override`/`turnsKeys`/`dmg` が入っているので、
+**キャッシュ1本で config が完全再現でき、記録ルートの強制リプレイ bit 一致で E2 が自動的に通る**。
+
+```js
+import { loadConfigC, verifyE2, configBanner } from './lib/config_c.mjs';
+const cfg = loadConfigC();               // 台帳そのまま
+console.log(configBanner(cfg));          // ★出力に走行 config を残す（provenance）
+verifyE2(cfg);                           // ★E2: bit 一致しなければ exit 1
+loadConfigC({ enemy:'walpurgis_loki', atkScale:1.10, abilCap:null });  // 実験条件へ 1 変数だけずらす
+```
+
+⚠ **E2 は台帳条件でしか意味を持たない**＝「①台帳条件で load → ②`verifyE2` → ③実験条件で再 load」の順に呼ぶ。
+⚠ **台帳の `engineVersion` が現行と違えば `verifyE2` は落ちる**（＝ダメージモデルが動いた後の台帳が無い状態。
+新しい受領キャッシュを取り直すまで、その config での数値は出せない）。これは仕様＝黙って古い条件で走らせない。
+
+**移行済み（15本・2026-08-05）**: `exp_t1_abilcap_sweep` / `exp_atk_sensitivity_napoleon` / `exp_beam_width_sweep` /
+`exp_abilcap_isolation` / `exp_loki_stability` / `exp_prefix_sweep` / `exp_order_compare` / `exp_c27_vs_localsearch` /
+`exp_horizon_sensitivity` / `exp_local_search{,_control,_multistart}` / `exp_prefix_route_identity` /
+`exp_ls_incremental_verify`(configC 節) / `extract_order_loki`。
+**⚠ これらが過去に出した数値はすべて旧 config のもの＝再取得が必要**（C37 の BW 掃引結論を含む）。
+
+**configB（エジソン）は対象外**: `exp_atk_sensitivity_edison` / `exp_c27_vs_localsearch_edison` /
+`exp_ls_incremental_verify`(edison 節) はハードコードのままだが、**値が `simulation/sim04/data/config.json` の
+`_configSig` と一致することを確認済**（configB は sim04 較正編成＝**凍結**で、configC と違い一度も動いていない）。
 
 ## 1. 較正・探索ハーネス（従来から現役）
 
@@ -57,6 +90,9 @@
 
 **C37/C38 の根拠となった数値を出したスクリプト。結果と解釈は `archive/SEARCH_QUALITY_EXPERIMENTS.md` が正**（本表は「どの数値がどのスクリプト由来か」の対応のみ）。
 
+> ⚠⚠ **本表に載っている napoleon 系の数値は、すべて「旧 config」で測定されたもの**（下の「共通の注意」）。
+> **✅config の再発防止は完了（§0.5）だが、数値の再取得は未実施**＝**裏付けとして引用しないこと**（E1）。
+
 | スクリプト | 出した数値（→ 実験記録の節） |
 |---|---|
 | `exp_beam_width_sweep.mjs` | BW 64〜512 掃引＝BW64 が最悪点・非単調（§1） |
@@ -73,21 +109,26 @@
 | `exp_c27_vs_localsearch.mjs` | B3＝C27 リファインは局所探索に包含されるか（refine無し+LS vs refine有り+LS）＋C27 単独の寄与（§6e） |
 | `exp_c27_vs_localsearch_edison.mjs` | B3b＝**エジソン**で C27 単独の改善を LS が包含するか（(a)素/(b)C27単独/(c)素+LS/(d)refine+LS の4点。B3 はナポ編成で C27 が発火せず判定不能だったため）（§6f） |
 | `exp_prefix_route_identity.mjs` | C1＝実験1 の「中位7本（総ダメ完全同値）は同一ルートか」をキー列で厳密比較（未検証だった推定を潰す）（§6g） |
-| `extract_order_loki.mjs` | **推奨押し順の抽出**（G3）。①全 prefix をビームのみで採点 → ①-b キー列で重複除去を実測 → ②上位N本に局所探索 → 最良。引数=LS対象本数（既定3）。**✅2026-08-02 に①②とも並列化**（逐次 約1時間）。⚠⚠**config が陳腐化している**＝敵が loki のまま（較正ボスは宿儺に確定）・override が C37 世代・**C39 でダメージモデルが変わった**＝再実行前に必ず更新すること。⚠2026-07-31 以降、実走は**実機勘のフリー押し**方針のため本ハーネスの出力は**参考値**（`record_skeleton.md` 冒頭） |
+| `extract_order_loki.mjs` | **推奨押し順の抽出**（G3）。①全 prefix をビームのみで採点 → ①-b キー列で重複除去を実測 → ②上位N本に局所探索 → 最良。引数=LS対象本数（既定3）。**✅2026-08-02 に①②とも並列化**（逐次 約1時間）。**✅2026-08-05: config は台帳駆動へ移行**（GEAR は proper v1 のままだった）。⚠**敵は loki のまま**（較正ボスは宿儺に確定）・**override `{judg:130,pactcore:1}` は C37 世代・旧 ATK/GEAR で較正**＝loki を使うなら再較正が要る。⚠**C39 でダメージモデルが変わっている**＝過去の出力は再取得が必要。⚠2026-07-31 以降、実走は**実機勘のフリー押し**方針のため本ハーネスの出力は**参考値**（`record_skeleton.md` 冒頭） |
 | `exp_loki_stability.mjs` | **B4＝較正ボス切替（`walpurgis_loki`）の受入検証**。実験2/B1 と同一手続きで ATK 感度を再測（`node tools/exp_loki_stability.mjs <scale>`・1.00 を先に走らせて基準キー列を保存）。ビームのみ＝LS を通さない（後処理の強さと交絡させないため）（§11） |
 | `exp_ls_incremental_verify.mjs` | **LS インクリメンタル replay（`_LSReplay`）の結果不変性 回帰**。edison / napoleon×宿儺 の2 config で、LS 近傍3種を網羅サンプリングし `_LSReplay.dmgOf` と full `_replayResult` の **ビット一致**＋受理後（rebase 後）の一致を検証し、1評価あたりのコスト比も出す。所要 **約4分**（内訳はビーム 2本＝43s＋130s）。**`_replayResult` / `_execKey` / `clone` / `_snapshotForReplay` を触ったら必ず回す**（C39 を検出したのがこのハーネス） |
-| `exp_t1_abilcap_sweep.mjs` | **sim05 README §4.4.1＝T1 の押下上限を外すとシムの T1 ダメージはどこまで伸びるか**（`DMG.enemy_abil_cap` を掃引・静的greedy で cap 以外を揃える）。実測: cap=19→16.3% / 無制限→24.8%（×1.52・30手で自然枯渇）。⚠⚠**2026-08-03: 数値は無効**＝**GEAR が最古値（2026-07-27 暫定）のまま**だった（下の「共通の注意」）。加えて「30手で自然枯渇」は**静的greedy が自発的に選ぶ手数**であって押せる上限ではない（**実機の押し順を強制すると 39手通る**＝`calib_replay_compare.mjs`）。**再実行するなら GEAR を `configC_cache_20260803.json` から読むよう直してから**。冒頭で既知ルートのリプレイ bit 一致（E2）を自己検証してから測る。数秒 |
+| `exp_t1_abilcap_sweep.mjs` | **sim05 README §4.4.1＝T1 の押下上限を外すとシムの T1 ダメージはどこまで伸びるか**（`DMG.enemy_abil_cap` を掃引・静的greedy で cap 以外を揃える）。実測: cap=19→16.3% / 無制限→24.8%（×1.52・30手で自然枯渇）。⚠⚠**上記の数値は無効**＝**GEAR が最古値（2026-07-27 暫定）のまま**だった（下の「共通の注意」）。加えて「30手で自然枯渇」は**静的greedy が自発的に選ぶ手数**であって押せる上限ではない（**実機の押し順を強制すると 39手通る**＝`calib_replay_compare.mjs`）。**✅2026-08-05: config は台帳駆動へ移行済＝そのまま再実行してよい**（冒頭で E2 の bit 一致を自己検証してから測る）。**正しい config での実測 = cap19→22.8% / 無制限→32.3%（×1.42）**。数秒 |
 
 ### 共通の注意
 
-- **⚠⚠ 2026-08-03: ハードコードされた GEAR が最古値（2026-07-27 暫定）のままだったことが判明**。
-  `simulation/sim05/data/configC_gear_panel.md` §2.0 には「proper v2（現行）」列が**最初からあった**のに、
-  ハーネス側がそれを参照していなかった。この GEAR で出した突合は **T1 実機/シム ×1.77（正しくは ×1.41）**、
-  **バースト本体 ×1.04（正しくは ×0.77＝符号ごと反転）**という誤りを生んだ。
-  **`calib_replay_compare.mjs` は受領キャッシュ JSON の `_configSig` から config を読む方式に修正済み**。
-  **⚠ 他のハーネス（`exp_t1_abilcap_sweep` / `exp_atk_sensitivity_napoleon` / `exp_beam_width_sweep` 等の
-  ナポ編成系）は未修正＝同じ最古 GEAR を持つので、出した数値は再取得が必要**。
-- **config は各スクリプト冒頭にハードコード**（GEAR/サブ枠/英霊武器/敵/override）。**編成や config を変えるときは、まず既知値との bit 一致を確認してから**回すこと（E2。`napo_burst_cd_reduce`・`betaia_*`・`CURRENT_SUBS` は `_configSig` に含まれないため、キャッシュJSONを読むだけでは検出できない）。
+- **⚠⚠ 本表の napoleon 系の数値は「旧 config」で測定されている＝再取得が必要**（2026-08-03 発覚・2026-08-05 に構造対策）。
+  ハーネスが config を各自ハードコードし、**configC の GEAR が 2026-07-31 に2回更新されたのに追随していなかった**。
+  汚染は GEAR だけでなく**サブ枠・パーティ順・override** にも及ぶ（対比表＝`archive/SEARCH_QUALITY_EXPERIMENTS.md` §0）。
+  この config で出した突合は **T1 実機/シム ×1.77（正 ×1.41）／バースト本体 ×1.04（正 ×0.77＝符号ごと反転）** という誤りを生んだ。
+  **✅ 対策済＝ §0.5 の `lib/config_c.mjs` へ15本を移行**。**⚠ ただし数値の再取得は未実施**（`workspace/TODO.md`）。
+- **config は `lib/config_c.mjs` 経由で台帳から読む**（§0.5・**E10**）。ハードコードしない。
+  `verifyE2()` が**記録ルートの強制リプレイ bit 一致**を走行前に自動で通す＝`napo_burst_cd_reduce`・`betaia_*`・
+  `CURRENT_SUBS` のような **`_configSig` に含まれない項目も、リプレイ値が動くので検出できる**
+  （＝「署名一致だけでは不十分」という E2 の但し書きに、ローダ側で答えている）。
 - `exp_atk_sensitivity_*` / `exp_abilcap_isolation` / `exp_horizon_sensitivity` は **引数でスケール/ホライズンを指定し、1条件=1プロセス**で回す設計（E8）。基準条件の押し順を JSON に落として次の条件が読む。
-- **E2 アンカーの JSON は `archive/caches/` へ退避済み**（2026-08-02 の sim05 整理）。`exp_loki_stability` / `exp_abilcap_isolation` / `exp_order_compare` が読む `sim05_sukuna{,_v2}.json` がそれ。⚠**これらは engineVersion `sim04-abscal-C31C34-calib` ＝C37（押し順）と C39（ダメージモデル）の2世代前**なので、**記録値との bit 一致はもう成立しない**（＝E2 ゲートで止まる）。再実行するなら現行エンジンでアンカーを取り直すこと。出した数値そのものは `archive/SEARCH_QUALITY_EXPERIMENTS.md` が正。
-- 出力先の JSON パスが `/tmp/.../scratchpad` を指しているものがある。**恒久的に使うなら書き換えること**（scratchpad はセッション毎に消える）。
+- **旧 E2 アンカー（`archive/caches/sim05_sukuna{,_v2}.json`）はもう使っていない**。engineVersion が2世代前で
+  記録値との bit 一致が成立しなかったため（＝E2 が機能しない状態だった）。`exp_loki_stability` / `exp_abilcap_isolation` は
+  **現行台帳（`configC_cache_20260803.json`）へ差し替え済**。⚠ `exp_order_compare` だけは入力として旧キャッシュの
+  **押し順**を読む（比較自体は同一エンジン内なので成立するが、記録 dmg との照合はできない）。
+- 出力先の JSON パスは **`$SCRATCH`（未設定なら `/tmp`）** を見るよう統一済み。⚠ scratchpad はセッション毎に消えるので、
+  恒久的に残す数値は台帳（`archive/SEARCH_QUALITY_EXPERIMENTS.md` 等）へ書くこと。

@@ -11,38 +11,26 @@
 // ⚠ **ビームのみ**（局所探索は通さない）。B1/実験2 は C27 リファイン経由だが当編成では C27 が発火しない
 //    （§6e）ため実質ビーム単体＝**同一条件での比較になる**。LS を挟むと後処理の強さが交絡し、
 //    「探索が安定したか」を測れなくなる。LS 込みの production 挙動は別途測ること。
-// ★E2: 実験前に config_sukuna_v2 の記録値と bit 一致を確認（GEAR/subs/ATK/英霊武器設定の再現検証）。
+// ★E2: 実験前に台帳（現行 configC 受領キャッシュ）との bit 一致を確認（GEAR/subs/ATK/英霊武器設定の再現検証）。
 // ★リポジトリ非改変（src/* を import するだけ）
 //
+// ⚠ 旧版は config を**最古 GEAR でハードコード**し、E2 も `archive/caches/sim05_sukuna_v2.json`
+//   （engineVersion 2世代前）を見ていた＝**現行エンジンでは通らない**。上記 B4 の測定値は再測対象。
+//   2026-08-05 に config 駆動へ移行（REPO_STANDARDS §6 E10）。
+//
 // 使い方: node tools/exp_loki_stability.mjs <scale>   … 1.00 を最初に走らせて基準キー列を保存する
-import { buildFormation, applyEnemy, recalcGearK, recalcGearKCFromDispAtk, GEAR, DMG, setCurrentSubs,
-         displayAtkOverrideFor, setStaticOverride, Sim, _replayResult } from '/home/user/kamipro/src/app.js';
+import { Sim, DMG } from '/home/user/kamipro/src/app.js';
+import { loadConfigC, verifyE2, configBanner } from './lib/config_c.mjs';
 import fs from 'fs';
 const n=10, scale=parseFloat(process.argv[2]);
 const REF=(process.env.SCRATCH||'/tmp')+'/b4_loki_base.json';
-const GEAR_C={assault:3.06,elem:0.54,vigor:0.6876,spec:0,dmgup:0,acute:0.144,crit_rate:0.405,other:0,
-              na_dmg:1.116,abi_dmg:2.52,burst_dmg:5.22,na_cap:0.36,abi_cap:0.99,burst_cap:2.016};
 
-function setup(enemy){
-  setCurrentSubs(['freyja_christmas','artemis']);
-  buildFormation('napoleon',['hecate','tetra','arianrhod','elaine']);
-  applyEnemy(enemy);
-  for(const k of Object.keys(GEAR)) GEAR[k]=GEAR_C[k]??0;
-  DMG.betaia_mult=3.5; DMG.betaia_cap=800000; DMG.napo_burst_cd_reduce=true;
-  recalcGearK();
-}
-// ── E2: 環境（GEAR/subs/ATK/英霊武器）の再現検証。敵だけが本番と異なる。
-setup('ryomen_sukuna');
-const c=JSON.parse(fs.readFileSync('/home/user/kamipro/archive/caches/sim05_sukuna_v2.json','utf8')).entries[0][1];
-recalcGearKCFromDispAtk(c.dispAtk); setStaticOverride(c.override||{});
-const chk=Math.round(_replayResult(c.turnsKeys,10).dmg);
-if(chk!==Math.round(c.dmg)){ console.log(`  ❌環境再現 失敗: ${chk.toLocaleString()} != ${Math.round(c.dmg).toLocaleString()}`); process.exit(1); }
-if(scale===1.00) console.log(`  ✅環境再現 bit一致 (${chk.toLocaleString()}) — 以降は敵を loki へ差し替え`);
+// ── ★E2: 環境（GEAR/subs/パーティ順/ATK/override/英霊武器）の再現検証。敵だけが本番と異なる。
+verifyE2(loadConfigC(), {silent: scale!==1.00});
 
 // ── 本番: 敵 = walpurgis_loki（barrier/abilCap なし）
-setup('walpurgis_loki');
-recalcGearKCFromDispAtk(Object.fromEntries(Object.entries(displayAtkOverrideFor('napoleon')).map(([k,v])=>[k,Math.round(v*scale)])));
-setStaticOverride({pactcore:1,effond:120});
+const cfg=loadConfigC({enemy:'walpurgis_loki', atkScale:scale});
+if(scale===1.00) console.log('  '+configBanner(cfg));
 const t0=Date.now();
 const sim=new Sim(); sim.totalTurns=n; sim._forcePrefix=['factor']; sim._forceTurn=1;
 const rows=[]; for(let t=1;t<=n;t++) rows.push(sim.greedyTakeTurn(t));
