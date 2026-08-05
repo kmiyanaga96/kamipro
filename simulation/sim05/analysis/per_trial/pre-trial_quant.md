@@ -345,3 +345,25 @@ pre-trial で空欄・不明だった項目のうち、**上の結論を確定�
 
 ⚠ **限界**: sim03/sim04 はエジソン/ヤマト編成＝**アリアンは居ない**。取れるのは
 **共通構造（slope・cap 構成・`calib_burst`・フラット項）**であって、アリアン固有値ではない。
+
+---
+
+## 更新履歴
+
+<!-- 直近5件のみ（それ以前は git log）。「波及確認」列が本体＝git が持たない情報はここだけ。 -->
+
+| 日付 | 変更点 | 波及確認 |
+|---|---|---|
+| 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=分析） | 参照関係は `npm run doc:check` がグリーン |
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 7）
+
+- [CALIBRATION_ANALYSIS.md](../../../../CALIBRATION_ANALYSIS.md)
+- [simulation/sim05/README.md](../../README.md)
+- [simulation/sim05/analysis/PROVISIONAL_ANALYSIS.md](../PROVISIONAL_ANALYSIS.md)
+- [simulation/sim05/analysis/m1_history_replay.md](../m1_history_replay.md)
+- [simulation/sim05/analysis/per_trial/pre-trial_quali.md](./pre-trial_quali.md)
+- [simulation/sim05/data/configC_gear_panel.md](../../data/configC_gear_panel.md)
+- [tools/README.md](../../../../tools/README.md)
+<!-- doc_refs:end -->

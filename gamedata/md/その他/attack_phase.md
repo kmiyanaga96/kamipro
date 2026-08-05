@@ -144,3 +144,20 @@ for(const c of CHARS){ if(this.g[c]>=FB_THR){ this.g[c]-=100; ...this.burst(c,..
 - sim04 trial01 T2: ヘカテー 2,877,682（1発）
 
 ⚠ 「敵1回の攻撃で反撃何発か」は上記だけでは決まらない（多段攻撃なら1ヒットごとに反撃する可能性）。
+
+---
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 8）
+
+- [CALIBRATION_ANALYSIS.md](../../../CALIBRATION_ANALYSIS.md)
+- [CLAUDE.md](../../../CLAUDE.md)
+- [gamedata/md/神姫/hecate.md](../神姫/hecate.md)
+- [simulation/sim05/README.md](../../../simulation/sim05/README.md)
+- [simulation/sim05/analysis/PROVISIONAL_ANALYSIS.md](../../../simulation/sim05/analysis/PROVISIONAL_ANALYSIS.md)
+- [simulation/sim05/analysis/m1_history_replay.md](../../../simulation/sim05/analysis/m1_history_replay.md)
+- [workspace/HANDOFF.md](../../../workspace/HANDOFF.md)
+- [workspace/TODO.md](../../../workspace/TODO.md)
+
+_他に 凍結sim/archive/essays から 1 件（更新対象外）_
+<!-- doc_refs:end -->

@@ -21,3 +21,19 @@
 - **registry の `atk`/`hp` はダメージ計算に使われない**（表示攻撃力への幻獣寄与はUIの手動合計入力 `summonAtkTotal`）。
   ATK/HP 目的で採用する幻獣（例: カイザーゴッドドラグーン）は、**UI側の合計値に含めて入力する**必要がある。
 - **条件付き効果**は `condition` で宣言的に表現する（現在の対応キー: `{allSubSummonsElem:'<elem>'}`）。判定は `src/app.js` の `applyGear`。
+
+---
+
+## 更新履歴
+
+<!-- 直近5件のみ（それ以前は git log）。「波及確認」列が本体＝git が持たない情報はここだけ。 -->
+
+| 日付 | 変更点 | 波及確認 |
+|---|---|---|
+| 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=規定） | 参照関係は `npm run doc:check` がグリーン |
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 0）
+
+_（現役層からの参照はない）_
+<!-- doc_refs:end -->

@@ -106,3 +106,17 @@
 ## 5. 所感（自由記入・qualitative へ転記される一次メモ）
 
 -
+
+---
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 5）
+
+- [CALIBRATION_ANALYSIS.md](../../../CALIBRATION_ANALYSIS.md)
+- [CLAUDE.md](../../../CLAUDE.md)
+- [simulation/sim05/analysis/per_trial/pre-trial_quali.md](../analysis/per_trial/pre-trial_quali.md)
+- [tools/README.md](../../../tools/README.md)
+- [workspace/HANDOFF.md](../../../workspace/HANDOFF.md)
+
+_他に 凍結sim/archive/essays から 2 件（更新対象外）_
+<!-- doc_refs:end -->

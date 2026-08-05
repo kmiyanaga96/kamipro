@@ -122,3 +122,21 @@ sim05 README §4.3 の較正原則「**非会心・非急所の非飽和アン�
 | 3 | ターン終了ブロックに「**消えたバフ / 残ったバフ**」欄を追加 | 上限超過ペナルティの範囲（C43） |
 | 4 | betaia は**合算表示である旨を注記**し、闘気カウントの記入を必須化 | 1ヒット値は合算÷闘気でしか出ない（§4） |
 | 5 | 「押せなかった手」欄は今回「なし」だったが、**実機側で押せた手の上限**（alone 3回等）を明示的に記録 | シムの quota 上限との突合（C42） |
+
+---
+
+## 更新履歴
+
+<!-- 直近5件のみ（それ以前は git log）。「波及確認」列が本体＝git が持たない情報はここだけ。 -->
+
+| 日付 | 変更点 | 波及確認 |
+|---|---|---|
+| 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=分析） | 参照関係は `npm run doc:check` がグリーン |
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 3）
+
+- [CALIBRATION_ANALYSIS.md](../../../../CALIBRATION_ANALYSIS.md)
+- [simulation/sim05/analysis/PROVISIONAL_ANALYSIS.md](../PROVISIONAL_ANALYSIS.md)
+- [simulation/sim05/analysis/per_trial/pre-trial_quant.md](./pre-trial_quant.md)
+<!-- doc_refs:end -->

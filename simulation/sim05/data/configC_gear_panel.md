@@ -157,3 +157,21 @@ proper との差は全キャラで上振れ（+2.7%〜+5.6%）＝装備強化の
 - `override`: `{judg:130, pactcore:1}` ／ `prefix`: `["effond"]` ／ `dmg`: 4,054,843,556
 - 同梱 `dispAtk` は **旧値**（napoleon 30041 / arianrhod 31737 ＝ override 未登録時の満凸推定フォールバック値）＝**本 md §2 の実機値が正**。sim04 configB と同じ「キャッシュ同梱 dispAtk は旧値」問題（sim04 README §2 注記と同型）。
 - ∴ このキャッシュの探索ルート（`turnsKeys` 10ターン）は**旧ATKスケールで探索された順**＝G3 の「較正前 基準順」として使う場合は **override 登録後に headless 再探索で取り直す**こと。
+
+---
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 9）
+
+- [CALIBRATION_ANALYSIS.md](../../../CALIBRATION_ANALYSIS.md)
+- [DOC_RELATION_PLAN.md](../../../DOC_RELATION_PLAN.md)
+- [simulation/sim05/README.md](../README.md)
+- [simulation/sim05/analysis/per_trial/pre-trial_quant.md](../analysis/per_trial/pre-trial_quant.md)
+- [simulation/sim05/data/pre-trial.md](./pre-trial.md)
+- [simulation/sim05/data/record_skeleton.md](./record_skeleton.md)
+- [tools/README.md](../../../tools/README.md)
+- [workspace/HANDOFF.md](../../../workspace/HANDOFF.md)
+- [workspace/TODO.md](../../../workspace/TODO.md)
+
+_他に 凍結sim/archive/essays から 2 件（更新対象外）_
+<!-- doc_refs:end -->

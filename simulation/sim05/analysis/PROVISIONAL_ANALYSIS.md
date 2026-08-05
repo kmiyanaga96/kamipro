@@ -204,3 +204,25 @@ README §4.3 は「**非会心・非急所の非飽和アンカー**で fit す�
 - **`DMG.burst_dmg_cap`（C34 の +500%）に GEAR だけで到達している**（`GEAR.burst_dmg`=7.1 > 5.0）。
   ∴ シムでは**バーストダメージUP バフ（アブソ/ナイツ/ARRIVE/roy 等）の限界価値がゼロ**になっている。
   押し順最適化に直接効くので、**C34 の上限が実機で本当に +500% なのかは要検証**（本書では未調査）。
+
+---
+
+## 更新履歴
+
+<!-- 直近5件のみ（それ以前は git log）。「波及確認」列が本体＝git が持たない情報はここだけ。 -->
+
+| 日付 | 変更点 | 波及確認 |
+|---|---|---|
+| 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=分析） | 参照関係は `npm run doc:check` がグリーン |
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 5）
+
+- [CALIBRATION_ANALYSIS.md](../../../CALIBRATION_ANALYSIS.md)
+- [simulation/sim05/README.md](../README.md)
+- [simulation/sim05/analysis/per_trial/pre-trial_quant.md](./per_trial/pre-trial_quant.md)
+- [workspace/HANDOFF.md](../../../workspace/HANDOFF.md)
+- [workspace/TODO.md](../../../workspace/TODO.md)
+
+_他に 凍結sim/archive/essays から 1 件（更新対象外）_
+<!-- doc_refs:end -->

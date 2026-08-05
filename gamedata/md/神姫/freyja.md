@@ -114,3 +114,10 @@
 
 - `subAssists: { streak_dmgup: 1.1 }`＝buildFormation が全員光属性編成のとき `DMG.streak_dmgup=1.1` に設定（ストリーク合計×1.1・減衰前に乗算＝一次情報一致。サブメンバー時にも発動）
 
+---
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 1）
+
+- [gamedata/md/神姫/README.md](./README.md)
+<!-- doc_refs:end -->

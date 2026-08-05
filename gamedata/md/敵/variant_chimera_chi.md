@@ -74,3 +74,13 @@
 - 属性=闇 確定・def=推定10・**max_hp=6.8億 確定**・**T3撃破 確認**（2026-07-24）。affinity=1.5 は闇の光⇔闇相互有利＋ライトレジスト記述と整合。
 - **要検証（採用確定＝両面宿儺フォールバック時に実測）**: ~~①max_hp~~ **✅6.8億判明** ②def の実機確定（推定10の裏取り） ③イジェクトドローン変身の**正確なHP%**（T1着弾は全て変身前で確定・T2以降が汚染） ④弱体化/毒/アビ封印等の状態異常は生存側（与ダメ出力は不変）の確認。
 - 採用は両面宿儺の生存/討伐再現性 or #4 鬼神障壁が追撃を軽減する場合のフォールバック（`simulation/sim05/README.md` §4.4）。
+
+---
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 3）
+
+- [gamedata/md/敵/README.md](./README.md)
+- [gamedata/md/敵/ryomen_sukuna.md](./ryomen_sukuna.md)
+- [gamedata/md/敵/variant_chimera.md](./variant_chimera.md)
+<!-- doc_refs:end -->

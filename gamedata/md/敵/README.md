@@ -39,3 +39,22 @@
 | [`ryomen_sukuna`](ryomen_sukuna.md) | 両面宿儺 | ~~sim05 較正候補ボス（本命）~~ **不採用（2026-07-30）**＝`abilCapPerTurn:19` が探索を不安定にすると B1 で確定（生存ゲート以前に較正の土台として失格）。エントリ/機構は保持 | **✅ ENEMY_REGISTRY 登録済み**（CATACLYSM闇レイド・光有利クリーン・**def20/HP9.8億**・**鬼神障壁 `barrier` ＝枠別final-dmg cap 実装済み**・**アビ上限 `abilCapPerTurn:19` 実装済み**・⚠**全滅時計(鬼の魔力≥10)=生存/再現性が採用の最終ゲート**・1日1回。⚠rate/abi上限は第1走で実測） |
 | [`variant_chimera_chi`](variant_chimera_chi.md) | PB06 バリアントキメラ-χ（通称 強機獣） | **sim05 較正候補ボス（主フォールバック・2026-07-22 intake / 2026-07-24 統合・改称・実機更新）** | intake のみ（闇=光有利クリーン・def推定10・**HP6.8億 判明**・**T3撃破**＝T1オーバーキル無し・変身[攻撃/防御UP]はHP70%動的＝イジェクトドローン→**T1クリーン窓較正**・1日1回・枠別cap無し。ENEMY_REGISTRY 未登録） |
 | [`variant_chimera`](variant_chimera.md) | PB06 バリアントキメラ（通称 弱機獣） | **sim05 較正候補ボス（最終フォールバック・2026-07-24 intake・実機更新）** | intake のみ（強機獣の1段下 MALICIOUS・闇=光有利クリーン・def推定10・**HP4.5億**・**T2撃破**＝T1オーバーキル無し＝**T1クリーンアンカー可**・エマージェンシーポイズン[防御UP]はHP50%動的・枠別cap無し。データ量最少・ENEMY_REGISTRY 未登録） |
+
+---
+
+## 更新履歴
+
+<!-- 直近5件のみ（それ以前は git log）。「波及確認」列が本体＝git が持たない情報はここだけ。 -->
+
+| 日付 | 変更点 | 波及確認 |
+|---|---|---|
+| 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=規定） | 参照関係は `npm run doc:check` がグリーン |
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 4）
+
+- [CLAUDE.md](../../../CLAUDE.md)
+- [PHASE4_PLAN.md](../../../PHASE4_PLAN.md)
+- [ROADMAP.md](../../../ROADMAP.md)
+- [gamedata/md/敵/TEMPLATE.md](./TEMPLATE.md)
+<!-- doc_refs:end -->

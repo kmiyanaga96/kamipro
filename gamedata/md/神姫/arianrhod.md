@@ -144,3 +144,14 @@
 - DB反映時の検証: アリアンは golden 編成外＝golden不変を確認（変わったら混入バグ）。proc連鎖（`_countAbilityUse`）はヘカテー/テトラに波及するため、アリアン入り編成の10T無クラッシュも確認。
 - アリアン測定でメンバーを入れ替えた走を sim04 の trial に混ぜない（記録は本md §3）。
 
+---
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 3）
+
+- [CHARACTER_ANALYSIS.md](../../../CHARACTER_ANALYSIS.md)
+- [gamedata/md/神姫/README.md](./README.md)
+- [simulation/sim05/README.md](../../../simulation/sim05/README.md)
+
+_他に 凍結sim/archive/essays から 3 件（更新対象外）_
+<!-- doc_refs:end -->

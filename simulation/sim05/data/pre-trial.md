@@ -196,3 +196,19 @@ T3
 - pactcoreは強化効果カウントに含まれる。
 - ナポレオンの闘気は「ナポレオンが先述のアイデアを得た状態」というバフアイコンの累計で管理されている。当初、「強化効果」もまとめてこのアイコンで管理されていると考えていたが、T3で「ナポレオンが先述のアイデアを得た状態」が13にもかかわらずconsortが2回発動したことから、「強化効果」はアイコンとして表示されない内部データの可能性がある。この場合、バフアイコン1個を強化効果としてカウントしている可能性がある。そのため、ナポアビの「強化効果」については、ダメージ較正の側面から分解する必要性もありそうだ。
 - T3のbetaiaの1回目にて撃破。ターン終了時の処理順は、敵の攻撃⇒（反撃⇒）betaia⇒holy⇒（鬼神一擲⇒）DOTダメージ。
+
+---
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 7）
+
+- [simulation/sim05/analysis/PROVISIONAL_ANALYSIS.md](../analysis/PROVISIONAL_ANALYSIS.md)
+- [simulation/sim05/analysis/m1_history_replay.md](../analysis/m1_history_replay.md)
+- [simulation/sim05/analysis/per_trial/pre-trial_quali.md](../analysis/per_trial/pre-trial_quali.md)
+- [simulation/sim05/analysis/per_trial/pre-trial_quant.md](../analysis/per_trial/pre-trial_quant.md)
+- [simulation/sim05/data/configC_gear_panel.md](./configC_gear_panel.md)
+- [tools/README.md](../../../tools/README.md)
+- [workspace/HANDOFF.md](../../../workspace/HANDOFF.md)
+
+_他に 凍結sim/archive/essays から 1 件（更新対象外）_
+<!-- doc_refs:end -->

@@ -82,3 +82,12 @@
 - 属性=闇 確定・def=推定10・max_hp=4.5億 確定。affinity=1.5 は闇の光⇔闇相互有利＋ライトレジスト記述と整合。
 - **要検証（採用は最終手段＝両面宿儺も強機獣も不適な場合のみ）**: ①挑戦回数（1日1回か） ~~②速攻でサンプル不足~~ **✅T2撃破確認＝T1クリーン取得可** ③ラストカース/バリアントダークネスの被ダメ改変が T1 に絡まないこと（青歯車＋5の倍数ターン条件で通常はT1非該当）。
 - 位置づけ: 本命=両面宿儺（`ryomen_sukuna.md`）／フォールバック=強機獣（`variant_chimera_chi.md`）／弱機獣=最終手段（`simulation/sim05/README.md` §4.4）。
+
+---
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 2）
+
+- [gamedata/md/敵/README.md](./README.md)
+- [gamedata/md/敵/variant_chimera_chi.md](./variant_chimera_chi.md)
+<!-- doc_refs:end -->

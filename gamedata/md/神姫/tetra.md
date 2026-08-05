@@ -138,3 +138,13 @@
 - シムでは連理魔力30マイルストーン `milestones.renri:30`（＝HELIX解禁の検出ゲート `helix.reached`）としてのみ実装
 - 一次情報の全攻撃ダメージプラス・自動復活・防御3倍は現状シム未モデル化
 
+---
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 2）
+
+- [CLAUDE.md](../../../CLAUDE.md)
+- [gamedata/md/神姫/README.md](./README.md)
+
+_他に 凍結sim/archive/essays から 1 件（更新対象外）_
+<!-- doc_refs:end -->

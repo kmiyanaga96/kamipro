@@ -136,3 +136,13 @@
 - ※旺靭・不屈・英霊BG100は現状シム未モデル化
 - ※**バーストダメージ上限+10%は C36（2026-07-22 sim05前構造修正）で実装済み**（`DMG.cap_arrive=0.10`・`burstPartyPassive` の `cap` フィールド＝全光時・エクシードと同枠加算）
 
+---
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+## この md を参照している文書（現役層 2）
+
+- [CALIBRATION_ANALYSIS.md](../../../CALIBRATION_ANALYSIS.md)
+- [gamedata/md/神姫/README.md](./README.md)
+
+_他に 凍結sim/archive/essays から 1 件（更新対象外）_
+<!-- doc_refs:end -->
