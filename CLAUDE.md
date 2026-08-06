@@ -151,10 +151,14 @@ Vite/ESM移行完了後の物理ファイル構成および責務の定義です
 | 5 | `judg_calib=0.62`（C30・エジソン×configB fit） | judg ph0 の過大を是正 | ナポ/アリアン×宿儺では judg ph0 が **×1.25 不足**（⚠cap 拘束のため単独では切り分け不能） |
 | 6 | `calib_burst=2.07`（C25・エジソン×configB fit） | バースト本体の絶対値を実機 mean へ寄せる | ナポ/アリアン×宿儺（configC v3）では **1バーストあたり ×0.73＝シムが 37% 過大**（C44） |
 
-**⚠ ただし「必ず外れる」わけでもない（2026-08-03・肯定側の実例）**: 同じ sim04 fit でも **`calib_na=1.835` は転移していた**
-（judg ph2 の通常攻撃 1ヒットで 実機/シム ×0.99 / ×0.89）。**同じ走・同じ config で burst 枠だけが外れ、na 枠は当たった**。
+**⚠ ただし「必ず外れる」わけでもない（2026-08-03・肯定側の実例）**: 同じ sim04 fit でも **na 枠は burst 枠ほど外れていない**
+（judg ph2 の通常攻撃 1ヒットで 実機/シム ×0.99 / ×0.89・キャスパリーグでも ×1.15）。**同じ走・同じ config で burst 枠が大きく外れ、na 枠は近かった**。
 ∴ 原則は「**転移するかどうかを枠ごとに測る**」であって「転移しない/する」と一括で決めつけることではない。
 **測れば安いものから測る**（成分別の強制リプレイは約3秒）。
+⚠**2026-08-06 訂正**: 初版は「**`calib_na=1.835` は転移していた**」と書いていたが、これは**言い過ぎ**だった。
+judg ph2 の「1ヒット ×0.99」は**シムの1加算を実機1ヒットと見た比**で、**実機は三段攻撃＝3ヒット**＝
+**発動あたりでは ×2.96 不足**していた（**C48**）。**枠ごとに測る**という原則は変わらないが、
+**「比が 1.0 に見えた」ときは、その比の分母と分子が同じものを数えているかを先に確認する**（ヒット多重度・集約単位）。
 
 **⚠⚠ 測る前に config の同一性を担保する（2026-08-03・実際に結論が反転した）**: 上の C44 は、初回の突合では
 「×1.04＝転移していた」と出ていた。原因は**ハーネスに 2 世代前の GEAR を手でハードコードしていた**こと
@@ -247,10 +251,12 @@ npm run preview    # dist を http 配信 → ブラウザで探索/中断/UI �
 | ID | 一行要約 | ゲート |
 |---|---|---|
 | **C25** | 絶対値較正の本丸。乖離は**成分ごとに符号が逆**＝一律スカラ不可 | C40/C41/C44 の解決 |
-| **C40** | バースト「追加ダメージ」の定式化が違う（cap 引上げでは解けない）。**編成横断** | 実機 M2/M3 |
+| **C40** | バースト「追加ダメージ」の定式化が違う（cap 引上げでは解けない）。**編成横断＋敵横断（M2 で確定）** | 関数形の分離＝実機 M3 |
 | **C41** | `DMG.betaia_cap` が過小 | 実機 M4 |
-| **C44** | バースト本体がシム過大 | 実機 M2〜M6 |
-| **C42** | 同ターン発動回数の上限が実機より厳しい | 実機 M5 |
+| **C44** | バースト本体の過大は **(a) アリアン固有 ＋ (b) 宿儺固有**に分解された（M2） | (a)=M3 / (b)=G4.9 |
+| **C42** | 同ターン発動回数の上限が実機より厳しい（M2 で `alone`3・`legend`3 が確定・残りは `holy`） | 実機 M5 |
+| **C47** | シムがアリアンの①バースト追加ダメージと②1アシ追撃を**同一値**で加算（実機は ① が ② の 5.71倍） | C40 と同時 |
+| **C48** | judg ph2 の通常攻撃が **1ヒット**（実機は三段攻撃＝3ヒット）。C46/C24 と同根 | C24/C46 と同時 |
 | **C43** | アビ上限超過ペナルティが「硬い剪定」（実機は超えられる） | 宿儺固有・後ろ倒し可 |
 | **C3 / C5** | 追撃 cap が過小（2026-08-03 に主題から降格・寄与 1.3%） | C40 と同時 |
 | **C37** | 探索パラメータが編成依存／枝刈りの代理採点は未解決 | LS は実装済・幅は open |
@@ -282,11 +288,12 @@ npm run preview    # dist を http 配信 → ブラウザで探索/中断/UI �
 
 | 日付 | 変更点 | 波及確認 |
 |---|---|---|
+| 2026-08-06 | 開発ルール §5 の**肯定側の実例を訂正**（「`calib_na` は転移していた」→ヒット多重度の誤読＝C48）。較正ステータス索引に **C47 / C48** を追加し C40/C42/C44 の一行要約を M2 の結果へ更新 | 状態と根拠の正は CALIBRATION_ANALYSIS の Cx 行（本節は索引）。golden 3/3 不変（`src/`・`gamedata/js/` 未変更）。統合は `simulation/sim05/analysis/integrated_analysis.md` |
 | 2026-08-05 | 本文内の変更経緯・重複説明を整理（28,985→19,819字）。較正ステータスを索引化・ドキュメント体系を表へ | **Git ワークフロー節が2世代前の golden 値を持っていた**のを検出し「検証方法」節への参照へ一本化。仕様16項目は全て健在を差分確認 |
 | 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=規定・台帳・計画） | 参照関係は `npm run doc:check` がグリーン |
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 17）
+## この md を参照している文書（現役層 18）
 
 - [CALIBRATION_ANALYSIS.md](./CALIBRATION_ANALYSIS.md)
 - [DOC_RELATION_PLAN.md](./DOC_RELATION_PLAN.md)
@@ -301,6 +308,7 @@ npm run preview    # dist を http 配信 → ブラウザで探索/中断/UI �
 - [simulation/README.md](./simulation/README.md)
 - [simulation/sim05/README.md](./simulation/sim05/README.md)
 - [simulation/sim05/analysis/PROVISIONAL_ANALYSIS.md](./simulation/sim05/analysis/PROVISIONAL_ANALYSIS.md)
+- [simulation/sim05/analysis/integrated_analysis.md](./simulation/sim05/analysis/integrated_analysis.md)
 - [simulation/sim05/analysis/per_trial/pre-trial_quant.md](./simulation/sim05/analysis/per_trial/pre-trial_quant.md)
 - [tools/README.md](./tools/README.md)
 - [workspace/HANDOFF.md](./workspace/HANDOFF.md)

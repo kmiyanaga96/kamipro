@@ -1,8 +1,16 @@
 # sim05 暫定統合分析 — pre-trial 1本からの結論と次の一手
 
-> **種別**: 分析（**暫定統合**・trial 1本）
+> # ⚠ 本書は 2026-08-06 に [simulation/sim05/analysis/integrated_analysis.md](integrated_analysis.md) に**差し替わった**
+>
+> **sim05 の統合判断の正は `integrated_analysis.md`**（pre-trial ＋ trial01/M2）。
+> 本書は **pre-trial 1本しか無かった時点の暫定版**＝**経緯の保全**として残す。**現在値として引用しない**。
+> ⚠ とくに次の3点は trial01 で**更新された**: ①**C44 の「バースト本体 ×0.73＝`calib_burst` 非転移」**は
+> キャスパリーグで再現せず **(a)アリアン固有＋(b)宿儺固有** に分解された ②**「`calib_na` は転移している」**は
+> ヒット多重度の誤読（**C48**） ③**C40 は敵横断でも確定**（cap では解けないことを障壁なし環境で再確認）。
+> 本書のアーカイブ（`archive/` への git mv）は**ユーザー判断**＝現状は現役層に置いたまま。
+>
+> **種別**: 分析（**暫定統合**・trial 1本・**差し替え済**）
 > **ゴール**: pre-trial から「何が確定し／何が反証され／次に何を測るか」を1枚にまとめ、本trial設計の入力にする
-<!-- doc_refs:ignore-line ── 未作成: 本trial 受領後に作成する正式版 -->
 > **完了条件**: 本trial（trial01〜）受領後に **`simulation/sim05/analysis/integrated_analysis.md`（正式版）へ差し替え**、本書は削除するか archive へ畳む
 > **状態**: 暫定（★**較正値の確定・コード修正はまだ行わない**）
 > 作成 2026-08-03 ／ 関連: C3 / C5 / C25 / C37 / C38 / **C40〜C44（本分析で起票）**
@@ -12,7 +20,6 @@
 >
 > ⚠ **通常フローとの差（ユーザー指示 2026-08-03）**: trial が pre-trial 1本しかないため、
 > trial横断 rollup（`simNN/analysis/quantitative_analysis.md` / `simNN/analysis/qualitative_analysis.md`）は**作らない**。
-<!-- doc_refs:ignore-line ── 未作成: 本trial 受領後に作成する -->
 > 正式な `simulation/sim05/analysis/integrated_analysis.md` は**本trialに対して**行う。本書はその前段の暫定。
 
 ---
@@ -216,10 +223,11 @@ README §4.3 は「**非会心・非急所の非飽和アンカー**で fit す�
 | 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=分析） | 参照関係は `npm run doc:check` がグリーン |
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 5）
+## この md を参照している文書（現役層 6）
 
 - [CALIBRATION_ANALYSIS.md](../../../CALIBRATION_ANALYSIS.md)
 - [simulation/sim05/README.md](../README.md)
+- [simulation/sim05/analysis/integrated_analysis.md](./integrated_analysis.md)
 - [simulation/sim05/analysis/per_trial/pre-trial_quant.md](./per_trial/pre-trial_quant.md)
 - [workspace/HANDOFF.md](../../../workspace/HANDOFF.md)
 - [workspace/TODO.md](../../../workspace/TODO.md)

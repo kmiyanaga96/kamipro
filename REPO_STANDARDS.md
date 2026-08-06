@@ -81,13 +81,14 @@
 | 2026-08-05 | C44 の残ゲートを更新 | CLAUDE.md 較正ステータスと workspace/HANDOFF.md を同時更新。sim05 README は影響なしと確認 |
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 6）
+## この md を参照している文書（現役層 7）
 
 - [CLAUDE.md](./CLAUDE.md)
 - [DOC_RELATION_PLAN.md](./DOC_RELATION_PLAN.md)
 - [ROADMAP.md](./ROADMAP.md)
 - [gamedata/md/README.md](./gamedata/md/README.md)
 - [gamedata/md/神姫/README.md](./gamedata/md/神姫/README.md)
+- [simulation/sim05/analysis/per_trial/trial01_quant.md](./simulation/sim05/analysis/per_trial/trial01_quant.md)
 - [workspace/HANDOFF.md](./workspace/HANDOFF.md)
 
 _他に 凍結sim/archive/essays から 1 件（更新対象外）_

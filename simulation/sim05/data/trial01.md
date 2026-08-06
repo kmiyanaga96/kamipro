@@ -183,13 +183,12 @@
 ---
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 5）
+## この md を参照している文書（現役層 4）
 
-- [CALIBRATION_ANALYSIS.md](../../../CALIBRATION_ANALYSIS.md)
-- [simulation/sim05/analysis/per_trial/pre-trial_quali.md](../analysis/per_trial/pre-trial_quali.md)
-- [tools/README.md](../../../tools/README.md)
+- [simulation/sim05/README.md](../README.md)
+- [simulation/sim05/analysis/per_trial/trial01_quali.md](../analysis/per_trial/trial01_quali.md)
+- [simulation/sim05/analysis/per_trial/trial01_quant.md](../analysis/per_trial/trial01_quant.md)
 - [workspace/HANDOFF.md](../../../workspace/HANDOFF.md)
-- [workspace/TODO.md](../../../workspace/TODO.md)
 
-_他に 凍結sim/archive/essays から 2 件（更新対象外）_
+_他に 凍結sim/archive/essays から 1 件（更新対象外）_
 <!-- doc_refs:end -->

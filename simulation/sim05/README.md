@@ -3,10 +3,10 @@
 > **種別**: 較正セッション計画台帳（simNN・REPO_STANDARDS §1「実機乖離改善→simNN」）
 > **ゴール**: 実機最強感触のナポレオン/アリアンロッド編成をシムの主編成として移行し、**この編成固有のダメージ仕様を確定**させる
 > **完了条件**: (a) 新編成のコードが入り、(b) configC で表示ATK/HP・GEAR が実機一致、(c) **C40〜C44（＋C3/C5）がキャスパリーグでクローズ**し、(d) そのモデルが両面宿儺で残差検証され、(e) golden 戦略（§5）に沿って回帰基準が維持 or 意図的再fit される
-> **状態**: G0〜G4 完了（pre-trial 分析済・C40〜C44 起票）／**⏳ G4.5＝キャスパリーグのアイソレーション走（§4.8 M1〜M7）**
+> **状態**: G0〜G4 完了（pre-trial 分析済・C40〜C44 起票）／**⏳ G4.5＝キャスパリーグのアイソレーション走（§4.8 M1〜M7）＝M1・M2 完了・次は M5**
 >
-> 作成 2026-07-22 ／ 最終更新 2026-08-03
-> 関連: CALIBRATION_ANALYSIS **C40〜C44**（★本 sim の主題＝pre-trial で起票）・**C45 / C46**（M1 で検出した未モデル化）・**C25**（絶対値較正の本丸）・**C3 / C5**（追撃＝当初の主題・降格）・**C37**（探索品質）・**C38**（buffCount）・sim04（frame calib の継承元）
+> 作成 2026-07-22 ／ 最終更新 2026-08-06
+> 関連: CALIBRATION_ANALYSIS **C40〜C44**（★本 sim の主題＝pre-trial で起票）・**C45 / C46**（M1 で検出した未モデル化）・**C47 / C48**（M2 で検出した構造的乖離）・**C25**（絶対値較正の本丸）・**C3 / C5**（追撃＝当初の主題・降格）・**C37**（探索品質）・**C38**（buffCount）・sim04（frame calib の継承元）
 >
 > ⚠ **本書は「今どう進めるか」だけを持つ**。ボス選定の変遷・探索実験の試行錯誤といった**経緯は
 > `archive/SESSION_LOG.md` と CALIBRATION_ANALYSIS の Cx 行が正**（2026-08-02 に本書から履歴を除去）。
@@ -215,7 +215,7 @@ config 別に自動較正（`calibrateStaticScores`）。暫定 **{judg:145, pac
 | ID | 走らせ方 | 一度に閉じる | 実機コスト |
 |---|---|---|---|
 | **M1** | ✅ **完了 2026-08-03**（実機走ゼロ）。`sim03/data/trial01〜05` の **T1/T2** を現行エンジンで強制リプレイし**全成分**を突合（→ `analysis/m1_history_replay.md`） | ✅**環境妥当性**（押下却下ゼロ＋アビ/ストリーク/DOT/通常攻撃が一致）／✅**C40 は編成横断**（×2.689）／✅**slope 仮説の棄却**（現行 0.10 が最良）／❌**`calib_burst` は確定できず**（configA 1.46 vs configC 1.66）。⚠ **T3 は実機が途中撃破＝比較不能** | **0走** |
-| **M2** | ナポ/アリアン×configC で**全力**（実機勘のフリー押し） | 基準点。T1 撃破＝全成分が1ターンに凝縮し、**本体/追加ダメのペアが十数点**取れる → **C40 の形** | 1走 |
+| **M2** | ✅ **完了 2026-08-06**（`data/trial01.md`・キャスパリーグ・全力フリー押し41手・**T1#41 で撃破**）→ `analysis/per_trial/trial01_{quant,quali}.md`・統合 `analysis/integrated_analysis.md` | ✅**本体/追加ダメのペア 12点**（4キャラ・同一押下＝交絡ゼロ）→ **C40 が敵横断でも確定**（cap では解けない）／✅**C44 を分解**（アリアン以外 ×1.05＝一致・**アリアンだけ ×0.83**）／✅**C42 確定**（`alone` 3・`legend` 3）／✅**C47・C48 を新規検出**。<br>❌**「全成分が1ターンに凝縮」は外れた**＝T1 で撃破したため**攻撃フェイズにもターン終了処理にも到達せず**、**betaia / DOT / 反撃 / ストリーク / FB バーストは1つも取れていない**（→ M3・M4 が代替不能） | 1走 |
 | **M3** | **バーストを1回だけ**撃つ。黄バフの量を変えて数本 | **C40 確定**＝追加ダメ/本体の比が**バフ量に依存するか**（本体連動 か 別式か）を分離 | 3〜4走（各1ターン） |
 | **M4** | **赤アビ・バーストを撃たず**ターン終了まで生かす | **C41**（闘気 n とベタイア1ヒット・cap 拘束の有無）＋ DOT ＋ 反撃の発生条件 | 1〜2走 |
 | **M5** | `holy`/`alone`/`legend`/`knights` を**押せなくなるまで**押す（契晶を毎押下で記録） | **C42**（同ターン発動上限の素の値。アビ上限が無いので初めて素で見える）＋ **C38**（tier の押下単位観測を相乗り） | 1〜2走 |
@@ -275,12 +275,12 @@ napoleon はフルビーム10Tが重く頻回テストに不適のため静的gr
 
 | # | 項目 | 状態 |
 |---|---|---|
-| 1 | **キャスパリーグ アイソレーション走（§4.8 M1〜M7）** | ✅ **M1 完了**（2026-08-03・実機走ゼロ → `analysis/m1_history_replay.md`）／⏳ **M2〜M7 はユーザー実機作業**。**宿儺での「≦19手を1本」は G4.9（最終検証）へ後ろ倒し** |
+| 1 | **キャスパリーグ アイソレーション走（§4.8 M1〜M7）** | ✅ **M1 完了**（2026-08-03・実機走ゼロ → `analysis/m1_history_replay.md`）／✅ **M2 完了**（2026-08-06・`data/trial01.md` → `analysis/integrated_analysis.md`）／⏳ **M3〜M7 はユーザー実機作業**（**順序は M5 → M3 → M4**）。**宿儺での「≦19手を1本」は G4.9（最終検証）へ後ろ倒し** |
 | 2 | **A7 AnotherLink の重複規則** | ⏳ 要実機1点・**絶対値較正より先**（⚠ pre-trial の**比**は `final_dmg` が共通因子のため A7 非依存＝C40〜C44 の起票は揺るがない） |
 | 3 | 鬼神障壁 rate / barrier.abi | ✅ **streak で rate=0.70「超過分×rate」が支持**（平均 ×1.03・障壁なしなら ×0.74〜0.86）／⏳ burst 枠(3000万)・abi 枠は**未 binding で未検証** |
 | 4 | 宿儺 def=20 の裏取り | ⏳ 実機複数回 |
 | 5 | **T1末のバフ消去の範囲**（C43） | ⏳ **実機観測**。全消去だと行き過ぎ・非適用だと足りない＝部分消去 |
-| 6 | **契晶ストック/累計/連理魔力**（`record_skeleton` §2） | ⏳ pre-trial は全ターン空欄＝C42 の検証がブロックされている |
+| 6 | **契晶ストック/累計/連理魔力**（`record_skeleton` §2） | ✅ **解消（trial01）**＝押下ごとの契晶が41手すべてに記入され、**C42 の `alone`3 / `legend`3 が確定した**。⏳ 残＝**ゲージ5人分**（trial01 §2 は T1 ミッドターン撃破のため空欄＝**C24 の検算が未了**。次走から「撃破時点の値でよい」として記入する） |
 
 ## 7. 受入基準
 
@@ -297,17 +297,21 @@ napoleon はフルビーム10Tが重く頻回テストに不適のため静的gr
 
 | 日付 | 変更点 | 波及確認 |
 |---|---|---|
+| 2026-08-06 | **M2 完了**を反映（§4.8 の M2 行・§6 の残ゲート1と6・冒頭の状態） | ⚠**M2 の想定「全成分が1ターンに凝縮」は外れた**（T1 撃破で攻撃フェイズ未到達）＝**M3 に FB 記録を必須化**し M4 の重要度を上げた。残ゲート6は契晶が解消・**ゲージが未了**として書き換え |
 | 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=規定・台帳） | 参照関係は `npm run doc:check` がグリーン |
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 8）
+## この md を参照している文書（現役層 11）
 
 - [gamedata/md/敵/variant_chimera.md](../../gamedata/md/敵/variant_chimera.md)
 - [gamedata/md/敵/variant_chimera_chi.md](../../gamedata/md/敵/variant_chimera_chi.md)
 - [simulation/napoleon_arian_migration/README.md](../napoleon_arian_migration/README.md)
 - [simulation/sim05/analysis/PROVISIONAL_ANALYSIS.md](./analysis/PROVISIONAL_ANALYSIS.md)
+- [simulation/sim05/analysis/integrated_analysis.md](./analysis/integrated_analysis.md)
 - [simulation/sim05/analysis/m1_history_replay.md](./analysis/m1_history_replay.md)
 - [simulation/sim05/analysis/per_trial/pre-trial_quant.md](./analysis/per_trial/pre-trial_quant.md)
+- [simulation/sim05/analysis/per_trial/trial01_quali.md](./analysis/per_trial/trial01_quali.md)
+- [simulation/sim05/analysis/per_trial/trial01_quant.md](./analysis/per_trial/trial01_quant.md)
 - [workspace/HANDOFF.md](../../workspace/HANDOFF.md)
 - [workspace/TODO.md](../../workspace/TODO.md)
 
