@@ -40,7 +40,8 @@
 //   node tools/calib_replay_compare.mjs --selftest            # 分解実行が greedyTakeTurn とビット一致するか検証
 import fs from 'node:fs';
 import path from 'node:path';
-import { Sim, DMG, GEAR, ENEMY_REGISTRY, ENGINE_VERSION } from '/home/user/kamipro/src/app.js';
+import { Sim, DMG, GEAR, ENEMY_REGISTRY, ENGINE_VERSION,
+         recalcGearK, recalcGearKCFromDispAtk } from '/home/user/kamipro/src/app.js';
 import { loadConfigC, verifyE2, configBanner } from './lib/config_c.mjs';
 
 const log = s => process.stdout.write(s + '\n');
@@ -191,7 +192,15 @@ else if (opt('--abilcap', null) != null) DMG.enemy_abil_cap = opt('--abilcap') =
 else if (ENEMY === 'ryomen_sukuna') DMG.enemy_abil_cap = null;   // 既定＝解除（実機 T1 は 42 手）
 cfg.abilCap = DMG.enemy_abil_cap;
 // 敵防御は **placeholder**（cath_palug def=10 / ryomen_sukuna def=20 は有志値）＝感度の対照実験用に上書きできる。
-if (opt('--def', null) != null) DMG.enemy_def = +opt('--def');
+// ⚠ `DMG.enemy_def` は `_gearKScale`（`src/app.js:188`）で **GEAR_K / GEAR_K_C に畳み込まれる**＝
+//   代入するだけでは何も起きない。**必ず recalc を走らせ直す**こと
+//   （初版はこれを忘れており `--def` が完全な no-op だった＝「def を動かしても比が動かない」という
+//     誤った観測を生んだ。2026-08-06 修正）。
+if (opt('--def', null) != null) {
+  DMG.enemy_def = +opt('--def');
+  recalcGearK(); recalcGearKCFromDispAtk(DISP);
+  cfg.enemyDef = DMG.enemy_def;
+}
 
 // ★cap 拘束の probe: `_decay` を包んで (frame, raw, 実効cap, 出力) を採取する（production 非改変・呼び出し後に復元）。
 // 「cap が過小」なのか「式が違う」のかは、**実機値がシムの raw を超えているか**で切り分く。
@@ -318,6 +327,12 @@ for (const t of TURNS) {
     log(`| ${NAME[k]} | ${fmt(rv)} | ${R[t]['#'+k]||'—'} | ${fmt(sv)} | ${S[t]['#'+k]||'—'} | ${sv?'×'+(rv/sv).toFixed(2):'—'} | ${d>=0?'+':''}${fmt(d)} | ${(d/gap*100).toFixed(1)}% |`);
   }
   log(`| **計** | **${fmt(rTot)}** | | **${fmt(sTot)}** | | | **+${fmt(gap)}** | 100% |`);
+  // ★総差 gap は「不足」と「過大」の**差引**にすぎない＝符号が相殺すると小さく見える。
+  //   モデル誤差の大きさは **絶対値の総和（gross）** で見る。net/gross が 1 に近いほど誤差は一方向。
+  let pos = 0, neg = 0;
+  for (const k of Object.keys(NAME)) { const d = (R[t][k]||0) - (S[t][k]||0); d >= 0 ? pos += d : neg -= d; }
+  log(`\n**誤差の大きさ**: 不足 +${fmt(pos)} / 過大 −${fmt(neg)} ＝ **gross ${fmt(pos+neg)}（シム比 ${((pos+neg)/sTot*100).toFixed(1)}%）**`
+    + ` ／ net ${gap>=0?'+':'−'}${fmt(Math.abs(gap))}（同 ${(gap/sTot*100).toFixed(1)}%）・**相殺率 ${(neg/(pos+neg)*100).toFixed(1)}%**`);
 }
 log('\n### 1ヒット平均\n');
 log('| 成分 | T | 実機/hit | シム/hit | 比 |');
