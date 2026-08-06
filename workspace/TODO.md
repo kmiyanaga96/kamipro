@@ -41,18 +41,25 @@
 > 追撃 C3/C5 は寄与 1.2% に縮小。**⚠ 符号が成分ごとに逆＝一律スカラ不可・総ダメージ一致は何も保証しない**。
 > **3トラック**: A=ダメージ較正（**キャスパリーグ M2〜M7 待ち**）／B=探索の安定化（LS 実装済・C37 は根治せず open）／C=押し順・tier（実機データ待ち）。
 
-## ★次セッションの第一手 ── M5 → M3 → M4 の実機走（M2 は取得済）
+## ★次セッションの第一手 ── M2 の転記 → M5 → M3 → M4
 
-> **★ブロッカー**: ユーザーは **M2 を実機で取得済**と報告（2026-08-05）。ただし
-> **記録原本 `simulation/sim05/data/trialNN.md` がリポジトリに無い**＝**Claude Code は M2 を分析できない**。
-> **最初にやること＝ trial md（＋できれば `configC_slot.json`）の受領**。それまで A トラックは進まない。
-> 受領したら `tools/calib_replay_compare.mjs` の実機側パーサを trial md へ向けて成分別突合（1走 約3秒）。
+> **★現在のブロッカー＝M2 の転記**（ユーザー報告 2026-08-05）。**M2 は実機で「録画済み・転記待ち」**。
+> 動画は取れているが `simulation/sim05/data/trialNN.md` への転記が未了＝**Claude Code はまだ分析できない**。
+> **最初にやること＝録画から trialNN.md への転記**（更新済みの `record_skeleton.md` を複製して記入）。
+> 転記できたら `node tools/calib_replay_compare.mjs` で成分別突合（config は台帳から自動復元＋E2・約3秒）。
+>
+> ⚠ **転記は重い作業**。`archive/TRANSCRIPTION_DESIGN.md`（実機録画→trial 転記の半自動化）は
+> **ユーザー判断で凍結中**だが、**転記が実際にクリティカルパスに乗った**＝再起票するかは判断のしどころ。
+> （凍結解除はユーザーの起票待ち＝こちらからは着手しない。）
+> ⚠ あわせて **`configC_slot.json`** も未受領。
 
 **⚠ 順序は M3→M4→M5 ではなく `M5 → M3 → M4`**（`simulation/sim05/README.md` §4.8「依存順」）。
 **カウントで閉じる → 比で閉じる → 絶対で閉じる**。M5 はダメージモデルに依存せず、
 その結果（同ターン上限・tier の実値）が M3/M4 の解釈前提になるため先に潰す。
 
-**共通の前提**（全走・`simulation/sim05/data/record_skeleton.md` の様式で記録）:
+**共通の前提**（全走・`simulation/sim05/data/record_skeleton.md` の様式で記録）
+※ **skeleton は 2026-08-05 にキャスパリーグ用へ更新済**（宿儺専用の項目は §6 付録へ降格・
+押下ごとの契晶列とバーストボタン ON/OFF 欄を新設・メニュー別の必須欄 §4 を追加）:
 - 敵＝**キャスパリーグ `cath_palug`**（HP 4億・障壁なし・アビ上限なし＝変数が少ない）
 - **押した順を必ず記録**（フリー押しでよいが順序の記録は必須要件）
 - **M7 を全走に相乗り**＝反撃が出た押下/ターン・値・キャラ・**直前の敵の行動（対象と攻撃回数）**
@@ -262,13 +269,14 @@
 | 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=現状スナップショット） | 参照関係は `npm run doc:check` がグリーン |
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 6）
+## この md を参照している文書（現役層 7）
 
 - [CLAUDE.md](../CLAUDE.md)
 - [DOC_RELATION_PLAN.md](../DOC_RELATION_PLAN.md)
 - [REPO_STANDARDS.md](../REPO_STANDARDS.md)
 - [simulation/sim05/analysis/PROVISIONAL_ANALYSIS.md](../simulation/sim05/analysis/PROVISIONAL_ANALYSIS.md)
 - [simulation/sim05/analysis/m1_history_replay.md](../simulation/sim05/analysis/m1_history_replay.md)
+- [simulation/sim05/data/record_skeleton.md](../simulation/sim05/data/record_skeleton.md)
 - [workspace/HANDOFF.md](./HANDOFF.md)
 
 _他に 凍結sim/archive/essays から 1 件（更新対象外）_
