@@ -36,6 +36,7 @@
 //   node tools/calib_replay_compare.mjs --wipe                # T1 終了時にバフ全消去（アビ上限超過ペナルティ仮説）
 //   node tools/calib_replay_compare.mjs --per-press           # ★押下ごとに実機/シムを並べる（C40/C44 の主データ）
 //   node tools/calib_replay_compare.mjs --cap-probe           # ★成分別に raw / 実効cap / 出力を採取（cap拘束の有無＝C40/C41）
+//   node tools/calib_replay_compare.mjs --lever               # ★必要な raw 倍率 / cap 倍率を成分別に解く（要 --cap-probe）
 //   node tools/calib_replay_compare.mjs --def <n>             # 敵防御を上書き（def は placeholder＝感度の対照実験に使う）
 //   node tools/calib_replay_compare.mjs --selftest            # 分解実行が greedyTakeTurn とビット一致するか検証
 import fs from 'node:fs';
@@ -362,6 +363,63 @@ if (flag('--cap-probe')) {
     const perReal = rv && rn ? rv/rn : null;
     log(`| ${(NAME[b.comp] ?? b.comp) + b.note} | ${b.frame} | ${b.n} | ${fmt(b.raw/b.n)} | ${isFinite(b.cap)?fmt(b.cap/b.n):'∞'} | ${fmt(b.out/b.n)} | ${b.bound}/${b.n} | ${perReal?fmt(perReal):'—'} | ${perReal?(perReal<=b.raw/b.n?'✅ cap 引上げで届く':'❌ **raw を超える＝式が違う**'):'—'} |`);
   }
+}
+
+// ★レバー感度: 「cap 前の raw が主因か / cap が主因か」を成分ごとに定量する。
+// 全成分が cap 拘束のとき出力は `out = cap + (raw-cap)*slope` なので、**raw への感度は slope 倍まで潰れる**。
+// ∴ 同じ出力差を埋めるのに必要な倍率は raw と cap で桁違いになる。両方を解いて並べる。
+//   ・raw だけで届かせる: raw' = cap + (target-cap)/slope        → 倍率 raw'/raw
+//   ・cap だけで届かせる: cap' = (target - raw*slope)/(1-slope)  → 倍率 cap'/cap
+//     ⚠ cap' > raw なら cap 拘束が外れ out=raw が上限＝**target > raw なら cap では到達不能**。
+if (flag('--lever')) {
+  // src/sim.js `_decay` のミラー。⚠ 記録済み out を再現できるか毎回検算し、ズレたら警告する
+  //   （production 側を変えたら気付けるようにする＝二重定義の事故防止）。
+  const mirror = (frame, raw, cap) => {
+    if (frame === 'na') { const c1=cap, c2=c1+100000, c3=c1+200000; let r=raw;
+      if(r>c1) r=c1+(r-c1)*0.5; if(r>c2) r=c2+(r-c2)*0.5; if(r>c3) r=c3+(r-c3)*0.5; return r*DMG.calib_na; }
+    if (frame === 'burst') return raw<=cap ? raw : cap+(raw-cap)*DMG.decay_burst.slope;
+    if (frame === 'abi')   return raw<=cap ? raw : cap+(raw-cap)*DMG.decay_abi_slope;
+    return Math.min(raw, cap);
+  };
+  const solve = (frame, fixed, lo, hi, target, byRaw) => {         // 単調増加を仮定した二分法
+    for (let i=0;i<200;i++){ const m=(lo+hi)/2;
+      const v = byRaw ? mirror(frame, m, fixed) : mirror(frame, fixed, m);
+      v < target ? lo = m : hi = m; }
+    return (lo+hi)/2;
+  };
+  log('\n### ★レバー感度 ── 実機値に届かせるのに必要な倍率（raw だけ / cap だけ）\n');
+  log('⚠ `out = cap + (raw−cap)×slope`（abi slope 0.04 / burst 0.10）＝**cap 拘束下では raw の効きが slope 倍に潰れる**。');
+  log('  ∴「cap 前の値が主因か」は成分ごとに答えが違う。**cap 到達不能＝raw（式）が主因**の決定的な印。\n');
+  log('| 成分 | frame | decay出力/回 | 目標(decay空間) | 必要 **raw** 倍率 | 必要 **cap** 倍率 | どちらのレバーか |');
+  log('|---|---|---|---|---|---|---|');
+  const by = {};
+  for (const e of CAPLOG) {
+    const comp = DECAY_SITE[e.site] ?? SITE[e.site] ?? e.site;
+    (by[comp] ??= { n:0, raw:0, cap:0, out:0, frame:e.frame, t:e.t });
+    const b = by[comp]; b.n++; b.raw+=e.raw; b.cap+=e.cap; b.out+=e.out;
+  }
+  let warned = false;
+  for (const [comp, b] of Object.entries(by)) {
+    const rv = R[b.t][comp], rn = R[b.t]['#'+comp]; if (!rv || !rn) continue;
+    const raw = b.raw/b.n, cap = b.cap/b.n, out = b.out/b.n;
+    const chk = mirror(b.frame, raw, cap);
+    if (Math.abs(chk-out)/out > 0.02) { warned = true; continue; }   // ミラー不一致＝この行は出さない
+    // ★後段係数の正規化: `_decay` の出力と「実際に dmg へ入る値」は同じではない
+    //   （judg ph0 は ×judg_calib＋royAbi、burst 本体は ×calib_burst＋バーストプラス）。
+    //   k = シム最終/hit ÷ decay 出力 で割り戻し、**decay 空間の目標値**に直してから解く。
+    const k = (S[b.t][comp]/S[b.t]['#'+comp]) / out;
+    const target = (rv/rn) / k;
+    const rawX = solve(b.frame, cap, 0, raw*1e4, target, true) / raw;
+    const capReach = target <= raw;                                   // cap を上げても out は raw を超えない
+    const capX = capReach ? solve(b.frame, raw, 0, raw*1e2, target, false) / cap : null;
+    const over = target < out;
+    const verdict = over ? '（シムが過大＝下げ方向）'
+      : !capReach ? '**raw（式）でしか届かない**'
+      : capX < rawX/3 ? `**cap が主レバー**（raw の ${(rawX/capX).toFixed(0)}分の1）` : '拮抗';
+    log(`| ${NAME[comp] ?? comp}${Math.abs(k-1)>0.01?` (後段×${k.toFixed(2)})`:''} | ${b.frame} | ${fmt(out)} | ${fmt(target)} `
+      + `| ×${rawX.toFixed(2)} | ${capX?'×'+capX.toFixed(2):'**到達不能**'} | ${verdict} |`);
+  }
+  if (warned) log('\n⚠ 一部の成分で `_decay` ミラーが記録値を再現できなかった（production 側の式が変わった可能性）＝その行は省略した。');
 }
 
 // ★押下ごとの突合（C40=追加ダメ/本体 の比・C44=本体の過大 の主データ）。
