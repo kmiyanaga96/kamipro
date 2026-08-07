@@ -7,7 +7,7 @@
 > **完了条件**: M3〜M6 を含む rollup（`simulation/sim05/analysis/quantitative_analysis.md`）に吸収された時点でクローズ
 <!-- doc_refs:ignore-end -->
 > **状態**: 進行中（trial は M2 の1本のみ＝分散・決定性の議論はできない）
-> 作成 2026-08-06 ／ 関連: C24 / C30 / C38 / C40 / C41 / C42 / C44 / C45 / C46・[simulation/sim05/README.md](../../README.md) §4.8
+> 作成 2026-08-06 ／ 関連: C24 / C25 / C30 / C38 / C40 / C41 / C42 / C44 / C45 / C46 / **C47 / C48 / C49**・[simulation/sim05/README.md](../../README.md) §4.8
 >
 > **入力**: [simulation/sim05/data/trial01.md](../../data/trial01.md)（実機原本）／[simulation/sim05/data/configC_cache_20260803.json](../../data/configC_cache_20260803.json)（config 台帳）
 > **出力**: C40 / C42 / C44 の更新＋**C47（アリアン①の同値モデル）/ C48（judg ph2 の三段攻撃）**の起票（[CALIBRATION_ANALYSIS.md](../../../../CALIBRATION_ANALYSIS.md) §4）／統合は [simulation/sim05/analysis/integrated_analysis.md](../integrated_analysis.md)
