@@ -200,14 +200,13 @@ T3
 ---
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 7）
+## この md を参照している文書（現役層 6）
 
 - [simulation/sim05/analysis/PROVISIONAL_ANALYSIS.md](../analysis/PROVISIONAL_ANALYSIS.md)
 - [simulation/sim05/analysis/m1_history_replay.md](../analysis/m1_history_replay.md)
 - [simulation/sim05/analysis/per_trial/pre-trial_quali.md](../analysis/per_trial/pre-trial_quali.md)
 - [simulation/sim05/analysis/per_trial/pre-trial_quant.md](../analysis/per_trial/pre-trial_quant.md)
 - [simulation/sim05/data/configC_gear_panel.md](./configC_gear_panel.md)
-- [tools/README.md](../../../tools/README.md)
 - [workspace/HANDOFF.md](../../../workspace/HANDOFF.md)
 
 _他に 凍結sim/archive/essays から 1 件（更新対象外）_

@@ -106,7 +106,7 @@
 ---
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 7）
+## この md を参照している文書（現役層 9）
 
 - [CALIBRATION_ANALYSIS.md](../../../CALIBRATION_ANALYSIS.md)
 - [CLAUDE.md](../../../CLAUDE.md)
@@ -114,6 +114,8 @@
 - [REPO_STANDARDS.md](../../../REPO_STANDARDS.md)
 - [gamedata/md/その他/README.md](./README.md)
 - [gamedata/md/その他/attack_phase.md](./attack_phase.md)
+- [simulation/sim05/README.md](../../../simulation/sim05/README.md)
+- [simulation/sim05/analysis/integrated_analysis.md](../../../simulation/sim05/analysis/integrated_analysis.md)
 - [simulation/sim05/data/configC_gear_panel.md](../../../simulation/sim05/data/configC_gear_panel.md)
 
 _他に 凍結sim/archive/essays から 3 件（更新対象外）_

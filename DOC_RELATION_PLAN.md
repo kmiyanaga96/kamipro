@@ -178,11 +178,10 @@ REPO_STANDARDS §4 は一次情報を「**本文は書き換えない**」、§2
 | 2026-08-05 | C44 の残ゲートを更新 | CLAUDE.md 較正ステータス／workspace/HANDOFF.md を同時更新。sim05 README は影響なしと確認 |
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 4）
+## この md を参照している文書（現役層 3）
 
 - [CLAUDE.md](./CLAUDE.md)
 - [REPO_STANDARDS.md](./REPO_STANDARDS.md)
-- [workspace/HANDOFF.md](./workspace/HANDOFF.md)
 - [workspace/TODO.md](./workspace/TODO.md)
 <!-- doc_refs:end -->
 ```

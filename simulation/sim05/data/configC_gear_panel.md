@@ -161,7 +161,7 @@ proper との差は全キャラで上振れ（+2.7%〜+5.6%）＝装備強化の
 ---
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 9）
+## この md を参照している文書（現役層 10）
 
 - [CALIBRATION_ANALYSIS.md](../../../CALIBRATION_ANALYSIS.md)
 - [DOC_RELATION_PLAN.md](../../../DOC_RELATION_PLAN.md)
@@ -169,6 +169,7 @@ proper との差は全キャラで上振れ（+2.7%〜+5.6%）＝装備強化の
 - [simulation/sim05/analysis/per_trial/pre-trial_quant.md](../analysis/per_trial/pre-trial_quant.md)
 - [simulation/sim05/data/pre-trial.md](./pre-trial.md)
 - [simulation/sim05/data/record_skeleton.md](./record_skeleton.md)
+- [simulation/sim05/data/trial01.md](./trial01.md)
 - [tools/README.md](../../../tools/README.md)
 - [workspace/HANDOFF.md](../../../workspace/HANDOFF.md)
 - [workspace/TODO.md](../../../workspace/TODO.md)
