@@ -257,6 +257,7 @@ npm run preview    # dist を http 配信 → ブラウザで探索/中断/UI �
 | **C42** | 同ターン発動回数の上限が実機より厳しい（M2 で `alone`3・`legend`3 が確定・残りは `holy`） | 実機 M5 |
 | **C47** | シムがアリアンの①バースト追加ダメージと②1アシ追撃を**同一値**で加算（実機は ① が ② の 5.71倍） | C40 と同時 |
 | **C48** | judg ph2 の通常攻撃が **1ヒット**（実機は三段攻撃＝3ヒット）。C46/C24 と同根 | C24/C46 と同時 |
+| **C50** | 幻獣の加護（`weapon_amp`）を**全ウェポンスキルに一律適用**（一次情報では対象スキルが限定されうる）。configC は `weaponAmp=1.0`＝**全 GEAR 枠が ×2.0** | カタスの加護テキスト原文（`gamedata/md/幻獣/catas.md` §1.2）。⚠golden 非影響 |
 | **C49** | 急所枠がシムは**期待値**・実機は**確定発動**。⚠**有利属性走からは同定不能**（表示が二値・実効倍率は加算で可変） | 非有利属性走・**低優先**（cap 拘束で raw の効きが 1/25） |
 | **C43** | アビ上限超過ペナルティが「硬い剪定」（実機は超えられる） | 宿儺固有・後ろ倒し可 |
 | **C3 / C5** | 追撃 cap が過小（2026-08-03 に主題から降格・寄与 1.3%） | C40 と同時 |
@@ -289,13 +290,14 @@ npm run preview    # dist を http 配信 → ブラウザで探索/中断/UI �
 
 | 日付 | 変更点 | 波及確認 |
 |---|---|---|
+| 2026-08-07 | 較正ステータス索引に **C50** を追加（加護の一律適用）。契機＝ユーザー申告「**sim05 はメイン・サポート幻獣ともにカタス**」 | **★申告の内容自体は既にシムへ入っていた**（台帳 GEAR の逆算＝9枠一律 ×10/9＋assault +2.00 で裏取り／E2 bit 一致）＝**再計算・再fit なし**。欠けていたのは**幻獣枠の記録**で、`gamedata/md/幻獣/catas.md` 新設（§1 未受領）・`record_skeleton.md` §0 に幻獣枠を追加・`config_c.mjs` のバナーに出力を追加して塞いだ。golden 3/3 不変 |
 | 2026-08-06 | 較正ステータス索引に **C49** を追加（急所枠の期待値モデル） | 根拠＝`gamedata/md/その他/damage_frames.md` ⑧⑨（一次情報）と `src/constants.js` の突合。**会心はズレていない**ことも確認。sim05 README §4.3 の「非会心・非急所アンカー」原則は同日 retire |
 | 2026-08-06 | 開発ルール §5 の**肯定側の実例を訂正**（「`calib_na` は転移していた」→ヒット多重度の誤読＝C48）。較正ステータス索引に **C47 / C48** を追加し C40/C42/C44 の一行要約を M2 の結果へ更新 | 状態と根拠の正は CALIBRATION_ANALYSIS の Cx 行（本節は索引）。golden 3/3 不変（`src/`・`gamedata/js/` 未変更）。統合は `simulation/sim05/analysis/integrated_analysis.md` |
 | 2026-08-05 | 本文内の変更経緯・重複説明を整理（28,985→19,819字）。較正ステータスを索引化・ドキュメント体系を表へ | **Git ワークフロー節が2世代前の golden 値を持っていた**のを検出し「検証方法」節への参照へ一本化。仕様16項目は全て健在を差分確認 |
 | 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=規定・台帳・計画） | 参照関係は `npm run doc:check` がグリーン |
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 18）
+## この md を参照している文書（現役層 19）
 
 - [CALIBRATION_ANALYSIS.md](./CALIBRATION_ANALYSIS.md)
 - [DOC_RELATION_PLAN.md](./DOC_RELATION_PLAN.md)
@@ -304,6 +306,7 @@ npm run preview    # dist を http 配信 → ブラウザで探索/中断/UI �
 - [PHASE8_PLAN.md](./PHASE8_PLAN.md)
 - [REPO_STANDARDS.md](./REPO_STANDARDS.md)
 - [ROADMAP.md](./ROADMAP.md)
+- [gamedata/md/幻獣/catas.md](./gamedata/md/幻獣/catas.md)
 - [gamedata/md/幻獣/rasiel.md](./gamedata/md/幻獣/rasiel.md)
 - [gamedata/md/神姫/README.md](./gamedata/md/神姫/README.md)
 - [gamedata/md/英霊/edison.md](./gamedata/md/英霊/edison.md)
@@ -316,5 +319,5 @@ npm run preview    # dist を http 配信 → ブラウザで探索/中断/UI �
 - [workspace/HANDOFF.md](./workspace/HANDOFF.md)
 - [workspace/TODO.md](./workspace/TODO.md)
 
-_他に 凍結sim/archive/essays から 32 件（更新対象外）_
+_他に 凍結sim/archive/essays から 33 件（更新対象外）_
 <!-- doc_refs:end -->

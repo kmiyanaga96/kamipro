@@ -33,6 +33,12 @@ export const CONFIG_C_LEDGER = '/home/user/kamipro/simulation/sim05/data/configC
 // 台帳の敵（`_configSig` は def/HP/barrier/abilCap の**数値**は持つが敵キーは持たないため定数で保持する）。
 export const CONFIG_C_ENEMY = 'ryomen_sukuna';
 
+// 台帳の**幻獣枠**（`_configSig` は幻獣キーを持たず、畳んだ結果の GEAR しか持たないため定数で保持する）。
+// ⚠ ∴ **GEAR を台帳から読んでいる限り再適用は不要**（二重計上になる）。ここに置くのは provenance のため。
+// 出所＝ユーザー申告 2026-08-07 ＋ 台帳 GEAR の逆算（proper v1→v2 が 9枠一律 ×10/9＝加護 0.8→1.0、
+// assault のみ +2.00＝カタスの `box:{assault:1.0}` ×2 に厳密一致）。検算は `gamedata/md/幻獣/catas.md` §2.3。
+export const CONFIG_C_SUMMONS = { main: 'catas', support: 'catas', sub: '未記録（要 configC_slot.json）' };
+
 // 英霊武器（レス・ボナパルト）の設定。`applyGear` が UI 側で立てる値で `_configSig` には入らない
 // （sig が持つのは edison_burst_extra_* のみ）＝ここで明示する。
 // ⚠ `betaia_cap` は **C41 の対象そのもの**（過小の疑い）。値を動かすときは台帳（CALIBRATION_ANALYSIS C41）と同時に。
@@ -125,5 +131,6 @@ export function configBanner(cfg){
   const a = cfg.atkScale != null ? ` ATK×${cfg.atkScale.toFixed(2)}` : '';
   const e = cfg.ledgerEnemy ? cfg.enemy : `${cfg.enemy}（★台帳と別の敵＝敵パラメータは registry 値）`;
   return `config=${CONFIG_C_LEDGER.split('/').pop()} / ${cfg.hero}+[${cfg.kami}] / subs=[${cfg.subs}] / `
+       + `幻獣=main:${CONFIG_C_SUMMONS.main}+support:${CONFIG_C_SUMMONS.support}（GEAR に畳み込み済） / `
        + `敵=${e} abilCap=${cfg.abilCap} / GEAR burst_cap=${cfg.gear.burst_cap}${a} / override=${JSON.stringify(cfg.override)}`;
 }

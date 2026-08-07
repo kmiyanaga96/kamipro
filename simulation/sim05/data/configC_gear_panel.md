@@ -31,6 +31,28 @@
 > **`configC_cache_20260803.json` の `_configSig` から読む**ようにした（ハードコード廃止・E2 bit 一致で検証済み）。
 > ⚠ **他のハーネスは未修正**（`exp_t1_abilcap_sweep.mjs` 等が同じ最古 GEAR を持つ＝出した数値は再取得が必要）。
 >
+> ### ⚠ 冒頭注記3（2026-08-07・**幻獣枠がどこにも記録されていなかった**）
+> **configC の幻獣は メイン＝カタス／サポート＝カタス**（ユーザー申告 2026-08-07）。
+> 本書 §1 の「（幻獣=freyja_christmas / artemis）」は**サブ神姫の誤記**（冒頭注記1 で訂正済）であり、
+> **幻獣枠は本書にも受領キャッシュにも一度も書かれていなかった**（`_configSig` は幻獣キーを持たず、
+> **畳んだ結果の GEAR しか持たない**）。
+>
+> **✅ 数値は既に正しい**（＝再計算は不要）。台帳 GEAR から逆算して申告と一致することを検証した:
+>
+> | 検算 | 結果 |
+> |---|---|
+> | proper v1 → v2 の枠別比 | **assault と elem を除く9枠が厳密に ×10/9** ＝ `(1+weaponAmp)` が **1.8 → 2.0**（加護 0.8→**1.0**＝カタス 0.50×2） |
+> | assault の残差 | `3.204×10/9 = 3.56` に対し実際 **5.56** ＝ **+2.00** ＝ カタスの攻撃枠 `box:{assault:1.0}` **×2体**に厳密一致 |
+>
+> ⇒ **§2.0 の proper v2 は カタス メイン＋サポートを含んだ値**。`tools/lib/config_c.mjs` はこの GEAR を
+> そのまま適用しているので、**pre-trial / trial01 の分析数値はすべて有効**（E2 bit 一致で再確認済み）。
+> 寄与の実測（記録ルート10T）＝**幻獣なしとの比 ×1.52**／サポート加護が乗らない場合 **×0.83**。全表は
+> [gamedata/md/幻獣/catas.md](../../../gamedata/md/幻獣/catas.md) §2.3。
+>
+> **⚠ 残る穴**: ①**カタスの加護テキスト原文が未受領**＝効果量UPの対象スキルが限定されるかが不明（**C50**）。
+> ②**サポート幻獣の加護が全量スタックする**というのはシムの前提であって実機で確認していない（catas.md §1.3）。
+> **∴ 今後の走は「幻獣枠（メイン/サポート/サブ5）」を記録項目に含める**（`record_skeleton.md` §0 に追加した）。
+>
 > ### 受領キャッシュ（2026-08-03・`configC_cache_20260803.json`）
 > UI からエクスポートした結果キャッシュ。`_configSig` キーに **GEAR / サブ枠 `[metatron,artemis]` /
 > パーティ順 `[hecate,tetra,elaine,arianrhod]` / 敵（def20・HP9.8億・barrier・abilCap19）** が入っており、
@@ -161,10 +183,11 @@ proper との差は全キャラで上振れ（+2.7%〜+5.6%）＝装備強化の
 ---
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 10）
+## この md を参照している文書（現役層 11）
 
 - [CALIBRATION_ANALYSIS.md](../../../CALIBRATION_ANALYSIS.md)
 - [DOC_RELATION_PLAN.md](../../../DOC_RELATION_PLAN.md)
+- [gamedata/md/幻獣/catas.md](../../../gamedata/md/幻獣/catas.md)
 - [simulation/sim05/README.md](../README.md)
 - [simulation/sim05/analysis/per_trial/pre-trial_quant.md](../analysis/per_trial/pre-trial_quant.md)
 - [simulation/sim05/data/pre-trial.md](./pre-trial.md)

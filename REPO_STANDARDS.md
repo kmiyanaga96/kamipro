@@ -31,7 +31,7 @@
 | `gamedata/md/` | ゲーム側データの一次情報（神姫/英霊/幻獣/敵/その他） | [gamedata/md/その他/damage_frames.md](gamedata/md/その他/damage_frames.md)・[gamedata/md/敵/cath_palug.md](gamedata/md/敵/cath_palug.md) |
 | `gamedata/md/敵/` | 敵DBの intake（一次情報 md → `ENEMY_REGISTRY` へ蒸留） | cath_palug.md |
 | `simulation/simNN/` | 統計的較正の試行単位（data=一次情報 / analysis=2層構造） | sim03・sim04 |
-| `essays/` | 読み物（開発に拘束力なし） | ENGINE_CHRONICLE.md |
+| `essays/` | 読み物（開発に拘束力なし） | essays/1_ENGINE_CHRONICLE.md |
 | `archive/` | **クローズ済みの歴史台帳**（内容は書き換えない・現状の一次情報ではない） | PHASE7_ML_PLAN.md |
 | `src/`・`test/` | エンジン・UI・golden | — |
 

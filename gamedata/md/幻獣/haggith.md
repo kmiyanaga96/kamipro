@@ -39,7 +39,8 @@
 ---
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 1）
+## この md を参照している文書（現役層 2）
 
+- [CALIBRATION_ANALYSIS.md](../../../CALIBRATION_ANALYSIS.md)
 - [gamedata/md/幻獣/README.md](./README.md)
 <!-- doc_refs:end -->
