@@ -114,7 +114,7 @@
 - [REPO_STANDARDS.md](../../../REPO_STANDARDS.md)
 - [gamedata/md/その他/README.md](./README.md)
 - [gamedata/md/その他/attack_phase.md](./attack_phase.md)
-- [gamedata/md/幻獣/catas.md](../幻獣/catas.md)
+- [gamedata/md/幻獣/catastrophia_light.md](../幻獣/catastrophia_light.md)
 - [simulation/sim05/README.md](../../../simulation/sim05/README.md)
 - [simulation/sim05/analysis/integrated_analysis.md](../../../simulation/sim05/analysis/integrated_analysis.md)
 - [simulation/sim05/data/configC_gear_panel.md](../../../simulation/sim05/data/configC_gear_panel.md)

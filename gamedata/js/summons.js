@@ -9,9 +9,14 @@
 // ⚠ 召喚攻撃（onSummon）は未実装（Phase 6）。召喚時のダメージ/バフは現状シムに乗らない＝md §2 に「未モデル化」と明記すること。
 const SUMMON_REGISTRY = {
   shugo: { jp:'守護', atk:3375, hp:990, elem:'light', mainEffect:{ weapon_amp:0.40 } },
-  // カタス: ★**configC（sim05 の較正編成）はメイン・サポートともにカタス**＝加護 1.0 / assault +2.00 が
-  //   台帳 GEAR に畳み込み済（検算 `gamedata/md/幻獣/catas.md` §2.3）。⚠ `atk`/`hp` は placeholder（一次情報未受領）。
-  catas: { jp:'カタス', atk:0, hp:0, elem:'light', mainEffect:{ weapon_amp:0.50, box:{assault:1.0} } },
+  // カタス（正式名 **光天獄カタストロフィア**・一次情報 `gamedata/md/幻獣/catastrophia_light.md`・2026-08-07 受領）。
+  //   ⚠ registry キーは `catas` のまま据え置く（保存済み編成スロットが参照しているため）。
+  //   ★**configC（sim05 の較正編成）はメイン・サポートともにカタス**＝加護 1.0 / assault +2.00 が台帳 GEAR に畳み込み済（§2.3）。
+  //   ⚠ **加護の原文は「装備中のスキル[レイ][シャイン][ルミナ][セイクリッド]の効果量50%UP」＝対象スキル限定**だが、
+  //     `applyGear` は全ウェポンスキルへ一律に掛けている＝**C50**（4名がどの GEAR 枠に対応するかが未確定）。
+  catas: { jp:'カタス', atk:4500, hp:900, elem:'light',
+           mainEffect:{ weapon_amp:0.50, box:{assault:1.0} },   // ピュアイノセント: スキル効果量50%UP ＋ 光属性キャラの攻撃100%UP
+           subEffect: { box:{elem:0.30} } },                    // 神光の抱擁: 光属性攻撃30%UP（②属性枠・無条件）
   oni:   { jp:'鬼',   atk:0, hp:0, elem:'dark',  mainEffect:{ weapon_amp:0.50, box:{assault:1.0, spec:0.10} } },
 
   // ── configC 向け新規（2026-07-31 登録・一次情報 gamedata/md/幻獣/）──

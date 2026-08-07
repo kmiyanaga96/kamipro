@@ -36,7 +36,7 @@ export const CONFIG_C_ENEMY = 'ryomen_sukuna';
 // 台帳の**幻獣枠**（`_configSig` は幻獣キーを持たず、畳んだ結果の GEAR しか持たないため定数で保持する）。
 // ⚠ ∴ **GEAR を台帳から読んでいる限り再適用は不要**（二重計上になる）。ここに置くのは provenance のため。
 // 出所＝ユーザー申告 2026-08-07 ＋ 台帳 GEAR の逆算（proper v1→v2 が 9枠一律 ×10/9＝加護 0.8→1.0、
-// assault のみ +2.00＝カタスの `box:{assault:1.0}` ×2 に厳密一致）。検算は `gamedata/md/幻獣/catas.md` §2.3。
+// assault のみ +2.00＝カタスの `box:{assault:1.0}` ×2 に厳密一致）。検算は `gamedata/md/幻獣/catastrophia_light.md` §2.3。
 export const CONFIG_C_SUMMONS = { main: 'catas', support: 'catas', sub: '未記録（要 configC_slot.json）' };
 
 // 英霊武器（レス・ボナパルト）の設定。`applyGear` が UI 側で立てる値で `_configSig` には入らない
