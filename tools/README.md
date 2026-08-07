@@ -78,6 +78,7 @@ loadConfigC({ enemy:'walpurgis_loki', atkScale:1.10, abilCap:null });  // 実験
 | `search_lever_scan.mjs` / `search_lever_verify.mjs` | 較正レバー候補の proxy 掃引 → full 検証（C17） |
 | `search_gear_probe.mjs` | ギア別の較正適応を確認（C15 §6.10） |
 | `c27_refine_probe.mjs` | C27 定石リファインの上限測定・冪等/後出し検証・キャッシュ復元。⚠**C27 は 2026-07-30 に production 非経路化**（`_refineRoute` は再現性のため残置）＝本ハーネスは歴史的数値の再現用 |
+| `exp_puvoir_lever.mjs` | **M3 の設計支援**（見積り専用・production も trial も読まない）。`puvoir` 1 stack が cap 拘束成分の出力を何% 動かすかを成分別に出し、**`cap_puvoir` と `elem_puvoir` を分離するための設計行列**を示す。⚠`puvoir` は **cap +6%/stack と raw(光属性攻撃) +15%/stack の両方**を持つ＝純粋な cap レバーではない。⚠ 入力は **trial01 の `--cap-probe` 実測値をハードコード**＝**config が変わったら取り直す**（E10 の例外＝見積り専用のため許容・冒頭に明記） |
 | `ml_fit_static{,_v2}.mjs` | Phase 7 静的スコアML化 PoC（`npm run poc:ml`・**クローズ済だが再開用に温存**） |
 
 ## 2. 探索品質の実験ハーネス（2026-07-28 追加）
@@ -147,6 +148,7 @@ loadConfigC({ enemy:'walpurgis_loki', atkScale:1.10, abilCap:null });  // 実験
 
 | 日付 | 変更点 | 波及確認 |
 |---|---|---|
+| 2026-08-06 | `exp_puvoir_lever.mjs` を追加（M3 の設計支援・見積り専用） | `puvoir` が cap 専用でないこと（`elem_puvoir` +15%）を一次情報で確認したうえでの分離設計。trial01 の holy 8ヒットから**ヒット間 CV 1.04%** を実測し、効果 3.11% が約10σで見えることを確認 |
 | 2026-08-06 | **`--lever` を追加**（必要 raw 倍率 / cap 倍率を成分別に解く） | trial01 で **raw 主因 63.9% / cap 主因 31.4%** と分割でき、C25 に機構レベルの説明がついた。⚠ 初版は後段係数（`judg_calib`/`calib_burst`）の割り戻しを忘れて judg ph0 を「×1.0＝一致」と誤表示＝同日修正 |
 | 2026-08-06 | `--def` の **no-op バグを修正**（`recalcGearK` 未実行）＋出力に **gross / net / 相殺率**を追加 | ⚠ バグにより「def を動かしても比が動かない」という**誤観測**を trial01_quant §2 に書いていた＝**訂正済**。正しい掃引＝def 5/10/20/40 でシム T1 は 325.7M/256.2M/221.3M/189.0M（**1/def ではなく cap が大半を吸収**）。成分の数値は不変 |
 | 2026-08-06 | `calib_replay_compare.mjs` を **trial 汎用化**（`--src` / 列レイアウト自動解決 / 敵・ATK を md から / 台帳駆動 config＋E2 / ミッドターン撃破対応）＋ `--per-press` `--cap-probe` `--def` `--selftest` を追加 | **pre-trial の全数値がビット一致で再現**することを確認（T1 シム 380,681,217）。`--selftest` が分解実行と `greedyTakeTurn` の一致を検証。golden 3/3 不変（production 非改変） |
