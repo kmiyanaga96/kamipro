@@ -9,6 +9,8 @@
 // ⚠ 召喚攻撃（onSummon）は未実装（Phase 6）。召喚時のダメージ/バフは現状シムに乗らない＝md §2 に「未モデル化」と明記すること。
 const SUMMON_REGISTRY = {
   shugo: { jp:'守護', atk:3375, hp:990, elem:'light', mainEffect:{ weapon_amp:0.40 } },
+  // カタス: ★**configC（sim05 の較正編成）はメイン・サポートともにカタス**＝加護 1.0 / assault +2.00 が
+  //   台帳 GEAR に畳み込み済（検算 `gamedata/md/幻獣/catas.md` §2.3）。⚠ `atk`/`hp` は placeholder（一次情報未受領）。
   catas: { jp:'カタス', atk:0, hp:0, elem:'light', mainEffect:{ weapon_amp:0.50, box:{assault:1.0} } },
   oni:   { jp:'鬼',   atk:0, hp:0, elem:'dark',  mainEffect:{ weapon_amp:0.50, box:{assault:1.0, spec:0.10} } },
 

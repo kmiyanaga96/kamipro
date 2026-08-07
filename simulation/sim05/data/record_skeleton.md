@@ -36,6 +36,10 @@
   <!-- 最終検証 G4.9 で両面宿儺を使う場合のみ `ryomen_sukuna` と書き、§6 も埋めること -->
 - **バースト発動ボタン**: <常時ON / **OFFで溜めた**（→ 何ターン目に ON にしたか: T__）>
   ⚠ **OFF のターンはシムに存在しない挙動（C46）**＝解析時にその旨を前提として扱う。
+- **幻獣枠**（★2026-08-07 追加・**過去 trial は未記録だった**）: メイン=____ / サポート=____ / サブ5=____
+  （**configC の期待値**: メイン=**カタス** / サポート=**カタス**。⚠ 幻獣は**加護＝全ウェポンスキル効果量**と
+  **攻撃枠**の2経路で効き、カタス2体で総ダメージ ×1.52 を担う＝**取り違えると GEAR ごと結論が変わる**。
+  ⚠ `_configSig` は幻獣キーを持たないので**キャッシュからは後から復元できない**＝ここで記録するしかない）
 - UI装備パネル一致確認（**表示ATK/HP** 5人分）: napoleon=____ / hecate=____ / tetra=____ / elaine=____ / arianrhod=____
   （**configC v3 の期待値**（ユーザー申告 2026-08-03・全員Lv95）: ATK 111143 / 86683 / 88993 / 90944 / 90045 、HP 14442 / 12784 / 12034 / 12815 / 12324）
   ⚠ **一致しなければ config が違う**＝そのまま走らせない（GEAR 取り違えで結論が反転した事故が実際にある）。
@@ -147,10 +151,11 @@
 ---
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 5）
+## この md を参照している文書（現役層 6）
 
 - [CALIBRATION_ANALYSIS.md](../../../CALIBRATION_ANALYSIS.md)
 - [simulation/sim05/analysis/per_trial/pre-trial_quali.md](../analysis/per_trial/pre-trial_quali.md)
+- [simulation/sim05/data/configC_gear_panel.md](./configC_gear_panel.md)
 - [tools/README.md](../../../tools/README.md)
 - [workspace/HANDOFF.md](../../../workspace/HANDOFF.md)
 - [workspace/TODO.md](../../../workspace/TODO.md)
