@@ -47,10 +47,11 @@
 > ⇒ **§2.0 の proper v2 は カタス メイン＋サポートを含んだ値**。`tools/lib/config_c.mjs` はこの GEAR を
 > そのまま適用しているので、**pre-trial / trial01 の分析数値はすべて有効**（E2 bit 一致で再確認済み）。
 > 寄与の実測（記録ルート10T）＝**幻獣なしとの比 ×1.52**／サポート加護が乗らない場合 **×0.83**。全表は
-> [gamedata/md/幻獣/catas.md](../../../gamedata/md/幻獣/catas.md) §2.3。
+> [gamedata/md/幻獣/catastrophia_light.md](../../../gamedata/md/幻獣/catastrophia_light.md) §2.3。
 >
-> **⚠ 残る穴**: ①**カタスの加護テキスト原文が未受領**＝効果量UPの対象スキルが限定されるかが不明（**C50**）。
-> ②**サポート幻獣の加護が全量スタックする**というのはシムの前提であって実機で確認していない（catas.md §1.3）。
+> **⚠ 残る穴**（★2026-08-07 夕に①が進展）: ①**加護テキストは受領済**＝「装備中のスキル**[レイ][シャイン][ルミナ][セイクリッド]**の
+> 効果量50%UP」＝**対象スキル限定が確定**したが、**4名がどの効果種別に対応するかが未確定**（**C50**・振れ幅 最大 −26%）。
+> ②**サポート幻獣の加護が全量スタックする**というのはシムの前提であって実機で確認していない。
 > **∴ 今後の走は「幻獣枠（メイン/サポート/サブ5）」を記録項目に含める**（`record_skeleton.md` §0 に追加した）。
 >
 > ### 受領キャッシュ（2026-08-03・`configC_cache_20260803.json`）
@@ -187,7 +188,7 @@ proper との差は全キャラで上振れ（+2.7%〜+5.6%）＝装備強化の
 
 - [CALIBRATION_ANALYSIS.md](../../../CALIBRATION_ANALYSIS.md)
 - [DOC_RELATION_PLAN.md](../../../DOC_RELATION_PLAN.md)
-- [gamedata/md/幻獣/catas.md](../../../gamedata/md/幻獣/catas.md)
+- [gamedata/md/幻獣/catastrophia_light.md](../../../gamedata/md/幻獣/catastrophia_light.md)
 - [simulation/sim05/README.md](../README.md)
 - [simulation/sim05/analysis/per_trial/pre-trial_quant.md](../analysis/per_trial/pre-trial_quant.md)
 - [simulation/sim05/data/pre-trial.md](./pre-trial.md)
