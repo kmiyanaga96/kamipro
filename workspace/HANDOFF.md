@@ -111,7 +111,7 @@ pre-trial が同一 FB 内のキャラ間比から独立に出した **`arian_ca
 
 **⑦ M3 の設計をユーザーと詰めた**（★次セッションはここから）
 - **設計はバフ別 ablation 梯子**（0本 → 特定バフ1本 → 2本 …を各バフに対して）＝**ユーザー確定**。
-  Claude Code が一度「全部盛り」と読み違えて反論したが**誤読**。手順と優先順位は [workspace/TODO.md](./TODO.md) の M3 節。
+  Claude Code が一度「全部盛り」と読み違えて反論したが**誤読**。手順と優先順位は **[simulation/sim05/README.md](../simulation/sim05/README.md) §4.3**（2026-08-07 に TODO から移設）。
 - **`knights`（エレイン3・青）が C40 の決定打**＝`burst_dmg_nights` +20%＝**バースト枠のみ**（`exec` は `buf.nights` push だけ＝クリーン）。
   ON/OFF を振って**追加ダメが +20% 追随するか**で本体連動 / 別枠が1対比較で決まる。
 - **`puvoir` は純粋な cap レバーではない**（⚠ Claude Code の前版の誤り）＝`cap_puvoir` +6%/stack と
@@ -251,11 +251,12 @@ npm run test:golden   # edison/raw 202,005,923・edison/cal 215,161,915・napole
 | 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=現状スナップショット） | 参照関係は `npm run doc:check` がグリーン |
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 4）
+## この md を参照している文書（現役層 5）
 
 - [CLAUDE.md](../CLAUDE.md)
 - [DOC_RELATION_PLAN.md](../DOC_RELATION_PLAN.md)
 - [REPO_STANDARDS.md](../REPO_STANDARDS.md)
+- [simulation/sim05/README.md](../simulation/sim05/README.md)
 - [workspace/TODO.md](./TODO.md)
 
 _他に 凍結sim/archive/essays から 1 件（更新対象外）_

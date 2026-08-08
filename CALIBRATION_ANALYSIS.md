@@ -181,12 +181,12 @@ HELIX後も基礎分（3倍/50万）が欠落していた。→ 差分計算を�
 - [gamedata/md/英霊/README.md](./gamedata/md/英霊/README.md)
 - [simulation/README.md](./simulation/README.md)
 - [simulation/c3_edison_followup_intake.md](./simulation/c3_edison_followup_intake.md)
+- [simulation/sim05/README.md](./simulation/sim05/README.md)
 - [simulation/sim05/analysis/PROVISIONAL_ANALYSIS.md](./simulation/sim05/analysis/PROVISIONAL_ANALYSIS.md)
 - [simulation/sim05/analysis/integrated_analysis.md](./simulation/sim05/analysis/integrated_analysis.md)
 - [simulation/sim05/analysis/per_trial/pre-trial_quant.md](./simulation/sim05/analysis/per_trial/pre-trial_quant.md)
 - [simulation/sim05/analysis/per_trial/trial01_quant.md](./simulation/sim05/analysis/per_trial/trial01_quant.md)
 - [workspace/HANDOFF.md](./workspace/HANDOFF.md)
-- [workspace/TODO.md](./workspace/TODO.md)
 
 _他に 凍結sim/archive/essays から 17 件（更新対象外）_
 <!-- doc_refs:end -->

@@ -132,7 +132,8 @@
 ---
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 1）
+## この md を参照している文書（現役層 2）
 
+- [simulation/sim05/README.md](../../README.md)
 - [simulation/sim05/analysis/integrated_analysis.md](../integrated_analysis.md)
 <!-- doc_refs:end -->

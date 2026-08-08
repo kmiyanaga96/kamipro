@@ -1,34 +1,194 @@
-# simNN — <主題>（テンプレート・sim03以降の新構造）
+# simNN — <主題>（テンプレート・sim05以降の6章構成）
 
-> **新構造（2026-07-12 ユーザー決定）**: 各simは `data/` と `analysis/` に大別。READMEや一時ファイルなど分類できないものは simNN 直下。
-> 開始: `cp -r simulation/TEMPLATE simulation/simNN` → 本READMEの<>を埋める。
+> **種別**: 較正セッション計画台帳（simNN・REPO_STANDARDS §1「実機乖離改善→simNN」）
+> **ゴール**: <この sim が達成したら何が真になるか・1〜2文>
+> **完了条件**: <archive へ移せる条件を列挙>
+> **状態**: <準備中 / 進行中（現在位置）/ クローズ>
+>
+> 作成 YYYY-MM-DD ／ 最終更新 YYYY-MM-DD
+> 関連: <Cx・関連文書>
+>
+> ⚠ **本書は「今どう進めるか」だけを持つ**。経緯は `archive/SESSION_LOG.md` と CALIBRATION_ANALYSIS の Cx 行が正。
+> 降格・retire した設計は**付録A**に畳む（現在値として引用しない）。
 
-- **主題**:
-- **較正ボス**:
-- **状態**:
+<!--
+  ■ **章立ては固定**（2026-08-07 ユーザー決定・sim05 で確立）。理由＝simNN README は
+    「今どこにいて次に何をするか」を新セッションが1本で把握するための文書であり、
+    章が sim ごとに違うと毎回読み方を探すことになる（sim05 で実際に視認性の問題が出た）。
+      ① 主題と目的            … 何を答える sim か
+      ② sim フローと現在位置   … 依存チェーン＋メニュー進行＋役割分担（★網羅的に）
+      ③ 測定環境              … config・装備・較正ボス
+      ④ 実機走フローと測定メニュー … Mx の目的・手順・走数・順序
+      ⑤ クローズゲート         … 残ゲート・受入基準・golden 戦略
+      ⑥ 更新履歴・md 相互参照   … 末尾ブロック（REPO_STANDARDS §4.1）
+    ＋ 付録A（経緯の保全）は任意。**降格した設計を本文に残さない**ための隔離先。
+  ■ 不要な章は「該当なし」と1行書いて残す（章番号をずらさない＝他文書からの参照が壊れるため）。
+  ■ 開始: `cp -r simulation/TEMPLATE simulation/simNN` → 本 README の <> を埋める。
+  ■ フォルダ構成・分析2層構造・ワークフローの規定は **`simulation/README.md` が正**（各 sim で複製しない）。
+-->
 
-## フォルダ構成（固定）
+---
 
-| パス | 内容 | 責務の境界 |
+## 1. 主題と目的
+
+**この sim が答える問い**: <1文で>
+
+- **編成**: <英霊 / パーティ / サブ枠>
+- **主題（現在形）**: <閉じたい Cx を表で。寄与が分かっていれば併記>
+
+| ID | 一行 | 寄与 |
 |---|---|---|
-| `data/config.json` | **基本情報JSON**＝使用した編成・押し順・敵・GEAR・per-char表示ATK等をすべて記録 | 一次情報。手を加えない |
-| `data/record_skeleton.md` | **記録スケルトン（各simで唯一のテンプレ・コピー原本）**。複製して `trialNN.md` を作る | 様式定義。sim内の全trialをこれに統一 |
-| `data/trialNN.md` | **実機データ原本**（`record_skeleton.md` を複製して作成・加工せず） | 一次情報。手を加えない |
-| `analysis/per_trial/trialNN_quant.md` | **単trial定量（中間集計層）**: `trialNN.md` **1本のみ**を入力にそのtrial内の定量集計。雛形=`trialXX_quant.md` | trial横断（平均/分散/決定性/max_hp収束）は書かない→rollup。所感/統合も不可 |
-| `analysis/per_trial/trialNN_quali.md` | **単trial定性（中間集計層）**: `trialNN.md` の所感/観測を入力にそのtrialの定性整理。雛形=`trialXX_quali.md` | trial横断テーマは書かない→rollup。数値演算/統合も不可 |
-| `analysis/quantitative_analysis.md` | **定量まとめ（rollup）**: `per_trial/*_quant` **全trial**を入力に**trial横断**集計（決定性・分散・max_hp収束等） | 生trialを再オープンしない・所感/統合を書かない |
-| `analysis/qualitative_analysis.md` | **定性まとめ（rollup）**: `per_trial/*_quali` **全trial**を入力に**trial横断**テーマ整理 | 数値演算・統合を書かない |
-| `analysis/integrated_analysis.md` | **統合分析のみ**: 上記2つの**rollupのみ**に基づく統合。他は行わない | 新規の集計・新規の所感を持ち込まない（両analysisへ差し戻す） |
+|  |  |  |
 
-> **分析2層構造（コンテキスト有界化）**: `trial → per_trial/(trialNN_quant, trialNN_quali) → (quantitative, qualitative) rollup → integrated` の map-reduce。
-> **生trial（大）を読むのは per_trial 層だけ**、rollup 以降は小さい per_trial ファイルのみ読む。**trial横断分析（決定性/分散/max_hp収束）は rollup 専用**（単trialでは測れないため per_trial に置かない）。
-> **命名規則（固定）**: `trialNN.md`（原本）／`trialNN_quant.md`・`trialNN_quali.md`（per_trial・NN2桁で原本と1:1）。
+- **主題の改訂履歴**: <当初の主題から変わったなら、いつ・何を根拠に変わったかを1〜2行。詳細は付録Aへ>
+- **目的から外したもの**: <測り分け不能と判断したもの等。外した根拠を必ず書く>
 
-## ワークフロー
-1. `data/config.json` を確定（探索キャッシュexport＝GEARスナップ+dispAtk同梱を推奨）→ 実測開始前に格納。
-2. 実機試行ごとに **`data/record_skeleton.md` を複製して `data/trialNN.md`** を作成（原本・加工せず・メタヘッダ）。**トライアルの複製・push はユーザーが行う**（テンプレは record_skeleton のみ）。
-3. **per_trial（trial毎）**: 各 `trialNN.md` を入力に `analysis/per_trial/trialNN_quant.md`（数値のみ）＋ `trialNN_quali.md`（言語のみ）を作成（**1 trialずつ＝入力小**）。
-4. `analysis/quantitative_analysis.md`（rollup）: `per_trial/*_quant` 全trialを入力に**trial横断**集計（決定性/分散/max_hp収束・手法/スクリプト明記）。
-5. `analysis/qualitative_analysis.md`（rollup）: `per_trial/*_quali` 全trialを入力に**trial横断**テーマ整理。
-6. `analysis/integrated_analysis.md`: 上記2つの**rollupのみ**を入力に統合判断（Cx起票/クローズ・モデル修正可否・golden影響・次アクション）。
-7. Cx 起票は CALIBRATION_ANALYSIS.md へ、確定仕様は CLAUDE.md へ反映。
+## 2. sim フローと現在位置
+
+### 2.1 全体フロー（G ゲート）
+
+```
+[G0] <intake>            ── 状態
+[G1] <コード整備>         ── 状態
+[G2] <config 受領>        ── 状態
+  ↓
+[G4] <pre-trial / 本走>   ── 状態
+  ↓
+[G5] <override 再較正・golden 戦略>
+```
+
+### 2.2 測定メニューの進行（★現在位置はここで読む）
+
+| ID | 状態 | 何が閉じた / 閉じる | 成果物 |
+|---|---|---|---|
+| **M1** | ⏳/✅ |  |  |
+
+### 2.3 実施順と依存の原則
+
+**実施順＝`M1 → …`**。
+**原則は「カウントで閉じる → 比で閉じる → 絶対で閉じる」**（変数最小の原則）。
+⚠ 比で閉じる型は共通因子（`final_dmg`・敵 def・ギア）が約分されるため、**未確定 placeholder があっても成立する**。
+
+### 2.4 どこに何が書いてあるか（本書と他文書の役割分担）
+
+| 知りたいこと | 正はここ |
+|---|---|
+| **今どこにいて次に何をするか** | **本書 §2.2** ＋ `workspace/HANDOFF.md` |
+| **実機走の手順・記録様式** | **本書 §4** ＋ `data/record_skeleton.md` |
+| **Cx の状態と根拠** | `CALIBRATION_ANALYSIS.md` |
+| **分析の結論（統合）** | `analysis/integrated_analysis.md` |
+| **走ごとの数値** | `analysis/per_trial/trialNN_{quant,quali}.md` |
+| **config の実値** | `data/config.json`（台帳） |
+| **タスクの優先順** | `workspace/TODO.md`（**手順は持たない＝本書 §4 を指す**） |
+| **経緯・なぜそう決めたか** | `archive/SESSION_LOG.md` ／ 降格した設計は**本書 付録A** |
+
+## 3. 測定環境（config・装備・較正ボス）
+
+### 3.1 config（★走行前に必ず確認する）
+
+| 項目 | 値 / 正の所在 |
+|---|---|
+| **ENGINE_VERSION** |  |
+| **表示ATK/HP・GEAR** |  |
+| **config の実行時の正** | `data/config.json`＝ハーネスは**ここから復元し E2 bit 一致を通す**（REPO_STANDARDS §6 **E10**） |
+| **サブ枠（アシスト神姫）** |  |
+| **幻獣枠（メイン/サポート/サブ5）** | ⚠ **`_configSig` は幻獣キーを持たない**（畳んだ GEAR しか持たない）＝**走ごとに記録する**（sim05 で実際に欠落した） |
+| **敵** |  |
+
+⚠ **config の同一性担保が分析の前提条件**（sim05 では GEAR の取り違えで**結論が符号ごと反転**した）。
+
+### 3.2 未確定の placeholder（較正の前に潰すべき順）
+
+| 項目 | 暫定値 | 解消トリガ |
+|---|---|---|
+|  |  |  |
+
+### 3.3 較正ボス
+
+<なぜそのボスか＝消える変数を表で。2段構え（仕様確定用 / 最終検証用）なら両方を書く>
+
+### 3.4 実装済みの設計前提（要約）
+
+| 機構 | 状態 | 要点 |
+|---|---|---|
+|  |  |  |
+
+## 4. 実機走フローと測定メニュー
+
+> **ID 接頭辞は REPO_STANDARDS §3 に従い `Mx`**（単独測定メニュー・sim 内連番。ad-hoc な新接頭辞は発明しない）。
+> trial は**メニュー横断の通し番号**で、`trialNN.md` のメタヘッダに測定メニューID を書いて判別する。
+
+### 4.1 全走に共通する前提
+
+- **敵**: <キー・HP・def・属性・特性>
+- **記録様式は `data/record_skeleton.md` が正**（複製して `data/trialNN.md` を作る。**複製と push はユーザー**）。
+- **押した順を必ず記録**（フリー押しでよいが、順序の記録は必須要件＝無いとリプレイできず較正が成立しない）。
+
+**★記録で外してはいけない点**（取りこぼした実例があるものだけを書く）:
+
+| # | 項目 | なぜ |
+|---|---|---|
+|  |  |  |
+
+### 4.2 メニュー一覧（目的・走数）
+
+| ID | 目的（閉じる Cx） | 走らせ方の要点 | 実機コスト |
+|---|---|---|---|
+| **M1** |  |  | n走 |
+
+### 4.3 各メニューの手順
+
+<Mx ごとに「狙い / 手順 / 記録 / 読み方」の4点を書く。**手順の本体はここに置く**
+ （workspace/TODO.md に置かない＝TODO は「次に何をするか」、README は「どうやるか」）。
+ 長い補足は <details> で畳む。>
+
+#### M1 ── <一行>
+
+- **狙い**:
+- **手順**:
+- **記録**:
+- **読み方**:
+
+### 4.4 走を受領したあと（Claude Code 側の手順）
+
+1. `data/trialNN.md` として格納（**複製と push はユーザー**）。
+2. 突合ハーネスを走らせる（**config は台帳から自動復元＋E2 bit 一致**＝E10）。
+3. `analysis/per_trial/trialNN_{quant,quali}.md` を作成 → `analysis/integrated_analysis.md` を再統合 → Cx を更新。
+4. ⚠ **モデル修正は関連する測定が揃うまで着手しない**（部分修正は較正スカラに誤差を吸わせる）。
+
+## 5. クローズゲート
+
+### 5.1 残ゲート
+
+| # | 項目 | 状態 |
+|---|---|---|
+|  |  |  |
+
+### 5.2 受入基準
+
+1. **config 整合**:
+2. **成分別 fit**: ⚠ **総ダメージ一致は受入基準にしない**（過大と過小が相殺するため何も保証しない）。
+3. **golden**: §5.3 に沿って回帰基準が維持 or 意図的再fit（変動は理由つきで CLAUDE.md 台帳へ）。
+
+### 5.3 golden 戦略
+
+<この sim の変更が `test/golden.mjs` のどの fixture に効くか。再fit するなら「いつ・1回だけ」を明記>
+
+---
+
+## 付録A ── 経緯の保全（★現在値として引用しない）
+
+<降格・retire した設計をここへ畳む。本文からは削除し、本文には付録へのポインタだけを残す。>
+
+---
+
+## 更新履歴
+
+<!-- 直近5件のみ（それ以前は git log）。「波及確認」列が本体＝git が持たない情報はここだけ。 -->
+
+| 日付 | 変更点 | 波及確認 |
+|---|---|---|
+|  |  |  |
+
+<!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
+<!-- doc_refs:end -->

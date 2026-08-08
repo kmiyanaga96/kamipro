@@ -6,7 +6,7 @@
   ■ 押し順は**実機勘のフリー押しでよい**。ただし**実際に押した順の記録は必須**（無いとリプレイできず較正が成立しない）。
   ■ ★**本テンプレはキャスパリーグ（M2〜M7）を既定とする**。両面宿儺は最終検証 G4.9 のみ＝**§6 の付録**に記入する。
   ■ **測定メニュー（M2〜M7）ごとに要る項目が違う**＝§0 で ID を宣言し、§5 のメニュー別必須欄を埋めること。
-     走らせ方は [workspace/TODO.md](../../../workspace/TODO.md) 冒頭が正。
+     走らせ方（手順・走数・実施順）は [simulation/sim05/README.md](../README.md) §4 が正。
 
   ■ 記入で外してはいけない5点（すべて過去に取りこぼした実例がある）:
      ①**契晶は押下ごと**に記録する（ターン単位では C42＝同ターン発動上限の検証が割れない）。
@@ -151,9 +151,10 @@
 ---
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 6）
+## この md を参照している文書（現役層 7）
 
 - [CALIBRATION_ANALYSIS.md](../../../CALIBRATION_ANALYSIS.md)
+- [simulation/sim05/README.md](../README.md)
 - [simulation/sim05/analysis/per_trial/pre-trial_quali.md](../analysis/per_trial/pre-trial_quali.md)
 - [simulation/sim05/data/configC_gear_panel.md](./configC_gear_panel.md)
 - [tools/README.md](../../../tools/README.md)

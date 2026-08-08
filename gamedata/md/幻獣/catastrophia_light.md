@@ -138,11 +138,12 @@
 ---
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 6）
+## この md を参照している文書（現役層 7）
 
 - [CALIBRATION_ANALYSIS.md](../../../CALIBRATION_ANALYSIS.md)
 - [CLAUDE.md](../../../CLAUDE.md)
 - [gamedata/md/幻獣/README.md](./README.md)
+- [simulation/sim05/README.md](../../../simulation/sim05/README.md)
 - [simulation/sim05/data/configC_gear_panel.md](../../../simulation/sim05/data/configC_gear_panel.md)
 - [workspace/HANDOFF.md](../../../workspace/HANDOFF.md)
 - [workspace/TODO.md](../../../workspace/TODO.md)
