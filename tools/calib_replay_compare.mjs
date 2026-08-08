@@ -69,24 +69,82 @@ const COLS = (() => {
     const h = ln.split('|').slice(1, -1).map(s => s.trim());
     const at = re => h.findIndex(x => re.test(x));
     const c = { n: h.length, t: at(/^T$/), press: at(/押下#/), key: at(/key\/イベント/),
-                ph: at(/judgフェーズ/), val: at(/^値$/), comp: at(/^成分$/) };
+                ph: at(/judgフェーズ/), val: at(/^値$/), comp: at(/^成分$/), hit: at(/hit#|ヒット数/) };
     if (c.t < 0 || c.key < 0 || c.val < 0) continue;
     return c;
   }
   console.error(`★ ${TRIAL}.md に §1 押下ログのヘッダ行が見つからない`); process.exit(1);
 })();
 
-// §1 のデータ行だけを、ターン番号を持ち越しながら列挙する（ヘッダ・区切り・表外を除く）。
+// §1 のデータ行だけを、ターン番号を持ち越しながら列挙する。
+// ★**表の範囲をヘッダ行から始まる連続した `|` 行に限定する**（2026-08-07）。
+//   旧実装は md 全体を走査し「列数が COLS.n と違う行は continue」で §2/§3 の表を弾いていたため、
+//   **§1 の中でパイプを1本打ち間違えた行も黙って捨てられていた**＝転記ミスが「無かったこと」になる
+//   （記録の欠落は総ダメージが減るだけなので、突合表を見ても気付けない）。
+//   範囲を先に確定すれば「表の中の列数不一致」は**エラーにできる**。
 function* rows(){
+  const h = src.findIndex(ln => ln.startsWith('|') && /key\/イベント/.test(ln));
   let t = null;
-  for (const ln of src) {
-    if (!ln.startsWith('|')) continue;
+  for (let i = h; i < src.length; i++) {
+    const ln = src[i];
+    if (!ln.startsWith('|')) break;                       // ★表の終端＝連続した `|` 行が切れたところ
     const c = ln.split('|').slice(1, -1).map(s => s.trim());
-    if (c.length !== COLS.n || c[COLS.t] === 'T' || /^-+$/.test(c[COLS.t])) continue;
+    if (c[COLS.t] === 'T' || /^-+$/.test(c[COLS.t] ?? '')) continue;   // ヘッダ・区切り
+    if (c.length !== COLS.n) {
+      console.error(`★ ${TRIAL}.md §1 の ${i + 1} 行目が ${c.length} 列（ヘッダは ${COLS.n} 列）＝記録の取りこぼしになる`);
+      console.error(`   ${ln}`);
+      process.exit(1);
+    }
     if (c[COLS.t]) t = +c[COLS.t];
     if (!t) continue;
     yield { t, c, key: c[COLS.key], press: COLS.press >= 0 ? c[COLS.press] : '', ph: COLS.ph >= 0 ? c[COLS.ph] : '' };
   }
+}
+
+// ★成分列・ヒット数列の照合（2026-08-07）。
+//   値の帰属は下の `put(...)` が **key ごとの位置**で決めており（例: elegant は v[0]=本体 / v[1]=追加 /
+//   v[2..9]=holy 8hit / v[10]=追撃）、**成分列は書かれているのに一度も読まれていなかった**。
+//   ∴ holy を1ヒット転記し損ねると追撃が holy の8番目として黙って吸われる。ここで突き合わせて落とす。
+//   ⚠ 検証専用＝**帰属ロジックそのものは一切変えない**（数値出力は不変）。
+const LAYOUT = {                                   // key → { 成分トークン（順）, 期待値個数 }
+  holy:        { comp: ['アビリティ'],                                            n: [8] },
+  judg_ph0:    { comp: ['アビリティ'],                                            n: [10] },
+  judg_ph1:    { comp: ['バースト本体', '追加ダメージ'],                           n: [2] },
+  judg_ph2:    { comp: ['通常攻撃'],                                              n: [1, 2, 3] },   // 三段攻撃は確率
+  effond:      { comp: ['アビリティ', 'バースト本体', '追加ダメージ'],              n: [3] },
+  alone:       { comp: ['バースト本体', '追加ダメージ'],                           n: [2] },
+  consort:     { comp: ['アビリティ'],                                            n: [1, 2] },      // bc≥20 で 2hit
+  elegant:     { comp: ['バースト本体', '追加ダメージ', 'アビリティ', '追撃'],       n: [11] },
+};
+const layoutOf = (key, ph) => LAYOUT[/^judg/.test(key) ? `judg_${ph || 'ph0'}`
+                                : /elegant/.test(key) ? 'elegant'
+                                : /^effond/.test(key) ? 'effond'
+                                : /^alone/.test(key)  ? 'alone'
+                                : /^consort/.test(key) ? 'consort' : key];
+// 攻撃フェイズ（FB）行は1セルに19個の数値が入る＝最も取りこぼしやすい。
+// 並びは ナポ / ヘカテー / テトラ / アリアン / エレイン / streak の6グループで、各グループの個数は固定。
+const FB_GROUPS = [1, 2, 2, 11, 2, 1];             // アリアンだけ 本体+追加+holy8+追撃=11
+const LAYOUT_ERR = [];
+function checkFB(t, cell){
+  const g = cell.split('/').map(s => (s.match(/\d[\d,]*/g) || []).length);
+  if (g.length !== FB_GROUPS.length || g.some((n, i) => n !== FB_GROUPS[i]))
+    LAYOUT_ERR.push(`T${t} (攻撃フェイズ): 値の並びが [${g}] ＝期待 [${FB_GROUPS}]`
+                  + `（ナポ1 / ヘカテー2 / テトラ2 / アリアン11 / エレイン2 / streak1）`);
+}
+function checkLayout({ t, c, key, press, ph }, vLen){
+  const L = layoutOf(key, ph);
+  if (!L) return;                                   // 未知キーは対象外（帰属側が別途落とす）
+  const at = `T${t} #${press} ${key}${ph ? `(${ph})` : ''}`;
+  if (!L.n.includes(vLen))
+    LAYOUT_ERR.push(`${at}: 値が ${vLen} 個（期待 ${L.n.join(' or ')}）＝転記の過不足`);
+  if (COLS.comp >= 0 && c[COLS.comp]) {             // 成分列は任意記入だが、書いてあれば必ず合わせる
+    const got = c[COLS.comp].split('/').map(s => s.trim().replace(/^通常.*攻撃$/, '通常攻撃'));
+    if (got.join('/') !== L.comp.join('/'))
+      LAYOUT_ERR.push(`${at}: 成分列「${c[COLS.comp]}」が値の並び「${L.comp.join(' / ')}」と食い違う`);
+  }
+  const hitCol = COLS.hit >= 0 ? c[COLS.hit] : '';   // ヒット数列（任意記入）
+  if (/^\d+$/.test(hitCol) && +hitCol !== vLen)
+    LAYOUT_ERR.push(`${at}: ヒット数列 ${hitCol} と値の個数 ${vLen} が違う`);
 }
 
 const R = {};                       // 実機: R[t][成分]=値 / R[t]['#'+成分]=hit数
@@ -95,12 +153,14 @@ const HAS_FB = {};                  // そのターンに `(攻撃フェイズ)`
 const REAL_PRESS = {};              // 押下ごとの実機成分（--per-press 用）
 const add = (t,k,v,n=1) => { R[t][k]=(R[t][k]||0)+v; R[t]['#'+k]=(R[t]['#'+k]||0)+n; };
 
-for (const { t, c, key, press } of rows()) {
+for (const row of rows()) {
+  const { t, c, key, press, ph } = row;
   if (!R[t]) { R[t] = {}; TURNS.push(t); REAL_PRESS[t] = []; }
   const isFB = press === '(攻撃フェイズ)';
   if (isFB) HAS_FB[t] = true;
   const v = nums(c[COLS.val]);
   if (!v.length) { if (!isFB) REAL_PRESS[t].push({ press, key, comp: {} }); continue; }
+  if (isFB) checkFB(t, c[COLS.val]); else checkLayout(row, v.length);
 
   const P = {};                                     // この押下の実機成分（per-press 用）
   const put = (k, val, n=1) => { add(t, k, val, n); P[k] = (P[k]||0) + val; };
@@ -132,6 +192,15 @@ for (const { t, c, key, press } of rows()) {
   if (!isFB) REAL_PRESS[t].push({ press, key, comp: P });
 }
 TURNS.sort((a,b)=>a-b);
+
+// ★成分・ヒット数の照合結果（値の帰属より後に出す＝1回の実行で全件を見せる）。
+if (LAYOUT_ERR.length) {
+  console.error(`★ ${TRIAL}.md §1 の記録が値の並びと食い違う（${LAYOUT_ERR.length} 件）＝成分の帰属が狂うので中断する:`);
+  for (const e of LAYOUT_ERR) console.error(`   - ${e}`);
+  console.error(`   ⚠ 値の帰属は key ごとの**位置**で決まる（例: elegant は 本体 / 追加 / holy 8hit / 追撃 の 11 個）。`);
+  console.error(`   ⚠ 様式は simulation/sim05/data/record_skeleton.md §1 の「key 別 値の並び」表が正。`);
+  process.exit(1);
+}
 
 // ターン終了ブロック（DOT / 反撃 / betaia / holy）。`T1` 等の単独行から次の見出しまでを読む。
 {
