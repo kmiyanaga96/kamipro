@@ -46,7 +46,16 @@ cp -r simulation/TEMPLATE simulation/sim04   # 次の試行を開始
 > 旧構造・設計レポート5節構成の規定は git 履歴と各simのREADMEを参照。**Antigravity は 2026-07-12 にワークフロー除外済み＝全分析を Claude Code が担当**。
 
 ## データ成型の原則（再利用性）
-- **生データ（`data/trialNN.md`・`simNN/data/config.json`）は不可侵**: 実機測定・設定の原本。verbatim 保全（整形・解釈は analysis/ 側）。**テンプレは `simNN/data/record_skeleton.md` のみ**＝trialNN はこれを複製して作成（複製・push はユーザーが行う）。**sim内のmdフォーマットは record_skeleton に統一必須**。
+- **生データ（`data/trialNN.md`・`simNN/data/config.json`）は不可侵**: 実機測定・設定の原本。verbatim 保全（整形・解釈は analysis/ 側）。**テンプレは `simNN/data/record_skeleton.md` のみ**＝trialNN はこれを複製して作成（複製・push はユーザーが行う）。**sim内のmdフォーマットは record_skeleton に統一する**。
+  ── **★2026-08-07 改訂（ユーザー決定）: 「殴り書き intake」を例外として認める**。
+  **理由**: 12列の表を手で組むのは**ユーザー側の整形作業**であり、本原則の「整形・解釈は analysis/ 側」と矛盾していた
+  （sim05 M3 は走数が多く、転記工数が測定そのもののボトルネックになった）。
+  **運用**: ①ユーザーは**書式自由の殴り書き**を `data/trialNN.md` に置く（**原本＝不可侵はこちらに掛かる**）
+  ②Claude Code が正規化して `data/trialNN_table.md`（**派生・機械可読**）を生成し、突合ハーネスはそちらを読む
+  ③**原本は書き換えない**（正規化で解釈が入った箇所は派生側に注記する）。
+  ⚠ **書式は自由でも「何を書くか」は menu ごとに決まる**（欠けると走が丸ごと無駄になる項目がある）＝
+  必須項目は各 sim の README §4 が正。⚠ **押し順は残す**＝シムとの強制リプレイ突合に要る
+  （比・カウントで閉じる推論は実機値だけで成立するが、実機 vs シムの比較は押し順が無いと作れない）。
 - **スクショは転記する**: 画像はリポジトリ肥大化と grep 不能のため保存しない。テキスト化すると diff・フィクスチャ化・他試行比較が可能。
 - **統計で語る**: 反復試行の平均・分散・実測率を主指標に（会心RNGはアンサンブルで隔離）。序数（A vs B の符号）も反復で直接測る。
 
@@ -114,16 +123,20 @@ cp -r simulation/TEMPLATE simulation/sim04   # 次の試行を開始
 
 | 日付 | 変更点 | 波及確認 |
 |---|---|---|
+| 2026-08-07 | **「殴り書き intake」を例外として明文化**（データ成型の原則）＝原本は書式自由・機械可読化は Claude Code 側の派生ファイルで行う | 契機＝sim05 M3（走数が多く転記が測定のボトルネックになった）。**「整形・解釈は analysis/ 側」という既存原則との矛盾を解消**した形。⚠ 書式は自由でも**必須項目は menu ごとに決まる**（各 sim の README §4 が正）／**押し順は残す**（シム突合に要る） |
 | 2026-08-07 | **simNN/README.md の章立てを6章に固定**（新節）＋**試行一覧に sim05 を追加**（従来 sim04 で止まっていた） | 雛形＝`TEMPLATE/README.md` を同構成へ差し替え、`sim05/README.md` を再編して先例とした。**フォルダ構成・ワークフローの正は本書**＝TEMPLATE からは重複記述を削除しポインタ化（内容の喪失なし）。**sim01〜04 は凍結＝遡及適用しない** |
 | 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=規定・台帳） | 参照関係は `npm run doc:check` がグリーン |
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 4）
+## この md を参照している文書（現役層 7）
 
 - [CLAUDE.md](../CLAUDE.md)
 - [PHASE4_PLAN.md](../PHASE4_PLAN.md)
 - [gamedata/md/敵/README.md](../gamedata/md/敵/README.md)
 - [gamedata/md/敵/fimbulvetr.md](../gamedata/md/敵/fimbulvetr.md)
+- [simulation/sim05/README.md](./sim05/README.md)
+- [workspace/HANDOFF.md](../workspace/HANDOFF.md)
+- [workspace/TODO.md](../workspace/TODO.md)
 
 _他に 凍結sim/archive/essays から 1 件（更新対象外）_
 <!-- doc_refs:end -->
