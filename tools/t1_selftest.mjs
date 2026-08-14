@@ -388,6 +388,82 @@ console.log('\n[8] ポップアップ存在検出の探索（★変化検出が�
   check('コードが T1-DETECT-004', d3.items[0]?.code === 'T1-DETECT-004', d3.items[0]?.code);
 }
 
+// ── 9. HPバー抽出（P2-5） ───────────────────────────────────
+console.log('\n[9] HPバー抽出（★CT ドットと 100% 文字を「縦方向で避ける」）');
+{
+  const { analyzeHpBar, HpSeries, reportHp } = await import('../src/transcribe/hp_bar.js');
+  const { Diag: D } = await import('../src/transcribe/diag.js');
+
+  /**
+   * `ROIS.hpbar` の crop（**バーそのもの**）を模す。
+   * ★遮蔽物は実物どおり**縦中央**に置く: CT ドット5個 ＋ 右端の `100%` 文字。
+   *   上下の細い帯を見る実装なら、どちらにも邪魔されないはず。
+   * ⚠ 敵アイコンは入れない＝ROI で構造的に除くのが正しい（色では分離できない）。
+   */
+  function bar(pct, W = 540, H = 34) {
+    const img = makeImage(W, H, [45, 40, 50]);            // 空のトラック
+    fillRect(img, 0, 0, Math.round(W * pct), H, [205, 35, 55]);   // 塗り
+    for (let i = 0; i < 5; i++) fillRect(img, 290 + i * 26, 9, 16, 16, [150, 150, 155]);
+    fillRect(img, W - 70, 6, 64, 22, [245, 245, 245]);    // "100%" の白文字
+    return img;
+  }
+
+  const levels = [1.0, 0.99, 0.9, 0.8, 0.6, 0.4, 0.2, 0.05, 0.01, 0];
+  const res = levels.map(p => ({ p, r: analyzeHpBar(bar(p)) }));
+  check('全水準で解析に成功する', res.every(x => x.r.ok), res.find(x => !x.r.ok)?.r.reason);
+
+  const errs = res.map(x => Math.abs(x.r.fillRatio - x.p));
+  const worst = Math.max(...errs);
+  check('★塗り率が真値と 1 百分点以内で一致（CT ドット・% 文字があっても）', worst <= 0.01,
+    `最大誤差 ${(worst * 100).toFixed(2)} 百分点`);
+  check('★分母が塗りから独立している（HP を下げても 1.000 に張り付かない）',
+    res.find(x => x.p === 0.4).r.fillRatio < 0.5,
+    `pct=0.4 → ${res.find(x => x.p === 0.4).r.fillRatio.toFixed(3)}`);
+  check('HP 0 は 0 と読む', res.find(x => x.p === 0).r.fillRatio === 0);
+  check('★画面の整数%表示より細かい分解能が出る（誤差 < 1%）', worst < 0.01,
+    `${(worst * 100).toFixed(2)} 百分点`);
+  check('生プロファイルを必ず返す（外していても次の一手を決められる）',
+    Array.isArray(res[0].r.colProfile) && res[0].r.colProfile.length > 0);
+
+  // ★正解ラベル無しの健全性検査＝単調減少（敵HPは戦闘中に増えない）
+  const ser = new HpSeries();
+  [1.0, 0.9, 0.9, 0.7, 0.5].forEach((v, i) => ser.push(i, v));
+  check('単調減少なら monotonic=true', ser.summary().monotonic);
+  check('減少量が記録される', ser.summary().drop === 0.5, `drop=${ser.summary().drop}`);
+  const bad = new HpSeries();
+  [1.0, 0.6, 0.95, 0.5].forEach((v, i) => bad.push(i, v));
+  check('★増加したら検出される（抽出が壊れている合図）', !bad.summary().monotonic,
+    JSON.stringify(bad.summary().violationSample));
+
+  const d4 = new D('T1', 'test');
+  reportHp(d4, res[0].r, bad);
+  check('単調性違反は WARN で知らせる', d4.summary().WARN >= 1, JSON.stringify(d4.summary()));
+  check('コードが T1-ROI-005', d4.items.some(i => i.code === 'T1-ROI-005'),
+    d4.items.map(i => i.code).join(','));
+
+  // 解析失敗でも診断が出る
+  const d5 = new D('T1', 'test');
+  const thin = analyzeHpBar(makeImage(200, 1, [30, 30, 40]));
+  check('薄すぎる ROI は解析失敗になる', !thin.ok, thin.reason);
+  reportHp(d5, thin, null);
+  check('失敗は ERROR で知らせる', d5.summary().ERROR === 1, JSON.stringify(d5.summary()));
+  check('コードが T1-ROI-004', d5.items[0]?.code === 'T1-ROI-004', d5.items[0]?.code);
+}
+
+// ── 10. ROI 定義の健全性 ────────────────────────────────────
+console.log('\n[10] ROI 定義の健全性');
+{
+  const { ROIS, findOverlaps } = await import('../src/transcribe/rois.js');
+  check('未採寸(null)の ROI があっても重なり検査が落ちない',
+    Array.isArray(findOverlaps()), 'throw しないこと');
+  check('採寸済みの ROI はすべて 0〜1 に収まる',
+    Object.entries(ROIS).filter(([, r]) => r).every(([, r]) =>
+      r.x >= 0 && r.y >= 0 && r.x + r.w <= 1.0001 && r.y + r.h <= 1.0001),
+    JSON.stringify(Object.entries(ROIS).filter(([, r]) => r && (r.x + r.w > 1.0001))));
+  check('★hpbar は P2-5 の入力として登録されている（未採寸でもキーは在る）',
+    'hpbar' in ROIS);
+}
+
 console.log('\n' + '='.repeat(60));
 console.log(`結果: ${pass} passed / ${fail} failed`);
 if (fail) {

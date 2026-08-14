@@ -29,6 +29,15 @@ export const ROIS = {
    */
   hp: { x: 0.19299, y: 0.07529, w: 0.40796, h: 0.11249 },
 
+  /**
+   * ★**バーそのものだけ**（敵アイコン・レベル名・下部アイコンを含まない）。P2-5 の入力。
+   * ⚠ **`hp` で代用してはいけない**: 敵アイコンが赤系でバーと色分離できず、
+   *   ヒューリスティックで分けようとすると破綻する（実装時に HP 20% を 100% と誤読させた）。
+   *   **位置で解ける問題を色で解こうとしない**＝ここを人が採寸することで構造的に除く。
+   * ⏳ **未採寸**（2026-08-14 時点）。T1 ページのドラッグで採寸して差し替える。
+   */
+  hpbar: null,
+
   /** ダメージ／`TOTAL` ポップアップが出る範囲。検算③④⑦の入力。 */
   dmg: { x: 0.09382, y: 0.25332, w: 0.35511, h: 0.70682 },
 
@@ -60,7 +69,8 @@ export const ROIS = {
  * @returns {Array<{a:string,b:string,ratio:number}>} 重なり面積 / 小さいほうの面積
  */
 export function findOverlaps(rois = ROIS) {
-  const names = Object.keys(rois);
+  // ⚠ 未採寸（null）の ROI は飛ばす（`hpbar` のように後から埋める枠がある）
+  const names = Object.keys(rois).filter((k) => rois[k]);
   const out = [];
   for (let i = 0; i < names.length; i++) {
     for (let j = i + 1; j < names.length; j++) {
