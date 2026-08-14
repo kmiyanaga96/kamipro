@@ -168,6 +168,69 @@ console.log('\n[5] アスペクト比が想定外でも処理を止めない（�
   check('FATAL は立たない', diag.summary().FATAL === 0);
 }
 
+// ── 6. 右パネルのモード判定（list / detail） ────────────────
+console.log('\n[6] 右パネルのモード判定（アビリティ発動で list⇄detail を無数に行き来する）');
+{
+  const { detectPanelMode, listSlotRects } = await import('../src/transcribe/panel_mode.js');
+  const { Diag: D } = await import('../src/transcribe/diag.js');
+  const { reportPanelMode } = await import('../src/transcribe/panel_mode.js');
+
+  const RECT = { x: 0, y: 0, w: 370, h: 705 };
+
+  /** list モード: 同じ構造の帯が5つ縦に並ぶ（中身の明るさは行ごとに変える＝内容非依存を検査） */
+  function listPanel() {
+    const img = makeImage(RECT.w, RECT.h, [18, 24, 40]);
+    const slot = RECT.h / 5;
+    for (let i = 0; i < 5; i++) {
+      const top = Math.round(i * slot);
+      const tint = 10 * i;                                  // 行ごとに中身を変える
+      fillRect(img, 0, top + 4, RECT.w, 30, [40 + tint, 90 + tint, 150]);   // 名前帯
+      fillRect(img, 8, top + 38, 210, 44, [70, 150, 220 - tint]);           // HP 数値の帯
+      fillRect(img, 8, top + 88, 180, 14, [200, 180, 60]);                  // Ability の◆列
+      fillRect(img, 8, top + 108, RECT.w - 16, 22, [150, 40 + tint, 40]);   // バフ列
+    }
+    return img;
+  }
+
+  /**
+   * detail モード: 単一構造（Status / Burst 説明 / Ability 2x2）。
+   * ★このフィクスチャは**回帰ガードを兼ねる**: Ability 2×2 の行ピッチを 150px と、
+   *   list のスロット高さ 141px に**わざと近づけてある**。
+   *   単一ラグの自己相関だけで判定していた版は、これを list と誤判定した（2026-08-14）。
+   *   調和成分（L・2L・3L）まで要求することで分離している＝この検査が緩むと再発する。
+   */
+  function detailPanel() {
+    const img = makeImage(RECT.w, RECT.h, [18, 24, 40]);
+    fillRect(img, 0, 10, RECT.w, 120, [40, 90, 150]);                       // Status ブロック
+    fillRect(img, 8, 150, RECT.w - 16, 210, [120, 30, 30]);                 // Burst 効果テキスト
+    for (let r = 0; r < 2; r++) for (let c = 0; c < 2; c++)                 // Ability 2x2
+      fillRect(img, 20 + c * 180, 400 + r * 150, 150, 130, [200, 160, 70]);
+    return img;
+  }
+
+  const dl = detectPanelMode(listPanel(), RECT);
+  const dd = detectPanelMode(detailPanel(), RECT);
+  check('list を list と判定する', dl.mode === 'list', `score=${dl.score.toFixed(3)}`);
+  check('detail を detail と判定する', dd.mode === 'detail', `score=${dd.score.toFixed(3)}`);
+  check('list のほうが周期スコアが高い', dl.score > dd.score,
+    `list=${dl.score.toFixed(3)} detail=${dd.score.toFixed(3)}`);
+  if (dl.mode === 'list') {
+    check('検出周期がスロット高さ（141px）の ±15% 以内', Math.abs(dl.period - 141) <= 21,
+      `period=${dl.period}`);
+    const slots = listSlotRects(RECT, dl.period);
+    check('5キャラ分の行矩形が出る', slots.length === 5);
+    check('行矩形がパネル内に収まる', slots.at(-1).y + slots.at(-1).h <= RECT.h + 2,
+      `last=${JSON.stringify(slots.at(-1))}`);
+  }
+
+  // 判定が閾値ぎりぎりのときは WARN を出す（FATAL にはしない）
+  const diag = new D('T1', 'test');
+  reportPanelMode(diag, { mode: 'list', score: 0.36, period: 141 });
+  check('閾値ぎりぎりなら WARN（FATAL にしない）',
+    diag.summary().WARN === 1 && diag.summary().FATAL === 0, JSON.stringify(diag.summary()));
+  check('コードが T1-ROI-003', diag.items[0]?.code === 'T1-ROI-003', diag.items[0]?.code);
+}
+
 console.log('\n' + '='.repeat(60));
 console.log(`結果: ${pass} passed / ${fail} failed`);
 if (fail) {

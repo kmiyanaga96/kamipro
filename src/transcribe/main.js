@@ -5,9 +5,11 @@
 // ⚠ Claude はこの画面を見られない＝すべての結果は診断 JSON に落とす（§10.5）。
 
 import { detectCanvas, roiToPixels, pixelsToRoi, reportDetection, DEFAULTS } from './canvas_detect.js';
+import { detectPanelMode, reportPanelMode, listSlotRects, PANEL_DEFAULTS } from './panel_mode.js';
+import { ROIS } from './rois.js';
 import { Diag } from './diag.js';
 
-const VERSION = '0.3.0';
+const VERSION = '0.4.0';
 
 const $ = (id) => document.getElementById(id);
 const video = document.createElement('video');
@@ -24,6 +26,7 @@ let lastRoi = null;      // 直近にドラッグで採寸した正規化 ROI
 let lastRect = null;     // 同上の画素矩形（PNG 切り出しに使う）
 let lastDiag = null;     // 直近の診断 JSON
 let walkStats = null;    // フレーム間隔の実測結果
+let lastPanel = null;    // 右パネルのモード判定結果
 const rois = {};         // 登録済み ROI（name → 正規化座標）
 
 // ── ファイル読み込み ────────────────────────────────────────
@@ -86,17 +89,29 @@ $('grab').onclick = () => {
   lastBox = ok ? det.box : null;
   diag.stage('ROI', ok ? 1 : 0, 1);   // 完了件数を反映（「0/1 完了」という矛盾表示を避ける）
 
+  // ★右パネルのモード判定（list / detail）。
+  //   同じ画面領域が2状態を行き来するため、ROI を解釈する前に必ず通す関門（PHASE9_PLAN §4 P2 ⑮）。
+  let panel = null;
+  if (ok) {
+    panel = detectPanelMode(img, roiToPixels(det.box, ROIS.gauge));
+    reportPanelMode(diag, panel);
+    lastPanel = panel;
+  }
+
   drawOverlay();
   $('det').innerHTML = ok
     ? `<span class="ok">canvas 検出 OK</span> — box = `
       + `x:${det.box.x} y:${det.box.y} w:${det.box.w} h:${det.box.h} `
       + `/ アスペクト ${det.aspect.toFixed(3)} / 面積比 ${(det.areaRatio * 100).toFixed(1)}%`
+      + `<br>右パネル = <b>${panel.mode}</b>（周期スコア ${panel.score.toFixed(3)}`
+      + `${panel.period ? ` / 周期 ${panel.period}px` : ''}）`
     : `<span class="bad">canvas 検出 NG</span> — ${det.reason}`;
 
   finish(diag, {
     canvas: ok ? det.box : null,
     aspect: det.aspect ?? null,
     areaRatio: det.areaRatio ?? null,
+    panelMode: panel,
     frameIntervals: walkStats,
     rois: Object.keys(rois).length ? rois : null,
   }, ok);
@@ -133,6 +148,11 @@ function drawOverlay() {
       c.strokeRect(p.x, p.y, p.w, p.h);
       c.fillText(name, p.x + 4, p.y - 4);
     }
+  }
+  if (lastBox && lastPanel?.mode === 'list' && lastPanel.period) {
+    const g = roiToPixels(lastBox, ROIS.gauge);
+    c.strokeStyle = '#e08a00'; c.lineWidth = Math.max(1, view.width / 1200);
+    for (const s of listSlotRects(g, lastPanel.period)) c.strokeRect(s.x, s.y, s.w, s.h);
   }
   if (drag && drag.rect) {
     c.strokeStyle = '#e0392b'; c.lineWidth = Math.max(2, view.width / 600);
