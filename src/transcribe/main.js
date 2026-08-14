@@ -8,10 +8,11 @@ import { detectCanvas, roiToPixels, pixelsToRoi, reportDetection, DEFAULTS } fro
 import { detectPanelMode, reportPanelMode, listSlotRects, PANEL_DEFAULTS } from './panel_mode.js';
 import { roiSignature, FrameSelector, reportSelection, SELECT_DEFAULTS } from './frame_select.js';
 import { goldenFractions, PopupProbe, reportProbe, PROBE_GRID } from './popup_probe.js';
+import { analyzeHpBar, HpSeries, reportHp, HP_DEFAULTS } from './hp_bar.js';
 import { ROIS } from './rois.js';
 import { Diag } from './diag.js';
 
-const VERSION = '0.8.0';
+const VERSION = '0.9.0';
 
 const $ = (id) => document.getElementById(id);
 const video = document.createElement('video');
@@ -441,11 +442,13 @@ $('scan').onclick = async () => {
   const box = det.box;
   const dmgRect = roiToPixels(box, ROIS.dmg);
   const gaugeRect = roiToPixels(box, ROIS.gauge);
+  const hpRect = ROIS.hpbar ? roiToPixels(box, ROIS.hpbar) : null;
 
   // ROI だけを切り出す小さい canvas（フル解像度の getImageData を毎フレームやらないため）
   const mk = (r) => { const c = document.createElement('canvas'); c.width = r.w; c.height = r.h;
     return { c, x: c.getContext('2d', { willReadFrequently: true }), r }; };
   const cutDmg = mk(dmgRect), cutGauge = mk(gaugeRect);
+  const cutHp = hpRect ? mk(hpRect) : null;
   const cut = (o) => {
     o.x.drawImage(video, o.r.x, o.r.y, o.r.w, o.r.h, 0, 0, o.r.w, o.r.h);
     return o.x.getImageData(0, 0, o.r.w, o.r.h);
@@ -456,6 +459,8 @@ $('scan').onclick = async () => {
   const probe = new PopupProbe();
   const modes = { list: 0, detail: 0 };
   const transitions = [];
+  const hpSeries = new HpSeries();
+  let lastHp = null;
   let prevMode = null;
   const t0 = performance.now();
 
@@ -469,6 +474,13 @@ $('scan').onclick = async () => {
       transitions.push({ t: +m.toFixed(4), from: prevMode, to: pm.mode });
     }
     prevMode = pm.mode;
+
+    // ★P2-5: HPバーの塗り率。単調減少するはずなので、それ自体が抽出の健全性検査になる。
+    if (cutHp) {
+      const hr = analyzeHpBar(cut(cutHp));
+      if (hr.ok) { hpSeries.push(+m.toFixed(4), hr.fillRatio); lastHp = hr; }
+      else if (!lastHp) lastHp = hr;
+    }
   }, (n, elapsed) => {
     $('scanNote').textContent = `走査中… ${n} フレーム / ${elapsed.toFixed(1)}秒ぶん`;
   });
@@ -482,6 +494,11 @@ $('scan').onclick = async () => {
   diag.stage('DETECT', sum.keptFrames, sum.totalFrames);
   reportSelection(diag, sum);
   const probeBest = reportProbe(diag, probe);
+  if (cutHp) reportHp(diag, lastHp, hpSeries);
+  else diag.add('T1-ROI-004', 'ERROR', {
+    where: { roi: 'hpbar' }, expected: '`ROIS.hpbar` が採寸済であること', got: '未採寸(null)',
+    hint: 'T1 ページで hpbar をドラッグ登録し、rois.js に反映する',
+  });
 
   // ★取りこぼしの検査（v0.7.0 の失敗を二度と黙って通さない）
   if (sampledFps < 29.72 * 0.9) {
@@ -496,12 +513,20 @@ $('scan').onclick = async () => {
   $('scanNote').innerHTML = `<span class="${sampledFps >= 26 ? 'ok' : 'bad'}">`
     + `${total} フレーム / ${covered.toFixed(1)}秒 ＝ 実効 ${sampledFps.toFixed(1)} fps</span>`
     + ` / 実時間 ${wall.toFixed(0)}秒 / list ${modes.list}・detail ${modes.detail}`
-    + ` / モード遷移 ${transitions.length} 回`;
+    + ` / モード遷移 ${transitions.length} 回`
+    + (hpSeries.summary()
+      ? ` / <b>HP ${(hpSeries.summary().firstRatio * 100).toFixed(1)}% → `
+        + `${(hpSeries.summary().lastRatio * 100).toFixed(1)}%</b>`
+        + `（単調 ${hpSeries.summary().monotonic ? 'OK' : 'NG'}）`
+      : '');
 
   finish(diag, {
     sampling: { frames: total, coveredSeconds: +covered.toFixed(3), sampledFps: +sampledFps.toFixed(3),
                 wallClockSeconds: +wall.toFixed(1) },
     selection: sum,
+    // ★P2-5: HP 系列。monotonic が false なら抽出が壊れている（敵HPは戦闘中に増えない）。
+    hp: hpSeries.summary(),
+    hpProfileSample: lastHp?.colProfile ?? null,
     popupProbe: { best: probeBest, all: probe.report() },
     keptSample: sel.kept.slice(0, 60),
     panelModes: modes,
