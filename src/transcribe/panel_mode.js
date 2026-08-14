@@ -28,8 +28,19 @@
 export const PANEL_DEFAULTS = {
   /** 一覧に並ぶキャラ数。編成が5人固定である前提（ゲーム仕様）。 */
   slots: 5,
-  /** 自己相関がこの値を超えたら list と判定する。⚠ 実フレームで較正する暫定値。 */
-  listThreshold: 0.35,
+  /**
+   * 調和自己相関がこの値を超えたら list と判定する。
+   * ★実フレームで較正済（2026-08-14・`pic.mp4`）: **list 0.806 / detail 0.073**＝分離 0.733。
+   *   中点 0.44 を採る（両側の余裕を等しくする）。実測の余裕は ±0.37 ＝**桁で足りている**。
+   * ⚠ **各クラス n=1 の観測**。編成・選択キャラ・バースト説明文の長さで score は動きうる。
+   *   `warnBand` に入ったフレームは `T1-ROI-003` で可視化されるので、分布が集まったら見直す。
+   */
+  listThreshold: 0.44,
+  /**
+   * この幅に入ったら判定を WARN する（＝実測 2値の中間＝どちらとも言えない帯）。
+   * 実測分離が 0.733 あるので、±0.15 は「本来なら誰も来ない領域」。来たら異常の合図。
+   */
+  warnBand: 0.15,
   /** 探索する周期の範囲（slots からの倍率）。UI の余白ぶんズレるため幅を持たせる。 */
   periodLo: 0.80,
   periodHi: 1.20,
@@ -137,13 +148,13 @@ export function listSlotRects(rect, period, slots = PANEL_DEFAULTS.slots) {
 export function reportPanelMode(diag, det, opts = {}) {
   const o = { ...PANEL_DEFAULTS, ...opts };
   const margin = Math.abs(det.score - o.listThreshold);
-  if (margin < 0.08) {
+  if (margin < o.warnBand) {
     diag.add('T1-ROI-003', 'WARN', {
       where: { roi: 'gauge', mode: det.mode, score: det.score, period: det.period },
       expected: `list/detail の判定が閾値 ${o.listThreshold} から十分離れていること`,
       got: `score ${det.score.toFixed(3)}（差 ${margin.toFixed(3)}）`,
-      hint: '閾値の較正が要る。実フレームの score 分布を集めて listThreshold を決め直す。'
-        + '⚠ 既定値は 2026-08-14 時点の暫定値で未較正。',
+      hint: '実測では list 0.806 / detail 0.073 で分離 0.733 あった（2026-08-14・pic.mp4）。'
+        + 'この帯に入るのは異常＝ROI のズレ・別画面・遷移中フレームを疑う。',
     });
   }
   return det.mode;

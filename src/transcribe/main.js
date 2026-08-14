@@ -6,10 +6,11 @@
 
 import { detectCanvas, roiToPixels, pixelsToRoi, reportDetection, DEFAULTS } from './canvas_detect.js';
 import { detectPanelMode, reportPanelMode, listSlotRects, PANEL_DEFAULTS } from './panel_mode.js';
+import { roiSignature, FrameSelector, reportSelection, SELECT_DEFAULTS } from './frame_select.js';
 import { ROIS } from './rois.js';
 import { Diag } from './diag.js';
 
-const VERSION = '0.4.0';
+const VERSION = '0.5.0';
 
 const $ = (id) => document.getElementById(id);
 const video = document.createElement('video');
@@ -343,5 +344,100 @@ $('walk').onclick = async () => {
   finish(diag, { frameIntervals: walkStats, rois: Object.keys(rois).length ? rois : null }, true);
 
   $('walk').disabled = false;
+  seek(start);
+};
+
+
+// ── ★P2-2: 走を通しでフレーム選別する ──────────────────────
+// ダメージ ROI の変化点だけを拾い、人が見る枚数がどれだけ減るかを測る（§4 P2 の出口条件）。
+// ⚠ 閾値は未較正なので、判定だけでなく**距離の分布**を必ず診断 JSON に載せる（§10.1）。
+$('scan').onclick = async () => {
+  if (!video.videoWidth) { alert('先に録画ファイルを開いてください'); return; }
+  if (!video.requestVideoFrameCallback) {
+    $('scanNote').innerHTML = '<span class="bad">このブラウザは requestVideoFrameCallback 非対応です</span>';
+    return;
+  }
+  const secs = Math.max(3, parseFloat($('scanSec').value) || 30);
+  $('scan').disabled = true;
+  $('scanNote').textContent = `走査中…（${secs}秒ぶん）`;
+
+  const diag = new Diag('T1', VERSION);
+  diag.setInput({
+    file: $('file').files?.[0]?.name ?? '(none)',
+    resolution: `${video.videoWidth}x${video.videoHeight}`,
+    duration: video.duration,
+    scanSeconds: secs,
+  }).setConfig({ detect: DEFAULTS, select: SELECT_DEFAULTS, panel: PANEL_DEFAULTS })
+    .stage('DETECT', 0, 0);
+
+  // canvas 検出は最初の1フレームで確定させ、以降は使い回す
+  // （ブラウザは録画中にウィンドウを動かせない＝走の途中で canvas は動かない）
+  const cv = document.createElement('canvas');
+  cv.width = video.videoWidth; cv.height = video.videoHeight;
+  const cx = cv.getContext('2d', { willReadFrequently: true });
+
+  const start = video.currentTime;
+  let box = null, dmgRect = null, gaugeRect = null;
+  const sel = new FrameSelector();
+  const modes = { list: 0, detail: 0 };
+  const transitions = [];
+  let prevMode = null;
+  let n = 0;
+
+  await new Promise((resolve) => {
+    const guard = setTimeout(() => { video.pause(); resolve(); }, secs * 4000 + 20000);
+    const done = () => { clearTimeout(guard); video.pause(); resolve(); };
+    const cb = (_now, meta) => {
+      cx.drawImage(video, 0, 0);
+      const img = cx.getImageData(0, 0, cv.width, cv.height);
+
+      if (!box) {
+        const det = detectCanvas(img);
+        if (!reportDetection(diag, det)) { done(); return; }
+        box = det.box;
+        dmgRect = roiToPixels(box, ROIS.dmg);
+        gaugeRect = roiToPixels(box, ROIS.gauge);
+      }
+
+      sel.push(meta.mediaTime, roiSignature(img, dmgRect));
+
+      // 右パネルのモード遷移＝押下シグナル（§4 P2 ⑮）。何回起きたかを数える。
+      const pm = detectPanelMode(img, gaugeRect);
+      modes[pm.mode]++;
+      if (prevMode && prevMode !== pm.mode) {
+        transitions.push({ t: +meta.mediaTime.toFixed(4), from: prevMode, to: pm.mode });
+      }
+      prevMode = pm.mode;
+
+      n++;
+      if (n % 30 === 0) $('scanNote').textContent = `走査中… ${n} フレーム`;
+      if (meta.mediaTime - start >= secs) { done(); return; }
+      video.requestVideoFrameCallback(cb);
+    };
+    video.requestVideoFrameCallback(cb);
+    video.play().catch(() => done());
+  });
+
+  const sum = sel.summary();
+  diag.stage('DETECT', sum.keptFrames, sum.totalFrames);
+  reportSelection(diag, sum);
+
+  $('scanNote').innerHTML = sum.totalFrames
+    ? `<span class="${sum.meetsExitCriterion ? 'ok' : 'warn'}">`
+      + `${sum.keptFrames}/${sum.totalFrames} 採用（<b>1/${sum.reductionFactor.toFixed(1)}</b>）</span>`
+      + ` / list ${modes.list}・detail ${modes.detail} / <b>モード遷移 ${transitions.length} 回</b>`
+    : '<span class="bad">フレームが取れませんでした</span>';
+
+  finish(diag, {
+    selection: sum,
+    // 採用フレームは先頭200件だけ（診断 JSON が肥大しないように）
+    keptSample: sel.kept.slice(0, 200),
+    panelModes: modes,
+    // ★モード遷移＝押下シグナル。先頭100件。
+    panelTransitions: transitions.slice(0, 100),
+    canvas: box,
+  }, sum.totalFrames > 0);
+
+  $('scan').disabled = false;
   seek(start);
 };

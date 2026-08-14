@@ -223,12 +223,95 @@ console.log('\n[6] 右パネルのモード判定（アビリティ発動で lis
       `last=${JSON.stringify(slots.at(-1))}`);
   }
 
+  // ★実フレームで観測した score を回帰として固定する（2026-08-14・pic.mp4）
+  //   list 0.806 / detail 0.073。閾値を動かしてこの2点が誤分類されたら壊れている。
+  const { PANEL_DEFAULTS } = await import('../src/transcribe/panel_mode.js');
+  check('実測 list score 0.806 は list 側', 0.806 >= PANEL_DEFAULTS.listThreshold);
+  check('実測 detail score 0.073 は detail 側', 0.073 < PANEL_DEFAULTS.listThreshold);
+  check('実測2点とも WARN 帯の外（余裕がある）',
+    Math.abs(0.806 - PANEL_DEFAULTS.listThreshold) >= PANEL_DEFAULTS.warnBand
+    && Math.abs(0.073 - PANEL_DEFAULTS.listThreshold) >= PANEL_DEFAULTS.warnBand,
+    `threshold=${PANEL_DEFAULTS.listThreshold} band=${PANEL_DEFAULTS.warnBand}`);
+
   // 判定が閾値ぎりぎりのときは WARN を出す（FATAL にはしない）
   const diag = new D('T1', 'test');
-  reportPanelMode(diag, { mode: 'list', score: 0.36, period: 141 });
+  reportPanelMode(diag, { mode: 'list', score: PANEL_DEFAULTS.listThreshold + 0.01, period: 141 });
   check('閾値ぎりぎりなら WARN（FATAL にしない）',
     diag.summary().WARN === 1 && diag.summary().FATAL === 0, JSON.stringify(diag.summary()));
   check('コードが T1-ROI-003', diag.items[0]?.code === 'T1-ROI-003', diag.items[0]?.code);
+}
+
+// ── 7. フレーム選別（P2-2） ─────────────────────────────────
+console.log('\n[7] フレーム選別（コマ送りを消す＝人が見る枚数を1桁減らす）');
+{
+  const { roiSignature, signatureDistance, FrameSelector, reportSelection, SELECT_DEFAULTS }
+    = await import('../src/transcribe/frame_select.js');
+  const { Diag: D } = await import('../src/transcribe/diag.js');
+
+  const RECT = { x: 0, y: 0, w: 300, h: 400 };
+
+  /** 背景アニメだけのフレーム（静止しているが画素はわずかに揺れる＝実ゲーム画面の性質） */
+  function idleFrame(seed) {
+    const img = makeImage(RECT.w, RECT.h, [30, 20, 55]);
+    // ゆっくり動く背景の明滅（±3 程度）＝ベースラインノイズ
+    const n = 3 * Math.sin(seed * 0.7);
+    fillRect(img, 0, 0, RECT.w, RECT.h, [30 + n, 20 + n, 55 + n]);
+    return img;
+  }
+  /** ダメージ数字が出たフレーム（大きな明るい塊が乗る） */
+  function popupFrame(seed) {
+    const img = idleFrame(seed);
+    fillRect(img, 40, 120, 220, 90, [235, 210, 130]);
+    return img;
+  }
+
+  const sigOf = (img) => roiSignature(img, RECT);
+
+  check('同一フレームの距離は 0', signatureDistance(sigOf(idleFrame(1)), sigOf(idleFrame(1))) === 0);
+  const idleD = signatureDistance(sigOf(idleFrame(1)), sigOf(idleFrame(2)));
+  const popD = signatureDistance(sigOf(idleFrame(2)), sigOf(popupFrame(2)));
+  check('背景の揺れだけの距離は閾値未満', idleD < SELECT_DEFAULTS.threshold, `idle=${idleD.toFixed(2)}`);
+  check('ポップアップ出現の距離は閾値以上', popD >= SELECT_DEFAULTS.threshold, `popup=${popD.toFixed(2)}`);
+  check('★ポップアップの距離は背景ノイズの5倍以上（分離できている）', popD > idleD * 5,
+    `popup=${popD.toFixed(2)} idle=${idleD.toFixed(2)}`);
+
+  // 20秒ぶん（600フレーム）に、10ヒットのバーストが2回来る走を模す。
+  // ポップアップは静止して数フレーム続く（実機の性質＝TRANSCRIPTION_DESIGN §3.2 R1）。
+  const sel = new FrameSelector();
+  const popRanges = [];
+  for (let b = 0; b < 2; b++) {
+    for (let h = 0; h < 10; h++) {
+      const start = 100 + b * 300 + h * 8;
+      popRanges.push([start, start + 6]);          // 6フレーム表示して消える
+    }
+  }
+  const inPop = (i) => popRanges.some(([a, z]) => i >= a && i < z);
+  for (let i = 0; i < 600; i++) sel.push(i / 30, sigOf(inPop(i) ? popupFrame(i) : idleFrame(i)));
+  const sum = sel.summary();
+
+  // ⚠ **出口条件（採用率 10% 以下）は実走でしか測れない**。
+  //    合成フィクスチャのイベント密度は恣意的で、ここで 10% を主張しても意味がない。
+  //    ここで固定するのは「機構が働くこと」＝静止中は捨て、変化点は拾い、削減が起きること。
+  //    §4 P2 の出口条件は実走の診断 JSON（summary.meetsExitCriterion）で判定する。
+  check('静止中のフレームは捨てられる（削減が起きる）', sum.reductionFactor >= 3,
+    `${sum.keptFrames}/${sum.totalFrames} = x${sum.reductionFactor?.toFixed(1)}`);
+  check('全ポップアップの出現を取りこぼさない',
+    popRanges.every(([a]) => sel.kept.some(k => Math.abs(k.t - a / 30) < 1e-6)),
+    `kept=${sel.kept.length}`);
+  check('出口条件の判定値が summary に入る（実走で使う）',
+    typeof sum.meetsExitCriterion === 'boolean');
+  check('★距離の分布を必ず持ち帰る（閾値較正の唯一の材料）',
+    sum.distanceQuantiles && typeof sum.distanceQuantiles.p99 === 'number',
+    JSON.stringify(sum.distanceQuantiles));
+  check('最初の1枚は基準として必ず採る', sel.kept[0]?.reason === 'first');
+
+  // 出口条件を満たさないときは WARN（FATAL にしない＝分布を持ち帰るほうが価値がある）
+  const d2 = new D('T1', 'test');
+  reportSelection(d2, { totalFrames: 100, keptFrames: 80, keptRatio: 0.8,
+    meetsExitCriterion: false, threshold: 6, distanceQuantiles: { p50: 7 } });
+  check('採用率が高すぎたら WARN（FATAL にしない）',
+    d2.summary().WARN === 1 && d2.summary().FATAL === 0, JSON.stringify(d2.summary()));
+  check('コードが T1-DETECT-002', d2.items[0]?.code === 'T1-DETECT-002', d2.items[0]?.code);
 }
 
 console.log('\n' + '='.repeat(60));

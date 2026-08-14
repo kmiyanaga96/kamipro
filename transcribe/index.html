@@ -69,6 +69,16 @@ th{background:#f0f2f5;}
     <button class="btn sec" id="walk">連続フレームの間隔を実測（3秒ぶん）</button>
     <span class="note" id="walkNote"></span>
   </div>
+  <div class="row">
+    <button class="btn" id="scan">★走を通しで選別（コマ送りを消す）</button>
+    <label>秒数</label><input type="number" id="scanSec" value="30" step="10" min="3">
+    <span class="note" id="scanNote"></span>
+  </div>
+  <div class="note">
+    ダメージ ROI の変化点だけを拾い、<b>人が見るフレーム数がどれだけ減るか</b>を測ります
+    （P2 の出口条件＝1桁減）。⚠ <b>タブを前面にしたまま</b>実行してください。
+    距離の分布も診断JSONに入るので、閾値が外れていても較正できます。
+  </div>
   <div class="note">
     間隔の実測は <b>P1 発見⑧（ポップアップの寿命）</b>と <b>VFR の飛び</b>を同時に測ります。
     結果は下の診断JSONに入ります。
