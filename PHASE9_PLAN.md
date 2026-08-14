@@ -162,7 +162,10 @@ sim05 は残り約10走（M3 4〜6 / M4 1〜2 / M5 1〜2 / M6 2）で、**C40 / 
 
 **★設計判断（P2 へ）**: **CFR 変換をしない**。当初案の「固定fps へ正規化」は、
 **再エンコードでフレームの複製/脱落を作り、重複除去（§P2）と検算を逆に汚す**。
-native フレーム＋タイムスタンプをそのまま扱う（`ffmpeg -vsync 0` パススルー）。
+native フレーム＋タイムスタンプをそのまま扱う（`ffmpeg -fps_mode passthrough`）。
+⚠ **`-vsync 0` は FFmpeg 7.1 で削除された**（`Unrecognized option 'vsync'` ＝2026-08-14 に実機で遭遇）。
+**後継は `-fps_mode passthrough`**。⚠ **無指定にしない**＝ffmpeg が VFR を埋めるために
+**フレームを複製することがあり**、ポップアップの表示継続長の測定が水増しされる。
 
 #### 撤退条件（§9.2）の照合
 
@@ -181,7 +184,9 @@ native フレーム＋タイムスタンプをそのまま扱う（`ffmpeg -vsyn
 ★**以後、静止画は「デスクトップキャプチャ」ではなく `ffmpeg` の抽出フレームで受け取る**
 （撮影タイミングの技能が不要になり、真解像度が保たれる）:
 ```
-ffmpeg -hide_banner -i "M3-1.mp4" -ss <秒> -t 2 -vsync 0 "frames\f_%03d.png"
+ffmpeg -hide_banner -i "M3-1.mp4" -ss <秒> -t 2 -fps_mode passthrough "frames\f_%03d.png"
+# 任意: -frame_pts 1 を足すとファイル名が PTS 由来になり、連続性と間隔を検算できる
+# ⚠ FFmpeg 7.1 未満は -fps_mode passthrough ではなく -vsync 0（版は ffmpeg -version で確認）
 ```
 
 #### 新発見（P2/P3 の要件に反映済み）
