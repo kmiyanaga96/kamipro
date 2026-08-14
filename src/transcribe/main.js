@@ -7,10 +7,11 @@
 import { detectCanvas, roiToPixels, pixelsToRoi, reportDetection, DEFAULTS } from './canvas_detect.js';
 import { detectPanelMode, reportPanelMode, listSlotRects, PANEL_DEFAULTS } from './panel_mode.js';
 import { roiSignature, FrameSelector, reportSelection, SELECT_DEFAULTS } from './frame_select.js';
+import { goldenFractions, PopupProbe, reportProbe, PROBE_GRID } from './popup_probe.js';
 import { ROIS } from './rois.js';
 import { Diag } from './diag.js';
 
-const VERSION = '0.6.0';
+const VERSION = '0.7.0';
 
 const $ = (id) => document.getElementById(id);
 const video = document.createElement('video');
@@ -386,6 +387,7 @@ $('scan').onclick = async () => {
   const start = video.currentTime;
   let box = null, dmgRect = null, gaugeRect = null;
   const sel = new FrameSelector();
+  const probe = new PopupProbe();   // ★存在検出の探索（変化検出の失敗を受けて追加）
   const modes = { list: 0, detail: 0 };
   const transitions = [];
   let prevMode = null;
@@ -415,6 +417,7 @@ $('scan').onclick = async () => {
       }
 
       sel.push(meta.mediaTime, roiSignature(img, dmgRect));
+      probe.push(goldenFractions(img, dmgRect));
 
       // 右パネルのモード遷移＝押下シグナル（§4 P2 ⑮）。何回起きたかを数える。
       const pm = detectPanelMode(img, gaugeRect);
@@ -438,6 +441,7 @@ $('scan').onclick = async () => {
   diag.setInput({ scannedSeconds: +scanned.toFixed(3) });
   diag.stage('DETECT', sum.keptFrames, sum.totalFrames);
   reportSelection(diag, sum);
+  const probeBest = reportProbe(diag, probe);
   if (scanned < secs * 0.9) {
     diag.add('T1-DETECT-003', 'WARN', {
       where: { requested: secs, scanned: +scanned.toFixed(3) },
@@ -456,6 +460,8 @@ $('scan').onclick = async () => {
 
   finish(diag, {
     selection: sum,
+    // ★存在検出の探索結果。どのしきい値の組が二峰に割れるかを見て P2-2 を作り直す。
+    popupProbe: { best: probeBest, all: probe.report() },
     // 採用フレームは先頭200件だけ（診断 JSON が肥大しないように）
     keptSample: sel.kept.slice(0, 200),
     panelModes: modes,

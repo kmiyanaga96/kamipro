@@ -314,6 +314,80 @@ console.log('\n[7] フレーム選別（コマ送りを消す＝人が見る枚�
   check('コードが T1-DETECT-002', d2.items[0]?.code === 'T1-DETECT-002', d2.items[0]?.code);
 }
 
+// ── 8. ポップアップ「存在」検出の探索（P2-2 やり直し） ──────
+console.log('\n[8] ポップアップ存在検出の探索（★変化検出が実走 88.1% で失敗した件の作り直し）');
+{
+  const { goldenFractions, PopupProbe, reportProbe }
+    = await import('../src/transcribe/popup_probe.js');
+  const { Diag: D } = await import('../src/transcribe/diag.js');
+
+  const RECT = { x: 0, y: 0, w: 300, h: 400 };
+
+  /**
+   * ★実走の失敗を再現するフィクスチャ:
+   *   背景は**毎フレーム大きく動く**（敵スプライト・床グリッド・光）が、金色ではない（青紫寄り）。
+   *   ∴ 変化検出は毎フレーム反応するが、存在検出は反応してはいけない。
+   */
+  function animatedBg(seed) {
+    const img = makeImage(RECT.w, RECT.h, [28, 18, 60]);
+    // 床グリッド（マゼンタ）が毎フレーム位置を変える＝大きなフレーム間差分の源
+    for (let i = 0; i < 6; i++) {
+      const y = (i * 60 + seed * 17) % RECT.h;
+      fillRect(img, 0, y, RECT.w, 6, [190, 40, 200]);
+    }
+    // 敵スプライト（明るいが青紫寄り）
+    fillRect(img, 20 + (seed * 5) % 40, 40, 120, 160, [150, 130, 210]);
+    return img;
+  }
+  /** 金色のダメージ数字が乗ったフレーム */
+  function withPopup(seed) {
+    const img = animatedBg(seed);
+    fillRect(img, 60, 180, 180, 70, [240, 215, 120]);   // 金グラデの数字帯
+    return img;
+  }
+
+  const fBg = goldenFractions(animatedBg(3), RECT);
+  const fPop = goldenFractions(withPopup(3), RECT);
+  const K = 'y190g50';
+  check('背景だけのフレームは金色画素がほぼ無い', fBg[K] < 0.02, `${(fBg[K] * 100).toFixed(2)}%`);
+  check('ポップアップありは金色画素が明確に増える', fPop[K] > fBg[K] + 0.05,
+    `bg=${(fBg[K] * 100).toFixed(2)}% pop=${(fPop[K] * 100).toFixed(2)}%`);
+
+  // ★背景が激しく動いても存在検出は揺れない（＝変化検出との決定的な違い）
+  const bgVals = [];
+  for (let i = 0; i < 20; i++) bgVals.push(goldenFractions(animatedBg(i), RECT)[K]);
+  const spread = Math.max(...bgVals) - Math.min(...bgVals);
+  check('★背景アニメが動いても存在検出の値は動かない（変化検出との違い）', spread < 0.02,
+    `振れ幅 ${(spread * 100).toFixed(2)}%`);
+
+  // 分布が2つの山に割れるか（正解ラベル無しで特徴量の良し悪しを判定する仕組み）
+  const probe = new PopupProbe();
+  for (let i = 0; i < 100; i++) probe.push(goldenFractions(i % 10 < 3 ? withPopup(i) : animatedBg(i), RECT));
+  const rep = probe.report();
+  check('二峰性の指標が算出される', typeof rep[K].bimodality === 'number');
+  check('★分布が2つの山に割れる（Fisher 分離が単峰の目安を大きく超える）',
+    rep[K].bimodality >= 5, `bimodality=${rep[K].bimodality.toFixed(3)}`);
+  check('大津法の分割点が2つの山の間に来る',
+    rep[K].otsuCut > fBg[K] && rep[K].otsuCut < fPop[K],
+    `cut=${rep[K].otsuCut?.toFixed(4)} bg=${fBg[K].toFixed(4)} pop=${fPop[K].toFixed(4)}`);
+
+  // ★指標そのものの回帰ガード: 大津法の分離度は単峰でも高く出るので採用しない
+  //   （2026-08-14 実測: 一様 0.750 / 正規 0.669 ＝ 閾値 0.5 の警告が原理的に鳴らなかった）
+  const uni = new PopupProbe({ yThr: [190], gThr: [50] });
+  for (let i = 0; i < 1000; i++) uni.push({ y190g50: i / 1000 });     // 一様＝単峰
+  const ur = uni.report()['y190g50'];
+  check('★一様分布は大津法だと高く出る（＝この指標を使ってはいけない証拠）',
+    ur.otsuSeparability > 0.6, `otsu=${ur.otsuSeparability.toFixed(3)}`);
+  check('★一様分布は Fisher 分離では低く出る（＝正しく単峰と分かる）',
+    ur.bimodality < 2.5, `bimodality=${ur.bimodality.toFixed(3)}`);
+
+  // 分離できない特徴量は WARN で知らせる（＝作り直しの合図）
+  const d3 = new D('T1', 'test');
+  reportProbe(d3, uni);
+  check('分離できない特徴量は WARN で知らせる', d3.summary().WARN === 1, JSON.stringify(d3.summary()));
+  check('コードが T1-DETECT-004', d3.items[0]?.code === 'T1-DETECT-004', d3.items[0]?.code);
+}
+
 console.log('\n' + '='.repeat(60));
 console.log(`結果: ${pass} passed / ${fail} failed`);
 if (fail) {
