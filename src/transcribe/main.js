@@ -11,7 +11,7 @@ import { goldenFractions, PopupProbe, reportProbe, PROBE_GRID } from './popup_pr
 import { ROIS } from './rois.js';
 import { Diag } from './diag.js';
 
-const VERSION = '0.7.0';
+const VERSION = '0.8.0';
 
 const $ = (id) => document.getElementById(id);
 const video = document.createElement('video');
@@ -356,18 +356,68 @@ $('walk').onclick = async () => {
 };
 
 
-// ── ★P2-2: 走を通しでフレーム選別する ──────────────────────
-// ダメージ ROI の変化点だけを拾い、人が見る枚数がどれだけ減るかを測る（§4 P2 の出口条件）。
-// ⚠ 閾値は未較正なので、判定だけでなく**距離の分布**を必ず診断 JSON に載せる（§10.1）。
+// ── ★走の通し走査（P2-2 / P2-5 の土台） ────────────────────
+//
+// ⚠ **v0.7.0 までの再生ベース走査は2つの点で壊れていた**（2026-08-14・M3-1.mp4 で実測）:
+//   ① **全フレームの約1/3しか見ていなかった**（実効 9.8〜10.6fps ／ 動画は 29.72fps）。
+//      原因は再生ではなく、**1フレームあたりの処理が 33ms に間に合っていない**こと
+//      （処理なしの間隔実測ループは 29.3fps 取れていた）。
+//   ② **同じ入力で結果が変わる**（1275 vs 1174 フレーム＝7.9% 差）。
+//      ∴ **受入基準 §9.1-3「同じ録画を2回処理したら同じ結果」に違反する**。
+//
+// ★対策: **再生ではなく seek で1フレームずつ歩く**。実時間より遅くなるが、
+//   **全フレームを漏れなく・決定的に**踏む。intake は無人実行なので速度より再現性を採る。
+// ★あわせて **ROI だけを小さい canvas へ描く**（フル 2288×1440 の getImageData は 3.3M 画素で重い）。
+
+/** 指定時刻へ seek し、実際に提示されたフレームの mediaTime を返す。 */
+function seekAndPresent(video, t) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (m) => { if (!settled) { settled = true; resolve(m); } };
+    video.requestVideoFrameCallback((_now, meta) => finish(meta.mediaTime));
+    // rVFC が発火しない環境向けの保険（currentTime で代用する）
+    const onSeeked = () => {
+      video.removeEventListener('seeked', onSeeked);
+      setTimeout(() => finish(video.currentTime), 120);
+    };
+    video.addEventListener('seeked', onSeeked);
+    try { video.currentTime = t; } catch { finish(null); }
+  });
+}
+
+/**
+ * ★決定的なフレーム走査。
+ * 歩幅は「公称フレーム間隔の少し上」から始め、**進まなかったら広げる**
+ * （VFR のスリップで次フレームが 50ms 先にいることがあるため）。
+ */
+async function walkFrames(video, startT, endT, onFrame, onProgress) {
+  const nominal = 1 / 29.72;
+  let step = nominal * 1.01;
+  let t = startT, last = -1, n = 0, stalls = 0;
+  while (t < endT && n < 20000) {
+    const m = await seekAndPresent(video, t);
+    if (m === null) break;
+    if (m >= endT) break;
+    if (m <= last) {                 // 進まなかった＝歩幅が足りない
+      if (++stalls > 12) break;      // 動画終端などで永久に進まない場合の保険
+      step *= 1.5;
+      t = last + step;
+      continue;
+    }
+    stalls = 0; step = nominal * 1.01;
+    last = m;
+    await onFrame(m);
+    n++;
+    if (n % 50 === 0) onProgress?.(n, m - startT);
+    t = m + step;
+  }
+  return n;
+}
+
 $('scan').onclick = async () => {
   if (!video.videoWidth) { alert('先に録画ファイルを開いてください'); return; }
-  if (!video.requestVideoFrameCallback) {
-    $('scanNote').innerHTML = '<span class="bad">このブラウザは requestVideoFrameCallback 非対応です</span>';
-    return;
-  }
   const secs = Math.max(3, parseFloat($('scanSec').value) || 30);
   $('scan').disabled = true;
-  $('scanNote').textContent = `走査中…（${secs}秒ぶん）`;
 
   const diag = new Diag('T1', VERSION);
   diag.setInput({
@@ -375,100 +425,89 @@ $('scan').onclick = async () => {
     resolution: `${video.videoWidth}x${video.videoHeight}`,
     duration: video.duration,
     scanSeconds: secs,
-  }).setConfig({ detect: DEFAULTS, select: SELECT_DEFAULTS, panel: PANEL_DEFAULTS })
+    method: 'seek（決定的・全フレーム）',
+  }).setConfig({ detect: DEFAULTS, select: SELECT_DEFAULTS, panel: PANEL_DEFAULTS, probe: PROBE_GRID })
     .stage('DETECT', 0, 0);
 
-  // canvas 検出は最初の1フレームで確定させ、以降は使い回す
-  // （ブラウザは録画中にウィンドウを動かせない＝走の途中で canvas は動かない）
-  const cv = document.createElement('canvas');
-  cv.width = video.videoWidth; cv.height = video.videoHeight;
-  const cx = cv.getContext('2d', { willReadFrequently: true });
-
+  // canvas は先頭1フレームで確定させて使い回す（録画中にウィンドウは動かない）
+  const full = document.createElement('canvas');
+  full.width = video.videoWidth; full.height = video.videoHeight;
+  const fctx = full.getContext('2d', { willReadFrequently: true });
   const start = video.currentTime;
-  let box = null, dmgRect = null, gaugeRect = null;
+  await seekAndPresent(video, start);
+  fctx.drawImage(video, 0, 0);
+  const det = detectCanvas(fctx.getImageData(0, 0, full.width, full.height));
+  if (!reportDetection(diag, det)) { finish(diag, { canvas: null }, false); $('scan').disabled = false; return; }
+  const box = det.box;
+  const dmgRect = roiToPixels(box, ROIS.dmg);
+  const gaugeRect = roiToPixels(box, ROIS.gauge);
+
+  // ROI だけを切り出す小さい canvas（フル解像度の getImageData を毎フレームやらないため）
+  const mk = (r) => { const c = document.createElement('canvas'); c.width = r.w; c.height = r.h;
+    return { c, x: c.getContext('2d', { willReadFrequently: true }), r }; };
+  const cutDmg = mk(dmgRect), cutGauge = mk(gaugeRect);
+  const cut = (o) => {
+    o.x.drawImage(video, o.r.x, o.r.y, o.r.w, o.r.h, 0, 0, o.r.w, o.r.h);
+    return o.x.getImageData(0, 0, o.r.w, o.r.h);
+  };
+  const local = (r) => ({ x: 0, y: 0, w: r.w, h: r.h });   // 切り出し後は原点基準
+
   const sel = new FrameSelector();
-  const probe = new PopupProbe();   // ★存在検出の探索（変化検出の失敗を受けて追加）
+  const probe = new PopupProbe();
   const modes = { list: 0, detail: 0 };
   const transitions = [];
   let prevMode = null;
-  let n = 0;
+  const t0 = performance.now();
 
-  await new Promise((resolve) => {
-    const guard = setTimeout(() => { video.pause(); resolve(); }, secs * 4000 + 20000);
-    // ⚠ 動画の残り時間が要求秒数より短いと rVFC が止まり guard まで固まる＝終端を明示的に拾う
-    //    （pic.mp4 は 9.55秒しかないので既定の 30秒指定で 140秒ハングしていた）
-    const onEnded = () => done();
-    const done = () => {
-      clearTimeout(guard);
-      video.removeEventListener('ended', onEnded);
-      video.pause(); resolve();
-    };
-    video.addEventListener('ended', onEnded);
-    const cb = (_now, meta) => {
-      cx.drawImage(video, 0, 0);
-      const img = cx.getImageData(0, 0, cv.width, cv.height);
-
-      if (!box) {
-        const det = detectCanvas(img);
-        if (!reportDetection(diag, det)) { done(); return; }
-        box = det.box;
-        dmgRect = roiToPixels(box, ROIS.dmg);
-        gaugeRect = roiToPixels(box, ROIS.gauge);
-      }
-
-      sel.push(meta.mediaTime, roiSignature(img, dmgRect));
-      probe.push(goldenFractions(img, dmgRect));
-
-      // 右パネルのモード遷移＝押下シグナル（§4 P2 ⑮）。何回起きたかを数える。
-      const pm = detectPanelMode(img, gaugeRect);
-      modes[pm.mode]++;
-      if (prevMode && prevMode !== pm.mode) {
-        transitions.push({ t: +meta.mediaTime.toFixed(4), from: prevMode, to: pm.mode });
-      }
-      prevMode = pm.mode;
-
-      n++;
-      if (n % 30 === 0) $('scanNote').textContent = `走査中… ${n} フレーム`;
-      if (meta.mediaTime - start >= secs) { done(); return; }
-      video.requestVideoFrameCallback(cb);
-    };
-    video.requestVideoFrameCallback(cb);
-    video.play().catch(() => done());
+  const total = await walkFrames(video, start, start + secs, async (m) => {
+    const dImg = cut(cutDmg), gImg = cut(cutGauge);
+    sel.push(m, roiSignature(dImg, local(dmgRect)));
+    probe.push(goldenFractions(dImg, local(dmgRect)));
+    const pm = detectPanelMode(gImg, local(gaugeRect));
+    modes[pm.mode]++;
+    if (prevMode && prevMode !== pm.mode) {
+      transitions.push({ t: +m.toFixed(4), from: prevMode, to: pm.mode });
+    }
+    prevMode = pm.mode;
+  }, (n, elapsed) => {
+    $('scanNote').textContent = `走査中… ${n} フレーム / ${elapsed.toFixed(1)}秒ぶん`;
   });
 
+  const wall = (performance.now() - t0) / 1000;
   const sum = sel.summary();
-  const scanned = sel.kept.length ? (sel.kept.at(-1).t - start) : 0;
-  diag.setInput({ scannedSeconds: +scanned.toFixed(3) });
+  const covered = sel.kept.length ? (sel.kept.at(-1).t - start) : 0;
+  const sampledFps = covered > 0 ? total / covered : 0;
+
+  diag.setInput({ scannedSeconds: +covered.toFixed(3), wallClockSeconds: +wall.toFixed(1) });
   diag.stage('DETECT', sum.keptFrames, sum.totalFrames);
   reportSelection(diag, sum);
   const probeBest = reportProbe(diag, probe);
-  if (scanned < secs * 0.9) {
-    diag.add('T1-DETECT-003', 'WARN', {
-      where: { requested: secs, scanned: +scanned.toFixed(3) },
-      expected: `${secs} 秒ぶんの走査`,
-      got: `${scanned.toFixed(1)} 秒で終了（動画の残りが足りない）`,
-      hint: '採用率はイベント密度に依存するため、短い窓の値は出口条件の判定に使えない。'
-        + 'より長い実走（例: M3-1.mp4）で測り直す。',
+
+  // ★取りこぼしの検査（v0.7.0 の失敗を二度と黙って通さない）
+  if (sampledFps < 29.72 * 0.9) {
+    diag.add('T1-DETECT-005', 'ERROR', {
+      where: { sampledFps: +sampledFps.toFixed(2), videoFps: 29.72 },
+      expected: '動画のフレームレートとほぼ同じ実効サンプリング（取りこぼし無し）',
+      got: `${sampledFps.toFixed(2)} fps＝全フレームの ${(sampledFps / 29.72 * 100).toFixed(0)}%`,
+      hint: '歩幅か seek が失敗している。この値が低いと分布も採用率も信用できない。',
     });
   }
 
-  $('scanNote').innerHTML = sum.totalFrames
-    ? `<span class="${sum.meetsExitCriterion ? 'ok' : 'warn'}">`
-      + `${sum.keptFrames}/${sum.totalFrames} 採用（<b>1/${sum.reductionFactor.toFixed(1)}</b>）</span>`
-      + ` / list ${modes.list}・detail ${modes.detail} / <b>モード遷移 ${transitions.length} 回</b>`
-    : '<span class="bad">フレームが取れませんでした</span>';
+  $('scanNote').innerHTML = `<span class="${sampledFps >= 26 ? 'ok' : 'bad'}">`
+    + `${total} フレーム / ${covered.toFixed(1)}秒 ＝ 実効 ${sampledFps.toFixed(1)} fps</span>`
+    + ` / 実時間 ${wall.toFixed(0)}秒 / list ${modes.list}・detail ${modes.detail}`
+    + ` / モード遷移 ${transitions.length} 回`;
 
   finish(diag, {
+    sampling: { frames: total, coveredSeconds: +covered.toFixed(3), sampledFps: +sampledFps.toFixed(3),
+                wallClockSeconds: +wall.toFixed(1) },
     selection: sum,
-    // ★存在検出の探索結果。どのしきい値の組が二峰に割れるかを見て P2-2 を作り直す。
     popupProbe: { best: probeBest, all: probe.report() },
-    // 採用フレームは先頭200件だけ（診断 JSON が肥大しないように）
-    keptSample: sel.kept.slice(0, 200),
+    keptSample: sel.kept.slice(0, 60),
     panelModes: modes,
-    // ★モード遷移＝押下シグナル。先頭100件。
     panelTransitions: transitions.slice(0, 100),
     canvas: box,
-  }, sum.totalFrames > 0);
+  }, total > 0);
 
   $('scan').disabled = false;
   seek(start);
