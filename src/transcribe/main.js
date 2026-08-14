@@ -7,12 +7,17 @@
 import { detectCanvas, roiToPixels, pixelsToRoi, reportDetection, DEFAULTS } from './canvas_detect.js';
 import { Diag } from './diag.js';
 
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
 
 const $ = (id) => document.getElementById(id);
 const video = document.createElement('video');
 video.muted = true;
 video.playsInline = true;
+// ⚠ requestVideoFrameCallback は「フレームが提示されたとき」に発火する。
+//    DOM から切り離した video では提示が起きず発火しないブラウザがあるため、
+//    画面外に配置して DOM に載せる（display:none は不可＝提示自体が止まる）。
+video.style.cssText = 'position:fixed;left:-10000px;top:0;width:2px;height:2px;opacity:0.01;';
+document.body.appendChild(video);
 
 let lastBox = null;      // 検出された canvas 矩形（表示画素系）
 let lastRoi = null;      // 直近にドラッグで採寸した正規化 ROI
@@ -245,18 +250,37 @@ $('walk').onclick = async () => {
     return;
   }
   $('walk').disabled = true;
-  $('walkNote').textContent = '計測中…';
+  $('walkNote').textContent = '計測中…（動画を3秒ぶん再生します）';
   const times = [];
   const start = video.currentTime;
+  let timedOut = false;
   await new Promise((resolve) => {
+    // 保険: 再生が始まらない／rVFC が発火しない場合に固まらないようにする
+    const guard = setTimeout(() => { timedOut = true; video.pause(); resolve(); }, 15000);
+    const done = () => { clearTimeout(guard); video.pause(); resolve(); };
     const cb = (_now, meta) => {
       times.push(meta.mediaTime);
-      if (meta.mediaTime - start >= 3 || times.length > 400) { video.pause(); resolve(); return; }
+      if (meta.mediaTime - start >= 3 || times.length > 400) { done(); return; }
       video.requestVideoFrameCallback(cb);
     };
     video.requestVideoFrameCallback(cb);
-    video.play();
+    video.play().catch(() => done());
   });
+
+  if (times.length < 2) {
+    const diag = new Diag('T1', VERSION);
+    diag.setInput({ file: $('file').files?.[0]?.name ?? '(none)', at: start }).stage('DECODE', 0, 0);
+    diag.add('T1-DECODE-002', 'ERROR', {
+      where: { at: start },
+      expected: '3秒ぶんのフレーム提示（requestVideoFrameCallback）',
+      got: `${times.length} フレームしか取れなかった${timedOut ? '（15秒でタイムアウト）' : ''}`,
+      hint: 'タブが背景にあると再生が抑制される。タブを前面にして再実行する。',
+    });
+    finish(diag, { frameIntervals: null }, false);
+    $('walkNote').innerHTML = '<span class="bad">計測できませんでした（診断JSONを参照）</span>';
+    $('walk').disabled = false;
+    return;
+  }
 
   const d = [];
   for (let i = 1; i < times.length; i++) d.push(times[i] - times[i - 1]);
@@ -278,6 +302,26 @@ $('walk').onclick = async () => {
   $('walkNote').innerHTML = `<span class="ok">${walkStats.frames} フレーム</span> / `
     + `実効 ${walkStats.fps.toFixed(3)} fps / `
     + `間隔 中央 ${walkStats.medianMs.toFixed(1)}ms・<b>最大 ${walkStats.maxMs.toFixed(1)}ms</b>`;
+
+  // ★結果をその場で診断 JSON に落とす。
+  //   （旧 v0.2.0 は「このフレームを解析」を押し直さないと JSON に載らず、取り逃しやすかった）
+  const diag = new Diag('T1', VERSION);
+  diag.setInput({
+    file: $('file').files?.[0]?.name ?? '(none)',
+    resolution: `${video.videoWidth}x${video.videoHeight}`,
+    duration: video.duration,
+    at: start,
+  }).stage('DECODE', walkStats.frames, walkStats.frames);
+  if (walkStats.maxMs > 100) {
+    diag.add('T1-DECODE-003', 'WARN', {
+      where: { at: start },
+      expected: 'フレーム間隔 100ms 未満',
+      got: `最大 ${walkStats.maxMs.toFixed(1)}ms`,
+      hint: 'この長さのギャップがあるとポップアップを取りこぼしうる（PHASE9_PLAN §4 P1 発見⑧）',
+    });
+  }
+  finish(diag, { frameIntervals: walkStats, rois: Object.keys(rois).length ? rois : null }, true);
+
   $('walk').disabled = false;
   seek(start);
 };

@@ -1,0 +1,62 @@
+// T1 録画転記 — ROI 定義（canvas 基準の正規化座標）
+//
+// ★座標系: ゲーム canvas の左上を (0,0)、右下を (1,1) とする比率。
+//   画素座標は持たない。∴ スクロール位置・ウィンドウサイズ・ブラウザズーム・録画解像度が
+//   変わっても同じ ROI が同じ物を指す（PHASE9_PLAN.md §4 P1 新発見② への構造的な答え）。
+//   画素へ落とすのは `roiToPixels(box, roi)`（canvas_detect.js）。
+//
+// ⚠ provenance（REPO_STANDARDS E1＝測定条件を併記する）:
+//   採寸日 2026-08-14 ／ 録画 `pic.mp4` 2288×1440（Microsoft Game DVR・Chrome ブラウザ版）
+//   検出 canvas box = { x:290, y:198, w:1684, h:1129 } ／ 採寸者＝ユーザー（T1 ページでドラッグ）
+//   ⚠ **1本の録画・1つのウィンドウサイズからの1点採寸**。別条件では未再測（E9）。
+//   ⚠ ゲーム側の UI 更新でレイアウトが動いたら採寸し直す（正規化座標でも UI 改変には追随しない）。
+
+export const ROI_PROVENANCE = {
+  measuredAt: '2026-08-14',
+  source: { file: 'pic.mp4', resolution: '2288x1440', recorder: 'Microsoft Game DVR' },
+  canvasBox: { x: 290, y: 198, w: 1684, h: 1129 },
+  note: '1点採寸。別の録画・ウィンドウサイズでは未再測（E9）。',
+};
+
+export const ROIS = {
+  /** 敵HPバー＋整数%表示。検算①（総和チェック）の入力。 */
+  hp: { x: 0.19299, y: 0.07529, w: 0.40796, h: 0.11249 },
+
+  /** ダメージ／`TOTAL` ポップアップが出る範囲。検算③④⑦の入力。 */
+  dmg: { x: 0.09382, y: 0.25332, w: 0.35511, h: 0.70682 },
+
+  /** 右のアビリティパネル（4枠＋グレーアウト＋CD残ターン）。検算⑧の入力。 */
+  abil: { x: 0.76960, y: 0.57219, w: 0.23040, h: 0.29672 },
+
+  /** `NEXT n TURN`。ターン境界の決定的な読み取り（P1 新発見③）。 */
+  turn: { x: 0.61698, y: 0.76882, w: 0.13064, h: 0.04252 },
+
+  /**
+   * キャラ Status（HP・バーストゲージ・バフ/デバフアイコン列）。
+   * ⚠ 現状の採寸は右パネルをまるごと覆っており **`abil` を内包している**（重複）。
+   *    害は無いが、P2-3 で Status ブロックだけに詰める余地がある。
+   * ⚠ バフアイコン列は**一部しか表示されない**（ユーザー回答 2026-08-14）＝
+   *    ここから buffCount は復元できない（C38 の近道にはならない）。
+   */
+  gauge: { x: 0.77078, y: 0.23384, w: 0.22506, h: 0.64925 },
+};
+
+/**
+ * ROI の重なりを検出する（採寸ミスの早期発見用）。
+ * @returns {Array<{a:string,b:string,ratio:number}>} 重なり面積 / 小さいほうの面積
+ */
+export function findOverlaps(rois = ROIS) {
+  const names = Object.keys(rois);
+  const out = [];
+  for (let i = 0; i < names.length; i++) {
+    for (let j = i + 1; j < names.length; j++) {
+      const a = rois[names[i]], b = rois[names[j]];
+      const ow = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+      const oh = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+      if (ow <= 0 || oh <= 0) continue;
+      const ratio = (ow * oh) / Math.min(a.w * a.h, b.w * b.h);
+      out.push({ a: names[i], b: names[j], ratio });
+    }
+  }
+  return out;
+}
