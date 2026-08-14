@@ -4,7 +4,7 @@
 > **次タスクの詳細リスト**は `workspace/TODO.md`。過去の経緯・provenance は `archive/SESSION_LOG.md`（オンデマンド）。
 > **更新規律（セッション末）**: 本書は「今」だけを短く保つ。現状化した記述は `archive/SESSION_LOG.md` の先頭へ1ブロック畳み、本書は最新状態へ上書きする（規律は REPO_STANDARDS §6）。
 >
-> 最終更新: 2026-08-07（セッション末・クローズ）
+> 最終更新: 2026-08-14（CLAUDE.md 分冊セッションの申し送りを追補）
 
 ---
 
@@ -74,11 +74,12 @@
 ## ドキュメント・ポインタ
 
 - **開発ルール・コード地図・確定仕様・検証**: `CLAUDE.md`（本書と対で必読）
+  ／**不変条件の詳細**: `ENGINE_INVARIANTS.md`（§1 ゲーム仕様・§2 実装不変条件・§3 転移可能性＝**該当コードを触るときだけ開く**）
 - **Phase 9**: `PHASE9_PLAN.md`（**§10 確定仕様**・§4 段階計画）／`TRANSCRIPTION_DESIGN.md`（一次設計）
 - **較正の Cx**: `CALIBRATION_ANALYSIS.md`（**C37/C38/C40〜C49 が open**・C50 は closed）
 - **sim05**: `simulation/sim05/README.md`（**6章構成**・§2.2＝現在位置）／`simulation/sim05/analysis/integrated_analysis.md`（統合の正）
 - **実験・計測の作法**: `REPO_STANDARDS.md` §6 **E1〜E11**（着手前に通す）
-- **過去の経緯**: `archive/SESSION_LOG.md`（**2026-08-07 ブロックが最新**）
+- **過去の経緯**: `archive/SESSION_LOG.md`（**2026-08-14 ブロックが最新**）
 
 ## 検証（作業後は必ず）
 
@@ -97,6 +98,7 @@ npm run doc:check     # md 相互参照（現役層に壊れた参照があれ�
 
 | 日付 | 変更点 | 波及確認 |
 |---|---|---|
+| 2026-08-14 | **2026-08-14 の CLAUDE.md 分冊セッションを追補**（`ENGINE_INVARIANTS.md` へのポインタ追加・SESSION_LOG の最新ブロック表記を更新）。**Phase 9 の現在地は不変**＝P1 ゲート待ち | ★**申し送り漏れを検出して埋めたもの**＝当該セッションは `CLAUDE.md`/`ENGINE_INVARIANTS.md` の更新履歴だけを書き、**SESSION_LOG・HANDOFF・TODO を更新せずに終了していた**。実害は台帳の記録漏れのみ（`doc_refs --write`・`doc:check` は実行済み）。golden 3/3 不変（`src/`・`gamedata/js/` 未変更） |
 | 2026-08-07 | **セッション末クローズ＝本書を Phase 9 中心へ全面書き換え**（317行→約100行）。当日の成果8ブロックは `archive/SESSION_LOG.md` の 2026-08-07 ブロックへ畳んだ | **新セッションは「現フェーズ→次の一手」の2節だけ読めば動ける**状態にした。sim05 の到達点は1段落へ圧縮し、詳細は sim05 README §2.2 と integrated_analysis へポインタ化。golden 3/3 不変・doc:check 現役層グリーン |
 | 2026-08-07 | Phase 9 採番・sim05 凍結・§10 確定仕様を反映 | 詳細は SESSION_LOG 2026-08-07 |
 | 2026-08-06 | M2（trial01）受領・分析完了を反映 | 統合の正を `integrated_analysis.md` へ切り替え |
