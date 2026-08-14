@@ -156,12 +156,10 @@ loadConfigC({ enemy:'walpurgis_loki', atkScale:1.10, abilCap:null });  // 実験
 | 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=規定・台帳） | 参照関係は `npm run doc:check` がグリーン |
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 4）
+## この md を参照している文書（現役層 2）
 
 - [CALIBRATION_ANALYSIS.md](../CALIBRATION_ANALYSIS.md)
 - [CLAUDE.md](../CLAUDE.md)
-- [workspace/HANDOFF.md](../workspace/HANDOFF.md)
-- [workspace/TODO.md](../workspace/TODO.md)
 
 _他に 凍結sim/archive/essays から 2 件（更新対象外）_
 <!-- doc_refs:end -->

@@ -227,11 +227,12 @@ HP は**整数%表示**。宿儺は max_hp 9.8億なので **1% = 980万**。読
 | 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=規定・台帳・計画） | 参照関係は `npm run doc:check` がグリーン |
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 4）
+## この md を参照している文書（現役層 5）
 
 - [CLAUDE.md](./CLAUDE.md)
 - [PHASE9_PLAN.md](./PHASE9_PLAN.md)
 - [ROADMAP.md](./ROADMAP.md)
+- [workspace/HANDOFF.md](./workspace/HANDOFF.md)
 - [workspace/TODO.md](./workspace/TODO.md)
 
 _他に 凍結sim/archive/essays から 1 件（更新対象外）_

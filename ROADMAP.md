@@ -263,11 +263,10 @@ S1+S2（フェーズ倍率モデル化＋撃破ターン表示）は **sim02 試
 | 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=規定・台帳・計画） | 参照関係は `npm run doc:check` がグリーン |
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 5）
+## この md を参照している文書（現役層 4）
 
 - [CLAUDE.md](./CLAUDE.md)
 - [PHASE8_PLAN.md](./PHASE8_PLAN.md)
 - [REPO_STANDARDS.md](./REPO_STANDARDS.md)
 - [gamedata/md/幻獣/README.md](./gamedata/md/幻獣/README.md)
-- [workspace/HANDOFF.md](./workspace/HANDOFF.md)
 <!-- doc_refs:end -->

@@ -223,13 +223,12 @@ README §4.3 は「**非会心・非急所の非飽和アンカー**で fit す�
 | 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=分析） | 参照関係は `npm run doc:check` がグリーン |
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 6）
+## この md を参照している文書（現役層 5）
 
 - [CALIBRATION_ANALYSIS.md](../../../CALIBRATION_ANALYSIS.md)
 - [simulation/sim05/analysis/integrated_analysis.md](./integrated_analysis.md)
 - [simulation/sim05/analysis/per_trial/pre-trial_quant.md](./per_trial/pre-trial_quant.md)
 - [simulation/sim05/analysis/per_trial/trial01_quant.md](./per_trial/trial01_quant.md)
-- [workspace/HANDOFF.md](../../../workspace/HANDOFF.md)
 - [workspace/TODO.md](../../../workspace/TODO.md)
 
 _他に 凍結sim/archive/essays から 1 件（更新対象外）_

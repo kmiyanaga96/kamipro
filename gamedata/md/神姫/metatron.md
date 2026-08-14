@@ -181,11 +181,10 @@
 ---
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 5）
+## この md を参照している文書（現役層 4）
 
 - [CHARACTER_ANALYSIS.md](../../../CHARACTER_ANALYSIS.md)
 - [gamedata/md/神姫/README.md](./README.md)
 - [simulation/sim05/README.md](../../../simulation/sim05/README.md)
-- [workspace/HANDOFF.md](../../../workspace/HANDOFF.md)
 - [workspace/TODO.md](../../../workspace/TODO.md)
 <!-- doc_refs:end -->

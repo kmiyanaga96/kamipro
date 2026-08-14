@@ -128,14 +128,13 @@ cp -r simulation/TEMPLATE simulation/sim04   # 次の試行を開始
 | 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=規定・台帳） | 参照関係は `npm run doc:check` がグリーン |
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 7）
+## この md を参照している文書（現役層 6）
 
 - [CLAUDE.md](../CLAUDE.md)
 - [PHASE4_PLAN.md](../PHASE4_PLAN.md)
 - [gamedata/md/敵/README.md](../gamedata/md/敵/README.md)
 - [gamedata/md/敵/fimbulvetr.md](../gamedata/md/敵/fimbulvetr.md)
 - [simulation/sim05/README.md](./sim05/README.md)
-- [workspace/HANDOFF.md](../workspace/HANDOFF.md)
 - [workspace/TODO.md](../workspace/TODO.md)
 
 _他に 凍結sim/archive/essays から 1 件（更新対象外）_

@@ -118,7 +118,7 @@
 ---
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 9）
+## この md を参照している文書（現役層 8）
 
 - [CALIBRATION_ANALYSIS.md](../../../CALIBRATION_ANALYSIS.md)
 - [CLAUDE.md](../../../CLAUDE.md)
@@ -127,7 +127,6 @@
 - [simulation/sim05/README.md](../../../simulation/sim05/README.md)
 - [simulation/sim05/analysis/m1_history_replay.md](../../../simulation/sim05/analysis/m1_history_replay.md)
 - [simulation/sim05/data/trial01.md](../../../simulation/sim05/data/trial01.md)
-- [workspace/HANDOFF.md](../../../workspace/HANDOFF.md)
 - [workspace/TODO.md](../../../workspace/TODO.md)
 
 _他に 凍結sim/archive/essays から 2 件（更新対象外）_

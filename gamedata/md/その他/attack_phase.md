@@ -203,7 +203,7 @@ sim03 / sim04 / sim05 の全 trial から「敵の行動」と「反撃の発数
 ---
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 8）
+## この md を参照している文書（現役層 7）
 
 - [CALIBRATION_ANALYSIS.md](../../../CALIBRATION_ANALYSIS.md)
 - [CLAUDE.md](../../../CLAUDE.md)
@@ -211,7 +211,6 @@ sim03 / sim04 / sim05 の全 trial から「敵の行動」と「反撃の発数
 - [simulation/sim05/README.md](../../../simulation/sim05/README.md)
 - [simulation/sim05/analysis/PROVISIONAL_ANALYSIS.md](../../../simulation/sim05/analysis/PROVISIONAL_ANALYSIS.md)
 - [simulation/sim05/analysis/m1_history_replay.md](../../../simulation/sim05/analysis/m1_history_replay.md)
-- [workspace/HANDOFF.md](../../../workspace/HANDOFF.md)
 - [workspace/TODO.md](../../../workspace/TODO.md)
 
 _他に 凍結sim/archive/essays から 1 件（更新対象外）_
