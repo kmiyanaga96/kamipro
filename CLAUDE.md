@@ -31,6 +31,8 @@
 | [CALIBRATION_ANALYSIS.md](./CALIBRATION_ANALYSIS.md) | **較正の確定値と根拠アーカイブ＋乖離バックログ（Cx）**。**Cx の状態と根拠はここが正**（本書の較正ステータスは索引にすぎない） |
 | [ROADMAP.md](./ROADMAP.md) | **Phase 採番の一次台帳**。Phase 6=幻獣拡張／7=ML化（クローズ）／8=アクセ実装／未確定=敵行動・味方生存・kill-turn・VM |
 | [PHASE4_PLAN.md](./PHASE4_PLAN.md) | **現行フェーズ**（実機較正の反復）の進め方。押し順優先・「押し順は蓄積誤差に頑健、系統誤差だけを狙う」方針 |
+| [PHASE9_PLAN.md](./PHASE9_PLAN.md) | **★現在の注力先**（Phase 9＝実機観測 intake の自動化）。**sim05 を凍結して先行**。憲法＝「観測と判断はユーザー／導出・分析は Claude／転記・検算・整形はツール」。**P1 が進む/降りるの分岐ゲート** |
+| [TRANSCRIPTION_DESIGN.md](./TRANSCRIPTION_DESIGN.md) | **Phase 9 の一次設計**（録画→trial の転記自動化）。2026-08-07 に archive から解凍。**OCR を信用せず検算で担保する**方式。⚠冒頭注記に C49 由来の陳腐化訂正あり |
 | [PHASE8_PLAN.md](./PHASE8_PLAN.md) | Phase 8（アクセサリー）の設計。`ACCESSORY_REGISTRY` 新設＋`applyGear` 集約で `class Sim` 非改修を狙う。**着手ゲート＝§6 intake** |
 | [KILL_TURN_DESIGN.md](./KILL_TURN_DESIGN.md) | 最速撃破モードの設計草案（未実装）。**真のブロッカーは絶対値精度**と整理済み |
 | [CHARACTER_ANALYSIS.md](./CHARACTER_ANALYSIS.md) | キャラ評価・採用論の考察台帳。ヤマト vs アリアン／ナポレオン評 |
@@ -56,7 +58,6 @@
 | [archive/PHASE7_ML_PLAN.md](./archive/PHASE7_ML_PLAN.md) | 静的スコアの ML 化（クローズ＝安価サロゲート NO-GO） |
 | 設計レポート | `BEAM_SEARCH_DESIGN`（C9）/ `ORDER_OPTIMIZATION_DESIGN`（C12）/ `SEARCH_ROLLOUT_DESIGN`（C13-C15）/ `OPTIMIZATION_ENGINE` |
 | 完了フェーズ | `PHASE2_PLAN` / `PHASE3_PLAN` / `PHASE5_PLAN`（UX刷新+Vite化）/ `VITE_MIGRATION` / `PERF_NOTES` |
-| `TRANSCRIPTION_DESIGN.md` | 実機録画→trial 転記の半自動化（**凍結**・ユーザーが再起票するまで着手しない） |
 | `archive/caches/` | 無効化済み探索キャッシュの保全（engineVersion が古く再現不能なものを含む） |
 
 ## ファイル構成 & コード地図
@@ -289,6 +290,7 @@ npm run preview    # dist を http 配信 → ブラウザで探索/中断/UI �
 
 | 日付 | 変更点 | 波及確認 |
 |---|---|---|
+| 2026-08-07 | **Phase 9（実機観測 intake の自動化）を採番し注力先に**。`PHASE9_PLAN.md` 新設／`TRANSCRIPTION_DESIGN.md` を archive から解凍／**REPO_STANDARDS E11**（走の無効化条件）を制定 | ユーザー決定＝**sim05 は凍結して Phase 9 を先行**（C40/C41/C44 は open のまま＝意図的コスト）。**録画は貯めてよい**（`PHASE9_PLAN.md` §4.0.1 の録画時チェックリスト）。`src/`・`gamedata/js/` 未変更＝**golden 3/3 不変** |
 | 2026-08-07 | **C50 を同日クローズ**（wontfix＝現行実装が正しい）。ユーザー回答＝「光属性スキルの接頭辞が『レイ』『シャイン』＝**4名称は光属性スキルの総称**」＝限定ではない。索引からも削除 | 裏取り＝`WEAPON_MASTER` の**全7本が `elem:'light'`**＝対象外スキルが1本も無い。⚠ **非光属性ウェポンを装備したら一律適用は誤りになる**（低severity・非 Cx として `CALIBRATION_ANALYSIS` C50 行に記録）。**実装変更なし＝golden 3/3 不変** |
 | 2026-08-07 | 較正ステータス索引に **C50** を追加（加護の一律適用）。契機＝ユーザー申告「**sim05 はメイン・サポート幻獣ともにカタス**」 | **★申告の内容自体は既にシムへ入っていた**（台帳 GEAR の逆算＝9枠一律 ×10/9＋assault +2.00 で裏取り／E2 bit 一致）＝**再計算・再fit なし**。欠けていたのは**幻獣枠の記録**で、`gamedata/md/幻獣/catastrophia_light.md` 新設（§1 未受領）・`record_skeleton.md` §0 に幻獣枠を追加・`config_c.mjs` のバナーに出力を追加して塞いだ。golden 3/3 不変 |
 | 2026-08-06 | 較正ステータス索引に **C49** を追加（急所枠の期待値モデル） | 根拠＝`gamedata/md/その他/damage_frames.md` ⑧⑨（一次情報）と `src/constants.js` の突合。**会心はズレていない**ことも確認。sim05 README §4.3 の「非会心・非急所アンカー」原則は同日 retire |

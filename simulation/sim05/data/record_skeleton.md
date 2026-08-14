@@ -148,9 +148,10 @@
 ---
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 7）
+## この md を参照している文書（現役層 8）
 
 - [CALIBRATION_ANALYSIS.md](../../../CALIBRATION_ANALYSIS.md)
+- [TRANSCRIPTION_DESIGN.md](../../../TRANSCRIPTION_DESIGN.md)
 - [simulation/sim05/README.md](../README.md)
 - [simulation/sim05/analysis/per_trial/pre-trial_quali.md](../analysis/per_trial/pre-trial_quali.md)
 - [simulation/sim05/data/configC_gear_panel.md](./configC_gear_panel.md)
@@ -158,5 +159,5 @@
 - [workspace/HANDOFF.md](../../../workspace/HANDOFF.md)
 - [workspace/TODO.md](../../../workspace/TODO.md)
 
-_他に 凍結sim/archive/essays から 2 件（更新対象外）_
+_他に 凍結sim/archive/essays から 1 件（更新対象外）_
 <!-- doc_refs:end -->

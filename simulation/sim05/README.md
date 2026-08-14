@@ -523,8 +523,9 @@ napoleon はフルビーム10Tが重く頻回テストに不適のため静的gr
 | 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=規定・台帳） | 参照関係は `npm run doc:check` がグリーン |
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 13）
+## この md を参照している文書（現役層 14）
 
+- [TRANSCRIPTION_DESIGN.md](../../TRANSCRIPTION_DESIGN.md)
 - [gamedata/md/敵/variant_chimera.md](../../gamedata/md/敵/variant_chimera.md)
 - [gamedata/md/敵/variant_chimera_chi.md](../../gamedata/md/敵/variant_chimera_chi.md)
 - [simulation/README.md](../README.md)
@@ -539,5 +540,5 @@ napoleon はフルビーム10Tが重く頻回テストに不適のため静的gr
 - [workspace/HANDOFF.md](../../workspace/HANDOFF.md)
 - [workspace/TODO.md](../../workspace/TODO.md)
 
-_他に 凍結sim/archive/essays から 2 件（更新対象外）_
+_他に 凍結sim/archive/essays から 1 件（更新対象外）_
 <!-- doc_refs:end -->

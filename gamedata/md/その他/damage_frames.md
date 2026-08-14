@@ -106,12 +106,13 @@
 ---
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 10）
+## この md を参照している文書（現役層 11）
 
 - [CALIBRATION_ANALYSIS.md](../../../CALIBRATION_ANALYSIS.md)
 - [CLAUDE.md](../../../CLAUDE.md)
 - [PHASE8_PLAN.md](../../../PHASE8_PLAN.md)
 - [REPO_STANDARDS.md](../../../REPO_STANDARDS.md)
+- [TRANSCRIPTION_DESIGN.md](../../../TRANSCRIPTION_DESIGN.md)
 - [gamedata/md/その他/README.md](./README.md)
 - [gamedata/md/その他/attack_phase.md](./attack_phase.md)
 - [gamedata/md/幻獣/catastrophia_light.md](../幻獣/catastrophia_light.md)
