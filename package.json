@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:golden": "node test/golden.mjs",
+    "test:t1": "node tools/t1_selftest.mjs",
     "poc:ml": "node tools/ml_fit_static.mjs",
     "doc:check": "node tools/doc_refs.mjs --check"
   },
