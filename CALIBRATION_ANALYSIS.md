@@ -168,10 +168,11 @@ HELIX後も基礎分（3倍/50万）が欠落していた。→ 差分計算を�
 | 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=規定・台帳・計画） | 参照関係は `npm run doc:check` がグリーン |
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 18）
+## この md を参照している文書（現役層 19）
 
 - [CLAUDE.md](./CLAUDE.md)
 - [DOC_RELATION_PLAN.md](./DOC_RELATION_PLAN.md)
+- [ENGINE_INVARIANTS.md](./ENGINE_INVARIANTS.md)
 - [PHASE4_PLAN.md](./PHASE4_PLAN.md)
 - [PHASE9_PLAN.md](./PHASE9_PLAN.md)
 - [REPO_STANDARDS.md](./REPO_STANDARDS.md)

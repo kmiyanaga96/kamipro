@@ -118,10 +118,9 @@
 ---
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 8）
+## この md を参照している文書（現役層 7）
 
 - [CALIBRATION_ANALYSIS.md](../../../CALIBRATION_ANALYSIS.md)
-- [CLAUDE.md](../../../CLAUDE.md)
 - [gamedata/md/その他/attack_phase.md](../その他/attack_phase.md)
 - [gamedata/md/神姫/README.md](./README.md)
 - [simulation/sim05/README.md](../../../simulation/sim05/README.md)

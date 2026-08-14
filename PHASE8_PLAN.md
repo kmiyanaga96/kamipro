@@ -1,6 +1,6 @@
 # PHASE8_PLAN — アクセサリー実装
 
-> **種別**: フェーズ計画台帳（Phase 8・ROADMAP §3.5 の詳細化） ／ **ゴール**: 新装備系統「アクセサリー」をシムのダメージモデルへ反映し、未装備時 golden 不変・装備時は damage_frames.md の枠規約どおりに火力が動く状態にする ／ **完了条件**: (a) `ACCESSORY_REGISTRY` とUI枠が入り、(b) 未装備で golden 不変（raw 197,775,394 / cal 211,462,826）、(c) 代表アクセ数種で枠加算が damage_frames.md と一致することを replay で確認 ／ **状態**: 策定中（2026-07-22 起草・実装未着手）
+> **種別**: フェーズ計画台帳（Phase 8・ROADMAP §3.5 の詳細化） ／ **ゴール**: 新装備系統「アクセサリー」をシムのダメージモデルへ反映し、未装備時 golden 不変・装備時は damage_frames.md の枠規約どおりに火力が動く状態にする ／ **完了条件**: (a) `ACCESSORY_REGISTRY` とUI枠が入り、(b) 未装備で golden 不変（期待値は CLAUDE.md「検証方法」が正）、(c) 代表アクセ数種で枠加算が damage_frames.md と一致することを replay で確認 ／ **状態**: 策定中（2026-07-22 起草・実装未着手）
 >
 > 作成 2026-07-22 ／ 関連: ROADMAP.md §3.5（Phase 8 採番元）・gamedata/md/その他/damage_frames.md（アクセ枠の一次情報）・src/app.js `applyGear`/`GEAR_BOXES`
 
@@ -108,7 +108,7 @@
 2. **`gamedata/js/accessories.js` に `ACCESSORY_REGISTRY`** を作成（判明系統から・box宣言型）。md 一次情報を intake として格納。
 3. **applyGear にアクセ収集ループ＋40%クランプ**（§4.2）。案Aで実装。
 4. **UI枠**（§4.4）＋ config 保存/復元。
-5. **検証**: `npm run test:golden`＝未装備で **raw 197,775,394 / cal 211,462,826 不変**を確認。代表アクセ数種を装備した replay で枠加算が damage_frames.md と一致することを確認（§7）。
+5. **検証**: `npm run test:golden`＝未装備で **golden 3/3 不変**を確認（期待値は CLAUDE.md「検証方法」が正）。代表アクセ数種を装備した replay で枠加算が damage_frames.md と一致することを確認（§7）。
 6. **ドキュメント**: ROADMAP §3.5 を「実装済み」へ、CLAUDE.md 台帳を更新、本書を archive/ へ移送（同一コミット規律）。押し順に絡む効果が残れば §4.6 として繰り越し記録。
 
 ## 6. 未確定・ユーザー確認事項（intake checklist・着手ゲート）
@@ -124,7 +124,7 @@
 
 ## 7. 受入基準
 
-1. **未装備で golden 不変**: `npm run test:golden` = raw 197,775,394 / cal 211,462,826 / FB 10/10。
+1. **未装備で golden 不変**: `npm run test:golden` = 3/3 パス（期待値は CLAUDE.md「検証方法」が正）・FB 10/10。
 2. **装備時の枠準拠**: 代表アクセ（攻撃系・タイムピース・天使 各1）を装備した headless replay で、該当 GEAR box への加算が §2 の枠マッピングと一致（攻撃UP合計>40%で40%にクランプされることを含む）。
 3. **キャッシュ整合**: アクセ構成違いが別 `_configSig` になり、同一構成の再探索がキャッシュヒット時に決定的 replay で1円一致（既存のヒント検証機構で担保）。
 4. **押し順非改変**: アクセ導入で `class Sim`・探索ロジックに分岐が入らない（常時box のみ）。発動系が必要になった時点で本条件を明示的に解除し §4.6 を起票。
