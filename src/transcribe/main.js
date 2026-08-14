@@ -10,7 +10,7 @@ import { roiSignature, FrameSelector, reportSelection, SELECT_DEFAULTS } from '.
 import { ROIS } from './rois.js';
 import { Diag } from './diag.js';
 
-const VERSION = '0.5.0';
+const VERSION = '0.6.0';
 
 const $ = (id) => document.getElementById(id);
 const video = document.createElement('video');
@@ -278,7 +278,14 @@ $('walk').onclick = async () => {
   await new Promise((resolve) => {
     // 保険: 再生が始まらない／rVFC が発火しない場合に固まらないようにする
     const guard = setTimeout(() => { timedOut = true; video.pause(); resolve(); }, 15000);
-    const done = () => { clearTimeout(guard); video.pause(); resolve(); };
+    // ⚠ 動画が要求秒数より短いと rVFC が発火しなくなり guard まで固まる＝終端を明示的に拾う
+    const onEnded = () => done();
+    const done = () => {
+      clearTimeout(guard);
+      video.removeEventListener('ended', onEnded);
+      video.pause(); resolve();
+    };
+    video.addEventListener('ended', onEnded);
     const cb = (_now, meta) => {
       times.push(meta.mediaTime);
       if (meta.mediaTime - start >= 3 || times.length > 400) { done(); return; }
@@ -386,7 +393,15 @@ $('scan').onclick = async () => {
 
   await new Promise((resolve) => {
     const guard = setTimeout(() => { video.pause(); resolve(); }, secs * 4000 + 20000);
-    const done = () => { clearTimeout(guard); video.pause(); resolve(); };
+    // ⚠ 動画の残り時間が要求秒数より短いと rVFC が止まり guard まで固まる＝終端を明示的に拾う
+    //    （pic.mp4 は 9.55秒しかないので既定の 30秒指定で 140秒ハングしていた）
+    const onEnded = () => done();
+    const done = () => {
+      clearTimeout(guard);
+      video.removeEventListener('ended', onEnded);
+      video.pause(); resolve();
+    };
+    video.addEventListener('ended', onEnded);
     const cb = (_now, meta) => {
       cx.drawImage(video, 0, 0);
       const img = cx.getImageData(0, 0, cv.width, cv.height);
@@ -419,8 +434,19 @@ $('scan').onclick = async () => {
   });
 
   const sum = sel.summary();
+  const scanned = sel.kept.length ? (sel.kept.at(-1).t - start) : 0;
+  diag.setInput({ scannedSeconds: +scanned.toFixed(3) });
   diag.stage('DETECT', sum.keptFrames, sum.totalFrames);
   reportSelection(diag, sum);
+  if (scanned < secs * 0.9) {
+    diag.add('T1-DETECT-003', 'WARN', {
+      where: { requested: secs, scanned: +scanned.toFixed(3) },
+      expected: `${secs} 秒ぶんの走査`,
+      got: `${scanned.toFixed(1)} 秒で終了（動画の残りが足りない）`,
+      hint: '採用率はイベント密度に依存するため、短い窓の値は出口条件の判定に使えない。'
+        + 'より長い実走（例: M3-1.mp4）で測り直す。',
+    });
+  }
 
   $('scanNote').innerHTML = sum.totalFrames
     ? `<span class="${sum.meetsExitCriterion ? 'ok' : 'warn'}">`
