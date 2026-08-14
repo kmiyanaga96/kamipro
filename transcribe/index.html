@@ -86,8 +86,29 @@ th{background:#f0f2f5;}
     スクロール位置やズームが変わっても同じ値になるので、<b>これをそのまま ROI 定義に使えます</b>。
   </div>
   <div class="row" style="margin-top:8px"><div class="kv" id="det">—</div></div>
-  <div class="row"><div class="kv" id="roi">—</div>
-    <button class="btn sec" id="copyRoi" disabled>正規化ROIをコピー</button></div>
+  <div class="row"><div class="kv" id="roi">—</div></div>
+  <div class="row">
+    <label>名前</label>
+    <select id="roiName">
+      <option value="hp">hp — 敵HPバー＋%表示</option>
+      <option value="dmg">dmg — ダメージ／TOTAL ポップアップ全域</option>
+      <option value="abil">abil — 右のアビリティパネル（CD）</option>
+      <option value="turn">turn — NEXT n TURN</option>
+      <option value="gauge">gauge — キャラ Status（HP・バーストゲージ）</option>
+    </select>
+    <button class="btn" id="addRoi" disabled>この矩形を登録</button>
+    <button class="btn sec" id="cropRoi" disabled>この矩形をPNGで保存</button>
+  </div>
+  <div class="note">
+    PNG 保存は <b>ROI クロップした小さな画像</b>を出します（<code>PHASE9_PLAN.md</code> §10.3＝
+    フル解像度の画面ではなくこれを Claude に渡す、と決めた経路）。
+  </div>
+  <table id="roiTable" style="display:none"><thead><tr>
+    <th>name</th><th>x</th><th>y</th><th>w</th><th>h</th><th></th></tr></thead><tbody></tbody></table>
+  <div class="row" style="margin-top:8px">
+    <button class="btn" id="copyRois" disabled>全ROIをJSONでコピー</button>
+    <span class="note">これをそのまま貼っていただければ ROI 定義に落とします。</span>
+  </div>
 </div>
 
 <div class="card">

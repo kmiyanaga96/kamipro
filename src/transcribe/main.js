@@ -7,7 +7,7 @@
 import { detectCanvas, roiToPixels, pixelsToRoi, reportDetection, DEFAULTS } from './canvas_detect.js';
 import { Diag } from './diag.js';
 
-const VERSION = '0.1.0';
+const VERSION = '0.2.0';
 
 const $ = (id) => document.getElementById(id);
 const video = document.createElement('video');
@@ -16,8 +16,10 @@ video.playsInline = true;
 
 let lastBox = null;      // 検出された canvas 矩形（表示画素系）
 let lastRoi = null;      // 直近にドラッグで採寸した正規化 ROI
+let lastRect = null;     // 同上の画素矩形（PNG 切り出しに使う）
 let lastDiag = null;     // 直近の診断 JSON
 let walkStats = null;    // フレーム間隔の実測結果
+const rois = {};         // 登録済み ROI（name → 正規化座標）
 
 // ── ファイル読み込み ────────────────────────────────────────
 $('file').addEventListener('change', (e) => {
@@ -77,6 +79,7 @@ $('grab').onclick = () => {
   const det = detectCanvas(img);
   const ok = reportDetection(diag, det);
   lastBox = ok ? det.box : null;
+  diag.stage('ROI', ok ? 1 : 0, 1);   // 完了件数を反映（「0/1 完了」という矛盾表示を避ける）
 
   drawOverlay();
   $('det').innerHTML = ok
@@ -90,6 +93,7 @@ $('grab').onclick = () => {
     aspect: det.aspect ?? null,
     areaRatio: det.areaRatio ?? null,
     frameIntervals: walkStats,
+    rois: Object.keys(rois).length ? rois : null,
   }, ok);
 };
 
@@ -113,6 +117,17 @@ function drawOverlay() {
   if (lastBox) {
     c.strokeStyle = '#1aa179'; c.lineWidth = Math.max(2, view.width / 500);
     c.strokeRect(lastBox.x, lastBox.y, lastBox.w, lastBox.h);
+  }
+  // 登録済み ROI（正規化座標→画素）を薄く重ねる＝採寸のやり直しと確認がしやすい
+  if (lastBox) {
+    c.strokeStyle = '#5b6ef5'; c.lineWidth = Math.max(1, view.width / 900);
+    c.font = `${Math.round(view.width / 90)}px sans-serif`;
+    c.fillStyle = '#5b6ef5';
+    for (const [name, r] of Object.entries(rois)) {
+      const p = roiToPixels(lastBox, r);
+      c.strokeRect(p.x, p.y, p.w, p.h);
+      c.fillText(name, p.x + 4, p.y - 4);
+    }
   }
   if (drag && drag.rect) {
     c.strokeStyle = '#e0392b'; c.lineWidth = Math.max(2, view.width / 600);
@@ -151,19 +166,70 @@ $('view').addEventListener('pointerup', () => {
     drag = null; return;
   }
   lastRoi = pixelsToRoi(lastBox, drag.rect);
+  lastRect = drag.rect;
   const f = (v) => v.toFixed(5);
   $('roi').innerHTML = `正規化 ROI = <b>{ x: ${f(lastRoi.x)}, y: ${f(lastRoi.y)}, `
     + `w: ${f(lastRoi.w)}, h: ${f(lastRoi.h)} }</b>`
-    + ` <span style="color:#6b7280">（画素 ${drag.rect.x},${drag.rect.y} ${drag.rect.w}×${drag.rect.h}）</span>`;
-  $('copyRoi').disabled = false;
+    + ` <span style="color:#6b7280">（画素 ${lastRect.x},${lastRect.y} ${lastRect.w}×${lastRect.h}）</span>`;
+  $('addRoi').disabled = false;
+  $('cropRoi').disabled = false;
   drag = null;
 });
 
-$('copyRoi').onclick = () => {
+// ── ROI の登録・書き出し ────────────────────────────────────
+function renderRoiTable() {
+  const tb = $('roiTable').querySelector('tbody');
+  tb.innerHTML = '';
+  const names = Object.keys(rois);
+  $('roiTable').style.display = names.length ? '' : 'none';
+  $('copyRois').disabled = !names.length;
+  for (const n of names) {
+    const r = rois[n];
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td style="text-align:left"><b>${n}</b></td>`
+      + ['x', 'y', 'w', 'h'].map(k => `<td>${r[k].toFixed(5)}</td>`).join('')
+      + `<td><button class="btn sec" data-del="${n}" style="padding:2px 8px">削除</button></td>`;
+    tb.appendChild(tr);
+  }
+  tb.querySelectorAll('[data-del]').forEach(b => {
+    b.onclick = () => { delete rois[b.dataset.del]; renderRoiTable(); drawOverlay(); };
+  });
+}
+
+$('addRoi').onclick = () => {
   if (!lastRoi) return;
-  const f = (v) => v.toFixed(5);
-  navigator.clipboard.writeText(
-    `{ x: ${f(lastRoi.x)}, y: ${f(lastRoi.y)}, w: ${f(lastRoi.w)}, h: ${f(lastRoi.h)} }`);
+  rois[$('roiName').value] = lastRoi;
+  renderRoiTable();
+  drawOverlay();
+};
+
+$('copyRois').onclick = () => {
+  navigator.clipboard.writeText(JSON.stringify({
+    measuredAt: new Date().toISOString(),
+    source: {
+      file: $('file').files?.[0]?.name ?? null,
+      at: video.currentTime,
+      resolution: `${video.videoWidth}x${video.videoHeight}`,
+      canvas: lastBox,
+    },
+    rois,
+  }, null, 2));
+};
+
+// ★ROI クロップの PNG 保存（§10.3＝Claude へのデバッグ経路はフル画面ではなくこれ）
+$('cropRoi').onclick = () => {
+  if (!lastRect) return;
+  const cv = document.createElement('canvas');
+  cv.width = lastRect.w; cv.height = lastRect.h;
+  cv.getContext('2d').drawImage($('view'), lastRect.x, lastRect.y, lastRect.w, lastRect.h,
+    0, 0, lastRect.w, lastRect.h);
+  cv.toBlob((blob) => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `roi_${$('roiName').value}_${Math.round(video.currentTime * 1000)}ms.png`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }, 'image/png');
 };
 $('copyDiag').onclick = () => {
   if (lastDiag) navigator.clipboard.writeText(JSON.stringify(lastDiag, null, 2));
