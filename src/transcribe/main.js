@@ -13,7 +13,7 @@ import { LagProfile, EventDeduper, reportDedup, DEDUP_DEFAULTS } from './dedup.j
 import { ROIS } from './rois.js';
 import { Diag } from './diag.js';
 
-const VERSION = '0.13.0';
+const VERSION = '0.14.0';
 
 const $ = (id) => document.getElementById(id);
 const video = document.createElement('video');
@@ -543,8 +543,9 @@ $('scan').onclick = async () => {
     + ` / 実時間 ${wall.toFixed(0)}秒 / list ${modes.list}・detail ${modes.detail}`
     + ` / モード遷移 ${transitions.length} 回`
     // ★P2-4: 発見⑧の材料は走査のたびに目に入るようにする（stride を決める根拠）
-    + ` / <b>出来事 ${lagReport.eventContrast ?? '-'}</b>`
-    + `（状態長 ${lagReport.stateRuns?.map(r => `${r.label}:${r.p50}`).join(' ') ?? '-'}）`
+    + ` / <b>寿命 L=${lagReport.lifetimeFrames ?? '決まらず'}</b>`
+    + `（出来事 ${lagReport.eventContrast ?? '-'} / 凍結長 `
+    + `${lagReport.freezeRuns?.map(r => r.p50).join('・') ?? '-'}）`
     + (hpSeries.summary()
       ? ` / <b>HP ${(hpSeries.summary().firstRatio * 100).toFixed(1)}% → `
         + `${(hpSeries.summary().lastRatio * 100).toFixed(1)}%</b>`

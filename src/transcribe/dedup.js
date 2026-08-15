@@ -78,6 +78,7 @@ export class LagProfile {
   constructor(opts = {}) {
     this.o = { ...DEDUP_DEFAULTS, ...opts };
     this.ring = [];                                     // 直近 maxLag 枚の署名
+    this.all = [];                                      // 全署名（セル単位の二周目解析用）
     this.dists = Array.from({ length: this.o.maxLag }, () => []);
     /** ★セル単位の |Δ|（ラグ1）のヒストグラム＝**ノイズ床がどこかを分布に語らせる**。 */
     this.cellHist = new Uint32Array(256);
@@ -100,6 +101,70 @@ export class LagProfile {
     }
     this.ring.push(sig);
     if (this.ring.length > this.o.maxLag) this.ring.shift();
+    // ★セル単位の解析は「その走の分布」から J を決めたいので、署名を全部持っておく。
+    //   24×24×1B × 9000フレーム ≒ 5MB＝安い。**二度走らせないための投資**。
+    this.all.push(sig);
+  }
+
+  /**
+   * ★★**セル単位の「跳ねてから、どれだけ留まるか」**＝**ポップアップ寿命 L の測定器**。
+   *
+   * ⚠⚠ **ROI 全体のラグ距離（`lags`）ではこの問いに答えられない**（2026-08-15 実走で確定）。
+   *   全体距離は**背景の動きとポップアップの持続を足し合わせてしまう**ので、
+   *   平坦部が無くても「ポップアップが持続していない」ことにはならない。
+   *   ★これは撤去した `persistenceRatio` と**まったく同じ構造の誤り**＝
+   *   **現象を分離できていない指標で現象を語ってはいけない**（3度目なので測定器の側を作り直した）。
+   *
+   * **仕組み**＝計画の文言「**ポップアップは静止**」をそのまま測る:
+   *   セルが**大きく跳ねた（jump ≥ J）直後に、|Δ| がちょうど 0 で凍る長さ**を数える。
+   *   - ポップアップに覆われたセル＝出現時に跳ね、**表示中は完全に凍る** → 長さ ≈ L
+   *   - 常時アニメーションしている背景セル＝跳ねても**次のフレームには動く** → 長さ 1
+   *   - まったく動かない背景セル（実測で全体の 38%）→ **跳ねないので自動的に除外される**
+   *   ★**ポップアップか背景かのラベルが要らない**のが要点（P2-2 v2 が詰まったのはそこ）。
+   *
+   * ★★**読むのは上側（p90 / max）**。**p50 は常に 1 になる**＝跳ねる回数は背景セルが支配するため。
+   *   ⚠ ラグ曲線のときと**同じ構造**＝**背景が床、信号は上側の裾にしか出ない**。
+   *
+   * ⚠ **J を勘で置かない**＝**その走のセル |Δ| 分布の分位点**を使い、複数の J で測る。
+   *   凍り判定は **|Δ| がちょうど 0**（許容を入れると背景が混ざる＝合成で実測）。
+   *
+   * ⭐ **既知の正解で検証済み**（合成・真の L = 10 / 6 / 3 / 1 に対し J=p90 で p90 = 10 / 6 / 3 / 1）。
+   *   ⚠⚠ **これは3つ目の設計**である。①ラグ曲線の膝 ②「次の jump まで」の長さ は
+   *   **どちらも背景と分離できず、真の L が 10 でも 6 でも 3 でも同じ値を返した**（出荷前に反証）。
+   *   ★**測定器は、既知の正解を動かして「値が追随するか」を見るまで信用しない。**
+   */
+  freezeRuns(js) {
+    const W = this.all[0]?.length ?? 0;
+    if (!W || this.all.length < 3) return [];
+    return js.map(({ label, j }) => {
+      const runs = [];
+      for (let c = 0; c < W; c++) {
+        let t = 1;
+        while (t < this.all.length) {
+          if (Math.abs(this.all[t][c] - this.all[t - 1][c]) < j) { t++; continue; }
+          let u = t + 1;
+          while (u < this.all.length && this.all[u][c] === this.all[u - 1][c]) u++;
+          runs.push(u - t);          // ★跳ねたフレーム自身を含む「表示され続けた枚数」
+          t = u;
+        }
+      }
+      runs.sort((x, y) => x - y);
+      // ★★長さ 1 は「跳ねただけで**凍っていない**」＝定義上 freeze ではないので除く。
+      //   これは調整つまみではなく**定義**。除くと背景セルの寄与が構造的に落ち、
+      //   J をどう選んでも同じ答えになる（合成で確認）。
+      const f = runs.filter(v => v >= 2);
+      return {
+        label, j,
+        count: runs.length,
+        frozenCount: f.length,
+        /** 跳ねたうち実際に凍った割合（低い＝何も留まっていない）。 */
+        frozenFraction: runs.length ? +(f.length / runs.length).toFixed(4) : null,
+        /** ★★**ここが L の推定値**。合成で真値 10/6/3 を J によらず厳密に復元した。 */
+        p50: f.length ? quantile(f, 0.50) : null,
+        p90: f.length ? quantile(f, 0.90) : null,
+        max: f.length ? f[f.length - 1] : null,
+      };
+    });
   }
 
   /** セル |Δ| ヒストグラムから分位点を引く。 */
@@ -160,6 +225,14 @@ export class LagProfile {
         p90: +quantile(a, 0.90).toFixed(3),
       });
     }
+    const cd = this.cellQuantiles();
+    // ★J は「その走のセル |Δ| 分布」から3点取る（勘で置かない）。低い J も混ぜるのが要点＝
+    //   L が実在するなら J を変えても答えが動かない、という**一致そのものを検査に使う**。
+    const freeze = this.freezeRuns([
+      { label: 'cellP50x8', j: Math.max(4, (cd?.p50 ?? 2) * 8) },
+      { label: 'cellP90', j: Math.max(8, cd?.p90 ?? 48) },
+      { label: 'cellP99', j: Math.max(16, cd?.p99 ?? 157) },
+    ]);
     const one = [...this.dists[0]].sort((x, y) => x - y);
     const q50 = one.length ? quantile(one, 0.50) : 0;
     const q75 = one.length ? quantile(one, 0.75) : 0;
@@ -172,7 +245,7 @@ export class LagProfile {
       /** ★ラグ別の距離（生データ）。**上側分位点 p90 が立ち上がりきるラグが L の候補**。 */
       lags,
       /** ★セル単位 |Δ|（ラグ1）の分布＝ノイズ床の在り処。 */
-      cellDeltas: this.cellQuantiles(),
+      cellDeltas: cd,
       /**
        * ★**この ROI に離散的な出来事があるか**（正解ラベル無しの健全性検査）。
        * ラグ1の距離の p90/p50。**1 に近い＝滑らかに動いているだけで「出現・消滅」が無い**
@@ -185,10 +258,30 @@ export class LagProfile {
        *   ポップアップの信号は**上側（p90）にしか出ない**。
        */
       eventContrast: q50 > 0 ? +(q90 / q50).toFixed(3) : null,
-      /** ★状態が続く長さの分布＝**L の直接の候補**（cut を変えても安定かを見る）。 */
+      /**
+       * ROI 全体での「状態が続く長さ」。
+       * ⚠ **これは L ではない**（背景の動きが混ざる）＝画面全体がどれだけ落ち着いているかの参考値。
+       */
       stateRuns: this.stateRuns([
         { label: 'p50', cut: q50 }, { label: 'p75', cut: q75 }, { label: 'p90', cut: q90 },
       ]),
+      /**
+       * ★★**L を読むのはここ**（セル単位＝背景と分離できている唯一の測定・既知の正解で検証済み）。
+       * **`p90` が L の推定値**（`p50` は背景の床＝常に 1）。J はその走のセル |Δ| 分布から取る。
+       */
+      freezeRuns: freeze,
+      /**
+       * ★★**寿命 L の推定値**。**3つの J すべてで一致したときだけ値を返す**（不一致なら null）。
+       *
+       * ⚠ この「J を跨いだ一致」が受入条件であることは**既知の正解で両方向に検証済み**:
+       *   L が実在する合成（10 / 6 / 3）では**3つの J で完全に一致**し、
+       *   L が実在しない合成（真 L=1・静止セル汚染あり）では **13 / 13 / 21 とぶれる**。
+       *   ∴ 一致は「測れた」の証拠になり、不一致は「この走からは決まらない」の証拠になる。
+       */
+      lifetimeFrames: (() => {
+        const v = freeze.map(r => r.p50);
+        return v.length && v.every(x => x != null && x === v[0]) ? v[0] : null;
+      })(),
     };
   }
 }
@@ -270,9 +363,10 @@ export function reportDedup(diag, sum, lag) {
     diag.add('T1-DEDUP-001', 'WARN', {
       where: { stride: sum.stride },
       expected: '`stride` が実測（発見⑧＝ポップアップの寿命）から較正されていること',
-      got: '未較正＝完全重複の除去のみ（間引きなし）',
-      hint: '`lagProfile.lags` の p50 が立ち上がるラグ k が寿命 L の候補。'
+      got: `未較正＝完全重複の除去のみ（間引きなし）／今回の実測 L = ${lag?.lifetimeFrames ?? '決まらず'}`,
+      hint: '★L は `lagProfile.lifetimeFrames` を読む（`freezeRuns` の p50 が3つの J で一致したときだけ値が入る）。'
         + '`stride = floor(L / safety)` を provenance 付きで DEDUP_DEFAULTS に固定する。'
+        + '⚠ `lags`（ROI 全体のラグ距離）から L を読んではいけない＝背景の動きと分離できていない。'
         + '⚠ 推測で埋めない（P2-5 で同型の失敗を7回踏んだ）。',
     });
   } else if (!sum.meetsExitCriterion) {
@@ -295,6 +389,18 @@ export function reportDedup(diag, sum, lag) {
         + '⚠ この状態で `stateRuns` から stride を決めてはいけない（背景の周期を寿命と読むことになる）。',
     });
   }
+  // ★寿命が決まらなかった＝間引きの根拠が無い。**両方向を既知の正解で検証済みの検査**。
+  if (lag && lag.freezeRuns?.length && lag.lifetimeFrames == null) {
+    diag.add('T1-DEDUP-004', 'WARN', {
+      where: { freezeRuns: lag.freezeRuns.map(r => ({ label: r.label, j: r.j, p50: r.p50 })) },
+      expected: '凍結長の p50 が3つの J で一致すること（＝寿命 L が実在する）',
+      got: `J ごとに ${JSON.stringify(lag.freezeRuns.map(r => r.p50))} と食い違う`,
+      hint: '★この走からは L が決まっていない＝**stride を決めてはいけない**。'
+        + '合成では L が実在すれば3つの J で完全に一致し、実在しなければ食い違うことを確認済み。'
+        + '別の窓／別の録画でも測って、一致する範囲を先に見つける。',
+    });
+  }
+
   // ⚠ **`stateRuns` に自動判定を足さない**（2026-08-15・実装中に一度足して撤去した）。
   //   「cut を変えても run 長が安定していれば L が実在する」という検査を書いたが、
   //   **cut を下げれば遷移が増えて run が短くなるのは構造上あたりまえ**で、

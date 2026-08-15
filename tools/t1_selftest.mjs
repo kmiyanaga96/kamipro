@@ -565,7 +565,8 @@ console.log('\n[11] 重複除去（P2-4）＝取りこぼさないと証明で�
    *   - ポップアップは `popEvery` ごとに出て `popLife` フレーム持続する（＝発見⑧の L）
    *   - `flashEvery` ごとに全面フラッシュ（バースト演出）＝距離分布の重い裾
    */
-  function scene({ frames = 900, bgAmp = 19, popLife = 10, popEvery = 23, flashEvery = 60, seed = 1 } = {}) {
+  function scene({ frames = 900, bgAmp = 19, popLife = 10, popEvery = 23, flashEvery = 60, seed = 1,
+                   staticCells = 0 } = {}) {
     const POPW = 16, POPH = 8;
     const r0 = rndFrom(seed);
     const base = [], amp = [], per = [], ph = [];
@@ -577,6 +578,9 @@ console.log('\n[11] 重複除去（P2-4）＝取りこぼさないと証明で�
     for (let i = 0; i < frames; i++) {
       const sig = new Uint8ClampedArray(N);
       for (let c = 0; c < N; c++) sig[c] = base[c] + amp[c] * Math.sin(2 * Math.PI * (i / per[c] + ph[c]));
+      // ★実走を模す汚染: まったく動かないセル（実測 zeroFraction 0.38）が途中で一度だけ切り替わる。
+      //   これが無いと寿命の測定器が簡単すぎる場面で通ってしまう。
+      for (let c = 0; c < staticCells; c++) sig[c] = i < frames / 2 ? 30 : 200;
       if (i % popEvery < popLife) {
         const id = Math.floor(i / popEvery);
         const r = rndFrom(1000 + id);
@@ -620,12 +624,53 @@ console.log('\n[11] 重複除去（P2-4）＝取りこぼさないと証明で�
   check('セル単位 |Δ| の分布が返る（ノイズ床を分布に語らせるため）',
     lr.cellDeltas && typeof lr.cellDeltas.p50 === 'number' && typeof lr.cellDeltas.zeroFraction === 'number',
     JSON.stringify(lr.cellDeltas));
-  check('★状態の長さが cut 別に返る（L を読むための生データ）',
+  check('★状態の長さが cut 別に返る（参考値＝背景の動きが混ざる）',
     lr.stateRuns.length === 3 && lr.stateRuns.every(r => typeof r.p50 === 'number'),
     JSON.stringify(lr.stateRuns));
-  check(`★上側の cut で読んだ状態長が真の寿命（${popLife}）に近い`,
-    Math.abs(lr.stateRuns.find(r => r.label === 'p90').p50 - popLife) <= 2,
-    `p90 cut の p50 = ${lr.stateRuns.find(r => r.label === 'p90').p50} / 真値 ${popLife}`);
+
+  // ★★寿命 L の測定器そのものの検証 ── **既知の正解を動かして、値が追随するか**
+  //   ⚠⚠ ここは実装中に**2つの設計を反証して捨てた**箇所（記録として回帰に残す）:
+  //     ①ラグ曲線の膝（`lags`）      … 背景の動きと混ざる＝真の L が 10 でも 6 でも 3 でも同じ形
+  //     ②「次の jump までの長さ」    … 同上（p50 が L=10/6/3 のすべてで 3 になった）
+  //   ★測定器は「正解が既知の場面を動かして、値が追随するか」を見るまで信用しない。
+  {
+    const measure = (opts) => {
+      const lg = new LagProfile();
+      scene(opts).sigs.forEach(s => lg.push(s));
+      const r = lg.report();
+      return { L: r.lifetimeFrames, per: r.freezeRuns.map(x => x.p50) };
+    };
+    for (const truthL of [10, 6, 3]) {
+      const m = measure({ popLife: truthL, popEvery: truthL + 13 });
+      check(`★★寿命の測定器が真値 ${truthL} を復元する（3つの J すべてで一致）`,
+        m.L === truthL, `推定 ${m.L} / J別 ${JSON.stringify(m.per)}`);
+    }
+
+    // ★★逆方向の検証（陰性対照）: **L が実在しない場面では「決まらない」と言えること**。
+    //   ⚠ 実走は静止セルが 38% あるので、その汚染を入れた上で検査する
+    //   （汚染が無いと簡単すぎて、実走で崩れるフィクスチャになる＝2世代続けた事故の型）。
+    const noL = measure({ popLife: 1, popEvery: 14, staticCells: 220 });
+    check('★★寿命が実在しない場面では null を返す（J 間で一致しない＝決まらないと言う）',
+      noL.L === null, `推定 ${noL.L} / J別 ${JSON.stringify(noL.per)}`);
+    // ★反証の固定: 捨てた設計②ならこの区別ができないことを残す（証拠が消えると戻れてしまう）
+    const rejected = [10, 6, 3].map(L => {
+      const sigs = scene({ popLife: L, popEvery: L + 13 }).sigs;
+      const holds = [];
+      const last = new Int32Array(sigs[0].length).fill(-1);
+      for (let t = 1; t < sigs.length; t++) {
+        for (let c = 0; c < sigs[0].length; c++) {
+          if (Math.abs(sigs[t][c] - sigs[t - 1][c]) < 16) continue;
+          if (last[c] >= 0) holds.push(t - last[c]);
+          last[c] = t;
+        }
+      }
+      holds.sort((a, b) => a - b);
+      return holds[Math.floor(0.5 * holds.length)];
+    });
+    check('★捨てた設計②（次の jump まで）は真の L が変わっても同じ値を返す＝使えない',
+      new Set(rejected.slice(0, 3)).size === 1,
+      `真 10/6/3 → ${rejected.slice(0, 3).join(' / ')}`);
+  }
 
   // ④ ★健全性検査の本体: 「出来事が信号に出ていない」場面を見抜けること
   //    ⚠⚠ ここは実装中に一度**誤った指標を置いて自分で反証した**箇所。
