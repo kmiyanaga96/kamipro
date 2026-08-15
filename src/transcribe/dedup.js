@@ -136,14 +136,27 @@ export class LagProfile {
   freezeRuns(js) {
     const W = this.all[0]?.length ?? 0;
     if (!W || this.all.length < 3) return [];
+    // ★★**完全重複フレームを除いてから測る**（2026-08-15 実走で交絡が判明）。
+    //   seek は同じフレームを二度返すことがあり（実測 261/3510＝7.4%）、
+    //   **重複は全セルの |Δ| を 0 にする＝直前に跳ねたセル全部に「長さ2の freeze」を作る**。
+    //   実測の frozenCount の **45〜61% がこれで説明できる**見積りで、しかも p50 がちょうど 2 だった。
+    //   ⚠ **同じフレームを二度見ても「ポップアップが1枚長く出ていた」ことにはならない**＝測定から外す。
+    const seq = [this.all[0]];
+    for (let t = 1; t < this.all.length; t++) {
+      const a = this.all[t], b = this.all[t - 1];
+      let same = a.length === b.length;
+      for (let c = 0; same && c < a.length; c++) if (a[c] !== b[c]) same = false;
+      if (!same) seq.push(a);
+    }
+    if (seq.length < 3) return [];
     return js.map(({ label, j }) => {
       const runs = [];
       for (let c = 0; c < W; c++) {
         let t = 1;
-        while (t < this.all.length) {
-          if (Math.abs(this.all[t][c] - this.all[t - 1][c]) < j) { t++; continue; }
+        while (t < seq.length) {
+          if (Math.abs(seq[t][c] - seq[t - 1][c]) < j) { t++; continue; }
           let u = t + 1;
-          while (u < this.all.length && this.all[u][c] === this.all[u - 1][c]) u++;
+          while (u < seq.length && seq[u][c] === seq[u - 1][c]) u++;
           runs.push(u - t);          // ★跳ねたフレーム自身を含む「表示され続けた枚数」
           t = u;
         }

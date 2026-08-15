@@ -652,6 +652,20 @@ console.log('\n[11] 重複除去（P2-4）＝取りこぼさないと証明で�
     const noL = measure({ popLife: 1, popEvery: 14, staticCells: 220 });
     check('★★寿命が実在しない場面では null を返す（J 間で一致しない＝決まらないと言う）',
       noL.L === null, `推定 ${noL.L} / J別 ${JSON.stringify(noL.per)}`);
+
+    // ★★実走で見つかった交絡の回帰: **seek が同じフレームを二度返すと偽の freeze ができる**
+    //   （重複は全セルの |Δ| を 0 にする＝直前に跳ねたセル全部に「長さ2の freeze」を作る）。
+    //   2026-08-15 実走では frozenCount の 45〜61% がこれで説明でき、p50 がちょうど 2 だった。
+    //   ∴ 測定は**重複を除いた列**で行う。ここではそれを合成で固定する。
+    {
+      const base = scene({ popLife: 6, popEvery: 19 }).sigs;
+      const withDup = [];
+      base.forEach((s, i) => { withDup.push(s); if (i % 8 === 0) withDup.push(s); });  // 12.5% 重複
+      const lg = new LagProfile();
+      withDup.forEach(s => lg.push(s));
+      check('★★完全重複フレームを混ぜても寿命の推定が変わらない（偽の freeze を作らない）',
+        lg.report().lifetimeFrames === 6, `推定 ${lg.report().lifetimeFrames} / 真値 6`);
+    }
     // ★反証の固定: 捨てた設計②ならこの区別ができないことを残す（証拠が消えると戻れてしまう）
     const rejected = [10, 6, 3].map(L => {
       const sigs = scene({ popLife: L, popEvery: L + 13 }).sigs;
