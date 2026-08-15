@@ -12,7 +12,7 @@ import { analyzeHpBar, HpSeries, reportHp, HP_DEFAULTS } from './hp_bar.js';
 import { ROIS } from './rois.js';
 import { Diag } from './diag.js';
 
-const VERSION = '0.10.0';
+const VERSION = '0.11.0';
 
 const $ = (id) => document.getElementById(id);
 const video = document.createElement('video');
@@ -461,6 +461,9 @@ $('scan').onclick = async () => {
   const transitions = [];
   const hpSeries = new HpSeries();
   let lastHp = null;
+  // ★違反フレームの生プロファイルを持ち帰る（クロップを人に頼まずに原因を特定するため）
+  const hpViolationSamples = [];
+  let prevRatio = null;
   let prevMode = null;
   const t0 = performance.now();
 
@@ -481,6 +484,18 @@ $('scan').onclick = async () => {
       // ⚠ visible=false（演出フラッシュ）のときは fillRatio が null＝系列側で skip に計上される
       if (hr.ok) { hpSeries.push(+m.toFixed(4), hr.fillRatio); if (hr.visible) lastHp = hr; }
       if (!lastHp) lastHp = hr;
+
+      // ★単調性違反が起きたフレームのプロファイルを保存する。
+      //   「違反した」だけでは直せない。**そのフレームで画素が何を返したか**が要る（§10.5 の思想）。
+      if (hr.ok && hr.visible && prevRatio != null
+          && hr.fillRatio > prevRatio + 0.01 && hpViolationSamples.length < 4) {
+        hpViolationSamples.push({
+          t: +m.toFixed(4), from: +prevRatio.toFixed(4), to: +hr.fillRatio.toFixed(4),
+          peak: hr.peak, threshold: hr.threshold, redFraction: +hr.redFraction.toFixed(4),
+          colProfile: hr.colProfile,
+        });
+      }
+      if (hr.ok && hr.visible) prevRatio = hr.fillRatio;
     }
   }, (n, elapsed) => {
     $('scanNote').textContent = `走査中… ${n} フレーム / ${elapsed.toFixed(1)}秒ぶん`;
@@ -528,6 +543,10 @@ $('scan').onclick = async () => {
     // ★P2-5: HP 系列。monotonic が false なら抽出が壊れている（敵HPは戦闘中に増えない）。
     hp: hpSeries.summary(),
     hpProfileSample: lastHp?.colProfile ?? null,
+    hpNormal: lastHp ? { peak: lastHp.peak, threshold: lastHp.threshold,
+                         redFraction: +lastHp.redFraction.toFixed(4) } : null,
+    // ★違反フレームの生プロファイル（正常フレームと並べれば何が違うか分かる）
+    hpViolationSamples,
     popupProbe: { best: probeBest, all: probe.report() },
     keptSample: sel.kept.slice(0, 60),
     panelModes: modes,
