@@ -36,8 +36,27 @@ export const HP_DEFAULTS = {
    */
   stripTop: [0.06, 0.26],
   stripBottom: [0.74, 0.94],
-  /** 列が「塗られている」とみなされるための、走査帯内の赤画素の占有率。 */
-  colFillRatio: 0.50,
+  /**
+   * ★「塗られている」の判定は **絶対値ではなく、そのフレームの「塗られた列」に対する相対**で決める。
+   *
+   * ⚠ **絶対閾値 0.50 は実走で崩壊した**（2026-08-14・`M3-1.mp4`）。実測プロファイルでは
+   *   **完全に塗られた列でも占有率は 0.375〜0.86**（1.0 にならない）で、
+   *   **列の 76% が閾値 0.50 の ±0.13 にひしめいていた**。わずかな明滅で閾値を跨ぎ、
+   *   塗りの右端が 0 と 1 の間を飛んで **単調性違反 237回**になった。
+   *   （占有率が 1.0 にならない理由＝ROI の上下帯がバーの縁やわずかな傾きで部分的に外れるため。
+   *     人の採寸を 1px 精度で要求するのは筋が悪い＝**アルゴリズム側で吸収すべき**）
+   *
+   * ★**空の部分は厳密に 0** だった（実測）。∴ 分離は本来とても易しく、低い閾値で足りる。
+   *   `threshold = max(absFloor, peak × relFloor)`。peak はそのフレームの塗り列の代表値。
+   */
+  absFloor: 0.10,
+  relFloor: 0.20,
+  /**
+   * ★バーが「見えている」と認めるための peak の下限。
+   * ⚠ **バースト演出中は画面が白金色にフラッシュしてバーが読めなくなる**（実走で確認）。
+   *   そのフレームで無理に数値を返すと嘘の HP を報告する。**読めないときは読めないと言う**。
+   */
+  visibleFloor: 0.15,
   /**
    * 上下帯方式が成立する最小の ROI 高さ（px）。
    * ⚠ これより低いと上下の帯が重なって**同じ行を二重に数える**（実装時に踏んだ）。
@@ -113,14 +132,33 @@ export function analyzeHpBar(img, opts = {}) {
     redPixels += n;
   }
 
-  // --- 3. ★塗りの右端 ＝ 最後に塗られていた列。
-  //     遮蔽を上下帯で避けたので、**穴を埋める小細工は要らない**。
+  // --- 3. ★「塗られた列」の代表値（peak）を取る ---
+  //     ⚠ 単純な max は1列の外れ値に引きずられるので、上位側の分位点を使う。
+  const sorted = Array.from(colProfile).sort((a, b) => a - b);
+  const peak = sorted[Math.floor(sorted.length * 0.95)];
+
+  // --- 4. ★バーが見えているか（バースト演出中は白金色にフラッシュして読めない） ---
+  if (peak < o.visibleFloor) {
+    return {
+      ok: true, visible: false, fillRatio: null, peak: +peak.toFixed(4),
+      bands, redFraction: redPixels / (img.width * rows),
+      colProfile: downsample(colProfile, o.profileBins),
+      reason: `バーが見えない（peak ${peak.toFixed(3)} < ${o.visibleFloor}）＝演出でフラッシュしている`,
+    };
+  }
+
+  // --- 5. ★塗りの右端 ＝ 最後に「塗られている」列 ---
+  //     閾値は peak に対する相対（絶対値だと実走で崩壊した＝上記の注記）。
+  const threshold = Math.max(o.absFloor, peak * o.relFloor);
   let edge = 0;
-  for (let x = 0; x < img.width; x++) if (colProfile[x] >= o.colFillRatio) edge = x + 1;
+  for (let x = 0; x < img.width; x++) if (colProfile[x] >= threshold) edge = x + 1;
 
   return {
     ok: true,
+    visible: true,
     bands,
+    peak: +peak.toFixed(4),
+    threshold: +threshold.toFixed(4),
     fillEdge: edge,
     /** ★0〜1。分母は **ROI 幅**（人が採寸したバー全長）＝塗りとは独立な基準。 */
     fillRatio: edge / img.width,
@@ -139,9 +177,14 @@ export class HpSeries {
     this.tolerance = tolerance;   // 1% ぶんの増加は誤差として許す
     this.points = [];
     this.violations = [];
+    this.skipped = 0;             // バーが見えず読めなかったフレーム数
   }
 
+  /** バーが見えなかったフレーム。★数値を捏造せず、読めなかったこととして数える。 */
+  skip() { this.skipped++; }
+
   push(t, fillRatio) {
+    if (fillRatio == null) { this.skip(); return; }
     const prev = this.points.length ? this.points[this.points.length - 1] : null;
     if (prev && fillRatio > prev.v + this.tolerance) {
       this.violations.push({ t, from: +prev.v.toFixed(4), to: +fillRatio.toFixed(4) });
@@ -154,6 +197,8 @@ export class HpSeries {
     const first = this.points[0].v, last = this.points[this.points.length - 1].v;
     return {
       frames: this.points.length,
+      /** ★演出でバーが読めず捨てたフレーム（捏造せずに数える） */
+      skippedFrames: this.skipped,
       firstRatio: +first.toFixed(4),
       lastRatio: +last.toFixed(4),
       /** ★単調減少していれば抽出は健全（HP は戦闘中に増えない） */

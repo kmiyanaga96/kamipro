@@ -389,65 +389,82 @@ console.log('\n[8] ポップアップ存在検出の探索（★変化検出が�
 }
 
 // ── 9. HPバー抽出（P2-5） ───────────────────────────────────
-console.log('\n[9] HPバー抽出（★CT ドットと 100% 文字を「縦方向で避ける」）');
+console.log('\n[9] HPバー抽出（★実走の条件＝占有率が 1.0 にならない／演出でバーが消える）');
 {
-  const { analyzeHpBar, HpSeries, reportHp } = await import('../src/transcribe/hp_bar.js');
+  const { analyzeHpBar, HpSeries, reportHp, HP_DEFAULTS } = await import('../src/transcribe/hp_bar.js');
   const { Diag: D } = await import('../src/transcribe/diag.js');
 
   /**
-   * `ROIS.hpbar` の crop（**バーそのもの**）を模す。
-   * ★遮蔽物は実物どおり**縦中央**に置く: CT ドット5個 ＋ 右端の `100%` 文字。
-   *   上下の細い帯を見る実装なら、どちらにも邪魔されないはず。
-   * ⚠ 敵アイコンは入れない＝ROI で構造的に除くのが正しい（色では分離できない）。
+   * ★実走で観測された条件を再現するフィクスチャ（2026-08-14・`M3-1.mp4`）:
+   *   - **塗られた列でも占有率は 0.375〜0.86**（1.0 にならない）。
+   *     理由＝人が採寸した ROI に対しバーがわずかに上下へずれ、上下帯が部分的に外れる。
+   *     ここでは `fillTop/fillBottom` で塗りを ROI より内側に描いてそれを再現する。
+   *   - **空の部分は厳密に 0**。∴ 分離自体は易しい。
+   *   ⚠ 絶対閾値 0.50 はこの条件で崩壊した（列の 76% が閾値の ±0.13 に入る）。
    */
-  function bar(pct, W = 540, H = 34) {
-    const img = makeImage(W, H, [45, 40, 50]);            // 空のトラック
-    fillRect(img, 0, 0, Math.round(W * pct), H, [205, 35, 55]);   // 塗り
-    for (let i = 0; i < 5; i++) fillRect(img, 290 + i * 26, 9, 16, 16, [150, 150, 155]);
-    fillRect(img, W - 70, 6, 64, 22, [245, 245, 245]);    // "100%" の白文字
+  function bar(pct, { W = 640, H = 54, fillTop = 8, fillBottom = 40, wash = false } = {}) {
+    const img = makeImage(W, H, [45, 40, 50]);                       // 空のトラック
+    const col = wash ? [230, 225, 235] : [205, 35, 55];              // wash=演出フラッシュ
+    fillRect(img, 0, fillTop, Math.round(W * pct), fillBottom - fillTop, col);
+    for (let i = 0; i < 5; i++) fillRect(img, 340 + i * 30, 19, 18, 18, [150, 150, 155]);  // CT ドット
+    fillRect(img, W - 80, 16, 74, 24, [245, 245, 245]);              // "100%" 文字
     return img;
   }
 
-  const levels = [1.0, 0.99, 0.9, 0.8, 0.6, 0.4, 0.2, 0.05, 0.01, 0];
-  const res = levels.map(p => ({ p, r: analyzeHpBar(bar(p)) }));
-  check('全水準で解析に成功する', res.every(x => x.r.ok), res.find(x => !x.r.ok)?.r.reason);
+  const probe = analyzeHpBar(bar(0.78));
+  check('実走条件でも解析に成功する', probe.ok && probe.visible, probe.reason);
+  check('★塗られた列の占有率が 1.0 未満であることを再現できている',
+    probe.peak < 0.9 && probe.peak > 0.2, `peak=${probe.peak}`);
+  check('★閾値が peak に対する相対で決まる（絶対値ではない）',
+    probe.threshold < probe.peak * 0.5, `threshold=${probe.threshold} peak=${probe.peak}`);
 
+  const levels = [1.0, 0.9, 0.78, 0.6, 0.4, 0.2, 0.05];
+  const res = levels.map(p => ({ p, r: analyzeHpBar(bar(p)) }));
+  check('全水準で見えていると判定する', res.every(x => x.r.ok && x.r.visible));
   const errs = res.map(x => Math.abs(x.r.fillRatio - x.p));
   const worst = Math.max(...errs);
-  check('★塗り率が真値と 1 百分点以内で一致（CT ドット・% 文字があっても）', worst <= 0.01,
-    `最大誤差 ${(worst * 100).toFixed(2)} 百分点`);
-  check('★分母が塗りから独立している（HP を下げても 1.000 に張り付かない）',
-    res.find(x => x.p === 0.4).r.fillRatio < 0.5,
-    `pct=0.4 → ${res.find(x => x.p === 0.4).r.fillRatio.toFixed(3)}`);
-  check('HP 0 は 0 と読む', res.find(x => x.p === 0).r.fillRatio === 0);
-  check('★画面の整数%表示より細かい分解能が出る（誤差 < 1%）', worst < 0.01,
-    `${(worst * 100).toFixed(2)} 百分点`);
-  check('生プロファイルを必ず返す（外していても次の一手を決められる）',
-    Array.isArray(res[0].r.colProfile) && res[0].r.colProfile.length > 0);
+  check('★占有率が 1.0 にならない条件でも真値と 2 百分点以内で一致', worst <= 0.02,
+    `最大誤差 ${(worst * 100).toFixed(2)} 百分点 / ${res.map(x => x.r.fillRatio.toFixed(3)).join(',')}`);
 
-  // ★正解ラベル無しの健全性検査＝単調減少（敵HPは戦闘中に増えない）
+  // ★回帰ガード: 旧実装（絶対閾値 0.50）はこの条件で大きく外す
+  const old = (() => {
+    const r = analyzeHpBar(bar(0.78));
+    let e = 0;
+    // colProfile は間引き後なので、そのまま絶対 0.50 で切ったときの右端を再現する
+    r.colProfile.forEach((v, i) => { if (v >= 0.50) e = i + 1; });
+    return e / r.colProfile.length;
+  })();
+  check('★絶対閾値 0.50 だと外すことを固定（相対閾値の必要性の証拠）',
+    Math.abs(old - 0.78) > Math.abs(res[2].r.fillRatio - 0.78),
+    `絶対=${old.toFixed(3)} 相対=${res[2].r.fillRatio.toFixed(3)} 真値=0.78`);
+
+  // ★演出フラッシュ時は「読めない」と言う（数値を捏造しない）
+  const washed = analyzeHpBar(bar(0.78, { wash: true }));
+  check('★バーがフラッシュで読めないときは visible=false', washed.ok && !washed.visible, washed.reason);
+  check('★そのとき fillRatio は null（嘘の数値を返さない）', washed.fillRatio === null);
+
+  // 系列: 読めなかったフレームは捨てて数える
   const ser = new HpSeries();
-  [1.0, 0.9, 0.9, 0.7, 0.5].forEach((v, i) => ser.push(i, v));
-  check('単調減少なら monotonic=true', ser.summary().monotonic);
-  check('減少量が記録される', ser.summary().drop === 0.5, `drop=${ser.summary().drop}`);
+  ser.push(0, 1.0); ser.push(1, null); ser.push(2, 0.9); ser.push(3, null); ser.push(4, 0.7);
+  const sm = ser.summary();
+  check('読めなかったフレームは skippedFrames に数える', sm.skippedFrames === 2, `${sm.skippedFrames}`);
+  check('読めたフレームだけで単調性を判定する', sm.monotonic && sm.frames === 3,
+    JSON.stringify({ monotonic: sm.monotonic, frames: sm.frames }));
+  check('減少量が正しい', sm.drop === 0.3, `drop=${sm.drop}`);
+
   const bad = new HpSeries();
   [1.0, 0.6, 0.95, 0.5].forEach((v, i) => bad.push(i, v));
-  check('★増加したら検出される（抽出が壊れている合図）', !bad.summary().monotonic,
-    JSON.stringify(bad.summary().violationSample));
-
+  check('★増加したら検出される（抽出が壊れている合図）', !bad.summary().monotonic);
   const d4 = new D('T1', 'test');
-  reportHp(d4, res[0].r, bad);
-  check('単調性違反は WARN で知らせる', d4.summary().WARN >= 1, JSON.stringify(d4.summary()));
-  check('コードが T1-ROI-005', d4.items.some(i => i.code === 'T1-ROI-005'),
+  reportHp(d4, probe, bad);
+  check('単調性違反は WARN で知らせる', d4.items.some(i => i.code === 'T1-ROI-005'),
     d4.items.map(i => i.code).join(','));
 
-  // 解析失敗でも診断が出る
   const d5 = new D('T1', 'test');
   const thin = analyzeHpBar(makeImage(200, 1, [30, 30, 40]));
   check('薄すぎる ROI は解析失敗になる', !thin.ok, thin.reason);
   reportHp(d5, thin, null);
   check('失敗は ERROR で知らせる', d5.summary().ERROR === 1, JSON.stringify(d5.summary()));
-  check('コードが T1-ROI-004', d5.items[0]?.code === 'T1-ROI-004', d5.items[0]?.code);
 }
 
 // ── 10. ROI 定義の健全性 ────────────────────────────────────

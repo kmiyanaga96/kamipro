@@ -12,7 +12,7 @@ import { analyzeHpBar, HpSeries, reportHp, HP_DEFAULTS } from './hp_bar.js';
 import { ROIS } from './rois.js';
 import { Diag } from './diag.js';
 
-const VERSION = '0.9.0';
+const VERSION = '0.10.0';
 
 const $ = (id) => document.getElementById(id);
 const video = document.createElement('video');
@@ -478,8 +478,9 @@ $('scan').onclick = async () => {
     // ★P2-5: HPバーの塗り率。単調減少するはずなので、それ自体が抽出の健全性検査になる。
     if (cutHp) {
       const hr = analyzeHpBar(cut(cutHp));
-      if (hr.ok) { hpSeries.push(+m.toFixed(4), hr.fillRatio); lastHp = hr; }
-      else if (!lastHp) lastHp = hr;
+      // ⚠ visible=false（演出フラッシュ）のときは fillRatio が null＝系列側で skip に計上される
+      if (hr.ok) { hpSeries.push(+m.toFixed(4), hr.fillRatio); if (hr.visible) lastHp = hr; }
+      if (!lastHp) lastHp = hr;
     }
   }, (n, elapsed) => {
     $('scanNote').textContent = `走査中… ${n} フレーム / ${elapsed.toFixed(1)}秒ぶん`;
