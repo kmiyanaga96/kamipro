@@ -326,8 +326,12 @@ console.log('\n[7] フレーム選別（コマ送りを消す＝人が見る枚�
   const d2 = new D('T1', 'test');
   reportSelection(d2, { totalFrames: 100, keptFrames: 80, keptRatio: 0.8,
     meetsExitCriterion: false, threshold: 6, distanceQuantiles: { p50: 7 } });
-  check('採用率が高すぎたら WARN（FATAL にしない）',
-    d2.summary().WARN === 1 && d2.summary().FATAL === 0, JSON.stringify(d2.summary()));
+  // ★2026-08-15: 採用率 10% は**もう P2 の出口条件ではない**（削減は P3-2 へ移設・ユーザー承認）。
+  //   ∴ severity を WARN → INFO へ落とした。**出口条件でなくなったものを WARN で鳴らし続けるのは誤導**。
+  //   ⚠ FATAL/ERROR にしない（分布は較正材料として出し続ける）ことは変わらない。
+  check('採用率が高くても INFO に留める（出口条件から外れたため・FATAL/ERROR にしない）',
+    d2.summary().INFO === 1 && d2.summary().WARN === 0
+    && d2.summary().FATAL === 0 && d2.summary().ERROR === 0, JSON.stringify(d2.summary()));
   check('コードが T1-DETECT-002', d2.items[0]?.code === 'T1-DETECT-002', d2.items[0]?.code);
 }
 

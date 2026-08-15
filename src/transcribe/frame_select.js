@@ -152,12 +152,17 @@ export function reportSelection(diag, sum) {
     return false;
   }
   if (!sum.meetsExitCriterion) {
-    diag.add('T1-DETECT-002', 'WARN', {
+    // ★2026-08-15 にユーザー承認で **WARN → INFO** へ落とした。
+    //   採用率 10% は**もう P2 の出口条件ではない**（削減は P3-2＝OCR 後のイベント畳み込みへ移設）。
+    //   ⚠ 出口条件でなくなったものを WARN で鳴らし続けるのは誤導なので severity を下げる。
+    //   分布自体は較正材料として有用なので**出力は残す**。
+    diag.add('T1-DETECT-002', 'INFO', {
       where: { threshold: sum.threshold },
-      expected: '採用率 10% 以下（PHASE9_PLAN §4 P2 の出口条件＝人が見る枚数が1桁減る）',
+      expected: '（参考）採用率 10% 以下。★これは P2 の出口条件ではなくなった（P3-2 へ移設）',
       got: `採用率 ${(sum.keptRatio * 100).toFixed(1)}%（${sum.keptFrames}/${sum.totalFrames}）`,
-      hint: `距離の分位点 ${JSON.stringify(sum.distanceQuantiles)} を見て threshold を上げる。`
-        + 'ゲーム画面は背景が常時アニメーションするためベースラインがゼロにならない。',
+      hint: `距離の分位点 ${JSON.stringify(sum.distanceQuantiles)}。`
+        + 'ゲーム画面は背景が常時アニメーションするためベースラインがゼロにならない＝'
+        + '**変化検出でフレームを減らす路線は close 済み**（P2-2）。分布は較正材料として残している。',
     });
   }
   return true;
