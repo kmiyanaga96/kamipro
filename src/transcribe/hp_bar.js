@@ -37,20 +37,28 @@ export const HP_DEFAULTS = {
   stripTop: [0.06, 0.26],
   stripBottom: [0.74, 0.94],
   /**
-   * ★「塗られている」の判定は **絶対値ではなく、そのフレームの「塗られた列」に対する相対**で決める。
+   * ★**塗りの右端の判定に閾値を使わない**（v0.12.0・2026-08-15）。
    *
-   * ⚠ **絶対閾値 0.50 は実走で崩壊した**（2026-08-14・`M3-1.mp4`）。実測プロファイルでは
-   *   **完全に塗られた列でも占有率は 0.375〜0.86**（1.0 にならない）で、
-   *   **列の 76% が閾値 0.50 の ±0.13 にひしめいていた**。わずかな明滅で閾値を跨ぎ、
-   *   塗りの右端が 0 と 1 の間を飛んで **単調性違反 237回**になった。
-   *   （占有率が 1.0 にならない理由＝ROI の上下帯がバーの縁やわずかな傾きで部分的に外れるため。
-   *     人の採寸を 1px 精度で要求するのは筋が悪い＝**アルゴリズム側で吸収すべき**）
+   * ⚠ 閾値方式は**2世代続けて崩壊した**（どちらも `M3-1.mp4` の実走で判明）:
+   *   - **絶対閾値 0.50**（v0.10.0 以前）→ 単調性違反 **237回**。
+   *     実測プロファイルでは**完全に塗られた列でも占有率は 0.375〜0.86**（1.0 にならない）で、
+   *     **列の 76% が閾値の ±0.13 にひしめいていた**＝わずかな明滅で閾値を跨いだ。
+   *     （1.0 にならない理由＝ROI の上下帯がバーの縁やわずかな傾きで部分的に外れる。
+   *       人の採寸に 1px 精度を要求するのは筋が悪い＝**アルゴリズム側で吸収すべき**）
+   *   - **相対閾値 `max(absFloor, peak×0.20)` ＋「閾値を超えた最後の列」**（v0.11.0）→ 違反 **118回**。
+   *     ★真因は閾値の高さではなく**「最後の列」という探し方**だった。
+   *     実測 `colProfile` では、真の境界（idx 105）より右に**孤立した 1〜2 列**が
+   *     0.11〜0.31 で立つことがあり（末尾のみ・間は 0）、それだけで右端が末尾へ飛んで
+   *     **塗り率がぴったり 1.0 になった**（違反の 9/10 がこの型）。
    *
-   * ★**空の部分は厳密に 0** だった（実測）。∴ 分離は本来とても易しく、低い閾値で足りる。
-   *   `threshold = max(absFloor, peak × relFloor)`。peak はそのフレームの塗り列の代表値。
+   * ∴ **右端は「2区間の階段フィット」で求める**（`fitStepEdge`）＝**閾値パラメータがゼロ**。
+   *   孤立列は左区間の平坦性を壊すので採用されない。演出で `peak` が 1.0 に化けても影響しない。
+   *
+   * `absFloor` は**右端の判定には使わない**。残る唯一の用途は
+   * **「空の区間が本当に空か」の検査**＝実測事実「**空の部分は厳密に 0**」の確認である
+   * （実測の余裕: 正常フレームの空区間平均 0.000〜0.046 に対し 0.10）。
    */
   absFloor: 0.10,
-  relFloor: 0.20,
   /**
    * ★バーが「見えている」と認めるための peak の下限。
    * ⚠ **バースト演出中は画面が白金色にフラッシュしてバーが読めなくなる**（実走で確認）。
@@ -67,6 +75,62 @@ export const HP_DEFAULTS = {
 };
 
 const redness = (r, g, b) => r - (g + b) / 2;
+
+/**
+ * ★列プロファイルの「塗り→空」の境界を、**閾値を使わずに**求める。
+ *
+ * HPバーは構造上「左が塗り・右が空」の**階段**なので、区分定数モデル
+ * （左区間の平均・右区間の平均）で**残差平方和が最小になる分割点**がそのまま境界になる。
+ * 累積和で O(W)。決定的（同じ入力なら同じ出力）。
+ *
+ * ★なぜ閾値方式より強いか（実測 `colProfile` で確認済み）:
+ *   - **孤立列に釣られない**。右端の 1〜2 列が立っても、そこへ境界を動かすと
+ *     左区間へ「ほぼ 0 の列」が入って残差が跳ね上がるので選ばれない。
+ *   - **`peak` に依存しない**。演出で ROI が赤く覆われて peak が 1.0 になっても指標が動かない。
+ *   - **塗り列の占有率が 0.375 でも 0.86 でも同じに効く**（絶対水準を見ていない）。
+ *
+ * ⚠ 分割点が W（＝右区間が空）になるのは「空の区間が見つからなかった」ということ。
+ *   **満タンのバーと、ROI 全体が赤く覆われたフレームは、プロファイルだけでは区別できない**
+ *   ＝呼び出し側で「読めない」と扱う（数値を捏造しない）。
+ *
+ * @param {ArrayLike<number>} profile 列ごとの占有率（0〜1）
+ * @returns {{edge:number, leftMean:number, rightMean:number, cost:number}}
+ */
+export function fitStepEdge(profile) {
+  const W = profile.length;
+  if (!W) return { edge: 0, leftMean: 0, rightMean: 0, cost: 0 };
+
+  const sum = new Float64Array(W + 1), sq = new Float64Array(W + 1);
+  for (let i = 0; i < W; i++) {
+    sum[i + 1] = sum[i] + profile[i];
+    sq[i + 1] = sq[i] + profile[i] * profile[i];
+  }
+  /** 区間 [a,b) の残差平方和（平均まわり）。空区間は 0。 */
+  const sse = (a, b) => {
+    const n = b - a;
+    if (n <= 0) return 0;
+    const s = sum[b] - sum[a];
+    return Math.max(0, (sq[b] - sq[a]) - s * s / n);
+  };
+
+  // ★2パス: ①最小コストを求める ②同点なら**大きい k** を採る。
+  //   同点は「プロファイルが一様＝どこで切っても同じ」ときにだけ起きる。
+  //   そのとき境界は「右端」＝空区間なし（＝読めない）と扱うのが正しい。
+  //   ⚠ 1パスで `<` を使うと同点時に k=0（塗りゼロ）へ落ちて、意味が逆になる。
+  const eps = 1e-9 * (sq[W] + 1);
+  let best = Infinity;
+  for (let k = 0; k <= W; k++) best = Math.min(best, sse(0, k) + sse(k, W));
+  let edge = 0;
+  for (let k = 0; k <= W; k++) if (sse(0, k) + sse(k, W) <= best + eps) edge = k;
+
+  return {
+    edge,
+    leftMean: edge > 0 ? sum[edge] / edge : 0,
+    // ★右区間が空（edge===W）なら「空の区間が無い」＝ 0 とは呼べない。呼び出し側が別扱いする。
+    rightMean: edge < W ? (sum[W] - sum[edge]) / (W - edge) : null,
+    cost: best,
+  };
+}
 
 /** 配列を指定長へ平均で間引く（診断 JSON を膨らませないため）。 */
 function downsample(arr, bins) {
@@ -138,33 +202,62 @@ export function analyzeHpBar(img, opts = {}) {
   const peak = sorted[Math.floor(sorted.length * 0.95)];
 
   // --- 4. ★バーが見えているか（バースト演出中は白金色にフラッシュして読めない） ---
+  const common = {
+    ok: true, bands, peak: +peak.toFixed(4),
+    redFraction: redPixels / (img.width * rows),
+    colProfile: downsample(colProfile, o.profileBins),
+  };
   if (peak < o.visibleFloor) {
     return {
-      ok: true, visible: false, fillRatio: null, peak: +peak.toFixed(4),
-      bands, redFraction: redPixels / (img.width * rows),
-      colProfile: downsample(colProfile, o.profileBins),
+      ...common, visible: false, fillRatio: null, cause: 'flash',
       reason: `バーが見えない（peak ${peak.toFixed(3)} < ${o.visibleFloor}）＝演出でフラッシュしている`,
     };
   }
 
-  // --- 5. ★塗りの右端 ＝ 最後に「塗られている」列 ---
-  //     閾値は peak に対する相対（絶対値だと実走で崩壊した＝上記の注記）。
-  const threshold = Math.max(o.absFloor, peak * o.relFloor);
-  let edge = 0;
-  for (let x = 0; x < img.width; x++) if (colProfile[x] >= threshold) edge = x + 1;
+  // --- 5〜6. 塗りの右端と、読めたかどうか（★プロファイルだけで決まる＝純関数へ委譲） ---
+  return { ...common, ...readFillRatio(colProfile, o) };
+}
+
+/**
+ * ★列プロファイルから塗り率を読む。**画像経路とテスト経路で同じ実装を通すため**に切り出してある
+ * （実走で観測されたプロファイルを、画像を再現せずにそのまま回帰フィクスチャにできる）。
+ *
+ * @param {ArrayLike<number>} profile 列ごとの占有率（0〜1）
+ * @returns {{visible, fillRatio, fillEdge?, leftMean?, rightMean?, cause?, reason?}}
+ */
+export function readFillRatio(profile, opts = {}) {
+  const o = { ...HP_DEFAULTS, ...opts };
+  const W = profile.length;
+  const fit = fitStepEdge(profile);
+
+  // ★「空の区間が本当に空か」＝読めたかどうかの検査。
+  //   実測事実「**空の部分は厳密に 0**」の確認。ここを通らないフレームは
+  //   ROI が別のもので覆われている（＝境界の推定値に意味が無い）。
+  //   ⚠ **数値を捏造しない**＝読めないときは読めないと言う。
+  //   実走で捕まる型（2026-08-15 `M3-1.mp4` t=14.0834）:
+  //     平坦部 0.2083（正常は 0.375〜0.4583）／中央と末尾に**占有率 1.0 のブロック**
+  //     ＝赤い演出が ROI を覆っている。旧実装はこれを「HP 100%」と報告していた。
+  //   ⚠ **満タンのバーもここで「読めない」になる**（空の区間が無いので上の汚染と区別できない）。
+  //     取りこぼすのは戦闘開始前の 100% 区間だけで、そこは推測する価値が無い＝許容する。
+  if (fit.rightMean === null || fit.rightMean >= o.absFloor) {
+    return {
+      visible: false, fillRatio: null, cause: 'noEmptyRegion',
+      fillEdge: fit.edge, leftMean: +fit.leftMean.toFixed(4),
+      rightMean: fit.rightMean === null ? null : +fit.rightMean.toFixed(4),
+      reason: fit.rightMean === null
+        ? '空の区間が無い（バーが満タン か ROI 全体が覆われている）＝プロファイルだけでは区別できない'
+        : `空の区間が空でない（平均 ${fit.rightMean.toFixed(3)} ≧ ${o.absFloor}）＝ROI が何かで覆われている`,
+    };
+  }
 
   return {
-    ok: true,
     visible: true,
-    bands,
-    peak: +peak.toFixed(4),
-    threshold: +threshold.toFixed(4),
-    fillEdge: edge,
-    /** ★0〜1。分母は **ROI 幅**（人が採寸したバー全長）＝塗りとは独立な基準。 */
-    fillRatio: edge / img.width,
-    /** 参考: ROI 全体に占める赤画素の割合（ROI がズレていれば極端な値になる）。 */
-    redFraction: redPixels / (img.width * rows),
-    colProfile: downsample(colProfile, o.profileBins),
+    fillEdge: fit.edge,
+    /** ★0〜1。分母は **プロファイル長＝ROI 幅**（人が採寸したバー全長）＝塗りとは独立な基準。 */
+    fillRatio: fit.edge / W,
+    /** 塗り区間・空区間それぞれの平均占有率（診断用＝境界の妥当性が目で分かる）。 */
+    leftMean: +fit.leftMean.toFixed(4),
+    rightMean: +fit.rightMean.toFixed(4),
   };
 }
 
@@ -178,13 +271,18 @@ export class HpSeries {
     this.points = [];
     this.violations = [];
     this.skipped = 0;             // バーが見えず読めなかったフレーム数
+    /**
+     * ★読めなかった理由の内訳。`flash`（演出で白くとぶ）と
+     * `noEmptyRegion`（空の区間が無い＝満タン or ROI 汚染）は原因も対処も別物なので分けて数える。
+     */
+    this.causes = { flash: 0, noEmptyRegion: 0, other: 0 };
   }
 
   /** バーが見えなかったフレーム。★数値を捏造せず、読めなかったこととして数える。 */
-  skip() { this.skipped++; }
+  skip(cause) { this.skipped++; this.causes[cause in this.causes ? cause : 'other']++; }
 
-  push(t, fillRatio) {
-    if (fillRatio == null) { this.skip(); return; }
+  push(t, fillRatio, cause) {
+    if (fillRatio == null) { this.skip(cause); return; }
     const prev = this.points.length ? this.points[this.points.length - 1] : null;
     if (prev && fillRatio > prev.v + this.tolerance) {
       this.violations.push({ t, from: +prev.v.toFixed(4), to: +fillRatio.toFixed(4) });
@@ -199,6 +297,8 @@ export class HpSeries {
       frames: this.points.length,
       /** ★演出でバーが読めず捨てたフレーム（捏造せずに数える） */
       skippedFrames: this.skipped,
+      /** その内訳（flash＝白フラッシュ / noEmptyRegion＝満タン or ROI 汚染） */
+      skipCauses: { ...this.causes },
       firstRatio: +first.toFixed(4),
       lastRatio: +last.toFixed(4),
       /** ★単調減少していれば抽出は健全（HP は戦闘中に増えない） */
@@ -229,8 +329,9 @@ export function reportHp(diag, res, series) {
       where: { roi: 'hp', violations: s.violations },
       expected: 'HP 割合が単調減少すること（敵HPは戦闘中に増えない）',
       got: `${s.violations} 回の増加`,
-      hint: '抽出が壊れているか、演出でバーが隠れるフレームがある。'
-        + 'violationSample の時刻の crop を見る。',
+      hint: '`hpViolationSamples` の `colProfile` を `hpProfileSample`（正常フレーム）と並べる。'
+        + '★到達点が「ぴったり 1.0」に偏っていたら右端の探し方（境界の推定）が壊れている。'
+        + 'v0.11.0 の「閾値を超えた最後の列」がこの型だった＝孤立した末尾 1〜2 列に釣られていた。',
     });
   }
   if (s && s.drop === 0) {

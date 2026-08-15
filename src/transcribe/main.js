@@ -12,7 +12,7 @@ import { analyzeHpBar, HpSeries, reportHp, HP_DEFAULTS } from './hp_bar.js';
 import { ROIS } from './rois.js';
 import { Diag } from './diag.js';
 
-const VERSION = '0.11.0';
+const VERSION = '0.12.0';
 
 const $ = (id) => document.getElementById(id);
 const video = document.createElement('video');
@@ -482,7 +482,7 @@ $('scan').onclick = async () => {
     if (cutHp) {
       const hr = analyzeHpBar(cut(cutHp));
       // ⚠ visible=false（演出フラッシュ）のときは fillRatio が null＝系列側で skip に計上される
-      if (hr.ok) { hpSeries.push(+m.toFixed(4), hr.fillRatio); if (hr.visible) lastHp = hr; }
+      if (hr.ok) { hpSeries.push(+m.toFixed(4), hr.fillRatio, hr.cause); if (hr.visible) lastHp = hr; }
       if (!lastHp) lastHp = hr;
 
       // ★単調性違反が起きたフレームのプロファイルを保存する。
@@ -491,7 +491,8 @@ $('scan').onclick = async () => {
           && hr.fillRatio > prevRatio + 0.01 && hpViolationSamples.length < 4) {
         hpViolationSamples.push({
           t: +m.toFixed(4), from: +prevRatio.toFixed(4), to: +hr.fillRatio.toFixed(4),
-          peak: hr.peak, threshold: hr.threshold, redFraction: +hr.redFraction.toFixed(4),
+          peak: hr.peak, leftMean: hr.leftMean, rightMean: hr.rightMean,
+          redFraction: +hr.redFraction.toFixed(4),
           colProfile: hr.colProfile,
         });
       }
@@ -543,7 +544,7 @@ $('scan').onclick = async () => {
     // ★P2-5: HP 系列。monotonic が false なら抽出が壊れている（敵HPは戦闘中に増えない）。
     hp: hpSeries.summary(),
     hpProfileSample: lastHp?.colProfile ?? null,
-    hpNormal: lastHp ? { peak: lastHp.peak, threshold: lastHp.threshold,
+    hpNormal: lastHp ? { peak: lastHp.peak, leftMean: lastHp.leftMean, rightMean: lastHp.rightMean,
                          redFraction: +lastHp.redFraction.toFixed(4) } : null,
     // ★違反フレームの生プロファイル（正常フレームと並べれば何が違うか分かる）
     hpViolationSamples,

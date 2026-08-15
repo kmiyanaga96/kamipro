@@ -9,10 +9,27 @@
 //   ⚠ 本テストが通っても「実フレームで検出できる」ことの証明にはならない。
 //      実フレームでの確認は P2 の受け入れ（PHASE9_PLAN §4 P2 の出口条件）で行う。
 //
+// ★例外＝`tools/fixtures/*.json`（2026-08-15 追加）:
+//   実走の診断JSONから持ち帰った**数値プロファイル**（列ごとの占有率など）は収録する。
+//   画像ではない（120個の集計値）ので §10.3 の「動画・静止画を入れない」に抵触せず、
+//   **合成では再現できなかった実条件**（孤立列・演出による ROI 汚染）を回帰として固定できる。
+//   ⭐ 合成で通っていたテストが実走で崩れる事故を 2 世代続けたので、実物を焼き直す方を規律とする。
+//
 // 使い方: node tools/t1_selftest.mjs
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { detectCanvas, roiToPixels, pixelsToRoi, estimateBackground } from '../src/transcribe/canvas_detect.js';
 import { Diag } from '../src/transcribe/diag.js';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+/** フィクスチャの連長圧縮を展開する。★length で転記ミスを検出する。 */
+function expandRuns(p) {
+  const out = [];
+  for (const [v, n] of p.runs) for (let i = 0; i < n; i++) out.push(v);
+  return out;
+}
 
 let pass = 0, fail = 0;
 const failures = [];
@@ -391,7 +408,8 @@ console.log('\n[8] ポップアップ存在検出の探索（★変化検出が�
 // ── 9. HPバー抽出（P2-5） ───────────────────────────────────
 console.log('\n[9] HPバー抽出（★実走の条件＝占有率が 1.0 にならない／演出でバーが消える）');
 {
-  const { analyzeHpBar, HpSeries, reportHp, HP_DEFAULTS } = await import('../src/transcribe/hp_bar.js');
+  const { analyzeHpBar, HpSeries, reportHp, HP_DEFAULTS, fitStepEdge, readFillRatio }
+    = await import('../src/transcribe/hp_bar.js');
   const { Diag: D } = await import('../src/transcribe/diag.js');
 
   /**
@@ -415,28 +433,80 @@ console.log('\n[9] HPバー抽出（★実走の条件＝占有率が 1.0 にな
   check('実走条件でも解析に成功する', probe.ok && probe.visible, probe.reason);
   check('★塗られた列の占有率が 1.0 未満であることを再現できている',
     probe.peak < 0.9 && probe.peak > 0.2, `peak=${probe.peak}`);
-  check('★閾値が peak に対する相対で決まる（絶対値ではない）',
-    probe.threshold < probe.peak * 0.5, `threshold=${probe.threshold} peak=${probe.peak}`);
+  check('★右端の判定に閾値パラメータを使わない（threshold を返さない）',
+    probe.threshold === undefined && typeof probe.leftMean === 'number',
+    JSON.stringify({ threshold: probe.threshold, leftMean: probe.leftMean }));
 
-  const levels = [1.0, 0.9, 0.78, 0.6, 0.4, 0.2, 0.05];
+  const levels = [0.9, 0.78, 0.6, 0.4, 0.2, 0.05];
   const res = levels.map(p => ({ p, r: analyzeHpBar(bar(p)) }));
-  check('全水準で見えていると判定する', res.every(x => x.r.ok && x.r.visible));
-  const errs = res.map(x => Math.abs(x.r.fillRatio - x.p));
-  const worst = Math.max(...errs);
+  check('全水準で見えていると判定する', res.every(x => x.r.ok && x.r.visible),
+    res.filter(x => !x.r.visible).map(x => `${x.p}:${x.r.reason}`).join(' / '));
+  const worst = Math.max(...res.map(x => Math.abs(x.r.fillRatio - x.p)));
   check('★占有率が 1.0 にならない条件でも真値と 2 百分点以内で一致', worst <= 0.02,
     `最大誤差 ${(worst * 100).toFixed(2)} 百分点 / ${res.map(x => x.r.fillRatio.toFixed(3)).join(',')}`);
 
-  // ★回帰ガード: 旧実装（絶対閾値 0.50）はこの条件で大きく外す
-  const old = (() => {
-    const r = analyzeHpBar(bar(0.78));
-    let e = 0;
-    // colProfile は間引き後なので、そのまま絶対 0.50 で切ったときの右端を再現する
-    r.colProfile.forEach((v, i) => { if (v >= 0.50) e = i + 1; });
-    return e / r.colProfile.length;
-  })();
-  check('★絶対閾値 0.50 だと外すことを固定（相対閾値の必要性の証拠）',
-    Math.abs(old - 0.78) > Math.abs(res[2].r.fillRatio - 0.78),
-    `絶対=${old.toFixed(3)} 相対=${res[2].r.fillRatio.toFixed(3)} 真値=0.78`);
+  // ★満タンのバーは「読めない」と言う（1.0 と推測しない）。
+  //   空の区間が無いフレームは、満タンなのか ROI が覆われているのか**プロファイルからは決まらない**。
+  //   取りこぼすのは戦闘開始前の 100% 区間だけ＝推測する価値が無い。
+  const full = analyzeHpBar(bar(1.0));
+  check('★満タン（空の区間が無い）は visible=false ＝ 1.0 と推測しない',
+    full.ok && !full.visible && full.cause === 'noEmptyRegion', `${full.cause} / ${full.reason}`);
+
+  // ── ★実走プロファイルによる回帰（合成では再現できなかった型） ──────────
+  {
+    const fx = JSON.parse(readFileSync(join(HERE, 'fixtures/t1_hp_profiles_M3-1.json'), 'utf8'));
+    /** v0.11.0 の実装（閾値を超えた**最後の列**）＝直した当の壊れ方を再現する。 */
+    const v0110 = (prof) => {
+      const sorted = [...prof].sort((a, b) => a - b);
+      const peak = sorted[Math.floor(sorted.length * 0.95)];
+      const th = Math.max(HP_DEFAULTS.absFloor, peak * 0.20);
+      let e = 0;
+      prof.forEach((v, i) => { if (v >= th) e = i + 1; });
+      return e / prof.length;
+    };
+
+    for (const [key, p] of Object.entries(fx.profiles)) {
+      const prof = expandRuns(p);
+      check(`[${key}] 転記が壊れていない（展開長が ${p.length}）`, prof.length === p.length,
+        `実際 ${prof.length}`);
+      const r = readFillRatio(prof);
+      check(`[${key}] ${p.label}`, r.visible === p.expect.visible,
+        `visible=${r.visible} / ${r.reason ?? ''}`);
+      if (p.expect.visible) {
+        check(`[${key}] 塗り率が実走の実測と一致（${p.expect.fillRatio}）`,
+          Math.abs(r.fillRatio - p.expect.fillRatio) < 0.005,
+          `得られた値 ${r.fillRatio.toFixed(4)}`);
+      } else {
+        check(`[${key}] 数値を返さない（fillRatio=null・cause=${p.expect.cause}）`,
+          r.fillRatio === null && r.cause === p.expect.cause, `${r.cause}`);
+      }
+    }
+
+    // ★これが本丸の回帰: 旧実装がこのプロファイルで 1.0 に跳んだことを固定する。
+    //   （固定しないと「直った」ことの証拠が消える＝同じ型に戻れてしまう）
+    const blip = expandRuns(fx.profiles['t15.3834']);
+    check('★v0.11.0 の「閾値を超えた最後の列」はこの実プロファイルで 1.0 に跳ぶ',
+      Math.abs(v0110(blip) - 1.0) < 1e-9, `v0.11.0 → ${v0110(blip).toFixed(4)}`);
+    check('★階段フィットは孤立した末尾列に釣られない',
+      readFillRatio(blip).fillRatio < 0.95, `→ ${readFillRatio(blip).fillRatio.toFixed(4)}`);
+
+    const wash = expandRuns(fx.profiles['t14.0834']);
+    check('★v0.11.0 は ROI 汚染フレームにも 1.0 を報告していた',
+      Math.abs(v0110(wash) - 1.0) < 1e-9, `v0.11.0 → ${v0110(wash).toFixed(4)}`);
+  }
+
+  // 階段フィットそのものの性質
+  {
+    const step = (k, W = 100, hi = 0.42) => Array.from({ length: W }, (_, i) => (i < k ? hi : 0));
+    check('★階段フィットは塗り水準に依存しない（0.2 でも 0.9 でも同じ境界）',
+      fitStepEdge(step(37, 100, 0.2)).edge === 37 && fitStepEdge(step(37, 100, 0.9)).edge === 37,
+      `${fitStepEdge(step(37, 100, 0.2)).edge} / ${fitStepEdge(step(37, 100, 0.9)).edge}`);
+    const withBlip = step(37); withBlip[99] = 0.9;   // ★末尾に孤立列を足す
+    check('★末尾に孤立列を足しても境界が動かない（v0.11.0 が壊れた条件）',
+      fitStepEdge(withBlip).edge === 37, `edge=${fitStepEdge(withBlip).edge}`);
+    check('一様なプロファイルでは境界が右端に来る（＝空の区間なし）',
+      fitStepEdge(Array(50).fill(0.3)).edge === 50 && fitStepEdge(Array(50).fill(0.3)).rightMean === null);
+  }
 
   // ★演出フラッシュ時は「読めない」と言う（数値を捏造しない）
   const washed = analyzeHpBar(bar(0.78, { wash: true }));
