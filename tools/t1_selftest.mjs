@@ -537,6 +537,169 @@ console.log('\n[9] HPバー抽出（★実走の条件＝占有率が 1.0 にな
   check('失敗は ERROR で知らせる', d5.summary().ERROR === 1, JSON.stringify(d5.summary()));
 }
 
+// ── 11. 重複除去（P2-4）★合成は実走の距離分布に合わせてある ──────────
+console.log('\n[11] 重複除去（P2-4）＝取りこぼさないと証明できる範囲でだけ間引く');
+{
+  const { LagProfile, EventDeduper, reportDedup, DEDUP_DEFAULTS }
+    = await import('../src/transcribe/dedup.js');
+  const { FrameSelector } = await import('../src/transcribe/frame_select.js');
+  const { Diag: D } = await import('../src/transcribe/diag.js');
+
+  const N = 576, GW = 24;                       // 24×24 グリッド署名（roiSignature と同じ形）
+  const rndFrom = (seed) => () => {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+
+  /**
+   * ★実走の `dmg` ROI を模した署名列を作る。
+   *
+   * ⚠⚠ **パラメータは勘で置いていない**。2026-08-15 の実走（`M3-1.mp4` 120秒・3510フレーム）で
+   *   測った**隣接フレーム距離の分位点**（p50 6.72 / p90 40.34 / p99 112.63）に合わせて詰めてある。
+   *   ∴ この合成は「**P2-2 を実際に失敗させた動き**」を持つ＝
+   *   合成で通ったのに実走で崩れる、という 2 世代続いた事故への構造的な備え。
+   *
+   *   - 背景は**常時アニメーション**（セルごとに位相と周期が違う正弦波）＝静止フレームが存在しない
+   *   - ポップアップは `popEvery` ごとに出て `popLife` フレーム持続する（＝発見⑧の L）
+   *   - `flashEvery` ごとに全面フラッシュ（バースト演出）＝距離分布の重い裾
+   */
+  function scene({ frames = 900, bgAmp = 19, popLife = 10, popEvery = 23, flashEvery = 60, seed = 1 } = {}) {
+    const POPW = 16, POPH = 8;
+    const r0 = rndFrom(seed);
+    const base = [], amp = [], per = [], ph = [];
+    for (let c = 0; c < N; c++) {
+      base.push(40 + r0() * 60); amp.push(bgAmp * (0.3 + r0()));
+      per.push(5 + r0() * 9); ph.push(r0());
+    }
+    const sigs = [], popupAt = new Map();       // frameIndex → popupId（正解ラベル）
+    for (let i = 0; i < frames; i++) {
+      const sig = new Uint8ClampedArray(N);
+      for (let c = 0; c < N; c++) sig[c] = base[c] + amp[c] * Math.sin(2 * Math.PI * (i / per[c] + ph[c]));
+      if (i % popEvery < popLife) {
+        const id = Math.floor(i / popEvery);
+        const r = rndFrom(1000 + id);
+        const x0 = Math.floor(r() * (GW - POPW)), y0 = Math.floor(r() * (GW - POPH));
+        for (let y = y0; y < y0 + POPH; y++) for (let x = x0; x < x0 + POPW; x++) sig[y * GW + x] = 235;
+        popupAt.set(i, id);
+      }
+      if (flashEvery && i % flashEvery < 2) for (let c = 0; c < N; c++) sig[c] = Math.min(255, sig[c] + 110);
+      sigs.push(sig);
+    }
+    return { sigs, popupAt, popLife, popEvery };
+  }
+
+  const dist = (a, b) => { let s = 0; for (let i = 0; i < a.length; i++) s += Math.abs(a[i] - b[i]); return s / a.length; };
+  const q = (a, p) => { const s = [...a].sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(p * s.length))]; };
+
+  // ① ★合成が実走の距離分布を再現していること（このテスト群の土台＝ここが外れたら以下は無意味）
+  const { sigs, popupAt, popLife } = scene();
+  const dd = [];
+  for (let i = 1; i < sigs.length; i++) dd.push(dist(sigs[i - 1], sigs[i]));
+  const p50 = q(dd, 0.5), p90 = q(dd, 0.9), p99 = q(dd, 0.99);
+  check('★合成が実走の距離分布を再現している（実走 p50 6.72 / p90 40.34 / p99 112.63）',
+    p50 > 5 && p50 < 9 && p90 > 28 && p90 < 55 && p99 > 90 && p99 < 135,
+    `p50=${p50.toFixed(2)} p90=${p90.toFixed(2)} p99=${p99.toFixed(2)}`);
+
+  // ② ★この合成の上では P2-2（変化検出）が実走と同じように失敗すること
+  const sel = new FrameSelector();
+  sigs.forEach((s, i) => sel.push(i / 30, s));
+  check('★変化検出は出口条件を満たせない（実走 61.8% と同じ失敗を合成が再現する）',
+    !sel.summary().meetsExitCriterion,
+    `採用率 ${(sel.summary().keptRatio * 100).toFixed(1)}%`);
+
+  // ③ 持続性の実測（発見⑧）＝ラグが増えると距離も増える
+  const lag = new LagProfile();
+  sigs.forEach(s => lag.push(s));
+  const lr = lag.report();
+  check('ラグ別の距離が生データとして返る', Array.isArray(lr.lags) && lr.lags.length === DEDUP_DEFAULTS.maxLag,
+    `${lr.lags.length} 本`);
+  check('★離散的な出来事があると eventContrast が大きい（ラグ1 の p90/p50）',
+    lr.eventContrast > 3, `eventContrast=${lr.eventContrast}`);
+  check('セル単位 |Δ| の分布が返る（ノイズ床を分布に語らせるため）',
+    lr.cellDeltas && typeof lr.cellDeltas.p50 === 'number' && typeof lr.cellDeltas.zeroFraction === 'number',
+    JSON.stringify(lr.cellDeltas));
+  check('★状態の長さが cut 別に返る（L を読むための生データ）',
+    lr.stateRuns.length === 3 && lr.stateRuns.every(r => typeof r.p50 === 'number'),
+    JSON.stringify(lr.stateRuns));
+  check(`★上側の cut で読んだ状態長が真の寿命（${popLife}）に近い`,
+    Math.abs(lr.stateRuns.find(r => r.label === 'p90').p50 - popLife) <= 2,
+    `p90 cut の p50 = ${lr.stateRuns.find(r => r.label === 'p90').p50} / 真値 ${popLife}`);
+
+  // ④ ★健全性検査の本体: 「出来事が信号に出ていない」場面を見抜けること
+  //    ⚠⚠ ここは実装中に一度**誤った指標を置いて自分で反証した**箇所。
+  //    旧 `persistenceRatio`（ラグ1 p50 ÷ ラグ20 p50）は**ポップアップが1つも無い背景だけの列で
+  //    0.537**＝「持続性あり」に見えた＝**背景アニメの遅さと寿命を区別できなかった**。
+  //    ★その反証をそのまま回帰にする（同じ罠に戻れないように）。
+  for (const [label, sc] of [
+    ['寿命1フレーム（間引き不可）', scene({ popLife: 1, popEvery: 3, flashEvery: 0 })],
+    ['★背景のみ＝出来事ゼロ（旧指標が誤導した場面）', scene({ popLife: 0, popEvery: 1e9, flashEvery: 0 })],
+    ['背景のみ・速い', scene({ popLife: 0, popEvery: 1e9, flashEvery: 0, bgAmp: 19, seed: 7 })],
+  ]) {
+    const lg = new LagProfile(), dd2 = new EventDeduper();
+    sc.sigs.forEach((s, i) => { lg.push(s); dd2.push(i / 30, s); });
+    const r = lg.report();
+    const dx = new D('T1', 'test');
+    reportDedup(dx, dd2.summary(), r);
+    check(`★「${label}」を出来事なしと判定できる`,
+      r.eventContrast < 1.5 && dx.items.some(i => i.code === 'T1-DEDUP-003'),
+      `eventContrast=${r.eventContrast} / ${dx.items.map(i => i.code).join(',')}`);
+  }
+
+  // ⑤ 未較正のあいだは間引かない（★推測で stride を埋めない）
+  const raw = new EventDeduper();
+  sigs.forEach((s, i) => raw.push(i / 30, s));
+  const rawSum = raw.summary();
+  check('★stride 未較正なら間引かない（完全重複だけ落とす）',
+    !rawSum.calibrated && rawSum.keptFrames === sigs.length, `${rawSum.keptFrames}/${sigs.length}`);
+  const d7 = new D('T1', 'test');
+  reportDedup(d7, rawSum, lr);
+  check('未較正であることを WARN で知らせる', d7.items.some(i => i.code === 'T1-DEDUP-001'),
+    d7.items.map(i => i.code).join(','));
+
+  // ⑥ ★★保証の本体: stride ≦ 寿命 なら、どのポップアップも必ず1回は捕まる
+  const stride = Math.floor(popLife / DEDUP_DEFAULTS.safety);     // 10/2 = 5
+  const ded = new EventDeduper({ stride });
+  sigs.forEach((s, i) => ded.push(i / 30, s));
+  const sum = ded.summary();
+  const caught = new Set(ded.kept.map(k => popupAt.get(Math.round(k.t * 30))).filter(v => v !== undefined));
+  const allIds = new Set([...popupAt.values()]);
+  /**
+   * ★保証の主張は「**寿命が stride 以上ある**ものは必ず捕まる」であって「全部捕まる」ではない。
+   * ⚠ 走の末尾で切れたポップアップ（存在フレームが stride 未満）は条件の外＝ここで区別する。
+   *   実装時に実際にこれで落ちた（フレーム 897..899 の 3 フレームだけのポップアップ）。
+   *   主張を弱めたのではなく、**定理どおりに書き直した**（弱いほうは⑦で反証として固定する）。
+   */
+  const lifeOf = new Map();
+  for (const id of popupAt.values()) lifeOf.set(id, (lifeOf.get(id) ?? 0) + 1);
+  const longEnough = [...lifeOf].filter(([, n]) => n >= stride).map(([id]) => id);
+  const shortOnes = [...lifeOf].filter(([, n]) => n < stride).map(([id]) => id);
+  check(`★stride=${stride}（寿命の半分）で、寿命 ${stride} 以上のものを1つも取りこぼさない`,
+    longEnough.every(id => caught.has(id)),
+    `捕捉 ${caught.size}/${allIds.size}・条件を満たすもの ${longEnough.length} 本・`
+    + `条件外（末尾で切れた） ${JSON.stringify(shortOnes.map(id => [id, lifeOf.get(id)]))}`);
+  check('間引き率が stride とほぼ一致する',
+    Math.abs(sum.reductionFactor - stride) < 0.2, `reductionFactor=${sum.reductionFactor}`);
+  check('採用フレーム間の最大の穴が stride 相当以内',
+    sum.maxGapSeconds <= stride / 30 + 1e-6, `maxGap=${sum.maxGapSeconds}s`);
+
+  // ⑦ ★境界の反証: stride が寿命を超えると取りこぼす（保証が「条件つき」であることの証拠）
+  const over = new EventDeduper({ stride: popLife + 2 });
+  sigs.forEach((s, i) => over.push(i / 30, s));
+  const caughtOver = new Set(over.kept.map(k => popupAt.get(Math.round(k.t * 30))).filter(v => v !== undefined));
+  check('★stride が寿命を超えると取りこぼす（＝保証は stride ≦ L のときだけ）',
+    caughtOver.size < allIds.size, `捕捉 ${caughtOver.size}/${allIds.size}`);
+
+  // ⑧ 完全重複の除去（実走で dist=0 の隣接対が観測されている＝seek が同じフレームを二度返す）
+  const dup = new EventDeduper();
+  const withDup = [];
+  sigs.slice(0, 100).forEach((s, i) => { withDup.push(s); if (i % 10 === 0) withDup.push(s); });
+  withDup.forEach((s, i) => dup.push(i / 30, s));
+  check('★完全に同じフレームは落とす（情報を失わない除去）',
+    dup.summary().droppedDuplicates === 10, `${dup.summary().droppedDuplicates}`);
+}
+
 // ── 10. ROI 定義の健全性 ────────────────────────────────────
 console.log('\n[10] ROI 定義の健全性');
 {

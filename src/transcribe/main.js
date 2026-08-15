@@ -9,10 +9,11 @@ import { detectPanelMode, reportPanelMode, listSlotRects, PANEL_DEFAULTS } from 
 import { roiSignature, FrameSelector, reportSelection, SELECT_DEFAULTS } from './frame_select.js';
 import { goldenFractions, PopupProbe, reportProbe, PROBE_GRID } from './popup_probe.js';
 import { analyzeHpBar, HpSeries, reportHp, HP_DEFAULTS } from './hp_bar.js';
+import { LagProfile, EventDeduper, reportDedup, DEDUP_DEFAULTS } from './dedup.js';
 import { ROIS } from './rois.js';
 import { Diag } from './diag.js';
 
-const VERSION = '0.12.0';
+const VERSION = '0.13.0';
 
 const $ = (id) => document.getElementById(id);
 const video = document.createElement('video');
@@ -427,7 +428,8 @@ $('scan').onclick = async () => {
     duration: video.duration,
     scanSeconds: secs,
     method: 'seek（決定的・全フレーム）',
-  }).setConfig({ detect: DEFAULTS, select: SELECT_DEFAULTS, panel: PANEL_DEFAULTS, probe: PROBE_GRID })
+  }).setConfig({ detect: DEFAULTS, select: SELECT_DEFAULTS, panel: PANEL_DEFAULTS, probe: PROBE_GRID,
+                 dedup: DEDUP_DEFAULTS, hp: HP_DEFAULTS })
     .stage('DETECT', 0, 0);
 
   // canvas は先頭1フレームで確定させて使い回す（録画中にウィンドウは動かない）
@@ -456,6 +458,9 @@ $('scan').onclick = async () => {
   const local = (r) => ({ x: 0, y: 0, w: r.w, h: r.h });   // 切り出し後は原点基準
 
   const sel = new FrameSelector();
+  // ★P2-4: 持続性の実測（発見⑧）と、保証付きの間引き。選別（P2-2）とは独立に走らせる。
+  const lag = new LagProfile();
+  const dedup = new EventDeduper();
   const probe = new PopupProbe();
   const modes = { list: 0, detail: 0 };
   const transitions = [];
@@ -469,7 +474,10 @@ $('scan').onclick = async () => {
 
   const total = await walkFrames(video, start, start + secs, async (m) => {
     const dImg = cut(cutDmg), gImg = cut(cutGauge);
-    sel.push(m, roiSignature(dImg, local(dmgRect)));
+    const dSig = roiSignature(dImg, local(dmgRect));
+    sel.push(m, dSig);
+    lag.push(dSig);            // ★署名は1回だけ作って両方へ渡す（走査コストを増やさない）
+    dedup.push(m, dSig);
     probe.push(goldenFractions(dImg, local(dmgRect)));
     const pm = detectPanelMode(gImg, local(gaugeRect));
     modes[pm.mode]++;
@@ -510,6 +518,9 @@ $('scan').onclick = async () => {
   diag.setInput({ scannedSeconds: +covered.toFixed(3), wallClockSeconds: +wall.toFixed(1) });
   diag.stage('DETECT', sum.keptFrames, sum.totalFrames);
   reportSelection(diag, sum);
+  const lagReport = lag.report();
+  const dedupSum = dedup.summary();
+  reportDedup(diag, dedupSum, lagReport);
   const probeBest = reportProbe(diag, probe);
   if (cutHp) reportHp(diag, lastHp, hpSeries);
   else diag.add('T1-ROI-004', 'ERROR', {
@@ -531,6 +542,9 @@ $('scan').onclick = async () => {
     + `${total} フレーム / ${covered.toFixed(1)}秒 ＝ 実効 ${sampledFps.toFixed(1)} fps</span>`
     + ` / 実時間 ${wall.toFixed(0)}秒 / list ${modes.list}・detail ${modes.detail}`
     + ` / モード遷移 ${transitions.length} 回`
+    // ★P2-4: 発見⑧の材料は走査のたびに目に入るようにする（stride を決める根拠）
+    + ` / <b>出来事 ${lagReport.eventContrast ?? '-'}</b>`
+    + `（状態長 ${lagReport.stateRuns?.map(r => `${r.label}:${r.p50}`).join(' ') ?? '-'}）`
     + (hpSeries.summary()
       ? ` / <b>HP ${(hpSeries.summary().firstRatio * 100).toFixed(1)}% → `
         + `${(hpSeries.summary().lastRatio * 100).toFixed(1)}%</b>`
@@ -541,6 +555,9 @@ $('scan').onclick = async () => {
     sampling: { frames: total, coveredSeconds: +covered.toFixed(3), sampledFps: +sampledFps.toFixed(3),
                 wallClockSeconds: +wall.toFixed(1) },
     selection: sum,
+    // ★P2-4: 発見⑧（ポップアップの寿命）の実測。**lags の p50 が立ち上がるラグが L の候補**。
+    lagProfile: lagReport,
+    dedup: dedupSum,
     // ★P2-5: HP 系列。monotonic が false なら抽出が壊れている（敵HPは戦闘中に増えない）。
     hp: hpSeries.summary(),
     hpProfileSample: lastHp?.colProfile ?? null,
