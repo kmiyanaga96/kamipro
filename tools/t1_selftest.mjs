@@ -763,6 +763,219 @@ console.log('\n[11] 重複除去（P2-4）＝取りこぼさないと証明で�
     dup.summary().droppedDuplicates === 10, `${dup.summary().droppedDuplicates}`);
 }
 
+// ── 13. モード遷移の除振（P2-1b 追補） ──────────────────────
+console.log('\n[13] モード遷移の除振（★実走で 18/14/12 とぶれた件）');
+{
+  const { PanelModeSeries, reportPanelSeries, PANEL_DEBOUNCE_SECONDS }
+    = await import('../src/transcribe/panel_mode.js');
+  const { Diag: D } = await import('../src/transcribe/diag.js');
+
+  /** 30fps で mode 列を作る（`spec` は [mode, フレーム数] の並び）。 */
+  const build = (spec) => {
+    const ser = new PanelModeSeries();
+    let f = 0;
+    for (const [mode, n] of spec) for (let i = 0; i < n; i++) ser.push(f++ / 30, mode);
+    return ser;
+  };
+
+  // ★実走で観測された形をそのまま焼き直す:
+  //   本物の detail 滞在は 1.9〜7.2秒（P1 発見⑮）／偽の往復は 30〜160ms（3走の比較）
+  const real = build([
+    ['list', 300],            // 10秒
+    ['detail', 1],            // ★33ms の往復（実走 t=28.45 / 110.03 と同型）＝人には不可能
+    ['list', 300],
+    ['detail', 60],           // 2.0秒＝本物の操作
+    ['list', 90],
+    ['detail', 3],            // 100ms の往復＝偽
+    ['list', 200],
+    ['detail', 216],          // 7.2秒＝本物
+    ['list', 100],
+  ]);
+  const sum = real.summary();
+  check('生の遷移列も必ず返す（★何を落としたかが見えないと検証できない）',
+    Array.isArray(sum.rawSample) && sum.rawTransitions === 8, `raw=${sum.rawTransitions}`);
+  check('★★偽の往復（33ms・100ms）だけが落ち、本物（2.0秒・7.2秒）は残る',
+    sum.stableTransitions === 4, `stable=${sum.stableTransitions} / ${JSON.stringify(sum.transitions)}`);
+  check('落とした件数を明示する', sum.debounced === 4, `${sum.debounced}`);
+
+  // ★★測定器の検証: 本物の滞在時間を振っても残ること／偽を振っても落ちること
+  // ⚠ 判定は「**最初と最後の標本の間隔**」で行う＝n フレームの滞在は (n-1)/30 秒として数える
+  //   （最後の1フレームぶんは次の標本が来るまで確定しない）。**保守側に倒している**＝
+  //   短い往復を残すより、境界ぎりぎりの本物を1つ落とす方が安全（幻の操作イベントを作らない）。
+  for (const [label, frames, want] of [['1フレーム(0ms)', 1, 0], ['4フレーム(100ms)', 4, 0],
+                                       ['8フレーム(233ms)', 8, 0], ['10フレーム(300ms)', 10, 2],
+                                       ['60フレーム(1.97秒)', 60, 2]]) {
+    const s2 = build([['list', 100], ['detail', frames], ['list', 100]]).summary();
+    check(`　　detail 滞在 ${label} → 除振後の遷移 ${want} 件`,
+      s2.stableTransitions === want, `${s2.stableTransitions} 件`);
+  }
+
+  check('★閾値は人の操作の下限に置く（実測の谷: 偽 ≦160ms / 本物 ≧1.9秒）',
+    PANEL_DEBOUNCE_SECONDS > 0.16 && PANEL_DEBOUNCE_SECONDS < 1.9,
+    `${PANEL_DEBOUNCE_SECONDS}秒`);
+
+  // 落としすぎたら WARN で知らせる
+  {
+    const many = build([['list', 30], ...Array.from({ length: 10 }, () => [['detail', 2], ['list', 30]]).flat()]);
+    const d = new D('T1', 'test');
+    reportPanelSeries(d, many.summary());
+    check('★除振で落としすぎたら WARN で知らせる（本物を消していないかの番人）',
+      d.items.some(i => i.code === 'T1-ROI-011'), d.items.map(i => i.code).join(','));
+  }
+}
+
+// ── 12. CT（チャージターン）ドット抽出 ─────────────────────
+console.log('\n[12] CT ドット抽出（★個数を決め打ちしない・点灯判定はしない・幾何は走全体で決める）');
+{
+  const { ChargeDotTracker, ChargeSeries, reportChargeDots, centerBandProfile, CT_DEFAULTS }
+    = await import('../src/transcribe/charge_dots.js');
+  const { Diag: D } = await import('../src/transcribe/diag.js');
+
+  /**
+   * ★HPバー＋CT ドットの合成。**ドット数 n と点灯数 lit と HP塗り率 fill を振れる**のが要点。
+   * ⚠⚠ **ドットの実際の見え方は未確認**（灰色とだけ分かっている）＝
+   *   ここで置く `litLum` / `dimLum` は**仮定であって観測ではない**。
+   *   ∴ このテストが固定するのは「**区別できる条件なら幾何を復元する**」「**区別できないなら
+   *   見つからないと言う**」という**性質**であって、実フレームで見つかることの証明ではない。
+   *   ★実物の値は走査1回の `ctGeometry.meanProfile` が答える（HP バーの `colProfile` と同じ経路）。
+   */
+  function barWithDots({ W = 640, H = 54, fill = 0.78, n = 5, lit = 2,
+                         litLum = 230, dimLum = 150, litFirst = true } = {}) {
+    const img = makeImage(W, H, [45, 40, 50]);
+    fillRect(img, 0, 8, Math.round(W * fill), 32, [205, 35, 55]);      // バーの塗り（輝度 ≈ 88）
+    const P = Math.floor(W / (n + 1));
+    for (let i = 0; i < n; i++) {
+      const on = litFirst ? i < lit : i >= n - lit;
+      const v = on ? litLum : dimLum;
+      const cx = Math.round(P * (i + 1));
+      fillRect(img, cx - 9, Math.round(H / 2) - 9, 18, 18, [v, v, v]);
+    }
+    return { img, period: P };
+  }
+
+  /** 走を1本作る（★HP は単調に減らす＝バーの段差は動き、ドットは動かない）。 */
+  function run({ frames = 120, n = 5, litOf = () => 1, litFirst = true } = {}) {
+    const tr = new ChargeDotTracker();
+    for (let i = 0; i < frames; i++) {
+      const fill = 0.95 - 0.6 * (i / frames);                          // ★塗り境界が動く
+      tr.push(i / 30, barWithDots({ fill, n, lit: litOf(i), litFirst }).img);
+    }
+    return tr;
+  }
+
+  const one = centerBandProfile(barWithDots().img);
+  check('1フレームから中央帯の生プロファイルを返す', one.ok && Array.isArray(one.centerProfile));
+
+  const g = run().solveGeometry();
+  check('★走全体の集約プロファイルを返す（幾何の生データ）', Array.isArray(g.meanProfile));
+  check('★周期スキャンの曲線も返す', Array.isArray(g.periodScan) && g.periodScan.length > 3);
+  check('★ドット列を見つける（段差が動きドットが動かないことを利用）', g.found,
+    `${g.reason ?? ''} best=${JSON.stringify(g.bestPeriod)}`);
+
+  // ★★測定器の検証その1: **ドット数を振ったら推定が追随すること**
+  for (const n of [3, 5, 7]) {
+    const gg = run({ n }).solveGeometry();
+    check(`　　ドット ${n} 個を ${n} 個と数える（★個数を決め打ちしていない）`,
+      gg.found && gg.dotCount === n, `dotCount=${gg.dotCount} period=${gg.period}`);
+  }
+
+  // ★★測定器の検証その2: **点灯数を振ったら読みが追随すること**
+  {
+    const tr = run({ n: 5, litOf: (i) => Math.min(5, Math.floor(i / 20)) });   // 0,1,2,3,4,5
+    const geom = tr.solveGeometry();
+    const rows = tr.readSeries(geom);
+    // ⚠ 1フレームあたり 20 フレームずつ点灯数が上がる合成。真値が 1〜4 の区間だけ境界が存在する。
+    const at = (lit) => rows.filter(r => Math.min(5, Math.floor(Math.round(r.t * 30) / 20)) === lit);
+    for (const lit of [1, 2, 3, 4]) {
+      const v = [...new Set(at(lit).map(r => r.filledPrefix))];
+      check(`　　点灯 ${lit} 個 → filledPrefix ${lit}（★真値に追随する）`,
+        v.length === 1 && v[0] === lit, `観測 ${JSON.stringify(v)}`);
+    }
+    // ⚠⚠ **ここから先は未検証**（意図的にアサートしない）:
+    //   ①**全消灯と全点灯を区別できない**（どちらも「一様」＝境界が無い）。
+    //     `stepSize` は小さくなるが**0 にはならない**（合成で一様 11.0 vs 非一様 5.2＝逆転しうる）＝
+    //     バーの塗りがドットの背後を通過する残差が乗るため。
+    //   ②**そもそもドットの実際の見え方（点灯/消灯のエンコード）が未確認**。
+    //   ★∴ 点灯数の読み取りは**未較正**として出す。判定を入れるのは実走の
+    //     `ctGeometry.meanProfile` と `stepSize` の分布を見てから（HPバーで実際に効いた手順）。
+    //   ⚠ **ここで閾値を置いて通してしまうのが、本セッションで何度も踏んだ型**。
+    check('★段差の大きさ（stepSize）を必ず返す＝一様かどうかの判断材料を残す',
+      rows.every(r => typeof r.stepSize === 'number'));
+  }
+
+  // ⚠ 向きが逆（後ろから点灯）でも境界は取れる＝**意味づけは系列側の仕事**
+  {
+    const tr = run({ n: 5, litOf: () => 2, litFirst: false });
+    const geom = tr.solveGeometry();
+    const rows = tr.readSeries(geom);
+    const v = [...new Set(rows.map(r => r.filledPrefix))];
+    // ⚠ 向きが逆でも「境界の位置」は取れるが、**フレームによって揺れる**（塗りの通過による残差）。
+    //   ∴ 固定するのは「**多数決が真値**」という弱い性質だけ＝強い主張はしない（未較正）。
+    const mode = [...v].sort((a, b) =>
+      rows.filter(r => r.filledPrefix === b).length - rows.filter(r => r.filledPrefix === a).length)[0];
+    check('★向きが逆でも境界の位置は取れる（多数決・点灯/消灯の意味づけはしない）',
+      geom.found && mode === 3, `filledPrefix の分布=${JSON.stringify(v)} 最頻=${mode}`);
+  }
+
+  // ドットが無ければ「見つからない」と言う（★数値を捏造しない）
+  {
+    const tr = new ChargeDotTracker();
+    for (let i = 0; i < 60; i++) {
+      const img = makeImage(640, 54, [45, 40, 50]);
+      fillRect(img, 0, 8, Math.round(640 * (0.95 - 0.6 * i / 60)), 32, [205, 35, 55]);
+      tr.push(i / 30, img);
+    }
+    const gg = tr.solveGeometry();
+    check('★ドットが無ければ found=false（推測しない）', !gg.found, gg.reason);
+    check('★そのときも集約プロファイルは返る', Array.isArray(gg.meanProfile));
+    const d = new D('T1', 'test');
+    reportChargeDots(d, gg, null);
+    check('見つからないことを WARN で知らせる', d.items.some(i => i.code === 'T1-ROI-008'),
+      d.items.map(i => i.code).join(','));
+  }
+
+  // ④ 正解ラベル無しの健全性検査: CT はターン境界でしか動かない
+  {
+    const okTr = run({ frames: 300, n: 5, litOf: (i) => Math.floor(i / 100) });   // 10秒で3段
+    const okGeom = okTr.solveGeometry();
+    const okSum = new ChargeSeries().ingest(okTr.readSeries(okGeom)).summary(10);
+    check('ターン境界でしか動かない系列は WARN にならない',
+      okSum.prefixChangesPerSecond <= 1.0, `${okSum.prefixChangesPerSecond}/秒`);
+
+    const badTr = run({ frames: 300, n: 5, litOf: (i) => i % 6 });                // 毎フレーム
+    const badGeom = badTr.solveGeometry();
+    const badSum = new ChargeSeries().ingest(badTr.readSeries(badGeom)).summary(10);
+    const d = new D('T1', 'test');
+    reportChargeDots(d, badGeom, badSum);
+    check('★毎フレーム変わったら WARN で知らせる（CT はターン単位でしか動かない）',
+      d.items.some(i => i.code === 'T1-ROI-009'),
+      `${badSum.prefixChangesPerSecond}/秒 / ${d.items.map(i => i.code).join(',')}`);
+  }
+
+  // ★★★実装中に判明した「原理的に見えない」条件を、**解けないこととして固定する**
+  //   消灯ドットの輝度がバーの塗りとほぼ同じだと、そのドットは**塗りに隠れている間ずっと不可視**。
+  //   ⚠ これは検出器の不具合ではなく**入力に情報が無い**＝**黙って別の周期を答えてはいけない**。
+  {
+    const tr = run({ frames: 120, n: 5, litOf: () => 1 });   // ← dimLum を塗りと同輝度にする
+    const trHard = new ChargeDotTracker();
+    for (let i = 0; i < 120; i++) {
+      trHard.push(i / 30, barWithDots({ fill: 0.95 - 0.6 * (i / 120), n: 5, lit: 1, dimLum: 90 }).img);
+    }
+    const gh = trHard.solveGeometry();
+    check('★★消灯ドットが塗りと同輝度なら「見つからない」と言う（間違った周期を答えない）',
+      !gh.found || gh.dotCount !== 5,
+      `found=${gh.found} dotCount=${gh.dotCount}＝**もし 5 と答えたらそれは偶然**`);
+    check('★そのときも集約プロファイルは返る（実物の見え方はここが答える）',
+      Array.isArray(gh.meanProfile) && gh.meanProfile.length > 0);
+  }
+
+  // 薄すぎる ROI は失敗と言う
+  {
+    const thin = centerBandProfile(makeImage(200, 3, [30, 30, 40]));
+    check('薄すぎる ROI は解析失敗になる', !thin.ok, thin.reason);
+  }
+}
+
 // ── 10. ROI 定義の健全性 ────────────────────────────────────
 console.log('\n[10] ROI 定義の健全性');
 {

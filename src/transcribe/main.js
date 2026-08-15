@@ -5,15 +5,17 @@
 // ⚠ Claude はこの画面を見られない＝すべての結果は診断 JSON に落とす（§10.5）。
 
 import { detectCanvas, roiToPixels, pixelsToRoi, reportDetection, DEFAULTS } from './canvas_detect.js';
-import { detectPanelMode, reportPanelMode, listSlotRects, PANEL_DEFAULTS } from './panel_mode.js';
+import { detectPanelMode, reportPanelMode, listSlotRects, PANEL_DEFAULTS,
+         PanelModeSeries, reportPanelSeries, PANEL_DEBOUNCE_SECONDS } from './panel_mode.js';
 import { roiSignature, FrameSelector, reportSelection, SELECT_DEFAULTS } from './frame_select.js';
 import { goldenFractions, PopupProbe, reportProbe, PROBE_GRID } from './popup_probe.js';
 import { analyzeHpBar, HpSeries, reportHp, HP_DEFAULTS } from './hp_bar.js';
 import { LagProfile, EventDeduper, reportDedup, DEDUP_DEFAULTS } from './dedup.js';
+import { ChargeDotTracker, ChargeSeries, reportChargeDots, CT_DEFAULTS } from './charge_dots.js';
 import { ROIS } from './rois.js';
 import { Diag } from './diag.js';
 
-const VERSION = '0.14.0';
+const VERSION = '0.15.0';
 
 const $ = (id) => document.getElementById(id);
 const video = document.createElement('video');
@@ -429,7 +431,8 @@ $('scan').onclick = async () => {
     scanSeconds: secs,
     method: 'seek（決定的・全フレーム）',
   }).setConfig({ detect: DEFAULTS, select: SELECT_DEFAULTS, panel: PANEL_DEFAULTS, probe: PROBE_GRID,
-                 dedup: DEDUP_DEFAULTS, hp: HP_DEFAULTS })
+                 dedup: DEDUP_DEFAULTS, hp: HP_DEFAULTS, ct: CT_DEFAULTS,
+                 panelDebounceSeconds: PANEL_DEBOUNCE_SECONDS })
     .stage('DETECT', 0, 0);
 
   // canvas は先頭1フレームで確定させて使い回す（録画中にウィンドウは動かない）
@@ -463,13 +466,15 @@ $('scan').onclick = async () => {
   const dedup = new EventDeduper();
   const probe = new PopupProbe();
   const modes = { list: 0, detail: 0 };
-  const transitions = [];
+  // ★P2-1b 追補: モード遷移は**除振してから使う**（3走で 18/14/12 とぶれた＝⑮に直撃）
+  const panelSeries = new PanelModeSeries();
   const hpSeries = new HpSeries();
+  // ★P2-5b: CT ドット。幾何は走全体から決めるので、ここでは中央帯プロファイルを溜めるだけ。
+  const ctTracker = new ChargeDotTracker();
   let lastHp = null;
   // ★違反フレームの生プロファイルを持ち帰る（クロップを人に頼まずに原因を特定するため）
   const hpViolationSamples = [];
   let prevRatio = null;
-  let prevMode = null;
   const t0 = performance.now();
 
   const total = await walkFrames(video, start, start + secs, async (m) => {
@@ -481,14 +486,13 @@ $('scan').onclick = async () => {
     probe.push(goldenFractions(dImg, local(dmgRect)));
     const pm = detectPanelMode(gImg, local(gaugeRect));
     modes[pm.mode]++;
-    if (prevMode && prevMode !== pm.mode) {
-      transitions.push({ t: +m.toFixed(4), from: prevMode, to: pm.mode });
-    }
-    prevMode = pm.mode;
+    panelSeries.push(m, pm.mode);
 
     // ★P2-5: HPバーの塗り率。単調減少するはずなので、それ自体が抽出の健全性検査になる。
     if (cutHp) {
-      const hr = analyzeHpBar(cut(cutHp));
+      const hpImg = cut(cutHp);
+      ctTracker.push(+m.toFixed(4), hpImg);       // ★同じ crop の中央帯（hp_bar は上下帯＝非干渉）
+      const hr = analyzeHpBar(hpImg);
       // ⚠ visible=false（演出フラッシュ）のときは fillRatio が null＝系列側で skip に計上される
       if (hr.ok) { hpSeries.push(+m.toFixed(4), hr.fillRatio, hr.cause); if (hr.visible) lastHp = hr; }
       if (!lastHp) lastHp = hr;
@@ -522,7 +526,11 @@ $('scan').onclick = async () => {
   const dedupSum = dedup.summary();
   reportDedup(diag, dedupSum, lagReport);
   const probeBest = reportProbe(diag, probe);
-  if (cutHp) reportHp(diag, lastHp, hpSeries);
+  const panelSum = panelSeries.summary();
+  reportPanelSeries(diag, panelSum);
+  const ctGeom = cutHp ? ctTracker.solveGeometry() : null;
+  const ctSum = ctGeom ? new ChargeSeries().ingest(ctTracker.readSeries(ctGeom)).summary(covered) : null;
+  if (cutHp) { reportHp(diag, lastHp, hpSeries); reportChargeDots(diag, ctGeom, ctSum); }
   else diag.add('T1-ROI-004', 'ERROR', {
     where: { roi: 'hpbar' }, expected: '`ROIS.hpbar` が採寸済であること', got: '未採寸(null)',
     hint: 'T1 ページで hpbar をドラッグ登録し、rois.js に反映する',
@@ -541,7 +549,7 @@ $('scan').onclick = async () => {
   $('scanNote').innerHTML = `<span class="${sampledFps >= 26 ? 'ok' : 'bad'}">`
     + `${total} フレーム / ${covered.toFixed(1)}秒 ＝ 実効 ${sampledFps.toFixed(1)} fps</span>`
     + ` / 実時間 ${wall.toFixed(0)}秒 / list ${modes.list}・detail ${modes.detail}`
-    + ` / モード遷移 ${transitions.length} 回`
+    + ` / モード遷移 ${panelSum.stableTransitions} 回（生 ${panelSum.rawTransitions}）`
     // ★P2-4: 発見⑧の材料は走査のたびに目に入るようにする（stride を決める根拠）
     + ` / <b>寿命 L=${lagReport.lifetimeFrames ?? '決まらず'}</b>`
     + `（出来事 ${lagReport.eventContrast ?? '-'} / 凍結長 `
@@ -566,10 +574,14 @@ $('scan').onclick = async () => {
                          redFraction: +lastHp.redFraction.toFixed(4) } : null,
     // ★違反フレームの生プロファイル（正常フレームと並べれば何が違うか分かる）
     hpViolationSamples,
+    // ★P2-5b: CT ドット。**meanProfile が実物の見え方を答える生データ**（点灯判定は未較正）。
+    ctGeometry: ctGeom,
+    ctSeries: ctSum,
     popupProbe: { best: probeBest, all: probe.report() },
     keptSample: sel.kept.slice(0, 60),
     panelModes: modes,
-    panelTransitions: transitions.slice(0, 100),
+    // ★除振後が本命。生（`rawSample`）も併記＝**何を落としたかが見えないと検証できない**
+    panelSeries: panelSum,
     canvas: box,
   }, total > 0);
 

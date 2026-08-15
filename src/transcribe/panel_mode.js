@@ -25,6 +25,28 @@
 //
 // 純関数（DOM 非依存）＝Node でセルフテストできる（PHASE9_PLAN.md §10.1）。
 
+/**
+ * ★★モード遷移の除振（debounce）── 2026-08-15 追加。
+ *
+ * **同一条件3走で遷移数が 18 / 14 / 12 とぶれた**（フレーム数のぶれは 0.11% しかないのに 50%）。
+ * 中身を突き合わせると:
+ *   - **12 件の「安定な芯」は3走すべてに現れる**
+ *   - 余分は**必ず対になって 30〜160ms で元の状態へ戻る**
+ *   - ★**閾値ぎりぎりが原因ではない**（3走とも `T1-ROI-003` がゼロ＝判定はどのフレームでも確信的）
+ * ∴ その1〜2フレームは**本当に反対のモードに見えている**＝**遷移アニメの途中フレーム**。
+ *   対処は閾値の調整ではなく**最小滞在時間による除振**。
+ *
+ * ⚠⚠ **「再現する」＝「本物」ではない**。安定な芯の中にも
+ *   `28.450→28.483`（33ms）や `110.033→110.066`（33ms）という往復がある。
+ *   毎回同じフレームが標本に入るから再現するだけで、**人が開いて閉じるのに 33ms は物理的に不可能**。
+ *   ★これが閾値の根拠＝**人の操作に要する時間の下限**であって、当てはめて合わせた値ではない。
+ *
+ * 実測の余裕（2026-08-15・`M3-1.mp4`）:
+ *   偽の往復は **≦160ms** ／ 本物の detail 滞在は **1.9〜7.2秒**（P1 発見⑮）。
+ *   ∴ 0.25秒は**偽の 1.6倍・本物の 1/7.6**＝**桁で空いた谷の中**にある。
+ */
+export const PANEL_DEBOUNCE_SECONDS = 0.25;
+
 export const PANEL_DEFAULTS = {
   /** 一覧に並ぶキャラ数。編成が5人固定である前提（ゲーム仕様）。 */
   slots: 5,
@@ -158,4 +180,75 @@ export function reportPanelMode(diag, det, opts = {}) {
     });
   }
   return det.mode;
+}
+
+/**
+ * ★モード系列の除振。**滞在が短すぎる状態変化は「起きなかった」ものとして畳む**。
+ *
+ * ⚠ 生の遷移列も必ず返す（`rawTransitions`）＝**除振で何を落としたかが見えないと検証できない**。
+ */
+export class PanelModeSeries {
+  constructor(minDwellSeconds = PANEL_DEBOUNCE_SECONDS) {
+    this.minDwell = minDwellSeconds;
+    this.raw = [];            // { t, from, to }（生）
+    this.samples = [];        // { t, mode }
+  }
+
+  push(t, mode) {
+    const prev = this.samples.length ? this.samples[this.samples.length - 1].mode : null;
+    if (prev && prev !== mode) this.raw.push({ t: +t.toFixed(4), from: prev, to: mode });
+    this.samples.push({ t, mode });
+  }
+
+  /**
+   * ★除振後の遷移列。
+   * 実装＝**確定した状態**を持ち、候補状態が `minDwell` 以上続いて初めて確定を切り替える。
+   */
+  stable() {
+    if (!this.samples.length) return [];
+    let confirmed = this.samples[0].mode;
+    let candidate = confirmed, candSince = this.samples[0].t;
+    const out = [];
+    for (const s of this.samples) {
+      if (s.mode !== candidate) { candidate = s.mode; candSince = s.t; continue; }
+      if (candidate !== confirmed && s.t - candSince >= this.minDwell) {
+        out.push({ t: +candSince.toFixed(4), from: confirmed, to: candidate });
+        confirmed = candidate;
+      }
+    }
+    return out;
+  }
+
+  summary() {
+    const st = this.stable();
+    return {
+      frames: this.samples.length,
+      minDwellSeconds: this.minDwell,
+      rawTransitions: this.raw.length,
+      stableTransitions: st.length,
+      /** ★除振で落ちた数＝**遷移アニメの途中フレームだったと考えられる分**。 */
+      debounced: this.raw.length - st.length,
+      transitions: st.slice(0, 100),
+      rawSample: this.raw.slice(0, 100),
+    };
+  }
+}
+
+/**
+ * 除振の効きを診断に載せる。
+ * ⚠ **落としすぎ**も**落とせていない**も、どちらも見えるようにする。
+ */
+export function reportPanelSeries(diag, sum) {
+  if (!sum || !sum.frames) return false;
+  if (sum.rawTransitions && sum.debounced / sum.rawTransitions > 0.6) {
+    diag.add('T1-ROI-011', 'WARN', {
+      where: { raw: sum.rawTransitions, stable: sum.stableTransitions, minDwell: sum.minDwellSeconds },
+      expected: '除振で落ちるのは短い往復だけ（実測では生の 3〜4割）',
+      got: `生 ${sum.rawTransitions} → 除振後 ${sum.stableTransitions}（${sum.debounced} 件を除去）`,
+      hint: '★落としすぎの可能性＝`minDwellSeconds` が本物の滞在時間に食い込んでいないか。'
+        + '`rawSample` と `transitions` を並べて、消えた遷移の間隔を見る。'
+        + '⚠ 実測の本物の detail 滞在は 1.9〜7.2秒（P1 発見⑮）。',
+    });
+  }
+  return true;
 }
