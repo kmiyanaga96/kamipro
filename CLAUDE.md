@@ -72,6 +72,7 @@
 | **`src/sim.js`** | コアエンジン。`class Sim`（`tick`/`burst`/`use`・減衰）＋探索（`cmpVec`, `_candidates`, `_stepStatic`, `_runRootPlan`, `_selectRootPrefixes`） |
 | `src/worker.js` | 背景並列計算の Worker エントリ（コアを import して並行実行） |
 | `src/app.js` | UI バインディング・Worker プール・リプレイモード・INIT |
+| **`transcribe/index.html`**<br>**`src/transcribe/`** | **Phase 9 T1＝録画転記ページ**（`canvas_detect.js` 正規化＋`diag.js` §10.5 診断＋`main.js` 配線）。⚠ **シム本体と非結線**＝golden に非干渉。回帰は `npm run test:t1` |
 | **`gamedata/js/`** | **シムが読む現在値**（ESM）: `weapons.js`(`WEAPON_MASTER`) / `summons.js`(`SUMMON_REGISTRY`) / `enemies.js`(`ENEMY_REGISTRY`) / `characters.js`(`CHAR_REGISTRY`・`DEBUFF_KEYS`/`buffCount`) |
 | **`gamedata/md/`** | **一次情報**（`神姫/` `英霊/` `幻獣/` `敵/` `その他/`・各 README に用途）。**md=根拠 / js=現在値** |
 
@@ -165,6 +166,7 @@
 ```bash
 npm run test:golden      # 3 fixture を並列実行（--serial で逐次 / --fixture <name> で単体）
 npm run doc:check        # md 相互参照の検査（現役層の壊れた参照があれば exit 1）
+npm run test:t1          # Phase 9 T1 canvas 正規化のセルフテスト（合成フィクスチャ・1秒未満）
 ```
 
 ⚠ **golden は 2分07秒＝背景実行を推奨**。docs のみの変更なら golden は不変。

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>T1 録画転記 — 神姫バーストトラッカー</title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--border:#e2e5ea;--accent:#5b6ef5;--accent2:#3d4fd6;
+  --text:#1f2430;--muted:#6b7280;--red:#e0392b;--green:#1aa179;--orange:#e08a00;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,'Hiragino Kaku Gothic ProN',Meiryo,sans-serif;
+  background:var(--bg);color:var(--text);font-size:13px;line-height:1.6;padding:20px;}
+h1{font-size:17px;margin-bottom:4px;}
+.sub{font-size:11px;color:var(--muted);margin-bottom:16px;}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;
+  padding:14px 16px;margin-bottom:14px;}
+.card h2{font-size:12px;color:var(--accent);text-transform:uppercase;letter-spacing:1px;
+  margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+.btn{padding:7px 14px;border:none;border-radius:7px;cursor:pointer;font-size:12px;
+  font-weight:600;background:var(--accent);color:#fff;margin-right:6px;}
+.btn:hover{background:var(--accent2);}
+.btn.sec{background:var(--card);color:var(--text);border:1px solid var(--border);}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px;}
+label{font-size:12px;color:var(--muted);}
+input[type=number]{width:90px;padding:5px 7px;border:1px solid var(--border);border-radius:6px;font-size:12px;}
+#stage{position:relative;display:inline-block;max-width:100%;}
+#view{max-width:100%;border:1px solid var(--border);border-radius:6px;display:block;cursor:crosshair;}
+#ovl{position:absolute;left:0;top:0;pointer-events:none;}
+textarea{width:100%;height:220px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;
+  border:1px solid var(--border);border-radius:6px;padding:8px;resize:vertical;}
+.kv{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;}
+.ok{color:var(--green);font-weight:700;} .bad{color:var(--red);font-weight:700;}
+.warn{color:var(--orange);font-weight:700;}
+.note{font-size:11px;color:var(--muted);margin-top:6px;}
+.note b{color:var(--text);}
+table{border-collapse:collapse;font-size:11px;margin-top:8px;}
+td,th{border:1px solid var(--border);padding:3px 8px;text-align:right;}
+th{background:#f0f2f5;}
+</style>
+</head>
+<body>
+<h1>T1 録画転記 — canvas 正規化 / ROI 採寸</h1>
+<div class="sub">
+  Phase 9 P2。<b>動画はこのPCから一歩も出ません</b>（ブラウザ内で読むだけ・アップロードなし）。
+  仕様の正 = <code>PHASE9_PLAN.md</code> §10。
+</div>
+
+<div class="card">
+  <h2>1. 録画を開く</h2>
+  <div class="row">
+    <input type="file" id="file" accept="video/*">
+  </div>
+  <div class="note">
+    ファイルは <b>読み込まれるだけ</b>で、どこにも送信されません（<code>&lt;input type=file&gt;</code> → <code>&lt;video&gt;</code> → <code>canvas</code>）。
+  </div>
+  <div class="row" id="meta" style="margin-top:8px"></div>
+</div>
+
+<div class="card">
+  <h2>2. フレームを選ぶ</h2>
+  <div class="row">
+    <label>時刻(秒)</label><input type="number" id="t" step="0.033" value="5">
+    <button class="btn sec" id="prev">◀ 1フレーム</button>
+    <button class="btn sec" id="next">1フレーム ▶</button>
+    <button class="btn" id="grab">このフレームを解析</button>
+  </div>
+  <div class="row">
+    <button class="btn sec" id="walk">連続フレームの間隔を実測（3秒ぶん）</button>
+    <span class="note" id="walkNote"></span>
+  </div>
+  <div class="row">
+    <button class="btn" id="scan">★走を通しで選別（コマ送りを消す）</button>
+    <label>秒数</label><input type="number" id="scanSec" value="30" step="10" min="3">
+    <span class="note" id="scanNote"></span>
+  </div>
+  <div class="note">
+    ダメージ ROI の変化点だけを拾い、<b>人が見るフレーム数がどれだけ減るか</b>を測ります
+    （P2 の出口条件＝1桁減）。⚠ <b>タブを前面にしたまま</b>実行してください。
+    距離の分布も診断JSONに入るので、閾値が外れていても較正できます。
+  </div>
+  <div class="note">
+    間隔の実測は <b>P1 発見⑧（ポップアップの寿命）</b>と <b>VFR の飛び</b>を同時に測ります。
+    結果は下の診断JSONに入ります。
+  </div>
+</div>
+
+<div class="card">
+  <h2>3. canvas 検出 と ROI 採寸</h2>
+  <div id="stage">
+    <canvas id="view"></canvas>
+    <canvas id="ovl"></canvas>
+  </div>
+  <div class="note">
+    緑枠 = 検出された canvas。<b>画像上をドラッグ</b>すると、その矩形の<b>正規化 ROI</b>（canvas 基準の比率）が出ます。
+    スクロール位置やズームが変わっても同じ値になるので、<b>これをそのまま ROI 定義に使えます</b>。
+  </div>
+  <div class="row" style="margin-top:8px"><div class="kv" id="det">—</div></div>
+  <div class="row"><div class="kv" id="roi">—</div></div>
+  <div class="row">
+    <label>名前</label>
+    <select id="roiName">
+      <option value="hp">hp — 敵HPバー＋%表示（周辺込み）</option>
+      <option value="hpbar">★hpbar — バーそのものだけ（アイコン・レベル名を含めない）</option>
+      <option value="dmg">dmg — ダメージ／TOTAL ポップアップ全域</option>
+      <option value="abil">abil — 右のアビリティパネル（CD）</option>
+      <option value="turn">turn — NEXT n TURN</option>
+      <option value="gauge">gauge — キャラ Status（HP・バーストゲージ）</option>
+    </select>
+    <button class="btn" id="addRoi" disabled>この矩形を登録</button>
+    <button class="btn sec" id="cropRoi" disabled>この矩形をPNGで保存</button>
+  </div>
+  <div class="note">
+    PNG 保存は <b>ROI クロップした小さな画像</b>を出します（<code>PHASE9_PLAN.md</code> §10.3＝
+    フル解像度の画面ではなくこれを Claude に渡す、と決めた経路）。
+  </div>
+  <table id="roiTable" style="display:none"><thead><tr>
+    <th>name</th><th>x</th><th>y</th><th>w</th><th>h</th><th></th></tr></thead><tbody></tbody></table>
+  <div class="row" style="margin-top:8px">
+    <button class="btn" id="copyRois" disabled>全ROIをJSONでコピー</button>
+    <span class="note">これをそのまま貼っていただければ ROI 定義に落とします。</span>
+  </div>
+</div>
+
+<div class="card">
+  <h2>4. 診断</h2>
+  <div class="row">
+    <button class="btn" id="copyDiag">★digest をコピー（→ Claude に貼る）</button>
+    <button class="btn sec" id="saveDiag">完全な診断JSONを保存</button>
+    <span class="kv" id="line">—</span>
+  </div>
+  <textarea id="diag" readonly placeholder="解析すると digest（貼る用の要約）が出ます"></textarea>
+  <div class="note">
+    ★出力は<b>2本</b>あります（2026-08-17・トークン節約）。
+    <b>digest</b>＝意思決定に要る数値だけを数十行に畳んだもの＝<b>これを貼る</b>。
+    <b>完全な診断JSON</b>＝プロファイル全値を含む記録＝<b>ファイルに保存</b>して手元に置く。<br>
+    ⚠ <b>診断（WARN/ERROR）は digest にも全部載ります</b>＝畳んでいるのは生データの本体だけ。
+    digest で判断がつかないときだけ、保存した JSON を開いて該当箇所を貼ってください。<br>
+    ⚠ Claude はこの画面を見られません（<code>PHASE9_PLAN.md</code> §10.1）。
+  </div>
+</div>
+
+<script type="module" src="/src/transcribe/main.js"></script>
+</body>
+</html>
