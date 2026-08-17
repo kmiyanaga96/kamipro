@@ -14,8 +14,9 @@ import { LagProfile, EventDeduper, reportDedup, DEDUP_DEFAULTS } from './dedup.j
 import { ChargeDotTracker, ChargeSeries, reportChargeDots, CT_DEFAULTS } from './charge_dots.js';
 import { ROIS } from './rois.js';
 import { Diag } from './diag.js';
+import { digest } from './digest.js';
 
-const VERSION = '0.17.0';
+const VERSION = '0.18.0';
 
 const $ = (id) => document.getElementById(id);
 const video = document.createElement('video');
@@ -125,10 +126,25 @@ $('grab').onclick = () => {
 
 function finish(diag, result, completed = false) {
   lastDiag = diag.emit(result, completed);
-  $('diag').value = JSON.stringify(lastDiag, null, 2);
+  // ★出力を2本に分ける（ユーザー指摘 2026-08-17＝完全な JSON を貼るとトークンが嵩む）:
+  //   ①`diag` textarea … **digest（貼る用）**。意思決定に要る数値だけ
+  //   ②ダウンロード … **完全な診断 JSON**（provenance・後から掘れる）
+  $('diag').value = digest(lastDiag);
   const s = lastDiag.summary;
   const cls = s.FATAL ? 'bad' : (s.ERROR || s.WARN) ? 'warn' : 'ok';
   $('line').innerHTML = `<span class="${cls}">${lastDiag.line}</span>`;
+}
+
+/** 完全な診断 JSON をファイルへ落とす（版と時刻をファイル名に刻む＝走の取り違え防止）。 */
+function downloadDiag() {
+  if (!lastDiag) { alert('先に解析または走査を実行してください'); return; }
+  const name = `t1-v${lastDiag.version}-${lastDiag.ranAt.replace(/[:.]/g, '-')}.json`;
+  const blob = new Blob([JSON.stringify(lastDiag, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 // ── オーバーレイ（検出枠＋ドラッグ矩形） ────────────────────
@@ -262,9 +278,11 @@ $('cropRoi').onclick = () => {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }, 'image/png');
 };
+// ★コピーするのは **digest（貼る用）**。完全な JSON はダウンロードで受け取る。
 $('copyDiag').onclick = () => {
-  if (lastDiag) navigator.clipboard.writeText(JSON.stringify(lastDiag, null, 2));
+  if (lastDiag) navigator.clipboard.writeText(digest(lastDiag));
 };
+$('saveDiag').onclick = downloadDiag;
 
 // ── ★フレーム間隔の実測（P1 発見⑧ / VFR の飛び） ───────────
 // requestVideoFrameCallback は「実際に表示されたフレーム」ごとに mediaTime を返す。

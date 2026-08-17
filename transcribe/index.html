@@ -123,15 +123,20 @@ th{background:#f0f2f5;}
 </div>
 
 <div class="card">
-  <h2>4. 診断（→ Claude に貼る）</h2>
+  <h2>4. 診断</h2>
   <div class="row">
-    <button class="btn" id="copyDiag">診断JSONをコピー</button>
+    <button class="btn" id="copyDiag">★digest をコピー（→ Claude に貼る）</button>
+    <button class="btn sec" id="saveDiag">完全な診断JSONを保存</button>
     <span class="kv" id="line">—</span>
   </div>
-  <textarea id="diag" readonly placeholder="解析すると §10.5 形式の診断JSONが出ます"></textarea>
+  <textarea id="diag" readonly placeholder="解析すると digest（貼る用の要約）が出ます"></textarea>
   <div class="note">
+    ★出力は<b>2本</b>あります（2026-08-17・トークン節約）。
+    <b>digest</b>＝意思決定に要る数値だけを数十行に畳んだもの＝<b>これを貼る</b>。
+    <b>完全な診断JSON</b>＝プロファイル全値を含む記録＝<b>ファイルに保存</b>して手元に置く。<br>
+    ⚠ <b>診断（WARN/ERROR）は digest にも全部載ります</b>＝畳んでいるのは生データの本体だけ。
+    digest で判断がつかないときだけ、保存した JSON を開いて該当箇所を貼ってください。<br>
     ⚠ Claude はこの画面を見られません（<code>PHASE9_PLAN.md</code> §10.1）。
-    <b>この JSON が唯一のデバッグ経路</b>です。うまくいかないときは全文を貼ってください。
   </div>
 </div>
 

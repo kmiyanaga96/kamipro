@@ -824,6 +824,65 @@ console.log('\n[13] モード遷移の除振（★実走で 18/14/12 とぶれ�
   }
 }
 
+// ── 14. digest（貼る用サマリ） ──────────────────────────────
+console.log('\n[14] digest（★診断は畳まない・生データの本体だけ畳む）');
+{
+  const { digest } = await import('../src/transcribe/digest.js');
+  const { Diag: D } = await import('../src/transcribe/diag.js');
+
+  const d = new D('T1', '9.9.9');
+  d.setInput({ file: 'x.mp4', resolution: '2288x1440', scannedSeconds: 119.9, wallClockSeconds: 600 });
+  d.add('T1-ROI-008', 'WARN', { got: 'ドット列の周期性が弱い', hint: 'h' });
+  d.add('T1-DEDUP-004', 'WARN', { got: 'J ごとに食い違う', hint: 'h' });
+  d.add('T1-DETECT-002', 'INFO', { got: '採用率 61.8%', hint: 'h' });
+  const big = Array.from({ length: 120 }, (_, i) => (i === 40 || i === 44 ? 90 : 5));
+  const out = d.emit({
+    sampling: { frames: 3506, sampledFps: 29.237 },
+    dedup: { droppedDuplicates: 225 },
+    hp: { firstRatio: 0.8891, lastRatio: 0.7703, violations: 5, frames: 3083,
+          skipCauses: { flash: 107, noEmptyRegion: 316 },
+          violationSample: [{ t: 12.33, from: 0.159, to: 0.889 }] },
+    hpProfileSample: big,
+    ctGeometry: { found: false, decor: true, bestPeriod: { period: 21, score: 0.48 },
+                  reason: 'r', bandScan: [{ band: [0, 0.125], best: { period: 21, score: 0.48, from: 320, to: 480 }, decor: true, profile: big }] },
+    ctSeries: { prefixChanges: 3, prefixChangesPerSecond: 0.025, prefixHistogram: { 2: 100 } },
+    panelSeries: { rawTransitions: 12, stableTransitions: 8, debounced: 4,
+                   transitions: [{ t: 10.58, to: 'detail' }, { t: 12.81, to: 'list' }] },
+    lagProfile: { eventContrast: 6.19, lifetimeFrames: null,
+                  freezeRuns: [{ label: 'cellP90', j: 48, p50: 3 }],
+                  cellDeltas: { p50: 2, p90: 48, zeroFraction: 0.37 },
+                  lags: Array.from({ length: 20 }, (_, k) => ({ k: k + 1, p10: 1, p50: 2, p90: 3 })) },
+    keptSample: Array.from({ length: 60 }, (_, i) => ({ t: i, dist: i, reason: 'change' })),
+  }, true);
+
+  const dg = digest(out);
+  // ★★これが本テストの主眼: **診断は1件も落とさない**
+  for (const code of ['T1-ROI-008', 'T1-DEDUP-004', 'T1-DETECT-002']) {
+    check(`★診断 ${code} は digest に必ず残る（畳んでよいのは生データだけ）`, dg.includes(code));
+  }
+  check('severity も残る', dg.includes('[WARN]') && dg.includes('[INFO]'));
+  check('版と入力が残る', dg.includes('T1 v9.9.9') && dg.includes('x.mp4'));
+
+  // 判断に効く数値が残っていること
+  for (const [label, needle] of [['HP first→last', '0.8891'], ['HP 違反数', '違反 5'],
+                                 ['CT found', 'found=false'], ['CT decor', 'decor=true'],
+                                 ['除振', '生 12 → 除振後 8'], ['寿命', 'lifetimeFrames=null'],
+                                 ['出来事', 'eventContrast=6.19']]) {
+    check(`　　${label} が残る`, dg.includes(needle), needle);
+  }
+
+  // ★プロファイルは「山の位置」に畳まれ、120個の生値は載らない
+  check('★プロファイルは山の位置に畳まれる（120個の生値は載せない）',
+    dg.includes('山:') && dg.includes('40:90') && !dg.includes('5,5,5,5,5'));
+  check('★keptSample（60件）は載せない', !dg.includes("reason: 'change'") && !dg.includes('"reason"'));
+
+  // ★★サイズ: 完全な JSON より桁で小さいこと
+  const fullLen = JSON.stringify(out).length;
+  check('★★digest は完全な JSON より桁で小さい', dg.length < fullLen / 5,
+    `digest ${dg.length}文字 / 完全 ${fullLen}文字（${(fullLen / dg.length).toFixed(1)}倍）`);
+  check('★「完全版を見よ」という逃げ道が明記されている', dg.includes('完全な診断 JSON'));
+}
+
 // ── 12. CT（チャージターン）ドット抽出 ─────────────────────
 console.log('\n[12] CT ドット抽出（★個数を決め打ちしない・点灯判定はしない・幾何は走全体で決める）');
 {
