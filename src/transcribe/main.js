@@ -15,7 +15,7 @@ import { ChargeDotTracker, ChargeSeries, reportChargeDots, CT_DEFAULTS } from '.
 import { ROIS } from './rois.js';
 import { Diag } from './diag.js';
 
-const VERSION = '0.15.0';
+const VERSION = '0.16.0';
 
 const $ = (id) => document.getElementById(id);
 const video = document.createElement('video');

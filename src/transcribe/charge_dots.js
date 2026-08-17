@@ -40,11 +40,30 @@ export const CT_DEFAULTS = {
   band: [0.30, 0.70],
   /**
    * 探索するドット間隔（ROI 幅に対する比）の範囲。
-   * ⚠ **個数を決め打ちしない**ための範囲指定＝ドット 3〜12 個ぶんに相当する間隔を掃く。
-   * （個数 = 幅 / 間隔 なので、間隔を掃けば個数も自動で決まる）
+   * ⚠ **個数を決め打ちしない**ための範囲指定（個数 = 幅 / 間隔）。
+   *
+   * ★**下限は実測で広げた**（2026-08-15→17）。初版は 1/14（=45px）だったが、
+   *   実走の集約プロファイルに現れた周期は **21.3px（= 幅の 1/30）**＝**最初から探索範囲の外**だった。
+   *   ∴ 「見つからない」は検出器の失敗ではなく**探す場所が違った**（provenance: `M3-1.mp4` 120秒走）。
+   *   ⚠ **勘で広げたのではない**＝集約プロファイルの山の間隔を実測して決めた。
    */
-  minPeriodRatio: 1 / 14,
+  minPeriodRatio: 1 / 40,
   maxPeriodRatio: 1 / 3,
+  /**
+   * ★周期を探す窓の幅（ROI 幅に対する比）と刻み。
+   * ⚠ **全域の自己相関では見つからない**（2026-08-17 実測）＝
+   *   実走では周期構造が **バー幅の約 16%（x 341〜443px）にしか無く**、全域で測ると希釈されて
+   *   スコアが**負**になった（-0.047）。同じ列を窓 bin62〜88 に絞ると **0.518**。
+   *   ★**局所にしか無い構造は、局所で測る**。窓の位置自体も観測値（どこにドットがあるか）。
+   */
+  windowRatio: 0.25,
+  windowStepRatio: 0.10,
+  /**
+   * ★窓の中に周期が何回入ることを要求するか。
+   * ⚠ 調整つまみではなく**測定が成立する条件**（1〜2周期では自己相関に意味が無い）。
+   * `panel_mode.js` が list 判定で「4回以上の繰り返し」を要求しているのと同じ根拠。
+   */
+  minRepeats: 4,
   /** 周期スキャンの刻み（画素）。 */
   periodStep: 1,
   /**
@@ -144,8 +163,15 @@ function autocorr(z, k) {
 export function scanPeriod(profile, opts = {}) {
   const o = { ...CT_DEFAULTS, ...opts };
   const W = profile.length;
-  const lo = Math.max(2, Math.floor(W * o.minPeriodRatio));
-  const hi = Math.min(Math.floor(W / 2), Math.ceil(W * o.maxPeriodRatio));
+  // ★周期の下限は **ROI 幅**から決める（窓の幅からではない）＝窓を狭めても物理的な下限は変わらない。
+  const lo = Math.max(2, o.minPeriodPx ?? Math.floor(W * o.minPeriodRatio));
+  // ★★上限は「**窓の中に周期が `minRepeats` 回以上入ること**」で決める。
+  //   ⚠ これが無いと、窓に1〜2周期しか入らない状態で自己相関を測ってしまい、
+  //   **意味のないスコアが最良として選ばれる**（実装時に実際に踏んだ＝ドット3個の合成で
+  //   周期 160px が窓 160px に1回しか入らず、代わりに 4px を掴んで 14 個と答えた）。
+  //   ★`panel_mode.js` の「4回以上の繰り返しという list 固有の性質だけを拾う」と同じ規則。
+  const hi = Math.min(o.maxPeriodPx ?? Math.floor(W / o.minRepeats),
+    Math.floor(W / o.minRepeats), Math.ceil(W * o.maxPeriodRatio));
   if (hi <= lo) return { best: null, scan: [] };
   // ★段差（バーの塗り境界）を落としてから周期を見る（上の highpass の注記）
   const z = standardize(highpass(profile, hi * 2));
@@ -246,8 +272,28 @@ export class ChargeDotTracker {
     }
     for (let x = 0; x < this.width; x++) acc[x] /= this.profiles.length;
 
-    const { best, scan } = scanPeriod(acc, this.o);
+    // ★★**窓を切って探す**（全域だと局所構造が希釈される＝実走で実際にそうなった）。
+    //   窓ごとの最良周期を全部返す＝**どこに構造があるか**自体が観測値になる。
+    const winW = Math.max(8, Math.round(this.width * this.o.windowRatio));
+    const step = Math.max(1, Math.round(this.width * this.o.windowStepRatio));
+    const minPx = Math.max(2, Math.round(this.width * this.o.minPeriodRatio));
+    const windows = [];
+    for (let a = 0; a + winW <= this.width; a += step) {
+      const sub = acc.slice(a, a + winW);
+      const r = scanPeriod(sub, { ...this.o, minPeriodPx: minPx });
+      if (r.best) windows.push({ from: a, to: a + winW, period: r.best.period, score: r.best.score });
+    }
+    const full = scanPeriod(acc, { ...this.o, minPeriodPx: minPx });
+    if (full.best) windows.push({ from: 0, to: this.width, period: full.best.period, score: full.best.score });
+    windows.sort((x, y) => y.score - x.score);
+    const win = windows[0] ?? null;
+    const best = win ? { period: win.period, score: win.score } : null;
+    const scan = full.scan;
     const out = {
+      /** ★窓ごとの最良周期（上位）。**どこに周期構造があるか**が読める生データ。 */
+      windowScan: windows.slice(0, 12),
+      /** ★採用した窓（構造のある範囲）。 */
+      window: win ? { from: win.from, to: win.to } : null,
       /** ★集約プロファイル＝**これが幾何の生データ**（外していても次の一手が決まる）。 */
       meanProfile: downsample(acc, this.o.profileBins),
       periodScan: scan.filter((_, i) => i % Math.max(1, Math.ceil(scan.length / 40)) === 0),
@@ -259,12 +305,14 @@ export class ChargeDotTracker {
         reason: `ドット列の周期性が弱い（score ${best ? best.score : '-'} < ${this.o.periodicityFloor}）` };
     }
     const P = best.period;
+    // ★位相も**構造のある窓の中**で決める（窓の外は別の物＝バーの塗り境界の掃引など）
+    const wa = win.from, wb = win.to;
     let phase = 0, bestMag = -Infinity;
     for (let ph = 0; ph < P; ph++) {
       let s = 0, n = 0;
-      for (let x = ph; x < this.width; x += P) { s += acc[x]; n++; }
+      for (let x = wa + ph; x < wb; x += P) { s += acc[x]; n++; }
       const m = n ? s / n : -Infinity;
-      if (m > bestMag) { bestMag = m; phase = ph; }
+      if (m > bestMag) { bestMag = m; phase = wa + ph; }
     }
     // ★ドットは「**周期の格子のうち、実際に山になっている**」位置だけ採る。
     //   ⚠ 格子には端の空白も並ぶので、そのまま数えると**必ず1個多くなる**（実装時に n+1 を返した）。
@@ -272,7 +320,7 @@ export class ChargeDotTracker {
     //   全体に対する閾値を置かずに済む（★位置で解ける問題を閾値で解こうとしない）。
     const at = (x) => (x >= 0 && x < this.width ? acc[x] : null);
     const centers = [];
-    for (let x = phase; x < this.width; x += P) {
+    for (let x = phase; x < wb; x += P) {
       const h = Math.round(P / 2);
       const l = at(x - h), r = at(x + h);
       // ⚠ **両隣の谷が ROI 内にあることを要求する**。片側しか無い格子点＝ROI の端であり、
