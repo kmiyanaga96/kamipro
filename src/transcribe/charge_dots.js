@@ -34,10 +34,30 @@ import { fitStepEdge } from './hp_bar.js';
 
 export const CT_DEFAULTS = {
   /**
-   * ★走査する行＝**バーの中央帯**（`hp_bar.js` が意図的に避けている領域）。
-   * ドットも `100%` の文字も縦方向の中央にある（`hp_bar.js` の注記）。
+   * 読み取り用に**毎フレームのプロファイルを保存する帯**（ROI 高さに対する比）。
+   * ⚠ 幾何の探索はこの帯だけでなく **`bandCount` 本の帯すべて**で行う（下記）。
    */
   band: [0.30, 0.70],
+  /**
+   * ★★**縦方向にも探す**（2026-08-17 追加）。
+   *
+   * ⚠ 初版は「ドットはバーの中央にある」という**前提**で1本の帯しか見ていなかった。
+   *   実走で見つかった等間隔構造は**ユーザー確認の結果「バーの目盛り・模様」**であり、
+   *   **CT ドットではなかった**＝**そもそも見る行が違った可能性がある**。
+   *   ∴ ROI の高さを `bandCount` 本に割って**すべての帯で周期構造を探し、どこにあるかを報告する**。
+   *   ★**どの行にあるかを人に訊く代わりに、走査に答えさせる**（憲法＝転記はツール）。
+   */
+  bandCount: 8,
+  /**
+   * ★**既知の非CT領域**（ROI 幅に対する比）。ここで見つかった周期構造は CT と呼ばない。
+   *
+   * ⚠ provenance: **ユーザー確認 2026-08-17**＝`M3-1.mp4` の HP バーで、
+   *   **左から 53〜69%** に等間隔（間隔 ≈ バー幅の 3.3%・6山）の構造があり、
+   *   これは「**バーの目盛り・模様など**」＝CT ドットではないと回答された。
+   *   ★**1点観測**（1つの録画・1つの敵）＝別の敵・UI 更新では未再測（E9）。
+   *   ⚠ **これを「見つけた」と報告してしまうのは、見つからないより悪い**（偽の CT を作る）。
+   */
+  knownDecorX: [0.50, 0.72],
   /**
    * 探索するドット間隔（ROI 幅に対する比）の範囲。
    * ⚠ **個数を決め打ちしない**ための範囲指定（個数 = 幅 / 間隔）。
@@ -252,6 +272,35 @@ export class ChargeDotTracker {
   }
 
   push(t, img) {
+    // ★★縦方向の全帯について集約だけ貯める（メモリは 8×幅 の配列だけ＝ただ同然）
+    if (img?.width && img?.height >= this.o.minHeight) {
+      if (!this.bandAcc) {
+        this.bandW = img.width;
+        this.bandAcc = Array.from({ length: this.o.bandCount }, () => new Float64Array(img.width));
+        this.bandN = 0;
+      }
+      if (img.width === this.bandW) {
+        const hi = Math.min(Math.floor(this.bandW / 2), Math.ceil(this.bandW * this.o.maxPeriodRatio));
+        for (let b = 0; b < this.o.bandCount; b++) {
+          const y0 = Math.floor(img.height * b / this.o.bandCount);
+          const y1 = Math.max(y0 + 1, Math.floor(img.height * (b + 1) / this.o.bandCount));
+          const prof = new Float64Array(img.width);
+          for (let x = 0; x < img.width; x++) {
+            let sum = 0;
+            for (let y = y0; y < y1; y++) {
+              const k = (y * img.width + x) * 4;
+              sum += lum(img.data[k], img.data[k + 1], img.data[k + 2]);
+            }
+            prof[x] = sum / (y1 - y0);
+          }
+          const hp = highpass(prof, hi * 2);
+          const acc = this.bandAcc[b];
+          for (let x = 0; x < this.bandW; x++) acc[x] += Math.abs(hp[x]);
+        }
+        this.bandN++;
+      }
+    }
+
     const r = centerBandProfile(img, this.o);
     if (!r.ok) { this.skipped++; return r; }
     if (!this.width) this.width = r.profile.length;
@@ -259,6 +308,37 @@ export class ChargeDotTracker {
     this.times.push(t);
     this.profiles.push(r.profile);
     return r;
+  }
+
+  /**
+   * ★★**帯ごとに周期構造を探し、どこにあるかを報告する**（縦の探索）。
+   * ⚠ 既知の装飾領域（`knownDecorX`）に当たったものは **`decor: true` と明示**する＝
+   *   **見つけたと言ってしまうのは、見つからないより悪い**。
+   */
+  scanBands() {
+    if (!this.bandAcc || !this.bandN) return [];
+    const minPx = Math.max(2, Math.round(this.bandW * this.o.minPeriodRatio));
+    const winW = Math.max(8, Math.round(this.bandW * this.o.windowRatio));
+    const step = Math.max(1, Math.round(this.bandW * this.o.windowStepRatio));
+    const [dx0, dx1] = this.o.knownDecorX;
+    return this.bandAcc.map((accRaw, b) => {
+      const acc = Array.from(accRaw, (v) => v / this.bandN);
+      let best = null;
+      for (let a = 0; a + winW <= this.bandW; a += step) {
+        const r = scanPeriod(acc.slice(a, a + winW), { ...this.o, minPeriodPx: minPx });
+        if (r.best && (!best || r.best.score > best.score)) {
+          best = { from: a, to: a + winW, period: r.best.period, score: r.best.score };
+        }
+      }
+      const mid = best ? (best.from + best.to) / 2 / this.bandW : null;
+      return {
+        band: [+(b / this.o.bandCount).toFixed(3), +((b + 1) / this.o.bandCount).toFixed(3)],
+        best,
+        /** ★既知の装飾（ユーザー確認 2026-08-17）と重なるか＝CT と呼んではいけない。 */
+        decor: mid != null && mid >= dx0 && mid <= dx1,
+        profile: downsample(acc, this.o.profileBins),
+      };
+    });
   }
 
   /** ★走全体を集約して幾何を決める。 */
@@ -289,7 +369,10 @@ export class ChargeDotTracker {
     const win = windows[0] ?? null;
     const best = win ? { period: win.period, score: win.score } : null;
     const scan = full.scan;
+    const bandScan = this.scanBands();
     const out = {
+      /** ★★**帯ごとの探索結果**＝縦のどこに周期構造があるか。**これが今の主要な生データ**。 */
+      bandScan,
       /** ★窓ごとの最良周期（上位）。**どこに周期構造があるか**が読める生データ。 */
       windowScan: windows.slice(0, 12),
       /** ★採用した窓（構造のある範囲）。 */
@@ -330,7 +413,18 @@ export class ChargeDotTracker {
       if (l == null || r == null) continue;
       if (acc[x] > l && acc[x] > r) centers.push(x);
     }
-    return { ...out, found: centers.length >= 2, period: P, phase, centers,
+    // ★★見つけた構造が**既知の装飾**の範囲なら「CT を見つけた」と言ってはいけない。
+    const mid = (win.from + win.to) / 2 / this.width;
+    const [dx0, dx1] = this.o.knownDecorX;
+    const isDecor = mid >= dx0 && mid <= dx1;
+    if (isDecor) {
+      return { ...out, found: false, decor: true, period: P, phase, centers,
+        dotCount: centers.length,
+        reason: `見つかった周期構造は既知の装飾の位置（バー幅の ${(mid * 100).toFixed(0)}%・`
+          + 'ユーザー確認 2026-08-17「バーの目盛り・模様」）＝CT ドットではない。'
+          + '★`bandScan` で他の帯を見る。' };
+    }
+    return { ...out, found: centers.length >= 2, decor: false, period: P, phase, centers,
       dotCount: centers.length,
       reason: centers.length >= 2 ? undefined : 'ドットらしい位置が2個未満' };
   }

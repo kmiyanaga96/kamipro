@@ -853,9 +853,14 @@ console.log('\n[12] CT ドット抽出（★個数を決め打ちしない・点
     return { img, period: P };
   }
 
-  /** 走を1本作る（★HP は単調に減らす＝バーの段差は動き、ドットは動かない）。 */
+  /**
+   * 走を1本作る（★HP は単調に減らす＝バーの段差は動き、ドットは動かない）。
+   * ⚠ `knownDecorX` を**無効化**して呼ぶ＝合成はドットをバー全域に置くので、
+   *   実データ由来の「既知の装飾の位置」規則とぶつかる。**幾何の検査と装飾ガードの検査は分ける**。
+   */
+  const NO_DECOR = { knownDecorX: [2, 3] };   // ありえない範囲＝ガードを実質無効化
   function run({ frames = 120, n = 5, litOf = () => 1, litFirst = true } = {}) {
-    const tr = new ChargeDotTracker();
+    const tr = new ChargeDotTracker(NO_DECOR);
     for (let i = 0; i < frames; i++) {
       const fill = 0.95 - 0.6 * (i / frames);                          // ★塗り境界が動く
       tr.push(i / 30, barWithDots({ fill, n, lit: litOf(i), litFirst }).img);
@@ -919,7 +924,7 @@ console.log('\n[12] CT ドット抽出（★個数を決め打ちしない・点
 
   // ドットが無ければ「見つからない」と言う（★数値を捏造しない）
   {
-    const tr = new ChargeDotTracker();
+    const tr = new ChargeDotTracker(NO_DECOR);
     for (let i = 0; i < 60; i++) {
       const img = makeImage(640, 54, [45, 40, 50]);
       fillRect(img, 0, 8, Math.round(640 * (0.95 - 0.6 * i / 60)), 32, [205, 35, 55]);
@@ -957,7 +962,7 @@ console.log('\n[12] CT ドット抽出（★個数を決め打ちしない・点
   //   ⚠ これは検出器の不具合ではなく**入力に情報が無い**＝**黙って別の周期を答えてはいけない**。
   {
     const tr = run({ frames: 120, n: 5, litOf: () => 1 });   // ← dimLum を塗りと同輝度にする
-    const trHard = new ChargeDotTracker();
+    const trHard = new ChargeDotTracker(NO_DECOR);
     for (let i = 0; i < 120; i++) {
       trHard.push(i / 30, barWithDots({ fill: 0.95 - 0.6 * (i / 120), n: 5, lit: 1, dimLum: 90 }).img);
     }
@@ -967,6 +972,30 @@ console.log('\n[12] CT ドット抽出（★個数を決め打ちしない・点
       `found=${gh.found} dotCount=${gh.dotCount}＝**もし 5 と答えたらそれは偶然**`);
     check('★そのときも集約プロファイルは返る（実物の見え方はここが答える）',
       Array.isArray(gh.meanProfile) && gh.meanProfile.length > 0);
+  }
+
+  // ★★既知の装飾を「見つけた」と言わないこと（2026-08-17・ユーザー確認に基づく規則）
+  //   ⚠ **見つけたと誤報告するのは、見つからないより悪い**（偽の CT を作る）。
+  {
+    const tr = new ChargeDotTracker();      // ← 既定（ガード有効）
+    for (let i = 0; i < 120; i++) {
+      const img = makeImage(640, 54, [45, 40, 50]);
+      fillRect(img, 0, 8, Math.round(640 * (0.95 - 0.6 * i / 120)), 32, [205, 35, 55]);
+      // ★バー幅の 53〜69% に等間隔の構造を置く＝実走で見つかり「目盛り・模様」と判明した位置
+      for (let k = 0; k < 6; k++) fillRect(img, 341 + k * 21 - 5, 18, 10, 18, [200, 200, 205]);
+      tr.push(i / 30, img);
+    }
+    const g = tr.solveGeometry();
+    check('★★既知の装飾の位置で見つけても found=false（CT と呼ばない）',
+      !g.found && g.decor === true, `found=${g.found} decor=${g.decor} / ${g.reason ?? ''}`);
+    check('★そのとき理由に位置と provenance が出る',
+      typeof g.reason === 'string' && g.reason.includes('2026-08-17'), g.reason);
+    check('★★縦の帯ごとの探索結果を返す（どの行に構造があるか＝次の一手が決まる）',
+      Array.isArray(g.bandScan) && g.bandScan.length === 8
+      && g.bandScan.every(b => Array.isArray(b.band) && Array.isArray(b.profile)),
+      `bandScan ${g.bandScan?.length} 本`);
+    check('★帯ごとに装飾かどうかも印がつく',
+      g.bandScan.some(b => b.decor === true), JSON.stringify(g.bandScan.map(b => b.decor)));
   }
 
   // 薄すぎる ROI は失敗と言う

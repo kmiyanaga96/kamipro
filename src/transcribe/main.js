@@ -15,7 +15,7 @@ import { ChargeDotTracker, ChargeSeries, reportChargeDots, CT_DEFAULTS } from '.
 import { ROIS } from './rois.js';
 import { Diag } from './diag.js';
 
-const VERSION = '0.16.0';
+const VERSION = '0.17.0';
 
 const $ = (id) => document.getElementById(id);
 const video = document.createElement('video');
@@ -448,12 +448,17 @@ $('scan').onclick = async () => {
   const dmgRect = roiToPixels(box, ROIS.dmg);
   const gaugeRect = roiToPixels(box, ROIS.gauge);
   const hpRect = ROIS.hpbar ? roiToPixels(box, ROIS.hpbar) : null;
+  // ★CT ドットの探索は**より広い `ROIS.hp`**（バーの上下・敵アイコン側も含む）で行う。
+  //   ⚠ 2026-08-17 のユーザー確認で、`hpbar` 内に見つけた等間隔構造は**バーの目盛り＝CT ではない**
+  //   と判明した＝**そもそも見る行が違った可能性がある**。∴ 縦方向にも探せる範囲を渡す。
+  const hpWideRect = ROIS.hp ? roiToPixels(box, ROIS.hp) : null;
 
   // ROI だけを切り出す小さい canvas（フル解像度の getImageData を毎フレームやらないため）
   const mk = (r) => { const c = document.createElement('canvas'); c.width = r.w; c.height = r.h;
     return { c, x: c.getContext('2d', { willReadFrequently: true }), r }; };
   const cutDmg = mk(dmgRect), cutGauge = mk(gaugeRect);
   const cutHp = hpRect ? mk(hpRect) : null;
+  const cutHpWide = hpWideRect ? mk(hpWideRect) : null;
   const cut = (o) => {
     o.x.drawImage(video, o.r.x, o.r.y, o.r.w, o.r.h, 0, 0, o.r.w, o.r.h);
     return o.x.getImageData(0, 0, o.r.w, o.r.h);
@@ -481,6 +486,8 @@ $('scan').onclick = async () => {
     const dImg = cut(cutDmg), gImg = cut(cutGauge);
     const dSig = roiSignature(dImg, local(dmgRect));
     sel.push(m, dSig);
+    // ★CT は広い `hp` ROI で縦方向にも探す（hp_bar とは別の crop＝互いに非干渉）
+    if (cutHpWide) ctTracker.push(+m.toFixed(4), cut(cutHpWide));
     lag.push(dSig);            // ★署名は1回だけ作って両方へ渡す（走査コストを増やさない）
     dedup.push(m, dSig);
     probe.push(goldenFractions(dImg, local(dmgRect)));
@@ -491,7 +498,6 @@ $('scan').onclick = async () => {
     // ★P2-5: HPバーの塗り率。単調減少するはずなので、それ自体が抽出の健全性検査になる。
     if (cutHp) {
       const hpImg = cut(cutHp);
-      ctTracker.push(+m.toFixed(4), hpImg);       // ★同じ crop の中央帯（hp_bar は上下帯＝非干渉）
       const hr = analyzeHpBar(hpImg);
       // ⚠ visible=false（演出フラッシュ）のときは fillRatio が null＝系列側で skip に計上される
       if (hr.ok) { hpSeries.push(+m.toFixed(4), hr.fillRatio, hr.cause); if (hr.visible) lastHp = hr; }
@@ -528,9 +534,10 @@ $('scan').onclick = async () => {
   const probeBest = reportProbe(diag, probe);
   const panelSum = panelSeries.summary();
   reportPanelSeries(diag, panelSum);
-  const ctGeom = cutHp ? ctTracker.solveGeometry() : null;
+  const ctGeom = cutHpWide ? ctTracker.solveGeometry() : null;
   const ctSum = ctGeom ? new ChargeSeries().ingest(ctTracker.readSeries(ctGeom)).summary(covered) : null;
-  if (cutHp) { reportHp(diag, lastHp, hpSeries); reportChargeDots(diag, ctGeom, ctSum); }
+  if (cutHp) reportHp(diag, lastHp, hpSeries);
+  if (cutHpWide) reportChargeDots(diag, ctGeom, ctSum);
   else diag.add('T1-ROI-004', 'ERROR', {
     where: { roi: 'hpbar' }, expected: '`ROIS.hpbar` が採寸済であること', got: '未採寸(null)',
     hint: 'T1 ページで hpbar をドラッグ登録し、rois.js に反映する',
