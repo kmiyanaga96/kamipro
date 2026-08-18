@@ -401,6 +401,73 @@ export function evenlySpacedRun(profile, opts = {}) {
 }
 
 /**
+ * ★★**生の輝度プロファイルから「山」を直接取り出す**（2026-08-18c 追加）。
+ *
+ * ⚠⚠ **なぜ必要になったか（実際に外した読み）**: digest がプロファイルを**上位10山**に畳んでいたため、
+ *   **平坦な背景の上の ±1 のノイズが「山」として並び**、CT の枠を **7 と誤読**した。
+ *   全120値を見たら右端 29bin は **56〜63（幅7）の平坦**で、山は1つも無かった。
+ *   ★**山の判定は「局所最大か」ではなく「どれだけ高いか」で決めるべきだった。**
+ *
+ * ∴ **プロファイルの振幅の中点でしきい、連結した塊を1つの山と数える**。
+ *   ⚠ しきい値は外から与えない＝**そのプロファイル自身の (最小+最大)/2**（自己スケール）。
+ *   位置は頂点1点ではなく**重心**で取る（頂点は 1bin のノイズで動く／重心は動かない）。
+ *
+ * @returns {{count, centers:number[], spacing:number|null, cv:number|null, level:{min,max,mid}}}
+ */
+export function rawHumps(profile) {
+  const arr = Array.from(profile, Number);
+  if (arr.length < 3) return { count: 0, centers: [], spacing: null, cv: null, level: null };
+  const min = Math.min(...arr), max = Math.max(...arr), mid = (min + max) / 2;
+  const centers = [];
+  let s = 0, w = 0, open = false;
+  for (let i = 0; i <= arr.length; i++) {
+    const above = i < arr.length && arr[i] >= mid;
+    if (above) { open = true; s += i * (arr[i] - mid); w += arr[i] - mid; }
+    else if (open) { if (w > 0) centers.push(+(s / w).toFixed(2)); s = 0; w = 0; open = false; }
+  }
+  let spacing = null, cv = null;
+  if (centers.length >= 2) {
+    const g = centers.slice(1).map((c, i) => c - centers[i]);
+    const m = g.reduce((a, b) => a + b, 0) / g.length;
+    spacing = +m.toFixed(3);
+    cv = +(Math.sqrt(g.reduce((t, v) => t + (v - m) ** 2, 0) / g.length) / (m || 1)).toFixed(4);
+  }
+  return { count: centers.length, centers, spacing, cv, level: { min, max, mid: +mid.toFixed(1) } };
+}
+
+/**
+ * ★★**山ごとの明るさを、走の全フレームぶん分布で見る**（2026-08-18c 追加）。
+ *
+ * ⚠ **点灯/消灯のエンコードが未確認**なので判定はしない＝**分位点を生値で返す**。
+ *   ★実走の標本で **1番目の山だけ 127 → 210/198 に跳ぶ瞬間**（t=56.4 / 124.9）が観測された。
+ *   もし「点灯＝明るい」なら、山ごとの分布は**二峰**になり、
+ *   **高い方に居る時間の割合が山ごとに階段状**になるはず＝それが CT の時系列そのもの。
+ *   ⚠ そうならなければ、明るさは点灯を表していない（別の手掛かりを探す）。
+ */
+export function humpSeries(profiles, centers, halfWidth) {
+  const q = (a, p) => a[Math.min(a.length - 1, Math.max(0, Math.round((a.length - 1) * p)))];
+  return centers.map((c) => {
+    const vals = [];
+    for (const prof of profiles) {
+      let s = 0, n = 0;
+      for (let x = Math.round(c - halfWidth); x <= Math.round(c + halfWidth); x++) {
+        if (x >= 0 && x < prof.length) { s += prof[x]; n++; }
+      }
+      if (n) vals.push(s / n);
+    }
+    vals.sort((a, b) => a - b);
+    if (!vals.length) return null;
+    return {
+      center: c,
+      p05: +q(vals, 0.05).toFixed(1), p25: +q(vals, 0.25).toFixed(1), p50: +q(vals, 0.50).toFixed(1),
+      p75: +q(vals, 0.75).toFixed(1), p95: +q(vals, 0.95).toFixed(1), max: +vals.at(-1).toFixed(1),
+      /** ★中央値より 30 以上明るいフレームの割合＝「点灯していた時間」の候補（判定ではない）。 */
+      brightFrac: +(vals.filter((v) => v > q(vals, 0.5) + 30).length / vals.length).toFixed(4),
+    };
+  });
+}
+
+/**
  * ★1フレームから**中央帯の列プロファイル**を取り出す（ここでは判定を一切しない）。
  *
  * ⚠⚠ **幾何（ドットの間隔と位置）を1フレームから決めようとして失敗した**（実装時・合成で score 0.24→0.09）。
@@ -544,6 +611,7 @@ export class ChargeDotTracker {
     }
     for (let x = 0; x < this.width; x++) sigma[x] = Math.sqrt(sigma[x] / N);
     // 時刻を散らした標本（最大8本）
+    const rawHumpsResult = rawHumps(rawMean);
     const nSample = Math.min(8, N);
     const sampleIdx = Array.from({ length: nSample }, (_, k) => Math.floor(k * (N - 1) / Math.max(1, nSample - 1)));
 
@@ -601,6 +669,16 @@ export class ChargeDotTracker {
        * ⚠ 走の間ずっと同じ状態だったピップは立たない＝`rawProfile` と**併せて**読む。
        */
       sigmaProfile: downsample(sigma, this.o.profileBins),
+      /**
+       * ★★**生の輝度から数えた山**（自己スケールのしきい＋重心）。
+       * ⚠ 上位N山の抽出は**平坦な背景のノイズを山と数える**（2026-08-18c に実際に誤読した）。
+       */
+      humps: rawHumpsResult,
+      /** ★山ごとの明るさの分布（走の全フレーム）＝**点灯のエンコードはここが答える**。 */
+      humpSeries: rawHumpsResult.count
+        ? humpSeries(this.profiles, rawHumpsResult.centers,
+            Math.max(1, (rawHumpsResult.spacing ?? 8) / 4))
+        : [],
       /**
        * ★**時刻を散らした生プロファイルの標本**＝どう変化するかを実物で見る。
        * ⚠ 「変化した」だけでは読み方が決まらない。**どの形からどの形へ変わったか**が要る。

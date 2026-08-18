@@ -125,9 +125,22 @@ export function digest(diag) {
     //     （格子外の bin 108/110 が残った）。★**判断に効く桁は落とさない**（本モジュールの原則）。
     //   ⚠ 輝度は 0〜255 なので**整数で足りる**（120値で約 400 字＝digest 全体の 1〜2割）。
     //   ⏳ CT が確定したら山の位置に畳み直してよい。
+    // ★★山は「局所最大か」ではなく「どれだけ高いか」で数える（2026-08-18c）。
+    //   ⚠ 上位N山の抽出は**平坦な背景の ±1 のノイズを山と数える**＝実際に枠を 7 と誤読した。
+    if (g.humps) {
+      add(`  ★山（振幅の中点でしきい・重心）: ${g.humps.count}個 `
+        + `間隔=${f(g.humps.spacing)} cv=${f(g.humps.cv, 4)} `
+        + `水準 ${g.humps.level?.min}〜${g.humps.level?.max} 中点 ${g.humps.level?.mid} / `
+        + `位置 ${(g.humps.centers ?? []).join(', ')}`);
+    }
+    if (Array.isArray(g.humpSeries) && g.humpSeries.length) {
+      add('  ★山ごとの明るさの分布（p05/p25/p50/p75/p95/max / 明るいフレームの割合）＝点灯のエンコード:');
+      for (const h of g.humpSeries) {
+        if (!h) continue;
+        add(`    中心 ${h.center}: ${h.p05}/${h.p25}/${h.p50}/${h.p75}/${h.p95}/${h.max}  明 ${h.brightFrac}`);
+      }
+    }
     if (Array.isArray(g.rawProfile)) {
-      const pk = peaks(g.rawProfile, 10);
-      add(`  生の輝度（山が離散なら ドット／境界が1つなら ゲージ）: ${pk.map(([i, v]) => `${i}:${f(v, 1)}`).join(' ')}`);
       add(`  生の輝度・全${g.rawProfile.length}値: ${g.rawProfile.map((v) => Math.round(v)).join(',')}`);
     }
     if (Array.isArray(g.sigmaProfile)) {
@@ -146,6 +159,23 @@ export function digest(diag) {
     if (r.ctSeries) {
       add(`  系列: 変化 ${r.ctSeries.prefixChanges} 回 `
         + `(${f(r.ctSeries.prefixChangesPerSecond, 3)}/秒) 分布 ${JSON.stringify(r.ctSeries.prefixHistogram ?? {})}`);
+    }
+  }
+
+  // ── ④' モードゲージ（未モデル化メカニクス＝C45 の観測経路その2）────────
+  if (r.modeGeometry) {
+    const g = r.modeGeometry;
+    add('');
+    add(`## モードゲージ  roi=${g.roi ?? 'modebar'}`);
+    if (g.humps) {
+      add(`  ★山: ${g.humps.count}個 間隔=${f(g.humps.spacing)} cv=${f(g.humps.cv, 4)} `
+        + `水準 ${g.humps.level?.min}〜${g.humps.level?.max} / 位置 ${(g.humps.centers ?? []).join(', ')}`);
+    }
+    if (Array.isArray(g.rawProfile)) {
+      add(`  生の輝度・全${g.rawProfile.length}値: ${g.rawProfile.map((v) => Math.round(v)).join(',')}`);
+    }
+    if (Array.isArray(g.sigmaProfile)) {
+      add(`  時間σ・全${g.sigmaProfile.length}値: ${g.sigmaProfile.map((v) => Math.round(v)).join(',')}`);
     }
   }
 

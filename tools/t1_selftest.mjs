@@ -852,6 +852,9 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
                   searchRange: { width: 687, min: 17, max: 171 },
                   // ★2026-08-18 追加の生データも実走と同じ形で持たせる（畳み率を正しく測るため）
                   rawProfile: big, sigmaProfile: big,
+                  humps: { count: 5, centers: [17.4, 33.65, 49.98, 66.38, 82.59], spacing: 16.297, cv: 0.0045,
+                           level: { min: 56, max: 133, mid: 94.5 } },
+                  humpSeries: [{ center: 17.4, p05: 120, p25: 126, p50: 127, p75: 128, p95: 131, max: 210, brightFrac: 0.012 }],
                   sampleProfiles: Array.from({ length: 8 }, (_, k) => ({ t: k * 15, profile: big })),
                   reason: 'r',
                   // ★実走にある大きな配列も持たせる（無いと完全JSON を過小に見積もる）
@@ -873,6 +876,8 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
                   freezeRuns: [{ label: 'cellP90', j: 48, p50: 3 }],
                   cellDeltas: { p50: 2, p90: 48, zeroFraction: 0.37 },
                   lags: Array.from({ length: 20 }, (_, k) => ({ k: k + 1, p10: 1, p50: 2, p90: 3 })) },
+    modeGeometry: { roi: 'modebar', rawProfile: big, sigmaProfile: big,
+                    humps: { count: 1, centers: [40], spacing: null, cv: null, level: { min: 4, max: 90, mid: 47 } } },
     keptSample: Array.from({ length: 60 }, (_, i) => ({ t: i, dist: i, reason: 'change' })),
     hpViolationSamples: Array.from({ length: 4 }, (_, i) => ({
       t: 12.33 + i, from: 0.159, to: 0.889, peak: 0.42, leftMean: 0.4, rightMean: 0.01,
@@ -927,6 +932,14 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
     dg.includes('生の輝度・全120値') && dg.includes(String(Math.round(big[7]))),
     (dg.split('\n').find(l => l.includes('全120値')) ?? '').slice(0, 80));
   check('★時間σも全値が出る', dg.includes('時間σ・全120値'));
+  // ★★山は「どれだけ高いか」で数える（上位N山の抽出は背景のノイズを山と数える）
+  check('★★山の数・間隔・水準が digest に出る（局所最大ではなく振幅でしきる）',
+    dg.includes('★山（振幅の中点でしきい・重心）: 5個') && dg.includes('中点 94.5'),
+    (dg.split('\n').find(l => l.includes('振幅の中点')) ?? '').slice(0, 90));
+  check('★山ごとの明るさの分布が digest に出る（点灯のエンコードを決める材料）',
+    dg.includes('山ごとの明るさの分布') && dg.includes('明 0.012'));
+  check('★★モードゲージの節が digest に出る（未モデル化メカニクスの観測経路その2）',
+    dg.includes('## モードゲージ') && dg.includes('roi=modebar'));
   check('★★found/bestPeriod を当てにしない旨が明記される（|高域通過|は縁に山が立つ）',
     dg.includes('found/bestPeriod は当てにしない'));
   check('★生プロファイルの標本も出る（どの形からどの形へ変わったか）',

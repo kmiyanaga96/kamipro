@@ -16,7 +16,7 @@ import { ROIS } from './rois.js';
 import { Diag } from './diag.js';
 import { digest } from './digest.js';
 
-const VERSION = '0.22.0';
+const VERSION = '0.23.0';
 
 const $ = (id) => document.getElementById(id);
 const video = document.createElement('video');
@@ -499,6 +499,12 @@ $('scan').onclick = async () => {
   const ctSource = ROIS.ct ? 'ct' : (ROIS.hp ? 'hp' : null);
   const hpWideRect = ROIS.ct ? roiToPixels(box, ROIS.ct)
     : (ROIS.hp ? roiToPixels(box, ROIS.hp) : null);
+  // ★★モードゲージも同じ生プロファイル抽出にかける（2026-08-18c）。
+  //   ⚠ 動機は2つ: ①**一次情報にある未モデル化メカニクス**（`modebar` の注記）で、読めること自体が成果
+  //   ②★**`ct` ROI の左端が切れている疑い**の決着＝`ct` の左端に見えている構造が
+  //     **6個目のピップ**なのか**モードバーの右端**なのかは、`modebar` 側の profile を見れば分かる
+  //     （`modebar` x 361〜706 と `ct` x 693〜855 は 13px 重なっている）。
+  const modeRect = ROIS.modebar ? roiToPixels(box, ROIS.modebar) : null;
 
   // ROI だけを切り出す小さい canvas（フル解像度の getImageData を毎フレームやらないため）
   const mk = (r) => { const c = document.createElement('canvas'); c.width = r.w; c.height = r.h;
@@ -506,6 +512,7 @@ $('scan').onclick = async () => {
   const cutDmg = mk(dmgRect), cutGauge = mk(gaugeRect);
   const cutHp = hpRect ? mk(hpRect) : null;
   const cutHpWide = hpWideRect ? mk(hpWideRect) : null;
+  const cutMode = modeRect ? mk(modeRect) : null;
   const cut = (o) => {
     o.x.drawImage(video, o.r.x, o.r.y, o.r.w, o.r.h, 0, 0, o.r.w, o.r.h);
     return o.x.getImageData(0, 0, o.r.w, o.r.h);
@@ -523,6 +530,8 @@ $('scan').onclick = async () => {
   const hpSeries = new HpSeries();
   // ★P2-5b: CT ドット。幾何は走全体から決めるので、ここでは中央帯プロファイルを溜めるだけ。
   const ctTracker = new ChargeDotTracker();
+  // ★モードゲージ用（同じ抽出器＝生プロファイル・時間σ・山の検出をそのまま使える）
+  const modeTracker = cutMode ? new ChargeDotTracker() : null;
   let lastHp = null;
   // ★違反フレームの生プロファイルを持ち帰る（クロップを人に頼まずに原因を特定するため）
   const hpViolationSamples = [];
@@ -542,6 +551,7 @@ $('scan').onclick = async () => {
     sel.push(m, dSig);
     // ★CT は広い `hp` ROI で縦方向にも探す（hp_bar とは別の crop＝互いに非干渉）
     if (cutHpWide) ctTracker.push(+m.toFixed(4), cut(cutHpWide));
+    if (cutMode) modeTracker.push(+m.toFixed(4), cut(cutMode));
     lag.push(dSig);            // ★署名は1回だけ作って両方へ渡す（走査コストを増やさない）
     dedup.push(m, dSig);
     probe.push(goldenFractions(dImg, local(dmgRect)));
@@ -601,6 +611,8 @@ $('scan').onclick = async () => {
   const panelSum = panelSeries.summary();
   reportPanelSeries(diag, panelSum);
   const ctGeom = cutHpWide ? ctTracker.solveGeometry() : null;
+  const modeGeom = modeTracker ? modeTracker.solveGeometry() : null;
+  if (modeGeom) modeGeom.roi = 'modebar';
   // ★どの ROI を見た結果なのかを必ず残す（provenance＝E1）。
   if (ctGeom) ctGeom.roi = ctSource;
   const ctSum = ctGeom ? new ChargeSeries().ingest(ctTracker.readSeries(ctGeom)).summary(covered) : null;
@@ -655,6 +667,9 @@ $('scan').onclick = async () => {
     hpSkipSamples,
     // ★P2-5b: CT ドット。**meanProfile が実物の見え方を答える生データ**（点灯判定は未較正）。
     ctGeometry: ctGeom,
+    // ★モードゲージ（未モデル化メカニクス＝C45 の観測経路その2）。
+    //   ⚠ 読み取りは未確定＝**生プロファイルだけを持ち帰る**（仮定して判定を書かない）。
+    modeGeometry: modeGeom,
     ctSeries: ctSum,
     popupProbe: { best: probeBest, all: probe.report() },
     keptSample: sel.kept.slice(0, 60),
