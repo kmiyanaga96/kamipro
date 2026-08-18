@@ -848,6 +848,9 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
     hpProfileSample: big,
     ctGeometry: { found: false, decor: true, bestPeriod: { period: 21, score: 0.48 },
                   searchRange: { width: 687, min: 17, max: 171 },
+                  // ★2026-08-18 追加の生データも実走と同じ形で持たせる（畳み率を正しく測るため）
+                  rawProfile: big, sigmaProfile: big,
+                  sampleProfiles: Array.from({ length: 8 }, (_, k) => ({ t: k * 15, profile: big })),
                   reason: 'r',
                   // ★実走と同じ形にする（8帯 × 120値のプロファイル）＝
                   //   ⚠ 縮小したフィクスチャで「畳めている」を測ると**畳み率を過小評価する**。
@@ -902,6 +905,13 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
     dg.includes('探索できる周期') && dg.includes('171'), dg.split('\n').find(l => l.includes('探索できる周期')));
   check('★等間隔の山の列（peakRun）も digest に出る＝少数ドットはここにしか出ない',
     dg.includes('列: 4個') && dg.includes('cv='), dg.split('\n').find(l => l.includes('列:')));
+  // ★★専用 ROI で「どの数字を信じるか」が digest に書いてあること
+  check('★★生の輝度と時間σが digest に出る（要素の正体を決める生データ）',
+    dg.includes('生の輝度') && dg.includes('時間σ'));
+  check('★★found/bestPeriod を当てにしない旨が明記される（|高域通過|は縁に山が立つ）',
+    dg.includes('found/bestPeriod は当てにしない'));
+  check('★生プロファイルの標本も出る（どの形からどの形へ変わったか）',
+    dg.includes('生プロファイルの標本'));
 }
 
 // ── 12. CT（チャージターン）ドット抽出 ─────────────────────
@@ -1054,23 +1064,42 @@ console.log('\n[12] CT ドット抽出（★個数を決め打ちしない・点
       Array.isArray(gh.meanProfile) && gh.meanProfile.length > 0);
   }
 
-  // ★★既知の装飾を「見つけた」と言わないこと（2026-08-17・ユーザー確認に基づく規則）
-  //   ⚠ **見つけたと誤報告するのは、見つからないより悪い**（偽の CT を作る）。
+  // ★★装飾の抑止は「機構としては残すが、既定では何も抑止しない」（2026-08-18 に方針変更）
+  //   ⚠⚠ 2026-08-17 に登録した `knownDecorX: [0.50, 0.72]` は**撤回した**＝
+  //     2026-08-18 に `ct` を直接採寸したら canvas x 693〜855 で、
+  //     「目盛り」と判定した6山（x 700〜802）は**その中に完全に入っていた＝あれは CT だった**。
+  //   ⭐⭐ **1つの回答から恒久的な抑止規則を作らない**＝静かで恒久的なブロッカーになる。
   {
-    const tr = new ChargeDotTracker();      // ← 既定（ガード有効）
-    for (let i = 0; i < 120; i++) {
+    const mk = () => {
       const img = makeImage(640, 54, [45, 40, 50]);
-      fillRect(img, 0, 8, Math.round(640 * (0.95 - 0.6 * i / 120)), 32, [205, 35, 55]);
-      // ★バー幅の 53〜69% に等間隔の構造を置く＝実走で見つかり「目盛り・模様」と判明した位置
-      for (let k = 0; k < 6; k++) fillRect(img, 341 + k * 21 - 5, 18, 10, 18, [200, 200, 205]);
-      tr.push(i / 30, img);
-    }
-    const g = tr.solveGeometry();
-    check('★★既知の装飾の位置で見つけても found=false（CT と呼ばない）',
+      return img;
+    };
+    const build = (opts) => {
+      const tr = new ChargeDotTracker(opts);
+      for (let i = 0; i < 120; i++) {
+        const img = mk();
+        fillRect(img, 0, 8, Math.round(640 * (0.95 - 0.6 * i / 120)), 32, [205, 35, 55]);
+        for (let k = 0; k < 6; k++) fillRect(img, 341 + k * 21 - 5, 18, 10, 18, [200, 200, 205]);
+        tr.push(i / 30, img);
+      }
+      return tr.solveGeometry();
+    };
+
+    // ★★回帰の本体: **既定では抑止しない**（＝2026-08-17 の抑止が復活していないこと）
+    const gDefault = build();
+    check('★★既定では中央付近の構造も抑止しない（撤回した knownDecorX が復活していない）',
+      gDefault.found === true && gDefault.decor === false,
+      `found=${gDefault.found} decor=${gDefault.decor} / ${gDefault.reason ?? ''}`);
+    check('　　CT_DEFAULTS.knownDecorX は既定で null（何も抑止しない）',
+      CT_DEFAULTS.knownDecorX === null, JSON.stringify(CT_DEFAULTS.knownDecorX));
+
+    // 機構自体は残す＝**確認できた装飾は呼び出し側が明示的に渡せる**
+    const g = build({ knownDecorX: [0.50, 0.72] });
+    check('★明示的に渡した装飾範囲では found=false（機構は残っている）',
       !g.found && g.decor === true, `found=${g.found} decor=${g.decor} / ${g.reason ?? ''}`);
-    check('★そのとき理由に位置と provenance が出る',
-      typeof g.reason === 'string' && g.reason.includes('2026-08-17'), g.reason);
-    check('★★縦の帯ごとの探索結果を返す（どの行に構造があるか＝次の一手が決まる）',
+    check('★そのとき理由に位置が出る',
+      typeof g.reason === 'string' && g.reason.includes('%'), g.reason);
+    check('★★縦の帯ごとの探索結果を返す（どの行に構造があるか）',
       Array.isArray(g.bandScan) && g.bandScan.length === 8
       && g.bandScan.every(b => Array.isArray(b.band) && Array.isArray(b.profile)),
       `bandScan ${g.bandScan?.length} 本`);
@@ -1188,9 +1217,17 @@ console.log('\n[10] ROI 定義の健全性');
     JSON.stringify(Object.entries(ROIS).filter(([, r]) => r && (r.x + r.w > 1.0001))));
   check('★hpbar は P2-5 の入力として登録されている（未採寸でもキーは在る）',
     'hpbar' in ROIS);
-  // ★2026-08-18: 要素ごとに人が採寸する方式へ（ユーザー提案）＝スロットを先に用意しておく。
-  for (const k of ['modebar', 'ct', 'debuff']) {
-    check(`　　採寸スロット ${k} が登録されている（未採寸=null でもキーは在る）`, k in ROIS);
+  // ★2026-08-18: 要素ごとに人が採寸する方式へ（ユーザー提案）＝4枠とも採寸済み。
+  for (const k of ['hpbar', 'modebar', 'ct', 'debuff']) {
+    check(`　　${k} が採寸済み（値が入っている）`, !!ROIS[k], JSON.stringify(ROIS[k]));
+  }
+  // ★★`ct` は 2026-08-17 に「目盛り」と判定した6山（canvas x 700〜802）を含むこと。
+  //   ⚠ これが崩れたら、あの構造が CT だったという同定の根拠が消える＝採寸のやり直しが要る。
+  {
+    const box = { x: 290, y: 198, w: 1684, h: 1129 };
+    const cx0 = ROIS.ct.x * box.w, cx1 = cx0 + ROIS.ct.w * box.w;
+    check('★★ct は 2026-08-17 の「等間隔6山」(canvas x 700〜802) を含む＝あれは CT だった',
+      cx0 <= 700 && cx1 >= 802, `ct: x ${cx0.toFixed(0)}〜${cx1.toFixed(0)}`);
   }
 }
 

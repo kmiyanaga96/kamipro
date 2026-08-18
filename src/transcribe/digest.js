@@ -81,6 +81,12 @@ export function digest(diag) {
     add(`## CT  roi=${g.roi ?? '?'} found=${g.found} decor=${g.decor ?? '-'} `
       + `bestPeriod=${JSON.stringify(g.bestPeriod ?? null)}`);
     if (g.reason) add(`  理由: ${g.reason}`);
+    // ★★どの数字を信じるかを毎回書く（2026-08-18）。
+    //   ⚠ `found`/`bestPeriod` は**広い ROI を探索する**ために作った経路で、
+    //     162px 級の専用 ROI では合成でも score 0.15〜0.38 と floor 0.35 をまたぎ、
+    //     周期を**真値の約半分**（ドットの縁）に取ることがある＝**この行だけで判断しない**。
+    add('  ⚠ 専用 ROI では found/bestPeriod は当てにしない（|高域通過|は縁に山が立つ）。'
+      + '★下の「生の輝度」と「時間σ」を読む');
     // ★探索範囲そのものを毎回出す（2026-08-18）。
     //   ⚠ v0.18.0 は**探せる周期の上限が 43px に潰れていた**のに、digest からはそれが見えず、
     //     「どの帯も低い＝CT は ROI の外」という**誤った結論に進みかけた**。
@@ -100,6 +106,24 @@ export function digest(diag) {
         }
         const pk = peaks(b.profile, 8);
         if (pk.length) add(`      山: ${pk.map(([i, v]) => `${i}:${f(v, 1)}`).join(' ')}`);
+      }
+    }
+    // ★★要素の正体を決める生データ（2026-08-18）。
+    //   ⚠ `meanProfile`（|高域通過|）は**山がドットの縁に立つ**ので、離散/連続の判別に使えない。
+    if (Array.isArray(g.rawProfile)) {
+      const pk = peaks(g.rawProfile, 10);
+      add(`  生の輝度（山が離散なら ドット／境界が1つなら ゲージ）: ${pk.map(([i, v]) => `${i}:${f(v, 1)}`).join(' ')}`);
+    }
+    if (Array.isArray(g.sigmaProfile)) {
+      const pk = peaks(g.sigmaProfile, 10);
+      const mx = Math.max(...g.sigmaProfile);
+      add(`  ★時間σ（走の間に変化した列＝点灯の仕組みを仮定しない位置特定・最大 ${f(mx, 1)}）: `
+        + pk.map(([i, v]) => `${i}:${f(v, 1)}`).join(' '));
+    }
+    if (Array.isArray(g.sampleProfiles)) {
+      add('  生プロファイルの標本（時刻 / 山の位置:高さ）:');
+      for (const s of g.sampleProfiles) {
+        add(`    t=${f(s.t, 1)}  ${peaks(s.profile, 8).map(([i, v]) => `${i}:${f(v, 0)}`).join(' ')}`);
       }
     }
     if (r.ctSeries) {

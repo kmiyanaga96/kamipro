@@ -51,13 +51,30 @@ export const CT_DEFAULTS = {
   /**
    * ★**既知の非CT領域**（ROI 幅に対する比）。ここで見つかった周期構造は CT と呼ばない。
    *
-   * ⚠ provenance: **ユーザー確認 2026-08-17**＝`M3-1.mp4` の HP バーで、
-   *   **左から 53〜69%** に等間隔（間隔 ≈ バー幅の 3.3%・6山）の構造があり、
-   *   これは「**バーの目盛り・模様など**」＝CT ドットではないと回答された。
-   *   ★**1点観測**（1つの録画・1つの敵）＝別の敵・UI 更新では未再測（E9）。
-   *   ⚠ **これを「見つけた」と報告してしまうのは、見つからないより悪い**（偽の CT を作る）。
+   * ⚠⚠ **既定では空（抑止しない）**。2026-08-18 に**登録されていた値 [0.50, 0.72] を撤回した**。
+   *
+   * ── 撤回の経緯（★この Phase で最も高くついた誤りなので詳しく残す）──────────────
+   *   2026-08-17、`hpbar` の中央帯に等間隔6山（バー幅 53〜69%・間隔 21.3px）を見つけ、
+   *   「これは CT か」とユーザーに尋ねたところ「**バーの目盛り・模様など**」と回答された。
+   *   そこで**その位置を「CT ではない」と恒久的に記録した**のが本項だった。
+   *
+   *   2026-08-18 に `ct` を**直接採寸**したところ、canvas x **693〜855**。
+   *   6山の位置は canvas x **700〜802**＝**採寸された `ct` の中に完全に入る**。
+   *   ★**あれは CT だった。**
+   *
+   *   ⚠ 誤りの本体は回答ではなく**質問**だった。旧 `hpbar` は 640×54px で、
+   *   **実際のバー（29px）の下にある CT の行まで含んでいた**。
+   *   ∴ 「**HPバーの中の**構造」として尋ねたので、「バーの模様だろう」という回答は自然だった。
+   *
+   * ⭐⭐ **教訓＝1つの回答から恒久的な抑止規則を作らない**。
+   *   「誤報告は見つからないより悪い」（2026-08-17 の教訓）は正しいが、
+   *   その対策として**抑止をハードコードすると、静かで恒久的なブロッカーになる**＝もっと悪い。
+   *   ★位置の問題は**抑止規則ではなく採寸**で解く（憲法＝観測はユーザー）。
+   *
+   * ⚠ 機構自体は残す＝**本当に確認できた装飾**があれば呼び出し側が明示的に渡せる。
+   *   ただし**既定で何かを抑止することは二度としない**。
    */
-  knownDecorX: [0.50, 0.72],
+  knownDecorX: null,
   /**
    * 探索するドット間隔（ROI 幅に対する比）の範囲。
    * ⚠ **個数を決め打ちしない**ための範囲指定（個数 = 幅 / 間隔）。
@@ -316,9 +333,16 @@ export function evenlySpacedRun(profile, opts = {}) {
   }
   if (pk.length < 3) return null;
   // ★**尺度は中央値で取る**（絶対閾値を置かない）＝背景のさざ波を落として「山」だけ残す。
-  const heights = pk.map((i) => arr[i]).slice().sort((a, b) => a - b);
-  const med = heights[Math.floor(heights.length / 2)];
-  const cand = pk.filter((i) => arr[i] >= med);
+  //
+  // ⚠⚠ **中央値を取る対象は「プロファイル全体」であって「山の高さ」ではない**（2026-08-18 に修正）。
+  //   山の高さの中央値を下限にすると、**構造上つねに山の半分が落ちる**。
+  //   ★これは CT では致命的＝**消灯のドットは点灯のドットより暗い**ので、
+  //   **数えたい当のものが体系的に落ちる**（実測: 7個のうち4個しか数えられなかった）。
+  //   ∴ 下限は**プロファイル自身の水準**にする＝「背景より高い山」を全部残し、
+  //   点灯/消灯の明暗差では選別しない（点灯判定はここの仕事ではない）。
+  const level = Array.from(arr).sort((a, b) => a - b);
+  const med = level[Math.floor(level.length / 2)];
+  const cand = pk.filter((i) => arr[i] > med);
   if (cand.length < 3) return null;
   const minSp = Math.max(2, o.minPeriodPx ?? Math.round(arr.length * o.minPeriodRatio));
   let best = null;
@@ -480,7 +504,7 @@ export class ChargeDotTracker {
   scanBands() {
     if (!this.bandAcc || !this.bandN) return [];
     const minPx = Math.max(2, Math.round(this.bandW * this.o.minPeriodRatio));
-    const [dx0, dx1] = this.o.knownDecorX;
+    const [dx0, dx1] = this.o.knownDecorX ?? [Infinity, -Infinity];   // null＝抑止しない
     return this.bandAcc.map((accRaw, b) => {
       const acc = Array.from(accRaw, (v) => v / this.bandN);
       // ★★窓を周期に合わせて広げながら探す（v0.19.0）＝**上限 43px の穴を塞いだ経路**。
@@ -508,6 +532,21 @@ export class ChargeDotTracker {
   /** ★走全体を集約して幾何を決める。 */
   solveGeometry() {
     if (this.profiles.length < 2 || !this.width) return { found: false, reason: 'フレームが足りない' };
+    // ★★生の輝度の平均と、列ごとの時間σ（＝走の間に変化した列）。
+    //   ⚠ どちらも**閾値を通さない生の集計**＝実物の見え方が未確認なので判定はしない。
+    const N = this.profiles.length;
+    const rawMean = new Float64Array(this.width);
+    const sigma = new Float64Array(this.width);
+    for (const p of this.profiles) for (let x = 0; x < this.width; x++) rawMean[x] += p[x];
+    for (let x = 0; x < this.width; x++) rawMean[x] /= N;
+    for (const p of this.profiles) {
+      for (let x = 0; x < this.width; x++) { const d = p[x] - rawMean[x]; sigma[x] += d * d; }
+    }
+    for (let x = 0; x < this.width; x++) sigma[x] = Math.sqrt(sigma[x] / N);
+    // 時刻を散らした標本（最大8本）
+    const nSample = Math.min(8, N);
+    const sampleIdx = Array.from({ length: nSample }, (_, k) => Math.floor(k * (N - 1) / Math.max(1, nSample - 1)));
+
     const hi = Math.min(Math.floor(this.width / 2), Math.ceil(this.width * this.o.maxPeriodRatio));
     const acc = new Float64Array(this.width);
     for (const p of this.profiles) {
@@ -546,8 +585,29 @@ export class ChargeDotTracker {
       windowScan: windows.slice(0, 12),
       /** ★採用した窓（構造のある範囲）。 */
       window: win ? { from: win.from, to: win.to } : null,
-      /** ★集約プロファイル＝**これが幾何の生データ**（外していても次の一手が決まる）。 */
+      /** ★集約プロファイル（**高域通過の絶対値**の平均）＝周期検出の入力。 */
       meanProfile: downsample(acc, this.o.profileBins),
+      /**
+       * ★★**生の輝度の平均**（高域通過を通していない）＝**要素が何なのかはここが答える**。
+       * ⚠ 2026-08-18 追加。`meanProfile` は |高域通過| なので**山がドットの縁に立つ**＝
+       *   **離散ドットか連続ゲージかの判別には使えない**（合成で周期の半分を掴んだ）。
+       *   生の輝度なら「山が離散的に並ぶ」か「境界が1つだけある」かがそのまま見える。
+       */
+      rawProfile: downsample(rawMean, this.o.profileBins),
+      /**
+       * ★★**列ごとの時間方向の標準偏差**＝**走の間に変化した列はどこか**。
+       * ⭐ これは**点灯/消灯のエンコードを仮定しない**localizer＝
+       *   CT のピップは戦闘中に必ず状態が変わるので σ が立ち、背景・装飾は σ ≈ 0 になる。
+       * ⚠ 走の間ずっと同じ状態だったピップは立たない＝`rawProfile` と**併せて**読む。
+       */
+      sigmaProfile: downsample(sigma, this.o.profileBins),
+      /**
+       * ★**時刻を散らした生プロファイルの標本**＝どう変化するかを実物で見る。
+       * ⚠ 「変化した」だけでは読み方が決まらない。**どの形からどの形へ変わったか**が要る。
+       */
+      sampleProfiles: sampleIdx.map((i) => ({
+        t: this.times[i], profile: downsample(this.profiles[i], this.o.profileBins),
+      })),
       /** ★等間隔に並ぶ山の列（自己相関に依らない交差検査・**少数ドットはここに出る**）。 */
       peakRun: evenlySpacedRun(acc, { ...this.o, minPeriodPx: minPx }),
       periodScan: scan.filter((_, i) => i % Math.max(1, Math.ceil(scan.length / 40)) === 0),
@@ -631,7 +691,7 @@ export class ChargeDotTracker {
     const core = centers.length >= 2
       ? { from: centers[0], to: centers.at(-1) } : { from: win.from, to: win.to };
     const mid = (core.from + core.to) / 2 / this.width;
-    const [dx0, dx1] = this.o.knownDecorX;
+    const [dx0, dx1] = this.o.knownDecorX ?? [Infinity, -Infinity];   // null＝抑止しない
     const isDecor = mid >= dx0 && mid <= dx1;
     if (isDecor) {
       return { ...out, found: false, decor: true, period: P, phase, centers,
