@@ -507,6 +507,47 @@ export function centerBandProfile(img, opts = {}) {
 }
 
 /**
+ * ★★**山ごとの色みを、分布と時系列の両方で返す**（2026-08-18f）。
+ *
+ * ⚠ **なぜ時系列が要るか**: 走全体の平均や割合では「**どれだけ点いていたか**」しか出ない。
+ *   ★CT は**ターン1回につき1つ**蓄積する（ユーザー確定）ので、**いつ立ち上がったか**が分かれば
+ *   **ターン境界そのものの観測値**にもなる（C45＝敵の行動モデルの intake）。
+ * ⚠ 判定はしない＝**分位点**（二峰かどうかを読む材料）と**時間バケットの平均**を返すだけ。
+ */
+export function humpChromaStats(frames, times, centers, halfWidth, buckets = 40) {
+  if (!frames?.length) return [];
+  const q = (a, p) => a[Math.min(a.length - 1, Math.max(0, Math.round((a.length - 1) * p)))];
+  const t0 = times[0], t1 = times.at(-1), span = Math.max(1e-6, t1 - t0);
+  return centers.map((c) => {
+    const vals = [];
+    const sum = new Float64Array(buckets), cnt = new Float64Array(buckets);
+    for (let i = 0; i < frames.length; i++) {
+      const prof = frames[i];
+      let s = 0, n = 0;
+      for (let x = Math.round(c - halfWidth); x <= Math.round(c + halfWidth); x++) {
+        if (x >= 0 && x < prof.length) { s += prof[x]; n++; }
+      }
+      if (!n) continue;
+      const v = s / n;
+      vals.push(v);
+      const b = Math.min(buckets - 1, Math.floor((times[i] - t0) / span * buckets));
+      sum[b] += v; cnt[b]++;
+    }
+    if (!vals.length) return null;
+    const sorted = vals.slice().sort((a, b) => a - b);
+    return {
+      center: c,
+      p05: +q(sorted, 0.05).toFixed(1), p25: +q(sorted, 0.25).toFixed(1),
+      p50: +q(sorted, 0.50).toFixed(1), p75: +q(sorted, 0.75).toFixed(1),
+      p95: +q(sorted, 0.95).toFixed(1),
+      /** ★時間バケットの平均（既定 40 個＝3秒ごと）。**立ち上がりの時刻が読める**。 */
+      series: Array.from(sum, (s, b) => (cnt[b] ? +(s / cnt[b]).toFixed(0) : null)),
+      bucketSeconds: +(span / buckets).toFixed(2),
+    };
+  });
+}
+
+/**
  * ★★CT ドットの追跡器。**幾何は走全体から1回だけ決め、読み取りは各フレームで行う**。
  *
  * ⭐ 要点＝**動くもの（バーの塗り境界）と動かないもの（ドット）を時間で分離する**。
@@ -569,6 +610,14 @@ export class ChargeDotTracker {
         this.rgb = { n0: img.width, n: 0,
           r: new Float64Array(img.width), g: new Float64Array(img.width), b: new Float64Array(img.width) };
       }
+      // ★★**フレームごとの色みも残す**（2026-08-18f）。
+      //   ⚠ 走全体の平均だけでは「点灯していた割合」しか分からず、**いつ点いたか**が出ない。
+      //   ★ユーザー確定情報（2026-08-18）＝**CT はターン1回につき1つ蓄積**／
+      //     **モードゲージは与ダメージで蓄積**／**どちらもオレンジ**／
+      //     **M3-1.mp4 でもバースト中・後に点灯を観測済み**。
+      //     ∴ **この録画の中で必ず変化している**＝時系列が取れれば CT の値そのものが読める。
+      //   ⚠ 記憶は 幅×フレーム×4byte（`ct` なら約 1.4MB）＝走査コストに影響しない。
+      const chroma = new Float32Array(img.width);
       for (let x = 0; x < img.width; x++) {
         let sr = 0, sg = 0, sb = 0;
         for (let y = y0; y < y1; y++) {
@@ -576,8 +625,11 @@ export class ChargeDotTracker {
           sr += img.data[k]; sg += img.data[k + 1]; sb += img.data[k + 2];
         }
         this.rgb.r[x] += sr / rows; this.rgb.g[x] += sg / rows; this.rgb.b[x] += sb / rows;
+        chroma[x] = (sr - sb) / rows;
       }
       this.rgb.n++;
+      (this.chromaFrames ??= []).push(chroma);
+      (this.chromaTimes ??= []).push(t);
     }
 
     const r = centerBandProfile(img, this.o);
@@ -735,6 +787,22 @@ export class ChargeDotTracker {
             return { center: c, r: +(r / k).toFixed(1), g: +(g / k).toFixed(1), b: +(b / k).toFixed(1),
                      chroma: +((r - b) / k).toFixed(1) };
           })
+        : [],
+      /**
+       * ★★**山ごとの色みの分布と時系列**（2026-08-18f）＝**CT の値そのものを読む経路**。
+       * ★ユーザー確定情報＝**CT はターン1回につき1つ蓄積・オレンジ・この録画でも点灯を観測済み**。
+       *   ∴ 点灯が色なら、**山ごとの R−B は二峰**になり、**時系列は階段状に立ち上がる**。
+       * ⚠ 判定は書かない＝**分位点と時間バケットの生値**を返すだけ。
+       */
+      humpChroma: rawHumpsResult.count && this.chromaFrames?.length
+        ? humpChromaStats(this.chromaFrames, this.chromaTimes, rawHumpsResult.centers,
+            Math.max(1, (rawHumpsResult.spacing ?? 8) / 4), 40)
+        : [],
+      /** ★時刻を散らした**色み**プロファイルの標本＝どの位置がいつ色づくかを実物で見る。 */
+      chromaSamples: this.chromaFrames?.length
+        ? sampleIdx.filter((_, k) => k % 2 === 0).slice(0, 4).map((i) => ({
+            t: this.chromaTimes[i], profile: downsample(this.chromaFrames[i], this.o.profileBins),
+          }))
         : [],
       /** ★山ごとの明るさの分布（走の全フレーム）＝**点灯のエンコードはここが答える**。 */
       humpSeries: rawHumpsResult.count

@@ -101,21 +101,16 @@ export function digest(diag) {
     //     「どの帯も低い＝CT は ROI の外」という**誤った結論に進みかけた**。
     //   ★**測定器が何を見られるのかを、測定結果と同じ画面に出す**（見えない範囲の「無し」は無意味）。
     if (g.searchRange) add(`  探索できる周期: ${g.searchRange.min}〜${g.searchRange.max}px（ROI 幅 ${g.searchRange.width}px）`);
-    if (Array.isArray(g.bandScan)) {
-      add('  帯ごとの探索（band / 最良周期 / score / 装飾か）:');
-      for (const b of g.bandScan) {
-        add(`   ${JSON.stringify(b.band)} `
-          + `${b.best ? `P=${b.best.period} score=${f(b.best.score)} x=${b.best.from}〜${b.best.to}` : '(なし)'} `
-          + `${b.decor ? 'decor' : ''}`);
-        // ★自己相関に依らない交差検査＝**少数のドット列はここにしか出ない**。
-        if (b.peakRun) {
-          const r = b.peakRun;
-          add(`      列: ${r.count}個 間隔=${f(r.spacing, 1)} cv=${f(r.cv)} `
-            + `x=${r.from}〜${r.to} 目立ち=${f(r.prominence, 1)}（背景 ${f(r.baseline, 1)}）`);
-        }
-        const pk = peaks(b.profile, 8);
-        if (pk.length) add(`      山: ${pk.map(([i, v]) => `${i}:${f(v, 1)}`).join(' ')}`);
-      }
+    // ★★帯ごとの探索は**1行に畳む**（2026-08-18f）。
+    //   ⚠ これは「CT が ROI の縦のどこにあるか**探す**」ための出力だったが、
+    //     2026-08-18 に**要素ごとに人が採寸する方式へ変えた**ので役目を終えた。
+    //     ⭐ **役目を終えた出力を出し続けるのは、判断に効く行を埋もれさせる**（digest の趣旨に反する）。
+    //   ⚠ 生データは完全 JSON の `bandScan` に全部残る（捨ててはいない）。
+    if (Array.isArray(g.bandScan) && g.bandScan.length) {
+      const best = g.bandScan.reduce((a, b) => (!a?.best || (b.best?.score ?? -9) > a.best.score ? b : a), null);
+      add(`  帯ごとの探索（採寸方式へ移行したため要約のみ・詳細は完全JSON の bandScan）: `
+        + `${g.bandScan.length}帯 / 最良 ${JSON.stringify(best?.band)} `
+        + `P=${best?.best?.period} score=${f(best?.best?.score)}`);
     }
     // ★★要素の正体を決める生データ（2026-08-18）。
     //   ⚠ `meanProfile`（|高域通過|）は**山がドットの縁に立つ**ので、離散/連続の判別に使えない。
@@ -142,6 +137,24 @@ export function digest(diag) {
     }
     if (Array.isArray(g.chroma)) {
       add(`  ★色み（R−B）・全${g.chroma.length}値: ${g.chroma.map((v) => Math.round(v)).join(',')}`);
+    }
+    // ★★点灯がいつ起きたか＝CT の値そのもの（ユーザー確定＝CT はターン1回につき1つ蓄積）
+    if (Array.isArray(g.humpChroma) && g.humpChroma.length) {
+      add('  ★★山ごとの色みの分布（p05/p25/p50/p75/p95）＝二峰なら「色＝点灯」:');
+      for (const h of g.humpChroma) {
+        if (h) add(`    中心 ${h.center}: ${h.p05}/${h.p25}/${h.p50}/${h.p75}/${h.p95}`);
+      }
+      const bs = g.humpChroma.find(Boolean)?.bucketSeconds;
+      add(`  ★★山ごとの色みの時系列（${bs}秒ごと・立ち上がりの時刻が読める）:`);
+      for (const h of g.humpChroma) {
+        if (h) add(`    中心 ${h.center}: ${h.series.map((v) => (v == null ? '_' : v)).join(',')}`);
+      }
+    }
+    if (Array.isArray(g.chromaSamples) && g.chromaSamples.length) {
+      add('  ★色みプロファイルの標本（時刻 / 全値）:');
+      for (const s of g.chromaSamples) {
+        add(`    t=${f(s.t, 1)}: ${s.profile.map((v) => Math.round(v)).join(',')}`);
+      }
     }
     if (Array.isArray(g.humpSeries) && g.humpSeries.length) {
       add('  ★山ごとの明るさの分布（p05/p25/p50/p75/p95/max / 明るいフレームの割合）＝点灯のエンコード:');
@@ -187,8 +200,12 @@ export function digest(diag) {
     if (Array.isArray(g.chroma)) {
       add(`  ★色み（R−B）・全${g.chroma.length}値: ${g.chroma.map((v) => Math.round(v)).join(',')}`);
     }
-    if (Array.isArray(g.sigmaProfile)) {
-      add(`  時間σ・全${g.sigmaProfile.length}値: ${g.sigmaProfile.map((v) => Math.round(v)).join(',')}`);
+    // ★モードゲージは**与ダメージで蓄積**（ユーザー確定）＝塗り境界が動くのが標本で見える
+    if (Array.isArray(g.chromaSamples) && g.chromaSamples.length) {
+      add('  ★色みプロファイルの標本（時刻 / 全値）＝塗り境界の移動:');
+      for (const s of g.chromaSamples) {
+        add(`    t=${f(s.t, 1)}: ${s.profile.map((v) => Math.round(v)).join(',')}`);
+      }
     }
   }
 

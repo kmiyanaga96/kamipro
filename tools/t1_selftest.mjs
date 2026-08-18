@@ -857,6 +857,9 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
                   humpSeries: [{ center: 17.4, p05: 120, p25: 126, p50: 127, p75: 128, p95: 131, max: 210, brightFrac: 0.012 }],
                   humpColors: [{ center: 17.4, r: 180, g: 130, b: 60, chroma: 120 }],
                   chroma: big,
+                  humpChroma: [{ center: 17.4, p05: 2, p25: 3, p50: 4, p75: 140, p95: 150,
+                                 series: Array.from({ length: 40 }, (_, i) => (i < 20 ? 3 : 140)), bucketSeconds: 3 }],
+                  chromaSamples: Array.from({ length: 6 }, (_, k) => ({ t: k * 20, profile: big })),
                   sampleProfiles: Array.from({ length: 8 }, (_, k) => ({ t: k * 15, profile: big })),
                   reason: 'r',
                   // ★実走にある大きな配列も持たせる（無いと完全JSON を過小に見積もる）
@@ -912,6 +915,12 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
   const fullLen = JSON.stringify(out).length;
   check('★★digest は完全な JSON より桁で小さい', dg.length < fullLen / 5,
     `digest ${dg.length}文字 / 完全 ${fullLen}文字（${(fullLen / dg.length).toFixed(1)}倍）`);
+  // ★★**絶対量の番人**（2026-08-18f 新設）。
+  //   ⚠ 比だけだと、**完全 JSON が大きくなれば digest も一緒に膨らめてしまう**。
+  //     digest の存在理由は「**貼れること**」なので、絶対量そのものを縛る。
+  //   ★実測の見積り（実走に近い桁で合成）＝**約 8,800 字**。上限はその 1.4 倍に置く。
+  //   ⏳ CT が確定したら、昇格させた生配列（rawProfile / chroma / 標本）は畳み直してよい。
+  check('★★digest は貼れる大きさに収まる（12,000字以下）', dg.length <= 12000, `${dg.length}文字`);
   check('★「完全版を見よ」という逃げ道が明記されている', dg.includes('完全な診断 JSON'));
 
   // ★★測定器の可視範囲を、測定結果と同じ画面に出す（2026-08-18）
@@ -919,8 +928,12 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
   //     「どの帯も低い＝CT は ROI の外」という誤った結論に進みかけた。
   check('★★探索できる周期の範囲が digest に出る（範囲外の「無し」は情報ではない）',
     dg.includes('探索できる周期') && dg.includes('171'), dg.split('\n').find(l => l.includes('探索できる周期')));
-  check('★等間隔の山の列（peakRun）も digest に出る＝少数ドットはここにしか出ない',
-    dg.includes('列: 4個') && dg.includes('cv='), dg.split('\n').find(l => l.includes('列:')));
+  // ★2026-08-18f: 帯ごとの探索は**要約1行**に畳んだ（採寸方式へ移行して役目を終えたため）。
+  //   ⚠ **役目を終えた出力を出し続けると、判断に効く行が埋もれる**＝digest の趣旨に反する。
+  //   生データは完全 JSON の `bandScan` に全部残る（捨ててはいない）。
+  check('★帯ごとの探索は要約1行に畳まれる（詳細は完全JSONへ）',
+    dg.includes('帯ごとの探索') && dg.includes('完全JSON の bandScan')
+    && !dg.includes('列: 4個'), dg.split('\n').find(l => l.includes('帯ごとの探索')));
   // ★★捨てたフレームの中身が digest に出ること（2026-08-18 に無くて推測に頼った）
   check('★★捨てたフレームの中身（原因・peak・帯）が digest に出る',
     dg.includes('捨てたフレームの中身') && dg.includes('flash') && dg.includes('peak='),
@@ -944,6 +957,8 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
     dg.includes('## モードゲージ') && dg.includes('roi=modebar'));
   check('★★山ごとの色と色み（R−B）が digest に出る（輝度で点灯を説明できなかったため）',
     dg.includes('山ごとの色') && dg.includes('R−B'));
+  check('★★山ごとの色みの分布と時系列が digest に出る（立ち上がりの時刻＝CT の値）',
+    dg.includes('山ごとの色みの分布') && dg.includes('山ごとの色みの時系列') && dg.includes('3秒ごと'));
   check('★★found/bestPeriod を当てにしない旨が明記される（|高域通過|は縁に山が立つ）',
     dg.includes('found/bestPeriod は当てにしない'));
   check('★生プロファイルの標本も出る（どの形からどの形へ変わったか）',
@@ -1264,6 +1279,40 @@ console.log('\n[12] CT ドット抽出（★個数を決め打ちしない・点
       `暖色 R−B=${warm?.chroma} / 灰色 R−B=${gray?.chroma}`);
     check('　　灰色の山は R≈G≈B', gray && Math.abs(gray.r - gray.b) < 10 && Math.abs(gray.g - gray.b) < 10,
       JSON.stringify(gray));
+  }
+
+  // ★★色みの時系列＝**いつ点いたか**（2026-08-18f）
+  //   ★ユーザー確定情報: **CT はターン1回につき1つ蓄積**・**オレンジ**・**M3-1.mp4 でも点灯を観測済み**。
+  //   ∴ 「録画中に必ず変化している」＝時系列が取れれば CT の値そのものが読める。
+  //   ここでは**途中でオレンジに変わる山**を作り、**立ち上がりの時刻が出る**ことを固定する。
+  {
+    const tr = new ChargeDotTracker(NO_DECOR);
+    const N = 120, LIT_AT = 60;      // 後半だけ点灯（2秒目から）
+    for (let i = 0; i < N; i++) {
+      const img = makeImage(200, 40, [40, 40, 44]);
+      const lit = i >= LIT_AT;
+      fillRect(img, 40 - 8, 12, 16, 16, lit ? [220, 130, 40] : [130, 130, 132]);
+      fillRect(img, 120 - 8, 12, 16, 16, [130, 130, 132]);   // こちらは最後まで消灯
+      tr.push(i / 30, img);
+    }
+    const g = tr.solveGeometry();
+    const [a, b] = g.humpChroma ?? [];
+    check('★山ごとの色みの分布と時系列を返す', !!a && Array.isArray(a.series), JSON.stringify(a?.p50));
+    // ★★点いた山は分布が二峰＝p25 と p75 が離れる／消灯のままの山は離れない
+    check('★★点灯した山は色みの分布が割れる（p25≪p75）・消灯のままの山は割れない',
+      a && b && (a.p75 - a.p25) > 20 && Math.abs(b.p75 - b.p25) < 10,
+      `点灯側 p25=${a?.p25} p75=${a?.p75} / 消灯側 p25=${b?.p25} p75=${b?.p75}`);
+    // ★★立ち上がりの時刻が時系列に出る
+    const s = a?.series ?? [];
+    const half = Math.floor(s.length / 2);
+    const early = s.slice(0, half).filter((v) => v != null);
+    const late = s.slice(half).filter((v) => v != null);
+    const avg = (v) => v.reduce((x, y) => x + y, 0) / Math.max(1, v.length);
+    check('★★時系列が立ち上がりを示す（前半 ≈0 → 後半で大きい）',
+      avg(late) - avg(early) > 20 && Math.abs(avg(early)) < 15,
+      `前半 ${avg(early).toFixed(1)} → 後半 ${avg(late).toFixed(1)}`);
+    check('★色みプロファイルの標本も返る', Array.isArray(g.chromaSamples) && g.chromaSamples.length >= 2,
+      String(g.chromaSamples?.length));
   }
 
   // 薄すぎる ROI は失敗と言う
