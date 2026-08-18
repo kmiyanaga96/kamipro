@@ -859,7 +859,12 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
                   chroma: big,
                   humpChroma: [{ center: 17.4, p05: 2, p25: 3, p50: 4, p75: 140, p95: 150,
                                  series: Array.from({ length: 40 }, (_, i) => (i < 20 ? 3 : 140)), bucketSeconds: 3 }],
-                  chromaSamples: Array.from({ length: 6 }, (_, k) => ({ t: k * 20, profile: big })),
+                  chromaSamples: Array.from({ length: 4 }, (_, k) => ({ t: k * 20, profile: big })),
+                  chromaSplit: 47.5,
+                  chromaSplitLevels: { low: 16.8, high: 47.5 },
+                  litIntervals: [1, 2, 3, 4, 5].map((i) => ({
+                    runs: [{ from: 51.2, to: 57.0, seconds: 5.8, frames: 170, mean: 118, max: 133, coincident: 1 }],
+                    count: 1, totalSeconds: 5.8 })),
                   sampleProfiles: Array.from({ length: 8 }, (_, k) => ({ t: k * 15, profile: big })),
                   reason: 'r',
                   // ★実走にある大きな配列も持たせる（無いと完全JSON を過小に見積もる）
@@ -881,7 +886,11 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
                   freezeRuns: [{ label: 'cellP90', j: 48, p50: 3 }],
                   cellDeltas: { p50: 2, p90: 48, zeroFraction: 0.37 },
                   lags: Array.from({ length: 20 }, (_, k) => ({ k: k + 1, p10: 1, p50: 2, p90: 3 })) },
-    modeGeometry: { roi: 'modebar', rawProfile: big, sigmaProfile: big,
+    modeGeometry: { roi: 'modebar', rawProfile: big, sigmaProfile: big, chroma: big,
+                    fillSeries: { frames: 2100,
+                      fill: { p05: 0.01, p25: 0.02, p50: 0.5, p75: 0.94, p95: 0.95 },
+                      step: { p05: 1.2, p50: 60.4, p95: 105.1 },
+                      series: Array.from({ length: 40 }, (_, i) => +(i / 40).toFixed(3)), bucketSeconds: 3 },
                     humps: { count: 1, centers: [40], spacing: null, cv: null, level: { min: 4, max: 90, mid: 47 } } },
     keptSample: Array.from({ length: 60 }, (_, i) => ({ t: i, dist: i, reason: 'change' })),
     hpViolationSamples: Array.from({ length: 4 }, (_, i) => ({
@@ -951,8 +960,15 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
   check('★★山の数・間隔・水準が digest に出る（局所最大ではなく振幅でしきる）',
     dg.includes('★山（振幅の中点でしきい・重心）: 5個') && dg.includes('中点 94.5'),
     (dg.split('\n').find(l => l.includes('振幅の中点')) ?? '').slice(0, 90));
-  check('★山ごとの明るさの分布が digest に出る（点灯のエンコードを決める材料）',
-    dg.includes('山ごとの明るさの分布') && dg.includes('明 0.012'));
+  // ★2026-08-18g: 輝度の分布は**点灯を説明しないと確定した**ので1行に畳んだ（生値は完全JSON）。
+  check('★輝度の分布は1行に畳まれ、「点灯を表していない」と明記される',
+    dg.includes('（参考）山ごとの輝度 p50') && dg.includes('輝度は点灯を表していない'),
+    dg.split('\n').find(l => l.includes('参考）山ごとの輝度')));
+  check('★★色づいた区間と大津法の切れ目が digest に出る（＝CT の値そのもの）',
+    dg.includes('色づいた区間') && dg.includes('大津法') && dg.includes('coin'),
+    dg.split('\n').find(l => l.includes('色づいた区間')));
+  check('★★モードゲージの塗り率とその時系列が digest に出る（＝与ダメージの観測値）',
+    dg.includes('塗り率（色みの階段フィット') && dg.includes('塗り率の時系列'));
   check('★★モードゲージの節が digest に出る（未モデル化メカニクスの観測経路その2）',
     dg.includes('## モードゲージ') && dg.includes('roi=modebar'));
   check('★★山ごとの色と色み（R−B）が digest に出る（輝度で点灯を説明できなかったため）',
@@ -1313,6 +1329,67 @@ console.log('\n[12] CT ドット抽出（★個数を決め打ちしない・点
       `前半 ${avg(early).toFixed(1)} → 後半 ${avg(late).toFixed(1)}`);
     check('★色みプロファイルの標本も返る', Array.isArray(g.chromaSamples) && g.chromaSamples.length >= 2,
       String(g.chromaSamples?.length));
+  }
+
+  // ★★区間の切り出し・大津法・塗り率（2026-08-18g）
+  //   ⭐ 実測で分かった2つの信号を、合成でそのまま再現して固定する:
+  //     **全ピップ同時 13〜20**＝画面全体のオレンジ演出／**1個だけ 104〜130**＝そのピップの点灯。
+  {
+    const { otsuSplit, otsuSplit2, litIntervals, chromaFillSeries }
+      = await import('../src/transcribe/charge_dots.js');
+
+    // ① ★★大津法は2クラス法＝**3層あると一度では足りない**（実測の色みは 灰/演出/点灯 の3層）
+    const vals = [...Array(500).fill(-1.5), ...Array(60).fill(17), ...Array(40).fill(120)];
+    const one = otsuSplit(vals);
+    check('★★1段だけだと切れ目が「灰とそれ以外」に落ちる（＝演出が点灯側に混ざる）',
+      one != null && one < 17, `1段目=${one}`);
+    const lv = otsuSplit2(vals);
+    const split = lv.high;
+    check('★★2段掛けなら演出（17）と点灯（120）の間に入る',
+      split != null && split > 17 && split < 120, `1段目=${lv.low} / 2段目=${lv.high}`);
+    check('★どちらの切れ目も返す（どこで切ったかを隠さない）',
+      typeof lv.low === 'number' && typeof lv.high === 'number', JSON.stringify(lv));
+    check('★上位クラスが乏しければ2段目は作らない（無いものを作らない）',
+      otsuSplit2([...Array(500).fill(-1.5), ...Array(3).fill(120)]).high === null);
+
+    // ② 区間の切り出し＝**短い点灯もバケット平均で薄まらない**
+    const nF = 300, times = Array.from({ length: nF }, (_, i) => i / 30);
+    const mk = (spans, base = -1.5) => {
+      const a = new Array(nF).fill(base);
+      for (const [s, e, v] of spans) for (let i = s; i < e; i++) a[i] = v;
+      return a;
+    };
+    // 1個目＝t 3.0〜5.0 に点灯／全体演出は t 1.0〜1.5 に全山で 17
+    const perHump = [
+      mk([[30, 45, 17], [90, 150, 125]]),
+      mk([[30, 45, 17]]),
+      mk([[30, 45, 17], [200, 206, 90]]),   // ★**0.2秒だけの短い点灯**
+    ];
+    const iv = litIntervals(perHump, times, split);
+    check('★★1個目の点灯区間が時刻つきで出る', iv[0].runs.length === 1
+      && Math.abs(iv[0].runs[0].from - 3.0) < 0.1 && Math.abs(iv[0].runs[0].to - 4.97) < 0.1,
+      JSON.stringify(iv[0].runs));
+    check('　　演出（切れ目より下）は区間にならない', iv[1].count === 0, JSON.stringify(iv[1]));
+    check('★★0.2秒の短い点灯も消えない（3秒バケットの平均なら薄まって見えなくなる）',
+      iv[2].count === 1 && iv[2].runs[0].frames === 6, JSON.stringify(iv[2].runs));
+    check('★同時に超えた本数（coin）を併記する＝全体演出と個別点灯を読み分けられる',
+      iv[0].runs[0].coincident === 1, String(iv[0].runs[0].coincident));
+
+    // ③ 塗り率＝色みの階段フィットが境界の移動に追随する
+    const W = 100;
+    const frames = [], ts = [];
+    for (let i = 0; i < 40; i++) {
+      const edge = Math.round(W * (0.2 + 0.6 * i / 40));
+      const prof = new Float32Array(W);
+      for (let x = 0; x < W; x++) prof[x] = x < edge ? 100 : -2;
+      frames.push(prof); ts.push(i / 30);
+    }
+    const fs = chromaFillSeries(frames, ts, 8);
+    check('★★塗り率が境界の移動に追随する（0.2 → 0.8 へ増える）',
+      fs && fs.series[0] < 0.3 && fs.series.at(-1) > 0.7,
+      `${fs?.series[0]} → ${fs?.series.at(-1)}`);
+    check('★段差の大きさも返す（小さければ境界が無い＝塗り率を信じない、と判断できる）',
+      fs && fs.step.p50 > 50, JSON.stringify(fs?.step));
   }
 
   // 薄すぎる ROI は失敗と言う

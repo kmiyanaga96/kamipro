@@ -548,6 +548,144 @@ export function humpChromaStats(frames, times, centers, halfWidth, buckets = 40)
 }
 
 /**
+ * ★**2つの山に分かれる値の切れ目を、パラメータ無しで決める**（大津の方法）。
+ *
+ * ⚠ **推測で閾値を置かない**という規律の実装。クラス間分散を最大にする切れ目を選ぶだけで、
+ *   調整つまみは無い。★選んだ切れ目は必ず出力に載せる（読む側が妥当性を判断できるように）。
+ *
+ * ⚠⚠ **大津法は2クラス法**＝**3層あるデータには一度では足りない**（2026-08-18g にテストで判明）。
+ *   実測の色みは **灰（≈−1.5）／画面全体のオレンジ演出（13〜20・全ピップ同時）／
+ *   点灯（70〜130・1つだけ）** の**3層**で、一度かけると切れ目が **16.8** に落ちて
+ *   **演出が点灯側に入る**。∴ **上位クラスへもう一度かける**（`otsuSplit2`）。
+ *   ★合成テストで先に踏んだので出荷せずに済んだ。
+ */
+export function otsuSplit(values) {
+  if (!values.length) return null;
+  const lo = Math.min(...values), hi = Math.max(...values);
+  if (!(hi > lo)) return null;
+  const BINS = 256, hist = new Float64Array(BINS);
+  for (const v of values) hist[Math.min(BINS - 1, Math.floor((v - lo) / (hi - lo) * BINS))]++;
+  const total = values.length;
+  let sum = 0;
+  for (let i = 0; i < BINS; i++) sum += i * hist[i];
+  let sumB = 0, wB = 0, best = -1, at = 0;
+  for (let i = 0; i < BINS; i++) {
+    wB += hist[i]; if (!wB) continue;
+    const wF = total - wB; if (!wF) break;
+    sumB += i * hist[i];
+    const between = wB * wF * ((sumB / wB) - ((sum - sumB) / wF)) ** 2;
+    if (between > best) { best = between; at = i; }
+  }
+  return +(lo + (at + 0.5) / BINS * (hi - lo)).toFixed(2);
+}
+
+/**
+ * ★★**3層のデータの上側2層を分ける切れ目**＝大津法を2段掛けする。
+ *
+ * ⚠ **なぜ2段か**（推測ではなく実測の構造）: 色みは **灰／全体演出／点灯**の3層。
+ *   1段目は「灰」と「それ以外」を分ける（実測 ≈16.8）ので、**演出が残ってしまう**。
+ *   2段目を「それ以外」に掛けると**演出と点灯**が分かれる。
+ * ★**両方の切れ目を返す**＝どちらで切ったのかを読む側が必ず見られるようにする。
+ * ⚠ 上側の標本が乏しいときは 2段目を返さない（**無いものを作らない**）。
+ */
+export function otsuSplit2(values) {
+  const low = otsuSplit(values);
+  if (low == null) return { low: null, high: null };
+  const upper = values.filter((v) => v > low);
+  // ⚠ 上位クラスが小さすぎる／幅が無いときは2段目を作らない（数値を捏造しない）
+  if (upper.length < 20 || Math.max(...upper) - Math.min(...upper) < 1e-6) return { low, high: null };
+  return { low, high: otsuSplit(upper) };
+}
+
+/**
+ * ★★**山ごとに「色づいていた区間」を、フレーム解像度で切り出す**（2026-08-18g）。
+ *
+ * ⚠ **なぜ時間バケットでは足りなかったか**: 3秒バケットの平均では、
+ *   **短い点灯が平均で薄まって見えなくなる**（実測＝2・3個目は p95 が 72〜78 あるのに
+ *   バケット平均の最大は 20 しかない）。★**区間なら短くても消えない**。
+ *
+ * ⭐ **実測で分かった2つの信号**（2026-08-18 の走）:
+ *   - **全ピップが同時に 13〜20**＝画面全体のオレンジ演出（11 バケットで観測）
+ *   - **1個目だけ 104〜130**＝そのピップの点灯（t≈51〜57 と 117〜120）
+ *   ∴ **大きさで分かれる**。切れ目は大津法で決め、**同時に上がった本数も併記**して
+ *   「全体の演出」と「個別の点灯」を読む側が区別できるようにする。
+ */
+export function litIntervals(perHumpValues, times, split, maxPerHump = 8) {
+  const nH = perHumpValues.length;
+  if (!nH || split == null) return [];
+  const nF = perHumpValues[0].length;
+  const nAbove = new Uint8Array(nF);
+  for (let i = 0; i < nF; i++) {
+    let c = 0;
+    for (let h = 0; h < nH; h++) if (perHumpValues[h][i] > split) c++;
+    nAbove[i] = c;
+  }
+  return perHumpValues.map((vals) => {
+    const runs = [];
+    let a = -1;
+    for (let i = 0; i <= nF; i++) {
+      const on = i < nF && vals[i] > split;
+      if (on && a < 0) a = i;
+      else if (!on && a >= 0) {
+        let s = 0, mx = -Infinity, co = 0;
+        for (let k = a; k < i; k++) { s += vals[k]; mx = Math.max(mx, vals[k]); co = Math.max(co, nAbove[k]); }
+        runs.push({ from: +times[a].toFixed(2), to: +times[i - 1].toFixed(2),
+          seconds: +(times[i - 1] - times[a]).toFixed(2), frames: i - a,
+          mean: +(s / (i - a)).toFixed(1), max: +mx.toFixed(1),
+          /** ★同時に切れ目を超えていた山の最大本数。**5 に近ければ画面全体の演出**。 */
+          coincident: co });
+        a = -1;
+      }
+    }
+    const totalSec = +runs.reduce((t, r) => t + r.seconds, 0).toFixed(2);
+    runs.sort((x, y) => y.seconds - x.seconds);
+    return { runs: runs.slice(0, maxPerHump), count: runs.length, totalSeconds: totalSec };
+  });
+}
+
+/**
+ * ★★**色みプロファイルの「塗り境界」を毎フレーム測り、時系列にする**（2026-08-18g）。
+ *
+ * ⭐ **モードゲージ用**。実測（2026-08-18）で、モードゲージは
+ *   **満なら色み ≈ 102・空なら ≈ −1** の**きれいな段差**になると分かった
+ *   （標本 t=39.3 / 107.8 が満・t=5 / 73.7 が空）。
+ *   ∴ HP バーとまったく同じ**階段フィット**（`fitStepEdge`）で塗り率が読める。
+ *   ★ユーザー確定情報＝**モードゲージは与えたダメージに応じて蓄積する**
+ *   ＝これが読めれば**与ダメージの観測値**になる。
+ *
+ * ⚠ 段差の大きさ（`stepSize`）を必ず返す＝**段差が無いフレーム（全空・全満）では
+ *   境界が存在しない**ので、塗り率を信じてはいけない。**数値を捏造しない**。
+ */
+export function chromaFillSeries(frames, times, buckets = 40) {
+  if (!frames?.length) return null;
+  const W = frames[0].length;
+  const q = (a, p) => a[Math.min(a.length - 1, Math.max(0, Math.round((a.length - 1) * p)))];
+  const fills = [], steps = [];
+  const t0 = times[0], span = Math.max(1e-6, times.at(-1) - t0);
+  const sum = new Float64Array(buckets), cnt = new Float64Array(buckets);
+  for (let i = 0; i < frames.length; i++) {
+    const fit = fitStepEdge(frames[i]);
+    if (!fit || fit.edge == null) continue;
+    const fill = fit.edge / W;
+    const step = (fit.leftMean ?? 0) - (fit.rightMean ?? 0);
+    fills.push(fill); steps.push(step);
+    const b = Math.min(buckets - 1, Math.floor((times[i] - t0) / span * buckets));
+    sum[b] += fill; cnt[b]++;
+  }
+  if (!fills.length) return null;
+  const fs = fills.slice().sort((a, b) => a - b), ss = steps.slice().sort((a, b) => a - b);
+  return {
+    frames: fills.length,
+    fill: { p05: +q(fs, .05).toFixed(3), p25: +q(fs, .25).toFixed(3), p50: +q(fs, .5).toFixed(3),
+            p75: +q(fs, .75).toFixed(3), p95: +q(fs, .95).toFixed(3) },
+    /** ★段差の大きさ。**小さいフレームでは境界が無い＝塗り率を信じない**。 */
+    step: { p05: +q(ss, .05).toFixed(1), p50: +q(ss, .5).toFixed(1), p95: +q(ss, .95).toFixed(1) },
+    series: Array.from(sum, (s, b) => (cnt[b] ? +(s / cnt[b]).toFixed(3) : null)),
+    bucketSeconds: +(span / buckets).toFixed(2),
+  };
+}
+
+/**
  * ★★CT ドットの追跡器。**幾何は走全体から1回だけ決め、読み取りは各フレームで行う**。
  *
  * ⭐ 要点＝**動くもの（バーの塗り境界）と動かないもの（ドット）を時間で分離する**。
@@ -690,6 +828,23 @@ export class ChargeDotTracker {
     for (let x = 0; x < this.width; x++) sigma[x] = Math.sqrt(sigma[x] / N);
     // 時刻を散らした標本（最大8本）
     const rawHumpsResult = rawHumps(rawMean);
+    // ★山ごとの「フレームごとの色み」を1回だけ作り、分位点・時系列・区間で使い回す。
+    const humpVals = rawHumpsResult.count && this.chromaFrames?.length
+      ? rawHumpsResult.centers.map((c) => {
+          const h = Math.max(1, Math.round((rawHumpsResult.spacing ?? 8) / 4));
+          return this.chromaFrames.map((prof) => {
+            let s = 0, n = 0;
+            for (let x = Math.round(c - h); x <= Math.round(c + h); x++) {
+              if (x >= 0 && x < prof.length) { s += prof[x]; n++; }
+            }
+            return n ? s / n : 0;
+          });
+        })
+      : [];
+    // ★切れ目は**全山の値をまとめて**大津法で決める（山ごとに別の閾値を持たせない）。
+    //   ⚠ **2段掛け**＝1段目は灰とそれ以外、2段目は演出と点灯を分ける（上の注記）。
+    const chromaSplits = humpVals.length ? otsuSplit2(humpVals.flat()) : { low: null, high: null };
+    const chromaSplitValue = chromaSplits.high ?? chromaSplits.low;
     const nSample = Math.min(8, N);
     const sampleIdx = Array.from({ length: nSample }, (_, k) => Math.floor(k * (N - 1) / Math.max(1, nSample - 1)));
 
@@ -798,6 +953,23 @@ export class ChargeDotTracker {
         ? humpChromaStats(this.chromaFrames, this.chromaTimes, rawHumpsResult.centers,
             Math.max(1, (rawHumpsResult.spacing ?? 8) / 4), 40)
         : [],
+      /**
+       * ★★**色づいていた区間**（フレーム解像度）＝**CT の値そのもの**。
+       * ⚠ 3秒バケットの平均では短い点灯が薄まって消える（実測＝2・3個目は p95 が 72〜78 あるのに
+       *   バケット平均の最大は 20）。∴ 区間で切り出す。切れ目は**大津法**（推測ではない）。
+       */
+      chromaSplit: chromaSplitValue,
+      /** ★両方の切れ目（1段目＝灰とそれ以外／2段目＝演出と点灯）。**どちらで切ったかを必ず見せる**。 */
+      chromaSplitLevels: chromaSplits,
+      litIntervals: rawHumpsResult.count && this.chromaFrames?.length && chromaSplitValue != null
+        ? litIntervals(humpVals, this.chromaTimes, chromaSplitValue)
+        : [],
+      /**
+       * ★★**色みの塗り境界の時系列**（モードゲージ用）。
+       * ⚠ CT のような離散ピップでは段差にならないので意味を持たない＝`step` が小さければ読まない。
+       */
+      fillSeries: this.chromaFrames?.length
+        ? chromaFillSeries(this.chromaFrames, this.chromaTimes, 40) : null,
       /** ★時刻を散らした**色み**プロファイルの標本＝どの位置がいつ色づくかを実物で見る。 */
       chromaSamples: this.chromaFrames?.length
         ? sampleIdx.filter((_, k) => k % 2 === 0).slice(0, 4).map((i) => ({
