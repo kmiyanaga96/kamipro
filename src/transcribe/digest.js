@@ -153,14 +153,14 @@ export function digest(diag) {
     // ★★色づいた区間＝**CT の値そのもの**（3秒バケットでは短い点灯が薄まって消えた）
     if (Array.isArray(g.litIntervals) && g.litIntervals.length) {
       const lv = g.chromaSplitLevels;
-      add(`  ★★色づいた区間（切れ目 ${g.chromaSplit}＝大津法2段`
-        + `${lv ? `・1段目 ${lv.low}（灰とそれ以外）/ 2段目 ${lv.high}（演出と点灯）` : ''}`
-        + '・coin=同時に超えた山の本数）:');
+      add(`  ★★色づいた区間（★**画面全体の色を差し引いた後**の値`
+        + `${lv?.commonModeRemoved ? `・谷 ${JSON.stringify(lv.troughs)} を参照` : '・⚠差し引き不可'}`
+        + `／切れ目 ${g.chromaSplit}＝大津法1段・bg=差し引いた画面全体の色・coin=同時に超えた山の本数）:`);
       g.litIntervals.forEach((h, i) => {
         const head = `    ${i + 1}個目（中心 ${g.humps?.centers?.[i]}）: ${h.count}区間 計 ${h.totalSeconds}秒`;
         if (!h.runs.length) { add(head); return; }
         add(head + ' — ' + h.runs.map((r) =>
-          `[${r.from}〜${r.to}s ${r.seconds}s 平均${r.mean} 最大${r.max} coin${r.coincident}]`).join(' '));
+          `[${r.from}〜${r.to}s ${r.seconds}s 平均${r.mean} 最大${r.max} bg${r.bg} coin${r.coincident}]`).join(' '));
       });
     }
     // ⚠ 輝度の分布は**点灯を説明しないと確定した**ので1行に畳む（生値は完全JSON）。

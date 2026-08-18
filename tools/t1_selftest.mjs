@@ -861,9 +861,9 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
                                  series: Array.from({ length: 40 }, (_, i) => (i < 20 ? 3 : 140)), bucketSeconds: 3 }],
                   chromaSamples: Array.from({ length: 4 }, (_, k) => ({ t: k * 20, profile: big })),
                   chromaSplit: 47.5,
-                  chromaSplitLevels: { low: 16.8, high: 47.5 },
+                  chromaSplitLevels: { commonModeRemoved: true, split: 47.5, troughs: [12, 34, 56] },
                   litIntervals: [1, 2, 3, 4, 5].map((i) => ({
-                    runs: [{ from: 51.2, to: 57.0, seconds: 5.8, frames: 170, mean: 118, max: 133, coincident: 1 }],
+                    runs: [{ from: 51.2, to: 57.0, seconds: 5.8, frames: 170, mean: 118, max: 133, bg: -1.5, coincident: 1 }],
                     count: 1, totalSeconds: 5.8 })),
                   sampleProfiles: Array.from({ length: 8 }, (_, k) => ({ t: k * 15, profile: big })),
                   reason: 'r',
@@ -964,8 +964,9 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
   check('★輝度の分布は1行に畳まれ、「点灯を表していない」と明記される',
     dg.includes('（参考）山ごとの輝度 p50') && dg.includes('輝度は点灯を表していない'),
     dg.split('\n').find(l => l.includes('参考）山ごとの輝度')));
-  check('★★色づいた区間と大津法の切れ目が digest に出る（＝CT の値そのもの）',
-    dg.includes('色づいた区間') && dg.includes('大津法') && dg.includes('coin'),
+  check('★★色づいた区間・切れ目・差し引いた画面全体の色が digest に出る（＝CT の値そのもの）',
+    dg.includes('色づいた区間') && dg.includes('画面全体の色を差し引いた後')
+    && dg.includes('谷') && dg.includes('bg') && dg.includes('coin'),
     dg.split('\n').find(l => l.includes('色づいた区間')));
   check('★★モードゲージの塗り率とその時系列が digest に出る（＝与ダメージの観測値）',
     dg.includes('塗り率（色みの階段フィット') && dg.includes('塗り率の時系列'));
@@ -1375,7 +1376,39 @@ console.log('\n[12] CT ドット抽出（★個数を決め打ちしない・点
     check('★同時に超えた本数（coin）を併記する＝全体演出と個別点灯を読み分けられる',
       iv[0].runs[0].coincident === 1, String(iv[0].runs[0].coincident));
 
-    // ③ 塗り率＝色みの階段フィットが境界の移動に追随する
+    // ③ ★★★共通モード除去＝**画面全体の演出は何段階あっても消える／点灯だけ残る**
+    //   ⚠ 実測でこれを外した＝色みの層が4つ（灰/演出/点灯/強い演出）あり、
+    //     大津法の多段掛けは **CT の点灯を切り捨てて強い演出だけ**を拾った（出た区間の 7/8 が coin=5）。
+    //   ⭐ 正しい切り分けは**大きさではなく「どこが色づいたか」**＝
+    //     全体演出は**谷も**色づけるが、点灯は**ピップだけ**を色づける。
+    {
+      const { subtractCommonMode } = await import('../src/transcribe/charge_dots.js');
+      const W2 = 120, centers = [20, 45, 70, 95], sp = 25;
+      const frames = [];
+      const paint = (pipVals, bgVal) => {
+        const p = new Float32Array(W2).fill(bgVal);
+        centers.forEach((c, k) => { for (let x = c - 6; x <= c + 6; x++) p[x] = bgVal + pipVals[k]; });
+        return p;
+      };
+      frames.push(paint([0, 0, 0, 0], -2));          // 何も無い
+      frames.push(paint([0, 0, 0, 0], 17));          // ★弱い全体演出（谷も 17）
+      frames.push(paint([0, 0, 0, 0], 190));         // ★★強い全体演出（谷も 190）
+      frames.push(paint([130, 0, 0, 0], -2));        // ★1個目だけ点灯
+      frames.push(paint([130, 130, 130, 130], -2));  // ★★全部点灯（他ピップ参照だと消える例）
+      const cm = subtractCommonMode(frames, centers, sp, W2);
+      const r = (i, h) => Math.round(cm.excess[h][i]);
+      check('★★弱い全体演出は差し引きで消える', Math.abs(r(1, 0)) < 5, `残差 ${r(1, 0)}`);
+      check('★★★強い全体演出も消える（大きさで切ろうとして外した当のもの）',
+        Math.abs(r(2, 0)) < 5, `残差 ${r(2, 0)}`);
+      check('★1個だけの点灯は残る', r(3, 0) > 100 && Math.abs(r(3, 1)) < 5,
+        `1個目 ${r(3, 0)} / 2個目 ${r(3, 1)}`);
+      check('★★全部点灯しても残る（★他のピップを参照にしていたら消えていた）',
+        [0, 1, 2, 3].every((h) => r(4, h) > 100), [0, 1, 2, 3].map((h) => r(4, h)).join(','));
+      check('★参照に使った谷の位置を返す（どこを引いたかを隠さない）',
+        Array.isArray(cm.troughs) && cm.troughs.length >= 3, JSON.stringify(cm.troughs));
+    }
+
+    // ④ 塗り率＝色みの階段フィットが境界の移動に追随する
     const W = 100;
     const frames = [], ts = [];
     for (let i = 0; i < 40; i++) {

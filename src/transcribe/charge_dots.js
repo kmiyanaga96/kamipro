@@ -598,6 +598,57 @@ export function otsuSplit2(values) {
 }
 
 /**
+ * ★★★**画面全体の色を差し引く**（共通モード除去・2026-08-18h）。
+ *
+ * ⚠⚠ **なぜ閾値を増やすのが間違いだったか（実測で踏んだ）**:
+ *   色みの層は**4つ**あった＝**灰（≈−1.5）／全体演出（13〜20）／★CT の点灯（100〜130）／
+ *   強い全体演出（160〜205）**。大津法を2段掛けにしたら、2段目の切れ目が **140.25** に落ち、
+ *   **CT の点灯を切り捨てて強い演出だけを拾った**（実測＝出た区間の 7/8 が coin=5）。
+ *   ★**層が増えるたびに段を足すのは、際限がないうえに毎回外す。**
+ *
+ * ⭐ **正しい切り分けは大きさではなく「どこが色づいたか」**:
+ *   画面全体のオレンジ演出は **ピップも山と山の谷も等しく**色づける。
+ *   CT の点灯は **ピップだけ**を色づける。
+ *   ∴ **谷の色みを差し引けば、全体演出は何段階あっても消える**（強い演出も同じく消える）。
+ *   ★これは新しい閾値ではなく**参照点の選び方**＝計測の常道（共通モード除去）。
+ *
+ * ⚠ 参照に「他のピップ」を使わないこと＝**全部点灯したとき（CT 最大）に差が消える**。
+ *   谷なら**何個点灯していても**常に参照になる。
+ *
+ * @returns {{bg:Float64Array, excess:number[][], troughs:number[]}|null}
+ */
+export function subtractCommonMode(chromaFrames, centers, spacing, width) {
+  if (!chromaFrames?.length || !centers?.length || !(spacing > 0)) return null;
+  // 山と山の中間＋列の外側両端＝**CT では決して点灯しないが、全体演出は等しく受ける**位置
+  const troughs = [];
+  for (let i = 0; i < centers.length - 1; i++) troughs.push((centers[i] + centers[i + 1]) / 2);
+  troughs.push(centers[0] - spacing / 2, centers.at(-1) + spacing / 2);
+  const valid = troughs.filter((x) => x >= 0 && x < width);
+  if (!valid.length) return null;
+  const half = Math.max(1, Math.round(spacing / 8));
+  const bg = new Float64Array(chromaFrames.length);
+  for (let i = 0; i < chromaFrames.length; i++) {
+    const prof = chromaFrames[i];
+    let s = 0, n = 0;
+    for (const c of valid) {
+      for (let x = Math.round(c - half); x <= Math.round(c + half); x++) {
+        if (x >= 0 && x < prof.length) { s += prof[x]; n++; }
+      }
+    }
+    bg[i] = n ? s / n : 0;
+  }
+  const hw = Math.max(1, Math.round(spacing / 4));
+  const excess = centers.map((c) => chromaFrames.map((prof, i) => {
+    let s = 0, n = 0;
+    for (let x = Math.round(c - hw); x <= Math.round(c + hw); x++) {
+      if (x >= 0 && x < prof.length) { s += prof[x]; n++; }
+    }
+    return (n ? s / n : 0) - bg[i];
+  }));
+  return { bg, excess, troughs: valid.map((v) => +v.toFixed(1)) };
+}
+
+/**
  * ★★**山ごとに「色づいていた区間」を、フレーム解像度で切り出す**（2026-08-18g）。
  *
  * ⚠ **なぜ時間バケットでは足りなかったか**: 3秒バケットの平均では、
@@ -610,7 +661,7 @@ export function otsuSplit2(values) {
  *   ∴ **大きさで分かれる**。切れ目は大津法で決め、**同時に上がった本数も併記**して
  *   「全体の演出」と「個別の点灯」を読む側が区別できるようにする。
  */
-export function litIntervals(perHumpValues, times, split, maxPerHump = 8) {
+export function litIntervals(perHumpValues, times, split, maxPerHump = 8, bg = null) {
   const nH = perHumpValues.length;
   if (!nH || split == null) return [];
   const nF = perHumpValues[0].length;
@@ -629,9 +680,13 @@ export function litIntervals(perHumpValues, times, split, maxPerHump = 8) {
       else if (!on && a >= 0) {
         let s = 0, mx = -Infinity, co = 0;
         for (let k = a; k < i; k++) { s += vals[k]; mx = Math.max(mx, vals[k]); co = Math.max(co, nAbove[k]); }
+        let bgs = 0;
+        if (bg) for (let k = a; k < i; k++) bgs += bg[k];
         runs.push({ from: +times[a].toFixed(2), to: +times[i - 1].toFixed(2),
           seconds: +(times[i - 1] - times[a]).toFixed(2), frames: i - a,
           mean: +(s / (i - a)).toFixed(1), max: +mx.toFixed(1),
+          /** ★その間の**画面全体の色み**（差し引いた分）。★大きければ演出の最中＝読む側が判断できる。 */
+          bg: bg ? +(bgs / (i - a)).toFixed(1) : null,
           /** ★同時に切れ目を超えていた山の最大本数。**5 に近ければ画面全体の演出**。 */
           coincident: co });
         a = -1;
@@ -841,10 +896,18 @@ export class ChargeDotTracker {
           });
         })
       : [];
-    // ★切れ目は**全山の値をまとめて**大津法で決める（山ごとに別の閾値を持たせない）。
-    //   ⚠ **2段掛け**＝1段目は灰とそれ以外、2段目は演出と点灯を分ける（上の注記）。
-    const chromaSplits = humpVals.length ? otsuSplit2(humpVals.flat()) : { low: null, high: null };
-    const chromaSplitValue = chromaSplits.high ?? chromaSplits.low;
+    // ★★★**画面全体の色を差し引いてから**切れ目を決める（2026-08-18h）。
+    //   ⚠ 大きさで層を切り分ける方式（大津法の多段掛け）は**実測で外した**＝
+    //     層が4つあり、2段目が **CT の点灯を切り捨てて強い演出だけ**を拾った。
+    //   ★谷（山と山の中間）を参照にすれば、**全体演出は何段階あっても消える**。
+    const cm = this.chromaFrames?.length
+      ? subtractCommonMode(this.chromaFrames, rawHumpsResult.centers, rawHumpsResult.spacing, this.width)
+      : null;
+    const litVals = cm ? cm.excess : humpVals;
+    // 差し引いたあとは**灰と点灯の2層**しか残らないので、大津法は1段でよい。
+    const chromaSplitValue = litVals.length ? otsuSplit(litVals.flat()) : null;
+    const chromaSplits = { commonModeRemoved: !!cm, split: chromaSplitValue,
+      troughs: cm?.troughs ?? null };
     const nSample = Math.min(8, N);
     const sampleIdx = Array.from({ length: nSample }, (_, k) => Math.floor(k * (N - 1) / Math.max(1, nSample - 1)));
 
@@ -962,7 +1025,7 @@ export class ChargeDotTracker {
       /** ★両方の切れ目（1段目＝灰とそれ以外／2段目＝演出と点灯）。**どちらで切ったかを必ず見せる**。 */
       chromaSplitLevels: chromaSplits,
       litIntervals: rawHumpsResult.count && this.chromaFrames?.length && chromaSplitValue != null
-        ? litIntervals(humpVals, this.chromaTimes, chromaSplitValue)
+        ? litIntervals(litVals, this.chromaTimes, chromaSplitValue, 8, cm?.bg ?? null)
         : [],
       /**
        * ★★**色みの塗り境界の時系列**（モードゲージ用）。
