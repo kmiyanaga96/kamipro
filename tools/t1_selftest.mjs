@@ -1250,6 +1250,56 @@ console.log('\n[10] ROI 定義の健全性');
   }
 }
 
+// ── 14. ★★ページ配線の健全性（2026-08-18c 新設）─────────────
+//   ⚠⚠ **なぜ要るか（実際に起きた事故）**: `src/transcribe/main.js` が
+//     **0 バイトに切り詰められたまま2コミット出荷された**。原因は書き換えスクリプトの評価順のバグで、
+//     `open(path,'w')` が先に評価されてファイルを空にしてから、その空ファイルを読んで書き戻していた。
+//   ★**そして 190 件のテストが全部通った**＝`main.js` は DOM 依存で import できないため、
+//     **唯一「全部を配線しているファイル」だけが無検査だった**。
+//   ∴ import せずに検査できることだけを検査する＝**存在・構文・配線**。
+//   ⭐ 「壊れたら気づける」より弱い保証でも、**気づけない箇所をゼロにする**ほうが効く。
+console.log('\n[14] ページ配線の健全性（★main.js は import できないので、存在・構文・配線を検査する）');
+{
+  const { readFileSync, readdirSync } = await import('node:fs');
+  const { execFileSync } = await import('node:child_process');
+  const root = new URL('../', import.meta.url).pathname;
+
+  const dir = root + 'src/transcribe/';
+  const files = readdirSync(dir).filter((f) => f.endsWith('.js'));
+  check('★src/transcribe/ に .js が期待どおり在る（11本以上）', files.length >= 11, `${files.length}本`);
+
+  for (const f of files) {
+    const body = readFileSync(dir + f, 'utf8');
+    // ★★切り詰め検出＝**空でないこと**。事故はここだけで捕まえられた。
+    check(`　　${f} が空でない`, body.length > 500, `${body.length} 字`);
+    // 構文が壊れていないこと（ESM として parse できるか）
+    let ok = true, err = '';
+    try {
+      execFileSync(process.execPath, ['--input-type=module', '--check'], { input: body, stdio: 'pipe' });
+    } catch (e) { ok = false; err = String(e.stderr ?? e).split('\n').slice(0, 2).join(' '); }
+    check(`　　${f} が ESM として構文エラーなく parse できる`, ok, err);
+  }
+
+  // ★配線＝main.js が触る DOM の id が index.html に実在すること
+  const main = readFileSync(dir + 'main.js', 'utf8');
+  const html = readFileSync(root + 'transcribe/index.html', 'utf8');
+  const used = [...new Set([...main.matchAll(/\$\('([A-Za-z0-9_-]+)'\)/g)].map((m) => m[1]))];
+  check('★main.js が DOM の id を参照している（10個以上）', used.length >= 10, `${used.length}個`);
+  const missing = used.filter((id) => !html.includes(`id="${id}"`));
+  check('★★main.js が触る id はすべて index.html に実在する', missing.length === 0,
+    `index.html に無い id: ${JSON.stringify(missing)}`);
+
+  // ★逆向き＝index.html のボタンが main.js から配線されていること（押しても無反応を防ぐ）
+  const buttons = [...html.matchAll(/<button[^>]*id="([A-Za-z0-9_-]+)"/g)].map((m) => m[1]);
+  const unwired = buttons.filter((id) => !main.includes(`'${id}'`));
+  check('★★index.html のボタンはすべて main.js から配線されている（押しても無反応を作らない）',
+    unwired.length === 0, `配線が無いボタン: ${JSON.stringify(unwired)}`);
+
+  // ★版が刻まれていること（provenance＝どの版の出力かが分からないと走が無駄になる）
+  const ver = main.match(/const VERSION = '([0-9]+\.[0-9]+\.[0-9]+)'/);
+  check('★main.js に VERSION が刻まれている', !!ver, ver?.[1] ?? '見つからない');
+}
+
 console.log('\n' + '='.repeat(60));
 console.log(`結果: ${pass} passed / ${fail} failed`);
 if (fail) {
