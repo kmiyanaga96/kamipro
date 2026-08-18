@@ -73,6 +73,15 @@ export function digest(diag) {
       add(`  違反 t=${v.t}  ${v.from} → ${v.to}`);
     }
   }
+  // ★★捨てたフレームの中身（2026-08-18）＝「読めなかった」は最も情報量の多い出来事。
+  if (Array.isArray(r.hpSkipSamples) && r.hpSkipSamples.length) {
+    add('  捨てたフレームの中身（原因 / peak / 赤の割合 / 帯 / 山）:');
+    for (const s of r.hpSkipSamples) {
+      add(`    t=${f(s.t, 1)} ${s.cause} peak=${f(s.peak)} red=${f(s.redFraction)} `
+        + `帯=${JSON.stringify(s.bands)} ${peaks(s.colProfile, 5).map(([i, v]) => `${i}:${f(v, 2)}`).join(' ')}`);
+    }
+  }
+
 
   // ── ④CT ドット（P2-5b）★いまの主戦場 ────────────────────
   if (r.ctGeometry) {

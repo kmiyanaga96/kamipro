@@ -846,6 +846,8 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
           skipCauses: { flash: 107, noEmptyRegion: 316 },
           violationSample: [{ t: 12.33, from: 0.159, to: 0.889 }] },
     hpProfileSample: big,
+    hpSkipSamples: [{ t: 16.68, cause: 'flash', peak: 0.09, redFraction: 0.02,
+                      bands: [[3, 14], [40, 51]], colProfile: big }],
     ctGeometry: { found: false, decor: true, bestPeriod: { period: 21, score: 0.48 },
                   searchRange: { width: 687, min: 17, max: 171 },
                   // ★2026-08-18 追加の生データも実走と同じ形で持たせる（畳み率を正しく測るため）
@@ -905,6 +907,11 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
     dg.includes('探索できる周期') && dg.includes('171'), dg.split('\n').find(l => l.includes('探索できる周期')));
   check('★等間隔の山の列（peakRun）も digest に出る＝少数ドットはここにしか出ない',
     dg.includes('列: 4個') && dg.includes('cv='), dg.split('\n').find(l => l.includes('列:')));
+  // ★★捨てたフレームの中身が digest に出ること（2026-08-18 に無くて推測に頼った）
+  check('★★捨てたフレームの中身（原因・peak・帯）が digest に出る',
+    dg.includes('捨てたフレームの中身') && dg.includes('flash') && dg.includes('peak='),
+    dg.split('\n').find(l => l.includes('flash') && l.includes('peak=')));
+
   // ★★専用 ROI で「どの数字を信じるか」が digest に書いてあること
   check('★★生の輝度と時間σが digest に出る（要素の正体を決める生データ）',
     dg.includes('生の輝度') && dg.includes('時間σ'));
