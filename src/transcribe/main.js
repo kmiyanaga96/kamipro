@@ -35,6 +35,15 @@ let lastDiag = null;     // 直近の診断 JSON
 let walkStats = null;    // フレーム間隔の実測結果
 let lastPanel = null;    // 右パネルのモード判定結果
 const rois = {};         // 登録済み ROI（name → 正規化座標）
+// ★★**起動時に `rois.js` の採寸済み ROI を読み込む**（2026-08-18）。
+//   ⚠ これが無いと、**既に採寸済みの枠が画面に出ない**＝
+//     ①重なりを目で確認できない ②採り直しの基準が見えない
+//     ③どの名前を埋めればよいのか分からない、の3つが同時に起きる（実際に起きた）。
+//   ★採寸は「白紙から始める作業」ではなく「**既にある定義を確認・更新する作業**」。
+const roiOrigin = {};    // name → 'rois.js' | 'measured'（provenance＝どちらの由来か）
+for (const [k, v] of Object.entries(ROIS)) {
+  if (v) { rois[k] = { ...v }; roiOrigin[k] = 'rois.js'; }
+}
 
 // ── ファイル読み込み ────────────────────────────────────────
 $('file').addEventListener('change', (e) => {
@@ -227,25 +236,38 @@ $('view').addEventListener('pointerup', () => {
 function renderRoiTable() {
   const tb = $('roiTable').querySelector('tbody');
   tb.innerHTML = '';
-  const names = Object.keys(rois);
+  // ★**未採寸のスロットも行として出す**＝「あと何を測ればよいか」が画面で分かる。
+  //   ⚠ 出さないと、名前を知っている人にしか採寸できない（＝私が口頭で伝えるしかない）。
+  const names = [...new Set([...Object.keys(ROIS), ...Object.keys(rois)])];
   $('roiTable').style.display = names.length ? '' : 'none';
-  $('copyRois').disabled = !names.length;
+  $('copyRois').disabled = !Object.keys(rois).length;
   for (const n of names) {
     const r = rois[n];
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td style="text-align:left"><b>${n}</b></td>`
-      + ['x', 'y', 'w', 'h'].map(k => `<td>${r[k].toFixed(5)}</td>`).join('')
-      + `<td><button class="btn sec" data-del="${n}" style="padding:2px 8px">削除</button></td>`;
+    if (!r) {
+      tr.innerHTML = `<td style="text-align:left"><b>${n}</b></td>`
+        + '<td colspan="4" style="opacity:.7">⏳ 未採寸 — この要素は走査で読めません</td><td></td>';
+    } else {
+      const tag = roiOrigin[n] === 'measured' ? '（今回採寸）' : '';
+      tr.innerHTML = `<td style="text-align:left"><b>${n}</b><span class="note">${tag}</span></td>`
+        + ['x', 'y', 'w', 'h'].map(k => `<td>${r[k].toFixed(5)}</td>`).join('')
+        + `<td><button class="btn sec" data-del="${n}" style="padding:2px 8px">削除</button></td>`;
+    }
     tb.appendChild(tr);
   }
   tb.querySelectorAll('[data-del]').forEach(b => {
-    b.onclick = () => { delete rois[b.dataset.del]; renderRoiTable(); drawOverlay(); };
+    b.onclick = () => {
+      delete rois[b.dataset.del]; delete roiOrigin[b.dataset.del];
+      renderRoiTable(); drawOverlay();
+    };
   });
 }
 
 $('addRoi').onclick = () => {
   if (!lastRoi) return;
-  rois[$('roiName').value] = lastRoi;
+  const name = $('roiName').value;
+  rois[name] = lastRoi;
+  roiOrigin[name] = 'measured';      // ★今回測ったものか、ファイル由来かを分けて残す
   renderRoiTable();
   drawOverlay();
 };
@@ -260,6 +282,8 @@ $('copyRois').onclick = () => {
       canvas: lastBox,
     },
     rois,
+    /** ★どれを今回測り、どれが `rois.js` 由来かを残す（E1＝測定条件を併記する）。 */
+    origin: roiOrigin,
   }, null, 2));
 };
 
