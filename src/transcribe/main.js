@@ -16,7 +16,7 @@ import { ROIS } from './rois.js';
 import { Diag } from './diag.js';
 import { digest } from './digest.js';
 
-const VERSION = '0.18.0';
+const VERSION = '0.19.0';
 
 const $ = (id) => document.getElementById(id);
 const video = document.createElement('video');

@@ -835,7 +835,10 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
   d.add('T1-ROI-008', 'WARN', { got: 'ドット列の周期性が弱い', hint: 'h' });
   d.add('T1-DEDUP-004', 'WARN', { got: 'J ごとに食い違う', hint: 'h' });
   d.add('T1-DETECT-002', 'INFO', { got: '採用率 61.8%', hint: 'h' });
-  const big = Array.from({ length: 120 }, (_, i) => (i === 40 || i === 44 ? 90 : 5));
+  // ★実走と同じ形にする＝`downsample()` が出すのは**3桁小数**（"5" のような整数ではない）。
+  //   ⚠ 整数だけの縮小フィクスチャで畳み率を測ると、**実際より小さく見積もる**（実走は約 1/25）。
+  const big = Array.from({ length: 120 }, (_, i) =>
+    (i === 40 || i === 44 ? 90 : +(4.5 + ((i * 37) % 100) / 100).toFixed(3)));
   const out = d.emit({
     sampling: { frames: 3506, sampledFps: 29.237 },
     dedup: { droppedDuplicates: 225 },
@@ -844,7 +847,16 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
           violationSample: [{ t: 12.33, from: 0.159, to: 0.889 }] },
     hpProfileSample: big,
     ctGeometry: { found: false, decor: true, bestPeriod: { period: 21, score: 0.48 },
-                  reason: 'r', bandScan: [{ band: [0, 0.125], best: { period: 21, score: 0.48, from: 320, to: 480 }, decor: true, profile: big }] },
+                  searchRange: { width: 687, min: 17, max: 171 },
+                  reason: 'r',
+                  // ★実走と同じ形にする（8帯 × 120値のプロファイル）＝
+                  //   ⚠ 縮小したフィクスチャで「畳めている」を測ると**畳み率を過小評価する**。
+                  bandScan: Array.from({ length: 8 }, (_, b) => ({
+                    band: [+(b / 8).toFixed(3), +((b + 1) / 8).toFixed(3)],
+                    best: { period: 21, score: 0.48, from: 320, to: 480 },
+                    peakRun: { count: 4, spacing: 17.2, cv: 0.03, from: 57, to: 109, meanHeight: 80.2, prominence: 210.4, baseline: 22.1 },
+                    decor: b === 0, profile: big,
+                  })) },
     ctSeries: { prefixChanges: 3, prefixChangesPerSecond: 0.025, prefixHistogram: { 2: 100 } },
     panelSeries: { rawTransitions: 12, stableTransitions: 8, debounced: 4,
                    transitions: [{ t: 10.58, to: 'detail' }, { t: 12.81, to: 'list' }] },
@@ -872,8 +884,9 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
   }
 
   // ★プロファイルは「山の位置」に畳まれ、120個の生値は載らない
+  const rawRun = [10, 11, 12, 13].map((i) => big[i]).join(',');
   check('★プロファイルは山の位置に畳まれる（120個の生値は載せない）',
-    dg.includes('山:') && dg.includes('40:90') && !dg.includes('5,5,5,5,5'));
+    dg.includes('山:') && dg.includes('40:90') && !dg.includes(rawRun), rawRun);
   check('★keptSample（60件）は載せない', !dg.includes("reason: 'change'") && !dg.includes('"reason"'));
 
   // ★★サイズ: 完全な JSON より桁で小さいこと
@@ -881,6 +894,14 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
   check('★★digest は完全な JSON より桁で小さい', dg.length < fullLen / 5,
     `digest ${dg.length}文字 / 完全 ${fullLen}文字（${(fullLen / dg.length).toFixed(1)}倍）`);
   check('★「完全版を見よ」という逃げ道が明記されている', dg.includes('完全な診断 JSON'));
+
+  // ★★測定器の可視範囲を、測定結果と同じ画面に出す（2026-08-18）
+  //   ⚠ v0.18.0 の digest は探索範囲を載せていなかったので、**上限 43px に潰れていたことが見えず**、
+  //     「どの帯も低い＝CT は ROI の外」という誤った結論に進みかけた。
+  check('★★探索できる周期の範囲が digest に出る（範囲外の「無し」は情報ではない）',
+    dg.includes('探索できる周期') && dg.includes('171'), dg.split('\n').find(l => l.includes('探索できる周期')));
+  check('★等間隔の山の列（peakRun）も digest に出る＝少数ドットはここにしか出ない',
+    dg.includes('列: 4個') && dg.includes('cv='), dg.split('\n').find(l => l.includes('列:')));
 }
 
 // ── 12. CT（チャージターン）ドット抽出 ─────────────────────
@@ -1055,6 +1076,97 @@ console.log('\n[12] CT ドット抽出（★個数を決め打ちしない・点
       `bandScan ${g.bandScan?.length} 本`);
     check('★帯ごとに装飾かどうかも印がつく',
       g.bandScan.some(b => b.decor === true), JSON.stringify(g.bandScan.map(b => b.decor)));
+  }
+
+  // ★★★2026-08-18: **実走 v0.18.0 が「見つからない」と答えた真因を回帰に固定する** ─────
+  //   帯探索（v0.17.0）は**固定幅 0.25W の窓**の中で自己相関を測っていたので、
+  //   「窓に4周期入ること」と掛かって **探せる周期が W/16 で頭打ち**（`hp` 687px なら 43px）だった。
+  //   ∴ **バー全幅に散らばるドット列は原理的に見えなかった**。
+  //   ⚠ 一次情報の観測は「**バー上の丸ドット5個**」＝640px のバーなら間隔 ≈107px＝**上限の外**。
+  //   ★指紋: 実走の帯探索は **8帯中5帯が上限側の 43/43/43/41** を報告していた。
+  {
+    const { scanPeriodMultiScale, evenlySpacedRun, CT_DEFAULTS: CD }
+      = await import('../src/transcribe/charge_dots.js');
+
+    // `hp` ROI の実寸（687×127）で、バー（縦 0.283〜0.709）の上にドットを散らす合成
+    function hpFrame({ fill = 0.8, n = 5, lit = 2 } = {}) {
+      const W = 687, H = 127, img = makeImage(W, H, [30, 28, 36]);
+      const by0 = Math.round(H * 0.283), bh = Math.round(H * (0.709 - 0.283));
+      fillRect(img, 34, by0, Math.round(640 * fill), bh, [205, 35, 55]);
+      const P = Math.floor(640 / (n + 1));
+      for (let i = 0; i < n; i++) {
+        const v = i < lit ? 230 : 150;
+        fillRect(img, 34 + P * (i + 1) - 9, by0 + Math.round(bh / 2) - 9, 18, 18, [v, v, v]);
+      }
+      return { img, P };
+    }
+    const wide = (n) => {
+      const tr = new ChargeDotTracker(NO_DECOR);
+      let P = 0;
+      for (let i = 0; i < 120; i++) { const f = hpFrame({ fill: 0.95 - 0.6 * i / 120, n }); P = f.P; tr.push(i / 30, f.img); }
+      return { g: tr.solveGeometry(), P };
+    };
+
+    // ① 検出器の上限そのもの＝**もう W/16 で頭打ちにならない**
+    {
+      const W = 687;
+      const oldCeil = Math.floor(Math.round(W * CD.windowRatio) / CD.minRepeats);   // = 43
+      const prof = new Float64Array(W);
+      for (let x = 0; x < W; x++) prof[x] = 20 + 60 * Math.cos(2 * Math.PI * x / 106);
+      const r = scanPeriodMultiScale(prof, {});
+      check('★★探せる周期が窓の固定幅で頭打ちにならない（旧上限 43px の穴）',
+        r.best && r.best.period > oldCeil && Math.abs(r.best.period - 106) / 106 < 0.1,
+        `旧上限=${oldCeil}px / best=${JSON.stringify(r.best && { p: r.best.period, s: r.best.score })}`);
+    }
+
+    // ② 帯探索が**バー全幅に散らばるドット列**の周期を報告できる
+    {
+      const { g, P } = wide(5);
+      const hit = g.bandScan.filter(b => b.best && Math.abs(b.best.period - P) / P < 0.1);
+      check('★★帯探索がバー全幅のドット列（間隔 ≈107px）を見つける（v0.18.0 は原理的に不可能だった）',
+        hit.length >= 1, `真P=${P} / 各帯=${JSON.stringify(g.bandScan.map(b => b.best?.period))}`);
+      check('★★そのとき個数も正しい（窓の外にはみ出したドットを落とさない）',
+        g.found && g.dotCount === 5, `found=${g.found} dotCount=${g.dotCount} period=${g.period}`);
+    }
+
+    // ③ **少数ドット**でも数を外さない（自己相関には出にくい条件）
+    for (const n of [3, 4]) {
+      const { g } = wide(n);
+      check(`　　広い ROI でドット ${n} 個を ${n} 個と数える`,
+        g.found && g.dotCount === n, `found=${g.found} dotCount=${g.dotCount} / ${g.reason ?? ''}`);
+    }
+
+    // ④ ★何も写っていない帯は score 0（**平坦を標準化して偽の周期性を作らない**）
+    {
+      const { g } = wide(5);
+      const flat = g.bandScan[0];      // ROI 上端＝合成では一様な背景
+      check('★★空の帯は score 0（浮動小数の残差を「分散1」に引き伸ばさない）',
+        flat.best != null && flat.best.score === 0,
+        `score=${flat.best?.score}＝**0.99 が返るなら平坦ガードが壊れている**`);
+    }
+
+    // ⑤ ★等間隔の山の列は「数」ではなく「目立ちの総量」で選ぶ
+    //    ⚠ 背景のさざ波は**数だけは多い**＝数で順位をつけると本物の少数ドット列が必ず負ける。
+    {
+      const W = 600, prof = new Float64Array(W).fill(10);
+      for (let k = 0; k < 4; k++) prof[60 + k * 120] = 100;          // 本物＝4個・高い・間隔120
+      for (let k = 0; k < 20; k++) prof[300 + k * 12] += 6;          // さざ波＝20個・低い・間隔12
+      const run = evenlySpacedRun(prof, {});
+      check('★★山の列は「数」ではなく「目立ちの総量」で選ぶ（さざ波に負けない）',
+        run && run.count === 4 && Math.abs(run.spacing - 120) < 1,
+        `count=${run?.count} spacing=${run?.spacing} prominence=${run?.prominence}`);
+      check('★間隔のばらつき（CV）を生値で返す＝判定は読む側がする',
+        run && typeof run.cv === 'number', JSON.stringify(run));
+    }
+
+    // ⑥ ★少数の山は自己相関では出ないが `peakRun` には出る（帯探索の交差検査）
+    {
+      const { g } = wide(5);
+      const withRun = g.bandScan.filter(b => b.peakRun && b.peakRun.count >= 3);
+      check('★帯ごとに peakRun（等間隔の山の列）が付く＝自己相関に依らない交差検査',
+        withRun.length >= 1,
+        JSON.stringify(g.bandScan.map(b => b.peakRun && { n: b.peakRun.count, sp: b.peakRun.spacing })));
+    }
   }
 
   // 薄すぎる ROI は失敗と言う

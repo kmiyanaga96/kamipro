@@ -70,11 +70,18 @@ export const CT_DEFAULTS = {
   minPeriodRatio: 1 / 40,
   maxPeriodRatio: 1 / 3,
   /**
-   * ★周期を探す窓の幅（ROI 幅に対する比）と刻み。
+   * ★周期を探す窓の**最小**幅（ROI 幅に対する比）。
    * ⚠ **全域の自己相関では見つからない**（2026-08-17 実測）＝
    *   実走では周期構造が **バー幅の約 16%（x 341〜443px）にしか無く**、全域で測ると希釈されて
    *   スコアが**負**になった（-0.047）。同じ列を窓 bin62〜88 に絞ると **0.518**。
    *   ★**局所にしか無い構造は、局所で測る**。窓の位置自体も観測値（どこにドットがあるか）。
+   *
+   * ⚠⚠ **2026-08-18: これを「窓の固定幅」として使っていたのが検出器の穴だった**。
+   *   固定幅 0.25W と `minRepeats` 4 が掛かって、**探せる周期の上限が W/16（687px の ROI で 43px）**に
+   *   潰れていた。∴ **バー全幅に散らばるドット列（5個なら間隔 ≈107px）は原理的に見えなかった**。
+   *   実走 v0.18.0 の帯探索が **8帯中5帯で上限 43/43/43/41 を報告**していたのがその指紋。
+   *   ★今は**窓幅は試している周期から決まる**（`max(minRepeats × period, windowRatio × W)`）＝
+   *   「4周期入ること」という**測定の成立条件は保ったまま**、上限だけを外した。
    */
   windowRatio: 0.25,
   windowStepRatio: 0.10,
@@ -150,15 +157,27 @@ function highpass(prof, win) {
   return out;
 }
 
-/** 平均0・分散1へ（明るさ・コントラストの差を吸収する）。 */
+/**
+ * 平均0・分散1へ（明るさ・コントラストの差を吸収する）。
+ *
+ * ⚠⚠ **平坦な入力を標準化してはいけない**（2026-08-18・v0.19.0 で実際に踏んだ）。
+ *   何も写っていない帯（一様な背景）は高域通過後の残差が **1e-14 級の浮動小数のゴミ**になる。
+ *   それを「分散1」へ引き伸ばすと、**ゴミの中の周期性が score 0.995 として最良候補に浮上する**
+ *   （合成で実際に、空の帯が本物のドット列（0.50）を押しのけて 1位になった）。
+ *   ★∴ **変動が輝度の量子化幅より桁で小さいものは「測る対象ではない」**として 0 を返す
+ *   ＝これは調整つまみではなく**測定が成立しないことの宣言**（`fitStepEdge` の「読めないと言う」と同型）。
+ */
+const FLAT_EPS = 1e-6;      // 輝度単位。8bit の量子化幅 1/255 ≈ 0.004 よりさらに3桁小さい
+
 function standardize(a) {
   let m = 0;
   for (const v of a) m += v;
   m /= a.length;
   let s = 0;
   for (const v of a) s += (v - m) * (v - m);
-  s = Math.sqrt(s / a.length) || 1;
+  s = Math.sqrt(s / a.length);
   const out = new Float64Array(a.length);
+  if (!(s > FLAT_EPS)) return out;         // ★平坦＝全部 0 のまま返す（自己相関も 0 になる）
   for (let i = 0; i < a.length; i++) out[i] = (a[i] - m) / s;
   return out;
 }
@@ -212,6 +231,149 @@ export function scanPeriod(profile, opts = {}) {
     ? (scan.find(s => s.score >= top.score * (1 - o.harmonicMargin)) ?? top)
     : top;
   return { best, scan, top };
+}
+
+/**
+ * ★★**周期を「窓を周期に合わせて広げながら」探す**（2026-08-18・v0.19.0）。
+ *
+ * ⚠⚠ **なぜ作り直したか（実測に基づく検出器の穴）**:
+ *   v0.17.0 の帯探索は**固定幅 0.25W の窓**の中で自己相関を測っていた。
+ *   そこに「窓へ `minRepeats`(=4) 周期入ること」という**測定の成立条件**が掛かるので、
+ *   **探せる周期の上限が W/16 に潰れていた**（`hp` ROI 687px なら **43px**）。
+ *   ∴ **バーの全幅に散らばるドット列は原理的に検出できなかった**
+ *   （一次情報の観測は「**バー上の丸ドット5個**」＝640px のバーなら間隔 ≈107px）。
+ *   ★指紋: v0.18.0 実走の帯探索は **8帯中5帯が上限側の 43/43/43/41** を報告していた
+ *   ＝「最良周期が探索範囲の端に張り付く」は**範囲の外に真の構造がある**ときの典型。
+ *
+ * ★直し方は「閾値をいじる」ではなく「**窓の決め方を物理に合わせる**」:
+ *   窓幅 = `max(minRepeats × period, windowRatio × W)` ＝**試している周期ごとに窓を広げる**。
+ *   ∴ ①「4周期入ること」という成立条件は**そのまま保たれる** ②上限だけが外れる
+ *   ③小さい周期では従来と同じ幅（≧0.25W）＝**既存の挙動を狭めない**。
+ *
+ * ⚠ 高域通過の窓も**試している周期から決める**（2×period）。
+ *   固定の「最大周期の2倍」だと、大きい周期を試すときに**バーの塗り段差が引き切れない**。
+ *   ★これは調整つまみではない＝「捕まえたい信号より広い構造を落とす」という定義そのもの。
+ *
+ * @returns {{best:{period,score,from,to}|null, curve:Array, top:object|null}}
+ */
+export function scanPeriodMultiScale(profile, opts = {}) {
+  const o = { ...CT_DEFAULTS, ...opts };
+  const W = profile.length;
+  const lo = Math.max(2, o.minPeriodPx ?? Math.round(W * o.minPeriodRatio));
+  // ★上限を決めるのは**窓ではなく ROI**＝「ROI に minRepeats 回入る」ことだけを要求する。
+  const hi = Math.min(Math.floor(W / o.minRepeats), Math.ceil(W * o.maxPeriodRatio));
+  if (hi < lo) return { best: null, curve: [], top: null };
+  const minWin = Math.max(8, Math.round(W * o.windowRatio));
+  const curve = [];
+  let top = null;
+  for (let p = lo; p <= hi; p += o.periodStep) {
+    const z0 = highpass(profile, 2 * p);
+    const win = Math.min(W, Math.max(o.minRepeats * p, minWin));
+    const step = Math.max(1, Math.round(win / 4));
+    let here = null;
+    for (let a = 0; a + win <= W; a += step) {
+      const z = standardize(z0.slice(a, a + win));
+      const a1 = autocorr(z, p);
+      const a2 = 2 * p < z.length ? autocorr(z, 2 * p) : a1;
+      const score = Math.min(a1, a2);
+      if (!here || score > here.score) here = { score, from: a, to: a + win };
+    }
+    if (!here) continue;
+    const row = { period: p, score: +here.score.toFixed(4), from: here.from, to: here.to };
+    curve.push(row);
+    if (!top || row.score > top.score) top = row;
+  }
+  // ★★倍音ではなく基本周期を採る。ただし **同じ構造の中でだけ**（v0.19.0 で条件を足した）。
+  //   ⚠ 窓が周期ごとに違う今、単に「最短で同点のもの」を採ると
+  //   **ROI の別の場所にある別物**（例: バーの目盛り）へ飛び移りうる。
+  //   ∴ **最良の窓と重なっている候補**の中から最短を選ぶ＝多義性の解消を構造単位に閉じる。
+  const overlaps = (a, b) => a.from < b.to && b.from < a.to;
+  const best = top && top.score > 0
+    ? (curve.find(c => c.score >= top.score * (1 - o.harmonicMargin) && overlaps(c, top)) ?? top)
+    : top;
+  return { best, curve, top };
+}
+
+/**
+ * ★**等間隔に並ぶ山の列**を、周期性（自己相関）を使わずに直接探す（v0.19.0）。
+ *
+ * ⚠ なぜ自己相関と別に要るか＝**少数のドットは自己相関では出ない**。
+ *   自己相関は「繰り返し」を測るので、**3〜5個しかない列**は窓の大半を占める背景に希釈される
+ *   （v0.18.0 実走の band[0.75,0.875] がまさにこれ＝**等間隔の山が4つあるのに score 0.056**）。
+ *   ★列そのものを幾何として拾えば、**個数が少なくても位置と間隔が出る**。
+ *
+ * ⚠ **判定はしない**（採否の閾値を置かない）＝**間隔のばらつき（CV）を生値で返す**。
+ *   読む側が「これは等間隔か」を判断できる材料だけを渡す（§10.5 の思想）。
+ *
+ * @returns {{count,spacing,cv,from,to,xs,meanHeight,baseline}|null}
+ */
+export function evenlySpacedRun(profile, opts = {}) {
+  const o = { ...CT_DEFAULTS, ...opts };
+  const arr = Array.from(profile, Number);
+  const pk = [];
+  for (let i = 1; i < arr.length - 1; i++) {
+    if (arr[i] > arr[i - 1] && arr[i] >= arr[i + 1]) pk.push(i);
+  }
+  if (pk.length < 3) return null;
+  // ★**尺度は中央値で取る**（絶対閾値を置かない）＝背景のさざ波を落として「山」だけ残す。
+  const heights = pk.map((i) => arr[i]).slice().sort((a, b) => a - b);
+  const med = heights[Math.floor(heights.length / 2)];
+  const cand = pk.filter((i) => arr[i] >= med);
+  if (cand.length < 3) return null;
+  const minSp = Math.max(2, o.minPeriodPx ?? Math.round(arr.length * o.minPeriodRatio));
+  let best = null;
+  for (let a = 0; a < cand.length - 2; a++) {
+    for (let b = a + 1; b < cand.length; b++) {
+      const sp = cand[b] - cand[a];
+      if (sp < minSp) continue;
+      // ★許容は「間隔の 1/4」＝**同じ列かどうかの多義性解消規則**（新しいつまみではない）。
+      const tol = Math.max(1, sp * 0.25);
+      const xs = [cand[a], cand[b]];
+      let next = cand[b] + sp;
+      for (;;) {
+        let hit = null;
+        for (const x of cand) if (Math.abs(x - next) <= tol && (hit == null || Math.abs(x - next) < Math.abs(hit - next))) hit = x;
+        // ★★**同族条件で連鎖を止める**（2026-08-18・合成で実際に踏んだ）。
+        //   ⚠ これが無いと、本物の列の先にある**背景のさざ波**へ chain が伸びていく
+        //   （装飾6個の列が 13 個まで伸び、ドット5個の列は 12 個のさざ波に順位を奪われた）。
+        //   ★根拠は幾何ではなく**同じ列の要素は似た見え方をする**という物理＝
+        //   採否の閾値ではなく **grouping 規則**（`harmonicMargin` と同じ種類のもの）。
+        if (hit != null) {
+          const hs = xs.map((x) => arr[x]).sort((u, v) => u - v);
+          const medRun = hs[Math.floor(hs.length / 2)];
+          if (arr[hit] < 0.4 * medRun) hit = null;
+        }
+        if (hit == null) break;
+        xs.push(hit);
+        next = hit + sp;
+      }
+      if (xs.length < 3) continue;
+      const gaps = xs.slice(1).map((x, i) => x - xs[i]);
+      const mean = gaps.reduce((s, v) => s + v, 0) / gaps.length;
+      const cv = Math.sqrt(gaps.reduce((s, v) => s + (v - mean) ** 2, 0) / gaps.length) / (mean || 1);
+      const meanH = xs.reduce((s, x) => s + arr[x], 0) / xs.length;
+      // ★★順位は「**目立ちの総量**」で決める＝Σ(高さ − 中央値)。
+      //   ⚠ **「山の数」で順位をつけてはいけない**（2026-08-18 に実際に外した）＝
+      //   背景のさざ波は**数だけは多い**ので、本物の少数ドット列を必ず押しのける。
+      const prom = xs.reduce((s, x) => s + (arr[x] - med), 0);
+      if (!best || prom > best.prom) best = { prom, xs, spacing: mean, cv, meanHeight: meanH };
+    }
+  }
+  if (!best) return null;
+  return {
+    count: best.xs.length,
+    spacing: +best.spacing.toFixed(2),
+    /** ★間隔のばらつき（0 に近いほど等間隔）。**判定はしない＝読む側が決める**。 */
+    cv: +best.cv.toFixed(3),
+    from: best.xs[0],
+    to: best.xs.at(-1),
+    xs: best.xs,
+    meanHeight: +best.meanHeight.toFixed(2),
+    /** ★目立ちの総量 Σ(高さ − 中央値)＝順位の根拠（生値）。 */
+    prominence: +best.prom.toFixed(2),
+    /** 山の高さの中央値＝**この列がどれだけ目立つか**の尺度（生値）。 */
+    baseline: +med.toFixed(2),
+  };
 }
 
 /**
@@ -318,22 +480,24 @@ export class ChargeDotTracker {
   scanBands() {
     if (!this.bandAcc || !this.bandN) return [];
     const minPx = Math.max(2, Math.round(this.bandW * this.o.minPeriodRatio));
-    const winW = Math.max(8, Math.round(this.bandW * this.o.windowRatio));
-    const step = Math.max(1, Math.round(this.bandW * this.o.windowStepRatio));
     const [dx0, dx1] = this.o.knownDecorX;
     return this.bandAcc.map((accRaw, b) => {
       const acc = Array.from(accRaw, (v) => v / this.bandN);
-      let best = null;
-      for (let a = 0; a + winW <= this.bandW; a += step) {
-        const r = scanPeriod(acc.slice(a, a + winW), { ...this.o, minPeriodPx: minPx });
-        if (r.best && (!best || r.best.score > best.score)) {
-          best = { from: a, to: a + winW, period: r.best.period, score: r.best.score };
-        }
-      }
-      const mid = best ? (best.from + best.to) / 2 / this.bandW : null;
+      // ★★窓を周期に合わせて広げながら探す（v0.19.0）＝**上限 43px の穴を塞いだ経路**。
+      const r = scanPeriodMultiScale(acc, { ...this.o, minPeriodPx: minPx });
+      const best = r.best
+        ? { from: r.best.from, to: r.best.to, period: r.best.period, score: r.best.score } : null;
+      // ★自己相関に依らない交差検査＝**少数のドットはここにしか出ない**。
+      const peakRun = evenlySpacedRun(acc, { ...this.o, minPeriodPx: minPx });
+      // ★装飾かどうかは「**実際に並んでいる山の範囲**」で見る（窓の中点ではない）。
+      //   ⚠ 窓は周期ごとに広がるので、中点だけで判定すると**別の場所の構造を装飾と誤ラベル**しうる。
+      const core = peakRun ?? best;
+      const mid = core ? (core.from + core.to) / 2 / this.bandW : null;
       return {
         band: [+(b / this.o.bandCount).toFixed(3), +((b + 1) / this.o.bandCount).toFixed(3)],
         best,
+        /** ★等間隔に並ぶ山の列（個数・間隔・ばらつき）。**判定はせず生値で返す**。 */
+        peakRun,
         /** ★既知の装飾（ユーザー確認 2026-08-17）と重なるか＝CT と呼んではいけない。 */
         decor: mid != null && mid >= dx0 && mid <= dx1,
         profile: downsample(acc, this.o.profileBins),
@@ -353,32 +517,39 @@ export class ChargeDotTracker {
     for (let x = 0; x < this.width; x++) acc[x] /= this.profiles.length;
 
     // ★★**窓を切って探す**（全域だと局所構造が希釈される＝実走で実際にそうなった）。
-    //   窓ごとの最良周期を全部返す＝**どこに構造があるか**自体が観測値になる。
-    const winW = Math.max(8, Math.round(this.width * this.o.windowRatio));
-    const step = Math.max(1, Math.round(this.width * this.o.windowStepRatio));
+    //   ⚠⚠ **ただし窓を固定幅にしてはいけない**（v0.19.0 で修正）＝
+    //   固定幅 0.25W と「4周期入ること」が掛かると**探せる周期が W/16 で頭打ち**になり、
+    //   **バー全幅に散らばるドット列（5個＝間隔 ≈107px）が原理的に見えなくなる**。
+    //   ∴ 窓は**試している周期に合わせて広げる**（`scanPeriodMultiScale`）。
     const minPx = Math.max(2, Math.round(this.width * this.o.minPeriodRatio));
-    const windows = [];
-    for (let a = 0; a + winW <= this.width; a += step) {
-      const sub = acc.slice(a, a + winW);
-      const r = scanPeriod(sub, { ...this.o, minPeriodPx: minPx });
-      if (r.best) windows.push({ from: a, to: a + winW, period: r.best.period, score: r.best.score });
-    }
-    const full = scanPeriod(acc, { ...this.o, minPeriodPx: minPx });
-    if (full.best) windows.push({ from: 0, to: this.width, period: full.best.period, score: full.best.score });
-    windows.sort((x, y) => y.score - x.score);
-    const win = windows[0] ?? null;
+    const ms = scanPeriodMultiScale(acc, { ...this.o, minPeriodPx: minPx });
+    const windows = ms.curve.slice().sort((x, y) => y.score - x.score);
+    const win = ms.best ?? null;
     const best = win ? { period: win.period, score: win.score } : null;
-    const scan = full.scan;
+    const scan = ms.curve.map(({ period, score }) => ({ period, score }));
     const bandScan = this.scanBands();
     const out = {
       /** ★★**帯ごとの探索結果**＝縦のどこに周期構造があるか。**これが今の主要な生データ**。 */
       bandScan,
+      /**
+       * ★**この走査が探せた周期の範囲**（2026-08-18 追加）。
+       * ⚠ v0.18.0 は上限が 43px に潰れていたのに出力からそれが見えず、
+       *   「どの帯も低い＝CT は ROI の外」という誤った結論に進みかけた。
+       *   ★**測定器の可視範囲を測定結果と一緒に出す**＝範囲外の「無し」は情報ではない。
+       */
+      searchRange: {
+        width: this.width,
+        min: Math.max(2, minPx),
+        max: Math.min(Math.floor(this.width / this.o.minRepeats), Math.ceil(this.width * this.o.maxPeriodRatio)),
+      },
       /** ★窓ごとの最良周期（上位）。**どこに周期構造があるか**が読める生データ。 */
       windowScan: windows.slice(0, 12),
       /** ★採用した窓（構造のある範囲）。 */
       window: win ? { from: win.from, to: win.to } : null,
       /** ★集約プロファイル＝**これが幾何の生データ**（外していても次の一手が決まる）。 */
       meanProfile: downsample(acc, this.o.profileBins),
+      /** ★等間隔に並ぶ山の列（自己相関に依らない交差検査・**少数ドットはここに出る**）。 */
+      peakRun: evenlySpacedRun(acc, { ...this.o, minPeriodPx: minPx }),
       periodScan: scan.filter((_, i) => i % Math.max(1, Math.ceil(scan.length / 40)) === 0),
       bestPeriod: best,
       frames: this.profiles.length,
@@ -387,34 +558,79 @@ export class ChargeDotTracker {
       return { ...out, found: false,
         reason: `ドット列の周期性が弱い（score ${best ? best.score : '-'} < ${this.o.periodicityFloor}）` };
     }
-    const P = best.period;
-    // ★位相も**構造のある窓の中**で決める（窓の外は別の物＝バーの塗り境界の掃引など）
+    // ★★**周期は自己相関で「見つけ」、櫛フィルタで「測り直す」**（v0.19.0）。
+    //   ⚠ 整数ラグの自己相関は繰り返しが 4〜5 回しかないと**周期を数%外す**（合成で真値 106 に対し 110）。
+    //   3.8% の誤差でも格子を5個ぶん伸ばせば 20px ずれる＝**ドットを取りこぼす**（5個を3個と数えた）。
+    //   ∴ 粗い周期のまわりを**小数刻みで掃いて、格子点と格子の谷の差が最大になる (P, 位相) を採る**。
+    //   ★新しい閾値は増えない（最大化するだけ）＝「位置で解ける問題を推定で済ませない」の一例。
+    //   ⚠ **山の chain（`evenlySpacedRun`）でこれをやってはいけない**＝2026-08-18 に試して外した。
+    //     背景のさざ波が本物の列より多く並ぶので、**数で順位をつけると必ず負ける**。
     const wa = win.from, wb = win.to;
-    let phase = 0, bestMag = -Infinity;
-    for (let ph = 0; ph < P; ph++) {
-      let s = 0, n = 0;
-      for (let x = wa + ph; x < wb; x += P) { s += acc[x]; n++; }
-      const m = n ? s / n : -Infinity;
-      if (m > bestMag) { bestMag = m; phase = wa + ph; }
+    const combScore = (P, ph) => {
+      let on = 0, non = 0, off = 0, noff = 0;
+      for (let x = ph; x < wb; x += P) {
+        const i = Math.round(x);
+        if (i >= wa && i < this.width) { on += acc[i]; non++; }
+        const j = Math.round(x + P / 2);
+        if (j >= wa && j < this.width) { off += acc[j]; noff++; }
+      }
+      if (non < this.o.minRepeats || !noff) return -Infinity;
+      return on / non - off / noff;
+    };
+    let P = best.period, phase = wa, bestMag = -Infinity;
+    for (let p = best.period * 0.85; p <= best.period * 1.15; p += 0.25) {
+      if (p < 2) continue;
+      for (let ph = wa; ph < wa + p; ph += 0.25) {
+        const m = combScore(p, ph);
+        if (m > bestMag) { bestMag = m; P = p; phase = ph; }
+      }
     }
+    P = Math.max(2, Math.round(P));
+    phase = Math.round(phase);
     // ★ドットは「**周期の格子のうち、実際に山になっている**」位置だけ採る。
     //   ⚠ 格子には端の空白も並ぶので、そのまま数えると**必ず1個多くなる**（実装時に n+1 を返した）。
     //   ∴ **隣の谷（±P/2）より高いか**という**局所の形**で判定する＝
     //   全体に対する閾値を置かずに済む（★位置で解ける問題を閾値で解こうとしない）。
+    // ★★**独立な2つの測り方が一致したときだけ、山の位置をそのまま採る**（v0.19.0）。
+    //   ① 自己相関＋櫛フィルタ（`P`）… 「繰り返しがあるか」と「その間隔」
+    //   ② 山の chain（`evenlySpacedRun`）… 「実際にどこに並んでいるか」
+    //   ⚠ ②は**窓の外にも伸びる**ので、窓に閉じた格子走査が取りこぼす端のドットを拾える
+    //     （合成でドット5個の左端・7個の左3個を実際に取りこぼしていた）。
+    //   ⚠⚠ ただし**②だけを信用しない**＝間隔が①と 25% 以内で一致することを要求する。
+    //     食い違ったら格子走査へ落ちる（そして食い違い自体が `peakRun` として出力に残る）。
+    const runFit = evenlySpacedRun(acc, { ...this.o, minPeriodPx: minPx });
+    const agree = runFit && Math.abs(runFit.spacing - P) / P <= 0.25;
     const at = (x) => (x >= 0 && x < this.width ? acc[x] : null);
     const centers = [];
-    for (let x = phase; x < wb; x += P) {
-      const h = Math.round(P / 2);
-      const l = at(x - h), r = at(x + h);
-      // ⚠ **両隣の谷が ROI 内にあることを要求する**。片側しか無い格子点＝ROI の端であり、
-      //   そこは判定材料が足りない。片側で代用すると**端に必ず偽のドットが1個生える**
-      //   （実装時に合成でドット数が n+1 になった）。
-      //   ⚠ 代償＝**ROI の端ぎりぎりにある本物のドットは落とす**。採寸に余白を持たせることで避ける。
-      if (l == null || r == null) continue;
-      if (acc[x] > l && acc[x] > r) centers.push(x);
+    if (agree) centers.push(...runFit.xs);
+    else {
+      // ★格子は **ROI 全体**に張り、**山が連続している区間**だけを列として採る（v0.19.0）。
+      //   ⚠ 旧実装は格子を「最良の窓の中」に閉じていたので、**窓からはみ出したドットを落としていた**
+      //     （合成で 687px の ROI に 5個置いたら 3個しか数えなかった＝窓幅 440px に収まらない）。
+      //   ★窓は「構造がどこにあるか」を見つけるためのもので、**列の端を決める権限は無い**。
+      //   ∴ 列の端は「**次の格子点がもう山ではない**」という構造で決める（閾値を置かない）。
+      const isDot = (x) => {
+        const h = Math.round(P / 2);
+        const l = at(x - h), r = at(x + h);
+        // ⚠ **両隣の谷が ROI 内にあることを要求する**。片側しか無い格子点＝ROI の端であり、
+        //   そこは判定材料が足りない。片側で代用すると**端に必ず偽のドットが1個生える**
+        //   （実装時に合成でドット数が n+1 になった）。
+        if (l == null || r == null) return false;
+        return acc[x] > l && acc[x] > r;
+      };
+      // 窓の中に足場を1つ見つけ、そこから左右へ「山が続くかぎり」伸ばす。
+      let seed = null;
+      for (let x = phase; x < wb; x += P) if (isDot(x)) { seed = x; break; }
+      if (seed != null) {
+        for (let x = seed; x >= 0 && isDot(x); x -= P) centers.unshift(x);
+        for (let x = seed + P; x < this.width && isDot(x); x += P) centers.push(x);
+      }
     }
     // ★★見つけた構造が**既知の装飾**の範囲なら「CT を見つけた」と言ってはいけない。
-    const mid = (win.from + win.to) / 2 / this.width;
+    //   ★範囲は「**実際に並んでいる山の範囲**」で見る（窓は周期に応じて広がるので中点は当てにならない）。
+    const core = centers.length >= 2
+      ? { from: centers[0], to: centers.at(-1) } : { from: win.from, to: win.to };
+    const mid = (core.from + core.to) / 2 / this.width;
     const [dx0, dx1] = this.o.knownDecorX;
     const isDecor = mid >= dx0 && mid <= dx1;
     if (isDecor) {
@@ -538,9 +754,11 @@ export function reportChargeDots(diag, geom, sum) {
       where: { bestPeriod: geom.bestPeriod, frames: geom.frames },
       expected: `ドット列の周期性 ${CT_DEFAULTS.periodicityFloor} 以上`,
       got: geom.reason ?? '見つからない',
-      hint: '★`ctGeometry.meanProfile`（走全体で集約した中央帯プロファイル）と `periodScan` を見る。'
+      hint: '★まず `searchRange` を見る＝**探せなかった範囲の「無し」は情報ではない**'
+        + '（2026-08-18 に実際にここで誤りかけた）。次に `bandScan[].peakRun`＝'
+        + '**少数のドット列は自己相関では出ず、等間隔の山の列としてだけ出る**。'
         + '⚠ `periodicityFloor` は**合成フィクスチャ由来の未較正値**＝実測分布で決め直す（推測でいじらない）。'
-        + '⚠ 集約プロファイルに山が見えないなら、ドットは中央帯の外にある可能性＝`band` を見直す。',
+        + '⚠ どの帯にも山の列が無いなら、はじめて「ドットは ROI の外」を疑う。',
     });
     return true;
   }
