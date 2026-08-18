@@ -855,6 +855,8 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
                   humps: { count: 5, centers: [17.4, 33.65, 49.98, 66.38, 82.59], spacing: 16.297, cv: 0.0045,
                            level: { min: 56, max: 133, mid: 94.5 } },
                   humpSeries: [{ center: 17.4, p05: 120, p25: 126, p50: 127, p75: 128, p95: 131, max: 210, brightFrac: 0.012 }],
+                  humpColors: [{ center: 17.4, r: 180, g: 130, b: 60, chroma: 120 }],
+                  chroma: big,
                   sampleProfiles: Array.from({ length: 8 }, (_, k) => ({ t: k * 15, profile: big })),
                   reason: 'r',
                   // ★実走にある大きな配列も持たせる（無いと完全JSON を過小に見積もる）
@@ -940,6 +942,8 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
     dg.includes('山ごとの明るさの分布') && dg.includes('明 0.012'));
   check('★★モードゲージの節が digest に出る（未モデル化メカニクスの観測経路その2）',
     dg.includes('## モードゲージ') && dg.includes('roi=modebar'));
+  check('★★山ごとの色と色み（R−B）が digest に出る（輝度で点灯を説明できなかったため）',
+    dg.includes('山ごとの色') && dg.includes('R−B'));
   check('★★found/bestPeriod を当てにしない旨が明記される（|高域通過|は縁に山が立つ）',
     dg.includes('found/bestPeriod は当てにしない'));
   check('★生プロファイルの標本も出る（どの形からどの形へ変わったか）',
@@ -1228,6 +1232,38 @@ console.log('\n[12] CT ドット抽出（★個数を決め打ちしない・点
         withRun.length >= 1,
         JSON.stringify(g.bandScan.map(b => b.peakRun && { n: b.peakRun.count, sp: b.peakRun.spacing })));
     }
+  }
+
+  // ★★色の抽出（2026-08-18e）＝**輝度で点灯を説明できなかったので次に見る手掛かり**
+  //   ⚠ 実測: 5つのピップは p25/p50/p75 がすべて **120±0.5**、明るいフレームの割合も
+  //     2〜5個目が 0.084/0.087/0.086/0.088 と横並び＝**単調に減る階段になっていない**
+  //     ＝輝度は充電の状態を表していない。★残る仮説＝**点灯は色で表されている**。
+  //   ∴ 「**輝度がほぼ同じでも色が違えば区別できる**」ことを合成で固定する。
+  {
+    const tr = new ChargeDotTracker(NO_DECOR);
+    for (let i = 0; i < 60; i++) {
+      const img = makeImage(200, 40, [40, 40, 44]);
+      // ★2つの山を置く。**輝度はほぼ同じだが、片方は暖色・片方は灰色**。
+      //   暖色 (200,120,40) の輝度 ≈ 137.6 ／ 灰色 (137,137,137) の輝度 = 137
+      fillRect(img, 40 - 8, 12, 16, 16, [200, 120, 40]);
+      fillRect(img, 120 - 8, 12, 16, 16, [137, 137, 137]);
+      tr.push(i / 30, img);
+    }
+    const g = tr.solveGeometry();
+    check('★色（R/G/B）の走全体平均を返す', !!g.rgb && g.rgb.frames === 60, JSON.stringify(g.rgb?.frames));
+    check('★色み（R−B）の配列を返す', Array.isArray(g.chroma) && g.chroma.length === 120);
+    check('★山ごとの色を返す', Array.isArray(g.humpColors) && g.humpColors.length === 2,
+      JSON.stringify(g.humpColors));
+    const [warm, gray] = g.humpColors ?? [];
+    // ★★これが本テストの主眼＝**輝度がほぼ同じでも色で分かれる**
+    // ⚠ 山ごとの色は**中心 ±間隔/4 の平均**なので背景で薄まる（素の R−B=160 → 実測 60）。
+    //   ∴ 固定するのは「**桁で分かれる**」という性質であって、絶対値ではない。
+    check('★★輝度がほぼ同じ2つの山を、色（R−B）が区別する（灰は≈0・暖色は桁で大きい）',
+      warm && gray && warm.chroma > 30 && Math.abs(gray.chroma) < 10
+      && warm.chroma > 5 * Math.abs(gray.chroma),
+      `暖色 R−B=${warm?.chroma} / 灰色 R−B=${gray?.chroma}`);
+    check('　　灰色の山は R≈G≈B', gray && Math.abs(gray.r - gray.b) < 10 && Math.abs(gray.g - gray.b) < 10,
+      JSON.stringify(gray));
   }
 
   // 薄すぎる ROI は失敗と言う

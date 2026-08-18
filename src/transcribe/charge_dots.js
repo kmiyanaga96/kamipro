@@ -554,6 +554,32 @@ export class ChargeDotTracker {
       }
     }
 
+    // ★★**色も走全体で平均する**（2026-08-18e 追加）。
+    //   ⚠⚠ 動機＝**輝度では点灯を説明できなかった**（実測）。5つのピップは p25/p50/p75 がすべて
+    //     **120±0.5** で、明るいフレームの割合も 2〜5 個目が **0.084/0.087/0.086/0.088 と横並び**＝
+    //     単調に減る階段になっていない＝**充電の状態を表していない**（全体演出と左寄りのアニメが支配）。
+    //   ★∴ 残る仮説は「**点灯は色で表されている**」＝輝度がほぼ同じでも彩度・色相が違いうる
+    //     （`lum()` は色を潰す）。**モードゲージにも同じことが言える**（輝度は平坦だった）。
+    //   ⚠ 判定は書かない＝**R/G/B の生値を返すだけ**（実物の見え方は未確認のまま）。
+    if (img?.width && img.height >= this.o.minHeight) {
+      const y0 = Math.max(0, Math.floor(img.height * this.o.band[0]));
+      const y1 = Math.min(img.height, Math.ceil(img.height * this.o.band[1]));
+      const rows = Math.max(1, y1 - y0);
+      if (!this.rgb || this.rgb.n0 !== img.width) {
+        this.rgb = { n0: img.width, n: 0,
+          r: new Float64Array(img.width), g: new Float64Array(img.width), b: new Float64Array(img.width) };
+      }
+      for (let x = 0; x < img.width; x++) {
+        let sr = 0, sg = 0, sb = 0;
+        for (let y = y0; y < y1; y++) {
+          const k = (y * img.width + x) * 4;
+          sr += img.data[k]; sg += img.data[k + 1]; sb += img.data[k + 2];
+        }
+        this.rgb.r[x] += sr / rows; this.rgb.g[x] += sg / rows; this.rgb.b[x] += sb / rows;
+      }
+      this.rgb.n++;
+    }
+
     const r = centerBandProfile(img, this.o);
     if (!r.ok) { this.skipped++; return r; }
     if (!this.width) this.width = r.profile.length;
@@ -656,6 +682,24 @@ export class ChargeDotTracker {
       /** ★集約プロファイル（**高域通過の絶対値**の平均）＝周期検出の入力。 */
       meanProfile: downsample(acc, this.o.profileBins),
       /**
+       * ★★**色の走全体平均**（2026-08-18e）＝**点灯が色で表されているかはここが答える**。
+       * ⚠ 輝度（`rawProfile`）では5つのピップが区別できなかった（すべて 120±0.5）。
+       * ★灰色なら R≈G≈B ＝ `chroma` はほぼ 0。色が付いていれば大きく振れる。
+       */
+      rgb: this.rgb && this.rgb.n ? {
+        frames: this.rgb.n,
+        r: downsample(Array.from(this.rgb.r, (v) => v / this.rgb.n), this.o.profileBins),
+        g: downsample(Array.from(this.rgb.g, (v) => v / this.rgb.n), this.o.profileBins),
+        b: downsample(Array.from(this.rgb.b, (v) => v / this.rgb.n), this.o.profileBins),
+      } : null,
+      /**
+       * ★★**色みの強さ**（R−B）＝**灰色なら 0 付近・暖色は正・寒色は負**。
+       * ⚠ 1本の配列で「色が付いているか」が読めるので、判断はまずここを見る。
+       */
+      chroma: this.rgb && this.rgb.n
+        ? downsample(Array.from(this.rgb.r, (v, i) => (v - this.rgb.b[i]) / this.rgb.n), this.o.profileBins)
+        : null,
+      /**
        * ★★**生の輝度の平均**（高域通過を通していない）＝**要素が何なのかはここが答える**。
        * ⚠ 2026-08-18 追加。`meanProfile` は |高域通過| なので**山がドットの縁に立つ**＝
        *   **離散ドットか連続ゲージかの判別には使えない**（合成で周期の半分を掴んだ）。
@@ -674,6 +718,24 @@ export class ChargeDotTracker {
        * ⚠ 上位N山の抽出は**平坦な背景のノイズを山と数える**（2026-08-18c に実際に誤読した）。
        */
       humps: rawHumpsResult,
+      /**
+       * ★★**山ごとの色**（走全体の平均 R/G/B と R−B）。
+       * ⚠ ピップが「点灯＝色つき／消灯＝灰」なら、**山ごとに R−B が階段状に変わる**はず。
+       *   輝度では横並びだったので、**ここが違えば点灯は色で表されている**と分かる。
+       */
+      humpColors: rawHumpsResult.count && this.rgb && this.rgb.n
+        ? rawHumpsResult.centers.map((c) => {
+            const h = Math.max(1, Math.round((rawHumpsResult.spacing ?? 8) / 4));
+            let r = 0, g = 0, b = 0, n = 0;
+            for (let x = Math.round(c - h); x <= Math.round(c + h); x++) {
+              if (x < 0 || x >= this.rgb.n0) continue;
+              r += this.rgb.r[x]; g += this.rgb.g[x]; b += this.rgb.b[x]; n++;
+            }
+            const k = Math.max(1, n) * this.rgb.n;
+            return { center: c, r: +(r / k).toFixed(1), g: +(g / k).toFixed(1), b: +(b / k).toFixed(1),
+                     chroma: +((r - b) / k).toFixed(1) };
+          })
+        : [],
       /** ★山ごとの明るさの分布（走の全フレーム）＝**点灯のエンコードはここが答える**。 */
       humpSeries: rawHumpsResult.count
         ? humpSeries(this.profiles, rawHumpsResult.centers,

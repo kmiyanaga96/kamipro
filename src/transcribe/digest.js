@@ -133,6 +133,16 @@ export function digest(diag) {
         + `水準 ${g.humps.level?.min}〜${g.humps.level?.max} 中点 ${g.humps.level?.mid} / `
         + `位置 ${(g.humps.centers ?? []).join(', ')}`);
     }
+    // ★★色＝輝度で点灯を説明できなかったので、次に見るのはここ（2026-08-18e）
+    if (Array.isArray(g.humpColors) && g.humpColors.length) {
+      add('  ★★山ごとの色（R/G/B と R−B）＝灰色なら R≈G≈B で R−B≈0:');
+      for (const h of g.humpColors) {
+        add(`    中心 ${h.center}: R${h.r} G${h.g} B${h.b}  R−B=${h.chroma}`);
+      }
+    }
+    if (Array.isArray(g.chroma)) {
+      add(`  ★色み（R−B）・全${g.chroma.length}値: ${g.chroma.map((v) => Math.round(v)).join(',')}`);
+    }
     if (Array.isArray(g.humpSeries) && g.humpSeries.length) {
       add('  ★山ごとの明るさの分布（p05/p25/p50/p75/p95/max / 明るいフレームの割合）＝点灯のエンコード:');
       for (const h of g.humpSeries) {
@@ -173,6 +183,9 @@ export function digest(diag) {
     }
     if (Array.isArray(g.rawProfile)) {
       add(`  生の輝度・全${g.rawProfile.length}値: ${g.rawProfile.map((v) => Math.round(v)).join(',')}`);
+    }
+    if (Array.isArray(g.chroma)) {
+      add(`  ★色み（R−B）・全${g.chroma.length}値: ${g.chroma.map((v) => Math.round(v)).join(',')}`);
     }
     if (Array.isArray(g.sigmaProfile)) {
       add(`  時間σ・全${g.sigmaProfile.length}値: ${g.sigmaProfile.map((v) => Math.round(v)).join(',')}`);
