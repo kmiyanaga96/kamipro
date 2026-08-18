@@ -854,6 +854,10 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
                   rawProfile: big, sigmaProfile: big,
                   sampleProfiles: Array.from({ length: 8 }, (_, k) => ({ t: k * 15, profile: big })),
                   reason: 'r',
+                  // ★実走にある大きな配列も持たせる（無いと完全JSON を過小に見積もる）
+                  meanProfile: big,
+                  periodScan: Array.from({ length: 40 }, (_, k) => ({ period: k + 4, score: 0.1234 })),
+                  windowScan: Array.from({ length: 12 }, (_, k) => ({ from: k * 10, to: k * 10 + 40, period: 21, score: 0.4 })),
                   // ★実走と同じ形にする（8帯 × 120値のプロファイル）＝
                   //   ⚠ 縮小したフィクスチャで「畳めている」を測ると**畳み率を過小評価する**。
                   bandScan: Array.from({ length: 8 }, (_, b) => ({
@@ -870,6 +874,9 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
                   cellDeltas: { p50: 2, p90: 48, zeroFraction: 0.37 },
                   lags: Array.from({ length: 20 }, (_, k) => ({ k: k + 1, p10: 1, p50: 2, p90: 3 })) },
     keptSample: Array.from({ length: 60 }, (_, i) => ({ t: i, dist: i, reason: 'change' })),
+    hpViolationSamples: Array.from({ length: 4 }, (_, i) => ({
+      t: 12.33 + i, from: 0.159, to: 0.889, peak: 0.42, leftMean: 0.4, rightMean: 0.01,
+      redFraction: 0.31, colProfile: big })),
   }, true);
 
   const dg = digest(out);
@@ -915,6 +922,11 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
   // ★★専用 ROI で「どの数字を信じるか」が digest に書いてあること
   check('★★生の輝度と時間σが digest に出る（要素の正体を決める生データ）',
     dg.includes('生の輝度') && dg.includes('時間σ'));
+  // ★★この2本だけは全値を出す＝上位10山に畳んだら CT の枠数が決められなかった（2026-08-18b）
+  check('★★生の輝度は全120値が digest に出る（判断に効く桁は落とさない）',
+    dg.includes('生の輝度・全120値') && dg.includes(String(Math.round(big[7]))),
+    (dg.split('\n').find(l => l.includes('全120値')) ?? '').slice(0, 80));
+  check('★時間σも全値が出る', dg.includes('時間σ・全120値'));
   check('★★found/bestPeriod を当てにしない旨が明記される（|高域通過|は縁に山が立つ）',
     dg.includes('found/bestPeriod は当てにしない'));
   check('★生プロファイルの標本も出る（どの形からどの形へ変わったか）',

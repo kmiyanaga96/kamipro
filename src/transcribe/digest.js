@@ -119,15 +119,23 @@ export function digest(diag) {
     }
     // ★★要素の正体を決める生データ（2026-08-18）。
     //   ⚠ `meanProfile`（|高域通過|）は**山がドットの縁に立つ**ので、離散/連続の判別に使えない。
+    // ★★**この2本だけは全値を出す**（2026-08-18b）。
+    //   ⚠ 通常「プロファイルは山の位置に畳む」が原則だが、**今まさに判断に効いているのがこの配列**＝
+    //     上位10山に畳んだ結果、「枠は 7 か、暗い山はノイズか」が**決められなかった**
+    //     （格子外の bin 108/110 が残った）。★**判断に効く桁は落とさない**（本モジュールの原則）。
+    //   ⚠ 輝度は 0〜255 なので**整数で足りる**（120値で約 400 字＝digest 全体の 1〜2割）。
+    //   ⏳ CT が確定したら山の位置に畳み直してよい。
     if (Array.isArray(g.rawProfile)) {
       const pk = peaks(g.rawProfile, 10);
       add(`  生の輝度（山が離散なら ドット／境界が1つなら ゲージ）: ${pk.map(([i, v]) => `${i}:${f(v, 1)}`).join(' ')}`);
+      add(`  生の輝度・全${g.rawProfile.length}値: ${g.rawProfile.map((v) => Math.round(v)).join(',')}`);
     }
     if (Array.isArray(g.sigmaProfile)) {
       const pk = peaks(g.sigmaProfile, 10);
       const mx = Math.max(...g.sigmaProfile);
       add(`  ★時間σ（走の間に変化した列＝点灯の仕組みを仮定しない位置特定・最大 ${f(mx, 1)}）: `
         + pk.map(([i, v]) => `${i}:${f(v, 1)}`).join(' '));
+      add(`  時間σ・全${g.sigmaProfile.length}値: ${g.sigmaProfile.map((v) => Math.round(v)).join(',')}`);
     }
     if (Array.isArray(g.sampleProfiles)) {
       add('  生プロファイルの標本（時刻 / 山の位置:高さ）:');
