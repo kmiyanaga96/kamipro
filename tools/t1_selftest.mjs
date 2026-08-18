@@ -1188,6 +1188,10 @@ console.log('\n[10] ROI 定義の健全性');
     JSON.stringify(Object.entries(ROIS).filter(([, r]) => r && (r.x + r.w > 1.0001))));
   check('★hpbar は P2-5 の入力として登録されている（未採寸でもキーは在る）',
     'hpbar' in ROIS);
+  // ★2026-08-18: 要素ごとに人が採寸する方式へ（ユーザー提案）＝スロットを先に用意しておく。
+  for (const k of ['modebar', 'ct', 'debuff']) {
+    check(`　　採寸スロット ${k} が登録されている（未採寸=null でもキーは在る）`, k in ROIS);
+  }
 }
 
 console.log('\n' + '='.repeat(60));

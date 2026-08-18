@@ -466,10 +466,15 @@ $('scan').onclick = async () => {
   const dmgRect = roiToPixels(box, ROIS.dmg);
   const gaugeRect = roiToPixels(box, ROIS.gauge);
   const hpRect = ROIS.hpbar ? roiToPixels(box, ROIS.hpbar) : null;
-  // ★CT ドットの探索は**より広い `ROIS.hp`**（バーの上下・敵アイコン側も含む）で行う。
-  //   ⚠ 2026-08-17 のユーザー確認で、`hpbar` 内に見つけた等間隔構造は**バーの目盛り＝CT ではない**
-  //   と判明した＝**そもそも見る行が違った可能性がある**。∴ 縦方向にも探せる範囲を渡す。
-  const hpWideRect = ROIS.hp ? roiToPixels(box, ROIS.hp) : null;
+  // ★CT の入力 ROI。**`ct` が採寸されていればそれを使い、無ければ広い `hp` を探索する**。
+  //   ⚠⚠ 2026-08-18 の方針転換（ユーザー提案）＝**どの行にあるかは人が採寸して与える**。
+  //     幾何で「探す」機構は 2026-08-17 に偽陽性（バーの目盛りを CT と誤認）、
+  //     2026-08-18 に偽陰性（探索上限 43px の外＝見えなかった）を1回ずつ出した。
+  //     ★1分の採寸で確定することを、機械に当てさせようとしていたのが誤り（憲法＝観測はユーザー）。
+  //   ∴ `ct` 採寸後は探索ではなく**読み取り**が仕事になる（個数を数える／塗り率を測る）。
+  const ctSource = ROIS.ct ? 'ct' : (ROIS.hp ? 'hp' : null);
+  const hpWideRect = ROIS.ct ? roiToPixels(box, ROIS.ct)
+    : (ROIS.hp ? roiToPixels(box, ROIS.hp) : null);
 
   // ROI だけを切り出す小さい canvas（フル解像度の getImageData を毎フレームやらないため）
   const mk = (r) => { const c = document.createElement('canvas'); c.width = r.w; c.height = r.h;
@@ -553,6 +558,8 @@ $('scan').onclick = async () => {
   const panelSum = panelSeries.summary();
   reportPanelSeries(diag, panelSum);
   const ctGeom = cutHpWide ? ctTracker.solveGeometry() : null;
+  // ★どの ROI を見た結果なのかを必ず残す（provenance＝E1）。
+  if (ctGeom) ctGeom.roi = ctSource;
   const ctSum = ctGeom ? new ChargeSeries().ingest(ctTracker.readSeries(ctGeom)).summary(covered) : null;
   if (cutHp) reportHp(diag, lastHp, hpSeries);
   if (cutHpWide) reportChargeDots(diag, ctGeom, ctSum);

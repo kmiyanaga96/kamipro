@@ -78,7 +78,7 @@ export function digest(diag) {
   if (r.ctGeometry) {
     const g = r.ctGeometry;
     add('');
-    add(`## CT  found=${g.found} decor=${g.decor ?? '-'} `
+    add(`## CT  roi=${g.roi ?? '?'} found=${g.found} decor=${g.decor ?? '-'} `
       + `bestPeriod=${JSON.stringify(g.bestPeriod ?? null)}`);
     if (g.reason) add(`  理由: ${g.reason}`);
     // ★探索範囲そのものを毎回出す（2026-08-18）。
