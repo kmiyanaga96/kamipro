@@ -130,7 +130,25 @@ th{background:#f0f2f5;}
 </div>
 
 <div class="card">
-  <h2>4. 診断</h2>
+  <h2>4. ★グリフ採取（P3-1）</h2>
+  <p class="note">
+    走査すると <code>dmg</code> ROI から<b>数字らしい形</b>を集め、似た見え方をまとめて下に並べます。
+    <b>ラベルは人が1回だけ付けます</b>（憲法＝観測と判断はユーザー／転記はツール）。<br>
+    入力は<b>空白区切り・番号順</b>。数字は <code>0</code>〜<code>9</code>、桁区切りは <code>,</code>、
+    数字でない／分からないものは <code>-</code>。例: <code>7 - 0 , 3 8 - -</code>
+  </p>
+  <div style="overflow:auto;max-height:420px;border:1px solid #333;background:#111">
+    <canvas id="glyphSheet" width="10" height="10"></canvas>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <input id="glyphLabels" style="flex:1;min-width:320px" placeholder="番号順にラベル（空白区切り・飛ばすときは -）">
+    <button class="btn" id="makeAtlas">アトラスJSONを保存</button>
+  </div>
+  <div class="row"><span class="note" id="glyphNote">走査するとここに代表が出ます</span></div>
+</div>
+
+<div class="card">
+  <h2>5. 診断</h2>
   <div class="row">
     <button class="btn" id="copyDiag">★digest をコピー（→ Claude に貼る）</button>
     <button class="btn sec" id="saveDiag">完全な診断JSONを保存</button>

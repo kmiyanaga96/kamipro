@@ -13,10 +13,12 @@ import { analyzeHpBar, HpSeries, reportHp, HP_DEFAULTS } from './hp_bar.js';
 import { LagProfile, EventDeduper, reportDedup, DEDUP_DEFAULTS } from './dedup.js';
 import { ChargeDotTracker, ChargeSeries, reportChargeDots, CT_DEFAULTS } from './charge_dots.js';
 import { ROIS } from './rois.js';
+import { luminanceField, edgeField, segmentRows, segmentGlyphs, signature, fieldScale,
+         GlyphHarvest, reportHarvest, validateAtlas, packSignature, GLYPH_DEFAULTS } from './glyph.js';
 import { Diag } from './diag.js';
 import { digest } from './digest.js';
 
-const VERSION = '0.28.0';
+const VERSION = '0.29.0';
 
 const $ = (id) => document.getElementById(id);
 const video = document.createElement('video');
@@ -34,6 +36,62 @@ let lastRect = null;     // 同上の画素矩形（PNG 切り出しに使う）
 let lastDiag = null;     // 直近の診断 JSON
 let walkStats = null;    // フレーム間隔の実測結果
 let lastPanel = null;    // 右パネルのモード判定結果
+let lastHarvest = null;  // ★P3-1 グリフ採取の結果（代表をシートに描き、ユーザーがラベルを付ける）
+let loadedAtlas = null;  // ★読み込み済みのアトラス（まだ無いのが正常＝P3-1 はこれを作る段）
+
+/** 分位点だけに畳む（生の配列は完全 JSON にも載せない＝数千件になるため）。 */
+function quant(arr) {
+  if (!arr?.length) return null;
+  const a = [...arr].sort((x, y) => x - y);
+  const q = (p) => a[Math.min(a.length - 1, Math.floor(p * a.length))];
+  return { n: a.length, min: a[0], p10: q(0.10), p50: q(0.50), p90: q(0.90), max: a[a.length - 1] };
+}
+
+/**
+ * ★**採取したグリフの代表をシートに描く**（ユーザーがラベルを付けるための唯一の入口）。
+ *
+ * ⚠ 憲法（§1.1）＝**観測と判断はユーザー**。「この形は 7 だ」は人が1回答える。
+ *   ★機械が答えられるのは「同じ形が何回出たか」まで（`GlyphHarvest` の純度＝別の字を混ぜない）。
+ * ★1コマ = 署名（既定 12×20）を4倍に拡大したもの＋通し番号＋出現回数。
+ *   番号の順にラベルを入力してもらう（`glyphLabels`）。
+ */
+function drawGlyphSheet(rep) {
+  const cv = $('glyphSheet');
+  if (!cv) return;
+  const reps = rep?.representatives ?? [];
+  const cell = GLYPH_DEFAULTS.cell, Z = 4, PAD = 6, CAP = 14, COLS = 10;
+  const cw = cell.w * Z + PAD * 2, ch = cell.h * Z + PAD + CAP;
+  const rows = Math.max(1, Math.ceil(reps.length / COLS));
+  cv.width = COLS * cw; cv.height = rows * ch;
+  const x = cv.getContext('2d');
+  x.fillStyle = '#111'; x.fillRect(0, 0, cv.width, cv.height);
+  x.font = '10px monospace'; x.textBaseline = 'top';
+  reps.forEach((r, i) => {
+    const ox = (i % COLS) * cw + PAD, oy = Math.floor(i / COLS) * ch + PAD;
+    // 署名は 0〜255 の格子＝そのまま濃淡で描く（★これが人の見る「形」）
+    const img = x.createImageData(cell.w, cell.h);
+    for (let k = 0; k < cell.w * cell.h; k++) {
+      const v = r.signature[k] ?? 0;
+      img.data[k * 4] = v; img.data[k * 4 + 1] = v; img.data[k * 4 + 2] = v; img.data[k * 4 + 3] = 255;
+    }
+    const tmp = document.createElement('canvas');
+    tmp.width = cell.w; tmp.height = cell.h;
+    tmp.getContext('2d').putImageData(img, 0, 0);
+    x.imageSmoothingEnabled = false;
+    x.drawImage(tmp, ox, oy, cell.w * Z, cell.h * Z);
+    x.fillStyle = '#8cf';
+    x.fillText(`${i}`, ox, oy + cell.h * Z + 1);
+    x.fillStyle = '#888';
+    x.fillText(`×${r.count}`, ox + 16, oy + cell.h * Z + 1);
+  });
+  if ($('glyphNote')) {
+    $('glyphNote').innerHTML = reps.length
+      ? `<span class="ok">${reps.length} 個の代表</span>（${rep.clusters} クラスタ / ${rep.seen} 標本）`
+        + ' — 番号順にラベルを入力してください（数字は <b>0〜9</b>・桁区切りは <b>,</b>・'
+        + '数字でないものは空欄）'
+      : '<span class="bad">グリフ候補が0件</span>（診断 JSON の glyphStats を見る）';
+  }
+}
 const rois = {};         // 登録済み ROI（name → 正規化座標）
 // ★★**起動時に `rois.js` の採寸済み ROI を読み込む**（2026-08-18）。
 //   ⚠ これが無いと、**既に採寸済みの枠が画面に出ない**＝
@@ -308,6 +366,50 @@ $('copyDiag').onclick = () => {
 };
 $('saveDiag').onclick = downloadDiag;
 
+// ── ★★P3-1: ラベル付け → アトラス JSON ──────────────────────
+//   ★ここが「人に1回だけ訊く」場所（憲法＝観測と判断はユーザー／転記はツール）。
+//   ⚠ 入力は**空白区切り・番号順**。`-` は「数字ではない／分からない」＝飛ばす。
+//     区切りに `,` を使わないのは、**`,` 自体がラベル**（桁区切り）だから。
+$('makeAtlas').onclick = () => {
+  if (!lastHarvest?.representatives?.length) {
+    $('glyphNote').innerHTML = '<span class="bad">先に走査してグリフを採取してください</span>';
+    return;
+  }
+  const toks = ($('glyphLabels').value ?? '').trim().split(/\s+/).filter((t) => t.length);
+  const glyphs = {};
+  let used = 0;
+  lastHarvest.representatives.forEach((r, i) => {
+    const lab = toks[i];
+    if (!lab || lab === '-') return;
+    (glyphs[lab] ||= []).push(r.signature);
+    used++;
+  });
+  const atlas = {
+    version: 1,
+    cell: { ...GLYPH_DEFAULTS.cell },
+    // ★provenance は必須（E1＝測定条件を併記する）。`validateAtlas` が無いと落とす。
+    provenance: {
+      tool: 'T1', toolVersion: VERSION, labeledAt: new Date().toISOString(),
+      file: $('file').files?.[0]?.name ?? '(none)',
+      resolution: video.videoWidth ? `${video.videoWidth}x${video.videoHeight}` : null,
+      harvest: { seen: lastHarvest.seen, clusters: lastHarvest.clusters, labeled: used },
+    },
+    glyphs, labels: {},
+  };
+  const v = validateAtlas(atlas);
+  loadedAtlas = atlas;
+  const blob = new Blob([JSON.stringify(atlas)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `t1_glyph_atlas_${Date.now()}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  // ⚠ 足りなくても保存はする（部分成功を保全する＝§10.5-2）。足りないことは**言う**。
+  $('glyphNote').innerHTML = v.ok
+    ? `<span class="ok">アトラスを保存しました</span>（${used} 枚 / 数字 ${v.digits}/10）`
+    : `<span class="bad">保存はしたが未完成</span>: ${v.problems.join(' / ')}`;
+};
+
 // ★★**初期化が最後まで通った合図**（2026-08-18i）。
 //   ⚠ これが立たなければ index.html の番人が「初期化されていません」と赤帯を出す。
 //   ★2回続けて「ボタンが全部効かない」で時間を失ったが、**どちらも画面は無言だった**。
@@ -480,7 +582,7 @@ $('scan').onclick = async () => {
     scanSeconds: secs,
     method: 'seek（決定的・全フレーム）',
   }).setConfig({ detect: DEFAULTS, select: SELECT_DEFAULTS, panel: PANEL_DEFAULTS, probe: PROBE_GRID,
-                 dedup: DEDUP_DEFAULTS, hp: HP_DEFAULTS, ct: CT_DEFAULTS,
+                 dedup: DEDUP_DEFAULTS, hp: HP_DEFAULTS, ct: CT_DEFAULTS, glyph: GLYPH_DEFAULTS,
                  panelDebounceSeconds: PANEL_DEBOUNCE_SECONDS })
     .stage('DETECT', 0, 0);
 
@@ -539,6 +641,14 @@ $('scan').onclick = async () => {
   const ctTracker = new ChargeDotTracker();
   // ★モードゲージ用（同じ抽出器＝生プロファイル・時間σ・山の検出をそのまま使える）
   const modeTracker = cutMode ? new ChargeDotTracker() : null;
+  // ★★P3-1: グリフ採取。**既存の走査に相乗りする**（`dmg` の切り出しは既に毎フレームある）。
+  //   ⚠ 別パスにすると走がもう1本要る＝seek 走査は実時間の6〜8倍かかるので、人の待ち時間が倍になる。
+  //   ⚠ クラスタリングは1標本あたり「クラスタ数×格子」の比較になるので、**間引いて上限を置く**。
+  const glyphHarvest = new GlyphHarvest();
+  const glyphStats = { frames: 0, framesWithRows: 0, rows: 0, glyphs: 0, pushed: 0,
+                       rowHeights: [], pitches: [], contrasts: [], methods: { grid: 0, runs: 0, none: 0 },
+                       samples: [] };
+  const HARVEST = { stride: 5, maxPerFrame: 40, maxTotal: 4000, maxRows: 6 };
   let lastHp = null;
   // ★違反フレームの生プロファイルを持ち帰る（クロップを人に頼まずに原因を特定するため）
   const hpViolationSamples = [];
@@ -562,6 +672,41 @@ $('scan').onclick = async () => {
     lag.push(dSig);            // ★署名は1回だけ作って両方へ渡す（走査コストを増やさない）
     dedup.push(m, dSig);
     probe.push(goldenFractions(dImg, local(dmgRect)));
+
+    // ★P3-1 グリフ採取（間引いて上限つき）。**読み取りはしない**＝形を集めるだけ。
+    if (glyphStats.frames % HARVEST.stride === 0 && glyphStats.pushed < HARVEST.maxTotal) {
+      const edge = edgeField(luminanceField(dImg, local(dmgRect)));
+      const rowsFound = segmentRows(edge);
+      if (rowsFound.rows.length) glyphStats.framesWithRows++;
+      let perFrame = 0;
+      for (const row of rowsFound.rows.slice(0, HARVEST.maxRows)) {
+        glyphStats.rows++;
+        const seg = segmentGlyphs(edge, row);
+        glyphStats.methods[seg.method] = (glyphStats.methods[seg.method] ?? 0) + 1;
+        if (!seg.boxes.length) continue;
+        glyphStats.glyphs += seg.boxes.length;
+        glyphStats.rowHeights.push(row.to - row.from);
+        if (seg.pitch) glyphStats.pitches.push(+seg.pitch.toFixed(2));
+        if (seg.grid) glyphStats.contrasts.push(+seg.grid.contrast.toFixed(3));
+        // ★最初の数行は**生プロファイルごと**持ち帰る（Claude は画面を見られない＝§10.1）
+        if (glyphStats.samples.length < 6) {
+          glyphStats.samples.push({
+            t: +m.toFixed(2), row: { from: row.from, to: row.to },
+            method: seg.method, pitch: seg.pitch ? +seg.pitch.toFixed(2) : null,
+            contrast: seg.grid ? +seg.grid.contrast.toFixed(3) : null,
+            count: seg.boxes.length,
+            colProfile: Array.from(seg.profile, (v) => Math.round(v)),
+          });
+        }
+        const scale = fieldScale(edge, row);
+        for (const b of seg.boxes) {
+          if (perFrame >= HARVEST.maxPerFrame || glyphStats.pushed >= HARVEST.maxTotal) break;
+          glyphHarvest.push(signature(edge, b, { scale }), +m.toFixed(2), b);
+          perFrame++; glyphStats.pushed++;
+        }
+      }
+    }
+    glyphStats.frames++;
     const pm = detectPanelMode(gImg, local(gaugeRect));
     modes[pm.mode]++;
     panelSeries.push(m, pm.mode);
@@ -640,6 +785,11 @@ $('scan').onclick = async () => {
     });
   }
 
+  const harvestRep = glyphHarvest.report(60);
+  // ⚠ アトラスの関門はアトラスを読み込んでいるときだけ鳴らす（P3-1 は**アトラスを作る段**なので、
+  //   まだ無いのを毎回 ERROR で鳴らすのは誤導＝「読めない」ではなく「これから作る」）。
+  reportHarvest(diag, harvestRep, loadedAtlas ? validateAtlas(loadedAtlas) : null);
+
   $('scanNote').innerHTML = `<span class="${sampledFps >= 26 ? 'ok' : 'bad'}">`
     + `${total} フレーム / ${covered.toFixed(1)}秒 ＝ 実効 ${sampledFps.toFixed(1)} fps</span>`
     + ` / 実時間 ${wall.toFixed(0)}秒 / list ${modes.list}・detail ${modes.detail}`
@@ -683,8 +833,20 @@ $('scan').onclick = async () => {
     panelModes: modes,
     // ★除振後が本命。生（`rawSample`）も併記＝**何を落としたかが見えないと検証できない**
     panelSeries: panelSum,
+    // ★★P3-1: グリフ採取。**ラベルは付けない**（＝人が1回付ける・憲法「観測と判断はユーザー」）。
+    //   `representatives` の signature を画面のシートに描き、ユーザーがそれを見て 0〜9 を答える。
+    glyphs: harvestRep,
+    glyphStats: {
+      ...glyphStats,
+      rowHeights: quant(glyphStats.rowHeights), pitches: quant(glyphStats.pitches),
+      contrasts: quant(glyphStats.contrasts),
+    },
     canvas: box,
   }, total > 0);
+
+  // ★採取の結果を画面のシートへ（ラベル付けの入口）
+  lastHarvest = harvestRep;
+  drawGlyphSheet(harvestRep);
 
   $('scan').disabled = false;
   seek(start);
