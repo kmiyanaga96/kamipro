@@ -1572,11 +1572,13 @@ console.log('\n[16] グリフ照合（P3-1）＝縁取りで読む・遮蔽に�
     '9': ['01110', '10001', '10001', '01111', '00001', '00010', '01100'],
     ',': ['00000', '00000', '00000', '00000', '00000', '00110', '00100'],
   };
-  const GW = 5, GH = 7, S = 3, ADV = 8;   // ADV: 送り（フォントセル）
+  const GW = 5, GH = 7, SBASE = 3, ADV = 8;   // ADV: 送り（フォントセル）
+  const S = SBASE;
 
   /** 1文字を描く。★塗りは**上下でグラデ**（実機＝金グラデ）／縁取りは暗い。 */
   function drawGlyph(img, x, y, ch, opt = {}) {
     const pat = FONT[ch];
+    const S = opt.s ?? SBASE;   // ★字の大きさ（実機のダメージ数字は 100px 級＝背景より遥かに大きい）
     const top = opt.fillTop ?? 250, bot = opt.fillBottom ?? 150, outline = opt.outline ?? 15;
     const on = (cx, cy) => cy >= 0 && cy < GH && cx >= 0 && cx < GW && pat[cy][cx] === '1';
     for (let cy = -1; cy <= GH; cy++) {
@@ -1593,7 +1595,7 @@ console.log('\n[16] グリフ照合（P3-1）＝縁取りで読む・遮蔽に�
     }
   }
   function drawText(img, x, y, text, opt = {}) {
-    const adv = (opt.adv ?? ADV) * S;
+    const adv = (opt.adv ?? ADV) * (opt.s ?? SBASE);
     const truth = [];
     let cx = x;
     for (const ch of text) { drawGlyph(img, cx, y, ch, opt); truth.push({ ch, x: cx, y }); cx += adv; }
@@ -1878,6 +1880,107 @@ console.log('\n[16] グリフ照合（P3-1）＝縁取りで読む・遮蔽に�
     check('保持する実画素はクラスタあたり3枚まで（記憶が膨らまない）',
       h.clusters.every((c) => c.patches.length <= 3),
       `最大 ${Math.max(...h.clusters.map((c) => c.patches.length))} 枚`);
+  }
+
+  // ── [16-12] ★★★「教わって格子を合わせる」（実機で採取が破綻した件の答え）──
+  //   ⚠⚠ **実機（M3-1.mp4）で採取＋クラスタリングは破綻した**（2026-08-19c）:
+  //     `dmg` ROI はキャラ絵・床グリッド・光でエッジが埋まり、**行の射影は文字行を切り出さない**
+  //     （実測: 行の高さ p50 32 / p90 230 / max 561、「TOTAL / STING! / 数字」が **1帯 h=308** に潰れ、
+  //      背景のグリッド線が行として出た）。集まった代表の大半が**背景の模様**だった。
+  //   ★∴ **人が「ここに 5,044,282 と出ている」と教える**経路にする（憲法そのもの）。
+  //     文字数が既知になり、ラベルも自動で付き、**カンマの送り幅比まで測れる**。
+  {
+    // カンマだけ送り幅が狭いフォント（実機の見た目に合わせる）
+    function drawTaught(img, x, y, text, commaRatio = 0.5, opt = {}) {
+      const SZ = opt.s ?? 6;   // ★実機のダメージ数字は背景の模様より遥かに大きい（125px 級）
+      const adv = ADV * SZ;
+      const truth = [];
+      let cx = x;
+      for (const ch of text) {
+        const a = ch === ',' ? adv * commaRatio : adv;
+        // ★インクを送り幅の中央に置く（実フォントのサイドベアリング）。
+        //   ⚠ ここを手抜きして左詰めで描いたら、**真値の定義がずれて**テストだけが落ちた
+        //     （2026-08-19c＝「測定器（フィクスチャ）の性質を観測対象の性質と取り違えない」の小型版）。
+        drawGlyph(img, Math.round(cx + (a - GW * SZ) / 2), y, ch, { ...opt, s: SZ });
+        truth.push({ ch, x: cx, w: a, center: cx + a / 2 });
+        cx += a;
+      }
+      return { truth, width: cx - x };
+    }
+    // ★背景を「エッジだらけ」にする＝実機の `dmg`（キャラ絵・床グリッド）を模す
+    function busyBackground(img) {
+      for (let y = 0; y < img.height; y += 7) fillRect(img, 0, y, img.width, 2, [120, 40, 160]);
+      for (let x = 0; x < img.width; x += 11) fillRect(img, x, 0, 2, img.height, [90, 30, 130]);
+    }
+
+    const SZ = 6;
+    const text = '5,044,282';
+    const img = makeImage(1000, 140, [40, 20, 70]);
+    busyBackground(img);
+    const drawn = drawTaught(img, 40, 30, text, 0.5);
+    const edge = fieldOf(img);
+    const box = { x: 40, y: 30, w: drawn.width, h: GH * SZ };
+    const fit = G.fitTaughtGrid(edge, box, text);
+    check('★★教わった文字数どおりに割れる（文字数が既知＝探索の自由度が1つ消える）',
+      fit.ok && fit.boxes.length === text.length, `${fit.boxes.length} 個 / ${text.length} 文字`);
+    const errs = fit.boxes.map((b, i) => Math.abs(b.center - drawn.truth[i].center));
+    check('★★各文字の中心が真値に乗る（誤差 < 送り幅の 20%）',
+      Math.max(...errs) < fit.pitch * 0.2,
+      `最大ずれ ${Math.max(...errs).toFixed(1)}px / pitch ${fit.pitch.toFixed(1)}`);
+    check('★カンマの送り幅比を**測って**返す（フォントの寸法そのもの・真値 0.50）',
+      Math.abs(fit.commaRatio - 0.5) <= 0.15, `commaRatio=${fit.commaRatio.toFixed(2)}`);
+    check('★★★背景がエッジだらけでも成立する（実機で採取が壊れた当の条件）',
+      fit.contrast > 0.2, `contrast=${fit.contrast.toFixed(3)}`);
+
+    // ★端から端まで通す＝**教わった数字から作ったアトラスで、別の数字が読めるか**
+    const teach = (img0, x0, y0, str) => {
+      const e = fieldOf(img0);
+      const d = drawTaughtInfo.get(str);
+      const f = G.fitTaughtGrid(e, { x: x0, y: y0, w: d.width, h: GH * SZ }, str);
+      const sc = G.fieldScale(e, { from: y0, to: y0 + GH * SZ });
+      return f.boxes.map((b) => ({ ch: b.ch, sig: G.packSignature(G.signature(e, b, { scale: sc })) }));
+    };
+    const mkAtlas = (entries) => {
+      const glyphs = {};
+      for (const e of entries) (glyphs[e.ch] ||= []).push(e.sig);
+      return { version: 1, cell: { ...G.GLYPH_DEFAULTS.cell }, provenance: { taught: true },
+               glyphs, labels: {}, metrics: { commaRatio: fit.commaRatio } };
+    };
+    const drawTaughtInfo = new Map([[text, drawn]]);
+    const a1 = mkAtlas(teach(img, 40, 30, text));
+
+    // 2本目を教える（別の数字）＝variants が増える
+    const imgB = makeImage(1000, 140, [40, 20, 70]);
+    busyBackground(imgB);
+    const textB = '9,617,300';
+    drawTaughtInfo.set(textB, drawTaught(imgB, 40, 30, textB, 0.5));
+    const a2 = mkAtlas([...teach(img, 40, 30, text), ...teach(imgB, 40, 30, textB)]);
+
+    const target = '4,285,204';
+    const imgT = makeImage(1000, 140, [40, 20, 70]);
+    busyBackground(imgT);
+    drawTaughtInfo.set(target, drawTaught(imgT, 40, 30, target, 0.5));
+    const edgeT = fieldOf(imgT);
+    const fitT = G.fitTaughtGrid(edgeT, { x: 40, y: 30, w: drawTaughtInfo.get(target).width, h: GH * SZ }, target);
+    const scaleT = G.fieldScale(edgeT, { from: 30, to: 30 + GH * SZ });
+    const readWith = (atlas) => fitT.boxes.map((b) => {
+      const c = G.classify(G.signature(edgeT, b, { scale: scaleT }), atlas);
+      return c.best && !c.ambiguous && c.best.score >= G.GLYPH_DEFAULTS.minScore ? c.best.key : '?';
+    }).join('');
+    const r1 = readWith(a1), r2 = readWith(a2);
+    const wrong = (r) => [...r].filter((ch, i) => ch !== '?' && ch !== target[i]).length;
+    check('★★★教わったアトラスで別の数字を読んでも「誤った文字」は出ない',
+      wrong(r1) === 0 && wrong(r2) === 0, `1本教え=${r1} / 2本教え=${r2}`);
+    // ⚠⚠ **測って分かったこと（2026-08-19c）＝variants は多ければ良いわけではない**。
+    //   同じ条件で撮った別の数字を足すと、**読める文字が 8 → 7 に減った**（誤りは 0 のまま）。
+    //   ★理屈: `classify` は key ごとに variants の**最良**を採るので各 key の score は上がるが、
+    //     **競合する key の score も上がる**＝1位と2位の差（margin）が縮み、「読めない」に倒れる。
+    //   ∴ **効くのは「条件が違う variants」**（[16-9] の 54/90 → 88/90 は背景・塗りを散らした場合）。
+    //     **同じ条件の水増しは逆効果になりうる**＝アトラスは闇雲に太らせない。
+    check('⚠ 同じ条件で variants を足しても読める率は上がるとは限らない（誤りは増えない）',
+      wrong(r2) === 0, `1本教え=${r1} / 2本教え=${r2}`);
+    check('★1本教えただけでも大半は読める（残りは「読めない」に倒れる）',
+      [...r1].filter((c) => c !== '?').length >= target.length - 2, `読み=${r1}`);
   }
 
   // ── [16-10] ★アトラスが無いうちは読み取りを始めない（関門）─────

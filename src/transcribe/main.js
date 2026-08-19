@@ -14,11 +14,12 @@ import { LagProfile, EventDeduper, reportDedup, DEDUP_DEFAULTS } from './dedup.j
 import { ChargeDotTracker, ChargeSeries, reportChargeDots, CT_DEFAULTS } from './charge_dots.js';
 import { ROIS } from './rois.js';
 import { luminanceField, edgeField, segmentRows, segmentGlyphs, signature, fieldScale,
-         GlyphHarvest, reportHarvest, validateAtlas, packSignature, cropPatch, GLYPH_DEFAULTS } from './glyph.js';
+         GlyphHarvest, reportHarvest, validateAtlas, packSignature, cropPatch, fitTaughtGrid,
+         GLYPH_DEFAULTS } from './glyph.js';
 import { Diag } from './diag.js';
 import { digest } from './digest.js';
 
-const VERSION = '0.30.0';
+const VERSION = '0.31.0';
 
 const $ = (id) => document.getElementById(id);
 const video = document.createElement('video');
@@ -39,6 +40,12 @@ let lastPanel = null;    // 右パネルのモード判定結果
 let lastHarvest = null;  // ★P3-1 グリフ採取の結果（代表をシートに描き、ユーザーがラベルを付ける）
 let lastHarvestObj = null;  // 実画素を取り出すための採取器そのもの（描画専用）
 let loadedAtlas = null;  // ★読み込み済みのアトラス（まだ無いのが正常＝P3-1 はこれを作る段）
+/**
+ * ★★**教わったグリフ**（P3-1 の主経路・2026-08-19c）。`{ ch, sig, at, commaRatio }` の配列。
+ * ⚠ **採取＋クラスタリングは実機で破綻した**（背景の模様ばかり集まる＝`fitTaughtGrid` の注記）。
+ *   ∴ 「ここに 5,044,282 と出ている」と**人が教える**のが主経路。
+ */
+let taught = [];
 
 const rois = {};         // 登録済み ROI（name → 正規化座標）
 // ★★**起動時に `rois.js` の採寸済み ROI を読み込む**（2026-08-18）。
@@ -449,24 +456,100 @@ $('saveDmgView').onclick = () => {
   }, 'image/png');
 };
 
+// ── ★★★P3-1 主経路: 「この数字を教える」────────────────────
+//   ★憲法そのもの＝**観測と判断はユーザー**（「ここに 5,044,282 と出ている」は人にしか言えない）。
+//     ツールは**転記**する＝教わった文字列に格子を合わせ、i 文字目のテンプレートに `text[i]` を付ける。
+//   ⚠ **前提**: 「このフレームを解析」を押してから、**数字だけ**をドラッグで囲むこと
+//     （`view` は解析時に実解像度で描かれ、`lastRect` はその画素座標）。
+$('teachAdd').onclick = () => {
+  const text = ($('teachText').value ?? '').trim();
+  if (!lastRect) {
+    $('teachNote').innerHTML = '<span class="bad">先に「このフレームを解析」→ 数字をドラッグで囲んでください</span>';
+    return;
+  }
+  if (!/^[0-9,]+$/.test(text)) {
+    $('teachNote').innerHTML = '<span class="bad">数字とカンマだけで入力してください（例 5,044,282）</span>';
+    return;
+  }
+  const view = $('view');
+  let img;
+  try {
+    img = view.getContext('2d', { willReadFrequently: true })
+      .getImageData(lastRect.x, lastRect.y, lastRect.w, lastRect.h);
+  } catch (e) { $('teachNote').innerHTML = `<span class="bad">切り出せません: ${e}</span>`; return; }
+
+  const edge = edgeField(luminanceField(img, { x: 0, y: 0, w: lastRect.w, h: lastRect.h }));
+  const fit = fitTaughtGrid(edge, { x: 0, y: 0, w: lastRect.w, h: lastRect.h }, text);
+  if (!fit.ok) { $('teachNote').innerHTML = `<span class="bad">格子を当てられません: ${fit.reason}</span>`; return; }
+
+  // ★**採る前に見せる**＝囲みの中に、割った位置と付くラベルを描く（人が納得してから採る）
+  const Z = Math.max(1, Math.min(3, Math.round(420 / Math.max(1, lastRect.w))));
+  const cv = $('teachView');
+  cv.width = lastRect.w * Z; cv.height = lastRect.h * Z + 18;
+  const cx = cv.getContext('2d');
+  cx.fillStyle = '#181818'; cx.fillRect(0, 0, cv.width, cv.height);
+  const tmp = document.createElement('canvas');
+  tmp.width = lastRect.w; tmp.height = lastRect.h;
+  tmp.getContext('2d').putImageData(img, 0, 0);
+  cx.imageSmoothingEnabled = false;
+  cx.drawImage(tmp, 0, 0, cv.width, lastRect.h * Z);
+  cx.font = '12px monospace'; cx.textBaseline = 'top';
+  for (const b of fit.boxes) {
+    cx.strokeStyle = b.ch === ',' ? 'rgba(255,160,0,0.95)' : 'rgba(0,220,255,0.95)';
+    cx.strokeRect(b.x * Z + 0.5, 0.5, b.w * Z - 1, lastRect.h * Z - 1);
+    cx.fillStyle = '#8cf';
+    cx.fillText(b.ch, b.x * Z + (b.w * Z) / 2 - 3, lastRect.h * Z + 2);
+  }
+
+  const scale = fieldScale(edge, { from: 0, to: lastRect.h });
+  const at = +video.currentTime.toFixed(2);
+  for (const b of fit.boxes) {
+    taught.push({ ch: b.ch, sig: packSignature(signature(edge, b, { scale })), at, commaRatio: fit.commaRatio });
+  }
+  const have = {};
+  for (const t of taught) have[t.ch] = (have[t.ch] ?? 0) + 1;
+  const missing = '0123456789,'.split('').filter((c) => !have[c]);
+  $('teachNote').innerHTML = `<span class="ok">${fit.boxes.length} 文字を教わりました</span>`
+    + `（格子の合致度 ${fit.contrast.toFixed(3)} / 送り幅 ${fit.pitch.toFixed(1)}px / `
+    + `カンマ比 ${fit.commaRatio.toFixed(2)}）<br>`
+    + `いま持っている字: ${Object.entries(have).map(([k, v]) => `${k}×${v}`).join(' ')}<br>`
+    + (missing.length
+      ? `<span class="bad">まだ無い字: ${missing.join(' ')}</span> — これらが出ている数字を追加で教えてください`
+      : '<span class="ok">0〜9 とカンマが揃いました</span> → 「アトラスJSONを保存」')
+    + '<br>⚠ 上の枠が<b>1文字ずつ正しく割れているか</b>を必ず見てください（ずれていたら囲み直し）';
+};
+
+$('teachReset').onclick = () => {
+  taught = [];
+  $('teachNote').textContent = '教えたものを消しました';
+  const cv = $('teachView');
+  cv.getContext('2d').clearRect(0, 0, cv.width, cv.height);
+};
+
 // ── ★★P3-1: ラベル付け → アトラス JSON ──────────────────────
 //   ★ここが「人に1回だけ訊く」場所（憲法＝観測と判断はユーザー／転記はツール）。
 //   ⚠ 入力は**空白区切り・番号順**。`-` は「数字ではない／分からない」＝飛ばす。
 //     区切りに `,` を使わないのは、**`,` 自体がラベル**（桁区切り）だから。
 $('makeAtlas').onclick = () => {
-  if (!lastHarvest?.representatives?.length) {
-    $('glyphNote').innerHTML = '<span class="bad">先に走査してグリフを採取してください</span>';
-    return;
-  }
-  const toks = ($('glyphLabels').value ?? '').trim().split(/\s+/).filter((t) => t.length);
   const glyphs = {};
+  const ratios = [];
   let used = 0;
-  lastHarvest.representatives.forEach((r, i) => {
+  // ①**教わったもの**（主経路）
+  for (const t of taught) { (glyphs[t.ch] ||= []).push(t.sig); used++; if (t.commaRatio) ratios.push(t.commaRatio); }
+  // ②採取シートに手でラベルを付けたもの（副経路＝実機では代表の大半が背景の模様だった）
+  const toks = ($('glyphLabels').value ?? '').trim().split(/\s+/).filter((t) => t.length);
+  lastHarvest?.representatives?.forEach((r, i) => {
     const lab = toks[i];
     if (!lab || lab === '-') return;
     (glyphs[lab] ||= []).push(r.signature);
     used++;
   });
+  if (!used) {
+    $('glyphNote').innerHTML = '<span class="bad">まだ1文字も教わっていません</span>'
+      + '（「この数字を教える」を先に使ってください）';
+    return;
+  }
+  ratios.sort((a, b) => a - b);
   const atlas = {
     version: 1,
     cell: { ...GLYPH_DEFAULTS.cell },
@@ -475,8 +558,11 @@ $('makeAtlas').onclick = () => {
       tool: 'T1', toolVersion: VERSION, labeledAt: new Date().toISOString(),
       file: $('file').files?.[0]?.name ?? '(none)',
       resolution: video.videoWidth ? `${video.videoWidth}x${video.videoHeight}` : null,
-      harvest: { seen: lastHarvest.seen, clusters: lastHarvest.clusters, labeled: used },
+      taught: taught.length, fromSheet: used - taught.length,
+      taughtAt: [...new Set(taught.map((t) => t.at))],
     },
+    // ★フォントの寸法＝教わるときに**測れた**もの（以後の読み取りで使う）
+    metrics: ratios.length ? { commaRatio: +ratios[Math.floor(ratios.length / 2)].toFixed(2) } : null,
     glyphs, labels: {},
   };
   const v = validateAtlas(atlas);

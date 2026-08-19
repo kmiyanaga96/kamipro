@@ -353,6 +353,87 @@ export function segmentGlyphs(edge, row, opts = {}) {
   return { boxes, pitch, medianWidth, profile: prof, splits, method: 'runs', grid, runs };
 }
 
+/**
+ * ★★**教わった文字列に格子を合わせる**（P3-1 のアトラス取得の主経路・2026-08-19c 新設）。
+ *
+ * ⚠⚠ **採取＋クラスタリングでアトラスを作る経路は、実機で破綻した**（2026-08-19c 実走）:
+ *   `dmg` ROI は**キャラ絵・床グリッド・光**でエッジが埋まっており、
+ *   **行の射影は「文字行」を切り出さない**（実測: 行の高さ p50 32 / p90 230 / max 561、
+ *   「TOTAL / STING! / 数字」が **1つの帯 h=308** に潰れ、背景のグリッド線が行として4本出た）。
+ *   ∴ 集まった代表の大半が**背景の模様**で、ラベルを付ける対象になっていなかった。
+ *
+ * ★**問いを変える**＝「どこに文字があるか当てる」のではなく、
+ *   **人が「ここに 5,044,282 と出ている」と教える**。憲法そのもの（観測と判断はユーザー）で、
+ *   しかも**人の手間は数字を1つ打つだけ**（60個の謎の絵にラベルを付けるより軽い）。
+ *
+ * ★**教わると何が効くか**:
+ *   ①**文字数が既知になる**＝格子探索でいちばん効く自由度が消える
+ *   ②**ラベルが自動で付く**（i 文字目のテンプレート＝`text[i]`）
+ *   ③**カンマの送り幅比が測れる**＝フォントの寸法そのもの（以後の読み取りで使える）
+ *
+ * @param {*} edge  切り抜きのエッジ場
+ * @param {{x,y,w,h}} box  ユーザーが囲んだ矩形（**数字だけを囲む**）
+ * @param {string} text  そこに出ている文字列（例 `5,044,282`）
+ * @returns {{ok:boolean, pitch:number, commaRatio:number, contrast:number,
+ *            boxes:Array<{x,y,w,h,ch:string}>, reason:string|null}}
+ */
+export function fitTaughtGrid(edge, box, text, opts = {}) {
+  const o = { ...GLYPH_DEFAULTS, ...opts };
+  const chars = [...(text ?? '')].filter((c) => c.trim().length);
+  if (!chars.length) return { ok: false, reason: '文字列が空', boxes: [], pitch: 0, commaRatio: 0, contrast: 0 };
+  const nComma = chars.filter((c) => c === ',').length;
+  const nWide = chars.length - nComma;
+
+  const prof = colProfile(edge, { from: Math.round(box.y), to: Math.round(box.y + box.h) });
+  const base = quantile(Array.from(prof), o.basePercentile);
+  const at = (x) => {
+    const i = Math.max(0, Math.min(prof.length - 1, Math.round(x)));
+    return Math.max(0, prof[i] - base);
+  };
+  const x0 = box.x, W = box.w;
+
+  let best = null;
+  // ★カンマの送り幅は**数字より狭い**（実機の見た目）。比そのものを探索して**測る**。
+  for (let c = 0.30; c <= 1.0001; c += 0.05) {
+    const units = nWide + c * nComma;
+    // 囲みは人の手なので少し緩める（±10%）。★囲みが厳密でなくても壊れないため。
+    for (let scale = 0.88; scale <= 1.1201; scale += 0.01) {
+      const pitch = (W * scale) / units;
+      if (pitch < 3) continue;
+      const adv = chars.map((ch) => (ch === ',' ? pitch * c : pitch));
+      const total = adv.reduce((a, b) => a + b, 0);
+      for (let ph = -pitch * 0.6; ph <= pitch * 0.6; ph += 0.5) {
+        const start = x0 + ph + (W - total) / 2;
+        let bE = 0, bN = 0, cE = 0, cN = 0, x = start;
+        bE += at(x); bN++;
+        for (let i = 0; i < chars.length; i++) {
+          cE += at(x + adv[i] / 2); cN++;
+          x += adv[i];
+          bE += at(x); bN++;
+        }
+        const b = bE / bN, cc = cE / cN;
+        const contrast = (cc - b) / (cc + b + 1e-9);
+        if (!best || contrast > best.contrast + 1e-9) {
+          best = { pitch, commaRatio: c, phase: ph, contrast, start, adv };
+        }
+      }
+    }
+  }
+  if (!best) return { ok: false, reason: '格子を当てられない', boxes: [], pitch: 0, commaRatio: 0, contrast: 0 };
+
+  const boxes = [];
+  let x = best.start;
+  chars.forEach((ch, i) => {
+    boxes.push({ x, y: box.y, w: best.adv[i], h: box.h, ch, center: x + best.adv[i] / 2 });
+    x += best.adv[i];
+  });
+  return {
+    ok: true, reason: null,
+    pitch: best.pitch, commaRatio: best.commaRatio, phase: best.phase,
+    contrast: best.contrast, boxes, profile: prof,
+  };
+}
+
 // ─────────────────────────────────────────────────────────────
 // 3. 署名（テンプレートの単位）と照合
 // ─────────────────────────────────────────────────────────────
@@ -509,6 +590,10 @@ export function classify(sample, atlas, opts = {}) {
     //   ⚠ 動機は実測: 同じ字でも**背景が変わると署名が変わる**（同字の類似度が 0.48 まで落ちる）。
     //     ∴ 「1字＝1テンプレート」に固執せず、**採取した条件ごとに1枚ずつ持つ**。
     //     照合は variants の**最良**を採る（どれか1つに似ていれば良い）。
+    //   ⚠⚠ **ただし多ければ良いわけではない**（2026-08-19c 実測）＝
+    //     **同じ条件**の variants を足したら読める文字が **8 → 7 に減った**（誤りは 0 のまま）。
+    //     各 key の score は上がるが**競合 key の score も上がる**ので margin が縮み「読めない」に倒れる。
+    //     ∴ **効くのは条件が違う variants だけ**。アトラスは闇雲に太らせない。
     let bestM = null;
     for (const t of templatesOf(tmpl, atlas.cell)) {
       const m = matchSignature(sample, t, o);
