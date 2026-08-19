@@ -626,17 +626,30 @@ export function subtractCommonMode(chromaFrames, centers, spacing, width) {
   const valid = troughs.filter((x) => x >= 0 && x < width);
   if (!valid.length) return null;
   const half = Math.max(1, Math.round(spacing / 8));
+  const sample = (prof, at) => {
+    let s = 0, n = 0;
+    for (let x = Math.round(at - half); x <= Math.round(at + half); x++) {
+      if (x >= 0 && x < prof.length) { s += prof[x]; n++; }
+    }
+    return n ? s / n : null;
+  };
+  // ★走全体の参考値（診断に載せる「画面全体の色」）＝谷の平均
   const bg = new Float64Array(chromaFrames.length);
   for (let i = 0; i < chromaFrames.length; i++) {
     const prof = chromaFrames[i];
     let s = 0, n = 0;
-    for (const c of valid) {
-      for (let x = Math.round(c - half); x <= Math.round(c + half); x++) {
-        if (x >= 0 && x < prof.length) { s += prof[x]; n++; }
-      }
-    }
+    for (const c of valid) { const v = sample(prof, c); if (v != null) { s += v; n++; } }
     bg[i] = n ? s / n : 0;
   }
+  // ★参照は**谷の平均**（走の全域で共通）。
+  //
+  // ⚠⚠ **「両隣の谷（局所基準）」に変えようとして、やめた**（2026-08-18j）。
+  //   動機は実測の非一様性＝同じ瞬間の残差がピップごとに違った（1個目 66.7 / 2個目 53.2 / 3個目 71.2）。
+  //   しかし**合成で確かめたら局所基準のほうが悪化した**（ROI の端で片側の谷が枠外になり偽区間が出る）。
+  //   ★**実データで改善を確認できない変更は入れない**＝現行（谷の平均）は
+  //     **実走で正解（1個目のみ・3回）を再現できている**ので、根拠のない置き換えをしない。
+  //   ⚠ 残差は `bg` として区間ごとに出るので、**読む側が演出中かどうかを判断できる**
+  //     （実測＝点灯は bg≈6 / 演出・遷移は bg 37〜134）。
   const hw = Math.max(1, Math.round(spacing / 4));
   const excess = centers.map((c) => chromaFrames.map((prof, i) => {
     let s = 0, n = 0;
