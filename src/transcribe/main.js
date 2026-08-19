@@ -16,7 +16,7 @@ import { ROIS } from './rois.js';
 import { Diag } from './diag.js';
 import { digest } from './digest.js';
 
-const VERSION = '0.18.0';
+const VERSION = '0.28.0';
 
 const $ = (id) => document.getElementById(id);
 const video = document.createElement('video');
@@ -35,6 +35,15 @@ let lastDiag = null;     // 直近の診断 JSON
 let walkStats = null;    // フレーム間隔の実測結果
 let lastPanel = null;    // 右パネルのモード判定結果
 const rois = {};         // 登録済み ROI（name → 正規化座標）
+// ★★**起動時に `rois.js` の採寸済み ROI を読み込む**（2026-08-18）。
+//   ⚠ これが無いと、**既に採寸済みの枠が画面に出ない**＝
+//     ①重なりを目で確認できない ②採り直しの基準が見えない
+//     ③どの名前を埋めればよいのか分からない、の3つが同時に起きる（実際に起きた）。
+//   ★採寸は「白紙から始める作業」ではなく「**既にある定義を確認・更新する作業**」。
+const roiOrigin = {};    // name → 'rois.js' | 'measured'（provenance＝どちらの由来か）
+for (const [k, v] of Object.entries(ROIS)) {
+  if (v) { rois[k] = { ...v }; roiOrigin[k] = 'rois.js'; }
+}
 
 // ── ファイル読み込み ────────────────────────────────────────
 $('file').addEventListener('change', (e) => {
@@ -227,25 +236,38 @@ $('view').addEventListener('pointerup', () => {
 function renderRoiTable() {
   const tb = $('roiTable').querySelector('tbody');
   tb.innerHTML = '';
-  const names = Object.keys(rois);
+  // ★**未採寸のスロットも行として出す**＝「あと何を測ればよいか」が画面で分かる。
+  //   ⚠ 出さないと、名前を知っている人にしか採寸できない（＝私が口頭で伝えるしかない）。
+  const names = [...new Set([...Object.keys(ROIS), ...Object.keys(rois)])];
   $('roiTable').style.display = names.length ? '' : 'none';
-  $('copyRois').disabled = !names.length;
+  $('copyRois').disabled = !Object.keys(rois).length;
   for (const n of names) {
     const r = rois[n];
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td style="text-align:left"><b>${n}</b></td>`
-      + ['x', 'y', 'w', 'h'].map(k => `<td>${r[k].toFixed(5)}</td>`).join('')
-      + `<td><button class="btn sec" data-del="${n}" style="padding:2px 8px">削除</button></td>`;
+    if (!r) {
+      tr.innerHTML = `<td style="text-align:left"><b>${n}</b></td>`
+        + '<td colspan="4" style="opacity:.7">⏳ 未採寸 — この要素は走査で読めません</td><td></td>';
+    } else {
+      const tag = roiOrigin[n] === 'measured' ? '（今回採寸）' : '';
+      tr.innerHTML = `<td style="text-align:left"><b>${n}</b><span class="note">${tag}</span></td>`
+        + ['x', 'y', 'w', 'h'].map(k => `<td>${r[k].toFixed(5)}</td>`).join('')
+        + `<td><button class="btn sec" data-del="${n}" style="padding:2px 8px">削除</button></td>`;
+    }
     tb.appendChild(tr);
   }
   tb.querySelectorAll('[data-del]').forEach(b => {
-    b.onclick = () => { delete rois[b.dataset.del]; renderRoiTable(); drawOverlay(); };
+    b.onclick = () => {
+      delete rois[b.dataset.del]; delete roiOrigin[b.dataset.del];
+      renderRoiTable(); drawOverlay();
+    };
   });
 }
 
 $('addRoi').onclick = () => {
   if (!lastRoi) return;
-  rois[$('roiName').value] = lastRoi;
+  const name = $('roiName').value;
+  rois[name] = lastRoi;
+  roiOrigin[name] = 'measured';      // ★今回測ったものか、ファイル由来かを分けて残す
   renderRoiTable();
   drawOverlay();
 };
@@ -260,6 +282,8 @@ $('copyRois').onclick = () => {
       canvas: lastBox,
     },
     rois,
+    /** ★どれを今回測り、どれが `rois.js` 由来かを残す（E1＝測定条件を併記する）。 */
+    origin: roiOrigin,
   }, null, 2));
 };
 
@@ -283,6 +307,13 @@ $('copyDiag').onclick = () => {
   if (lastDiag) navigator.clipboard.writeText(digest(lastDiag));
 };
 $('saveDiag').onclick = downloadDiag;
+
+// ★★**初期化が最後まで通った合図**（2026-08-18i）。
+//   ⚠ これが立たなければ index.html の番人が「初期化されていません」と赤帯を出す。
+//   ★2回続けて「ボタンが全部効かない」で時間を失ったが、**どちらも画面は無言だった**。
+//     ツールは**壊れたら壊れたと言う**（`hp_bar` の「読めないときは読めないと言う」と同じ規律）。
+window.__t1Ready = true;
+window.__t1Version = VERSION;
 
 // ── ★フレーム間隔の実測（P1 発見⑧ / VFR の飛び） ───────────
 // requestVideoFrameCallback は「実際に表示されたフレーム」ごとに mediaTime を返す。
@@ -466,10 +497,21 @@ $('scan').onclick = async () => {
   const dmgRect = roiToPixels(box, ROIS.dmg);
   const gaugeRect = roiToPixels(box, ROIS.gauge);
   const hpRect = ROIS.hpbar ? roiToPixels(box, ROIS.hpbar) : null;
-  // ★CT ドットの探索は**より広い `ROIS.hp`**（バーの上下・敵アイコン側も含む）で行う。
-  //   ⚠ 2026-08-17 のユーザー確認で、`hpbar` 内に見つけた等間隔構造は**バーの目盛り＝CT ではない**
-  //   と判明した＝**そもそも見る行が違った可能性がある**。∴ 縦方向にも探せる範囲を渡す。
-  const hpWideRect = ROIS.hp ? roiToPixels(box, ROIS.hp) : null;
+  // ★CT の入力 ROI。**`ct` が採寸されていればそれを使い、無ければ広い `hp` を探索する**。
+  //   ⚠⚠ 2026-08-18 の方針転換（ユーザー提案）＝**どの行にあるかは人が採寸して与える**。
+  //     幾何で「探す」機構は 2026-08-17 に偽陽性（バーの目盛りを CT と誤認）、
+  //     2026-08-18 に偽陰性（探索上限 43px の外＝見えなかった）を1回ずつ出した。
+  //     ★1分の採寸で確定することを、機械に当てさせようとしていたのが誤り（憲法＝観測はユーザー）。
+  //   ∴ `ct` 採寸後は探索ではなく**読み取り**が仕事になる（個数を数える／塗り率を測る）。
+  const ctSource = ROIS.ct ? 'ct' : (ROIS.hp ? 'hp' : null);
+  const hpWideRect = ROIS.ct ? roiToPixels(box, ROIS.ct)
+    : (ROIS.hp ? roiToPixels(box, ROIS.hp) : null);
+  // ★★モードゲージも同じ生プロファイル抽出にかける（2026-08-18c）。
+  //   ⚠ 動機は2つ: ①**一次情報にある未モデル化メカニクス**（`modebar` の注記）で、読めること自体が成果
+  //   ②★**`ct` ROI の左端が切れている疑い**の決着＝`ct` の左端に見えている構造が
+  //     **6個目のピップ**なのか**モードバーの右端**なのかは、`modebar` 側の profile を見れば分かる
+  //     （`modebar` x 361〜706 と `ct` x 693〜855 は 13px 重なっている）。
+  const modeRect = ROIS.modebar ? roiToPixels(box, ROIS.modebar) : null;
 
   // ROI だけを切り出す小さい canvas（フル解像度の getImageData を毎フレームやらないため）
   const mk = (r) => { const c = document.createElement('canvas'); c.width = r.w; c.height = r.h;
@@ -477,6 +519,7 @@ $('scan').onclick = async () => {
   const cutDmg = mk(dmgRect), cutGauge = mk(gaugeRect);
   const cutHp = hpRect ? mk(hpRect) : null;
   const cutHpWide = hpWideRect ? mk(hpWideRect) : null;
+  const cutMode = modeRect ? mk(modeRect) : null;
   const cut = (o) => {
     o.x.drawImage(video, o.r.x, o.r.y, o.r.w, o.r.h, 0, 0, o.r.w, o.r.h);
     return o.x.getImageData(0, 0, o.r.w, o.r.h);
@@ -494,9 +537,18 @@ $('scan').onclick = async () => {
   const hpSeries = new HpSeries();
   // ★P2-5b: CT ドット。幾何は走全体から決めるので、ここでは中央帯プロファイルを溜めるだけ。
   const ctTracker = new ChargeDotTracker();
+  // ★モードゲージ用（同じ抽出器＝生プロファイル・時間σ・山の検出をそのまま使える）
+  const modeTracker = cutMode ? new ChargeDotTracker() : null;
   let lastHp = null;
   // ★違反フレームの生プロファイルを持ち帰る（クロップを人に頼まずに原因を特定するため）
   const hpViolationSamples = [];
+  // ★★**捨てたフレームの生プロファイルも持ち帰る**（2026-08-18 追加）。
+  //   ⚠ `flash` が 109→2152 に激増した走で、**捨てた側の生データが無く**、
+  //     原因（帯がバーの縁に乗った）を**推測でしか説明できなかった**。
+  //   ★「読めなかった」は最も情報量の多い出来事なのに、それを捨てていたのが欠陥。
+  //   `hpViolationSamples`（読めた上でおかしい）とは**別の事象**なので別枠で採る。
+  const hpSkipSamples = [];
+  const skipSeen = {};
   let prevRatio = null;
   const t0 = performance.now();
 
@@ -506,6 +558,7 @@ $('scan').onclick = async () => {
     sel.push(m, dSig);
     // ★CT は広い `hp` ROI で縦方向にも探す（hp_bar とは別の crop＝互いに非干渉）
     if (cutHpWide) ctTracker.push(+m.toFixed(4), cut(cutHpWide));
+    if (cutMode) modeTracker.push(+m.toFixed(4), cut(cutMode));
     lag.push(dSig);            // ★署名は1回だけ作って両方へ渡す（走査コストを増やさない）
     dedup.push(m, dSig);
     probe.push(goldenFractions(dImg, local(dmgRect)));
@@ -532,6 +585,18 @@ $('scan').onclick = async () => {
           colProfile: hr.colProfile,
         });
       }
+      // ★捨てた原因ごとに最初の3件だけ生データを残す（digest には要約だけ載る）
+      if (hr.ok && !hr.visible) {
+        const c = hr.cause ?? 'other';
+        skipSeen[c] = (skipSeen[c] ?? 0) + 1;
+        if (skipSeen[c] <= 3) {
+          hpSkipSamples.push({
+            t: +m.toFixed(4), cause: c, peak: hr.peak,
+            redFraction: +hr.redFraction.toFixed(4), bands: hr.bands,
+            colProfile: hr.colProfile,
+          });
+        }
+      }
       if (hr.ok && hr.visible) prevRatio = hr.fillRatio;
     }
   }, (n, elapsed) => {
@@ -553,6 +618,10 @@ $('scan').onclick = async () => {
   const panelSum = panelSeries.summary();
   reportPanelSeries(diag, panelSum);
   const ctGeom = cutHpWide ? ctTracker.solveGeometry() : null;
+  const modeGeom = modeTracker ? modeTracker.solveGeometry() : null;
+  if (modeGeom) modeGeom.roi = 'modebar';
+  // ★どの ROI を見た結果なのかを必ず残す（provenance＝E1）。
+  if (ctGeom) ctGeom.roi = ctSource;
   const ctSum = ctGeom ? new ChargeSeries().ingest(ctTracker.readSeries(ctGeom)).summary(covered) : null;
   if (cutHp) reportHp(diag, lastHp, hpSeries);
   if (cutHpWide) reportChargeDots(diag, ctGeom, ctSum);
@@ -599,8 +668,15 @@ $('scan').onclick = async () => {
                          redFraction: +lastHp.redFraction.toFixed(4) } : null,
     // ★違反フレームの生プロファイル（正常フレームと並べれば何が違うか分かる）
     hpViolationSamples,
+    // ★★**捨てたフレームの生プロファイル**（原因ごとに最初の3件）。
+    //   ⚠ `flash` が 20倍になったとき、捨てた側の生データが無く推測でしか説明できなかった。
+    //   **「読めなかった」は最も情報量の多い出来事**。
+    hpSkipSamples,
     // ★P2-5b: CT ドット。**meanProfile が実物の見え方を答える生データ**（点灯判定は未較正）。
     ctGeometry: ctGeom,
+    // ★モードゲージ（未モデル化メカニクス＝C45 の観測経路その2）。
+    //   ⚠ 読み取りは未確定＝**生プロファイルだけを持ち帰る**（仮定して判定を書かない）。
+    modeGeometry: modeGeom,
     ctSeries: ctSum,
     popupProbe: { best: probeBest, all: probe.report() },
     keptSample: sel.kept.slice(0, 60),

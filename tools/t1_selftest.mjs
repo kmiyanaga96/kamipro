@@ -835,7 +835,10 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
   d.add('T1-ROI-008', 'WARN', { got: 'ドット列の周期性が弱い', hint: 'h' });
   d.add('T1-DEDUP-004', 'WARN', { got: 'J ごとに食い違う', hint: 'h' });
   d.add('T1-DETECT-002', 'INFO', { got: '採用率 61.8%', hint: 'h' });
-  const big = Array.from({ length: 120 }, (_, i) => (i === 40 || i === 44 ? 90 : 5));
+  // ★実走と同じ形にする＝`downsample()` が出すのは**3桁小数**（"5" のような整数ではない）。
+  //   ⚠ 整数だけの縮小フィクスチャで畳み率を測ると、**実際より小さく見積もる**（実走は約 1/25）。
+  const big = Array.from({ length: 120 }, (_, i) =>
+    (i === 40 || i === 44 ? 90 : +(4.5 + ((i * 37) % 100) / 100).toFixed(3)));
   const out = d.emit({
     sampling: { frames: 3506, sampledFps: 29.237 },
     dedup: { droppedDuplicates: 225 },
@@ -843,8 +846,39 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
           skipCauses: { flash: 107, noEmptyRegion: 316 },
           violationSample: [{ t: 12.33, from: 0.159, to: 0.889 }] },
     hpProfileSample: big,
+    hpSkipSamples: [{ t: 16.68, cause: 'flash', peak: 0.09, redFraction: 0.02,
+                      bands: [[3, 14], [40, 51]], colProfile: big }],
     ctGeometry: { found: false, decor: true, bestPeriod: { period: 21, score: 0.48 },
-                  reason: 'r', bandScan: [{ band: [0, 0.125], best: { period: 21, score: 0.48, from: 320, to: 480 }, decor: true, profile: big }] },
+                  searchRange: { width: 687, min: 17, max: 171 },
+                  // ★2026-08-18 追加の生データも実走と同じ形で持たせる（畳み率を正しく測るため）
+                  rawProfile: big, sigmaProfile: big,
+                  humps: { count: 5, centers: [17.4, 33.65, 49.98, 66.38, 82.59], spacing: 16.297, cv: 0.0045,
+                           level: { min: 56, max: 133, mid: 94.5 } },
+                  humpSeries: [{ center: 17.4, p05: 120, p25: 126, p50: 127, p75: 128, p95: 131, max: 210, brightFrac: 0.012 }],
+                  humpColors: [{ center: 17.4, r: 180, g: 130, b: 60, chroma: 120 }],
+                  chroma: big,
+                  humpChroma: [{ center: 17.4, p05: 2, p25: 3, p50: 4, p75: 140, p95: 150,
+                                 series: Array.from({ length: 40 }, (_, i) => (i < 20 ? 3 : 140)), bucketSeconds: 3 }],
+                  chromaSamples: Array.from({ length: 4 }, (_, k) => ({ t: k * 20, profile: big })),
+                  chromaSplit: 47.5,
+                  chromaSplitLevels: { commonModeRemoved: true, split: 47.5, troughs: [12, 34, 56] },
+                  litIntervals: [1, 2, 3, 4, 5].map((i) => ({
+                    runs: [{ from: 51.2, to: 57.0, seconds: 5.8, frames: 170, mean: 118, max: 133, bg: -1.5, coincident: 1 }],
+                    count: 1, totalSeconds: 5.8 })),
+                  sampleProfiles: Array.from({ length: 8 }, (_, k) => ({ t: k * 15, profile: big })),
+                  reason: 'r',
+                  // ★実走にある大きな配列も持たせる（無いと完全JSON を過小に見積もる）
+                  meanProfile: big,
+                  periodScan: Array.from({ length: 40 }, (_, k) => ({ period: k + 4, score: 0.1234 })),
+                  windowScan: Array.from({ length: 12 }, (_, k) => ({ from: k * 10, to: k * 10 + 40, period: 21, score: 0.4 })),
+                  // ★実走と同じ形にする（8帯 × 120値のプロファイル）＝
+                  //   ⚠ 縮小したフィクスチャで「畳めている」を測ると**畳み率を過小評価する**。
+                  bandScan: Array.from({ length: 8 }, (_, b) => ({
+                    band: [+(b / 8).toFixed(3), +((b + 1) / 8).toFixed(3)],
+                    best: { period: 21, score: 0.48, from: 320, to: 480 },
+                    peakRun: { count: 4, spacing: 17.2, cv: 0.03, from: 57, to: 109, meanHeight: 80.2, prominence: 210.4, baseline: 22.1 },
+                    decor: b === 0, profile: big,
+                  })) },
     ctSeries: { prefixChanges: 3, prefixChangesPerSecond: 0.025, prefixHistogram: { 2: 100 } },
     panelSeries: { rawTransitions: 12, stableTransitions: 8, debounced: 4,
                    transitions: [{ t: 10.58, to: 'detail' }, { t: 12.81, to: 'list' }] },
@@ -852,7 +886,16 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
                   freezeRuns: [{ label: 'cellP90', j: 48, p50: 3 }],
                   cellDeltas: { p50: 2, p90: 48, zeroFraction: 0.37 },
                   lags: Array.from({ length: 20 }, (_, k) => ({ k: k + 1, p10: 1, p50: 2, p90: 3 })) },
+    modeGeometry: { roi: 'modebar', rawProfile: big, sigmaProfile: big, chroma: big,
+                    fillSeries: { frames: 2100,
+                      fill: { p05: 0.01, p25: 0.02, p50: 0.5, p75: 0.94, p95: 0.95 },
+                      step: { p05: 1.2, p50: 60.4, p95: 105.1 },
+                      series: Array.from({ length: 40 }, (_, i) => +(i / 40).toFixed(3)), bucketSeconds: 3 },
+                    humps: { count: 1, centers: [40], spacing: null, cv: null, level: { min: 4, max: 90, mid: 47 } } },
     keptSample: Array.from({ length: 60 }, (_, i) => ({ t: i, dist: i, reason: 'change' })),
+    hpViolationSamples: Array.from({ length: 4 }, (_, i) => ({
+      t: 12.33 + i, from: 0.159, to: 0.889, peak: 0.42, leftMean: 0.4, rightMean: 0.01,
+      redFraction: 0.31, colProfile: big })),
   }, true);
 
   const dg = digest(out);
@@ -872,15 +915,71 @@ console.log('\n[14] digest（★診断は畳まない・生データの本体だ
   }
 
   // ★プロファイルは「山の位置」に畳まれ、120個の生値は載らない
+  const rawRun = [10, 11, 12, 13].map((i) => big[i]).join(',');
   check('★プロファイルは山の位置に畳まれる（120個の生値は載せない）',
-    dg.includes('山:') && dg.includes('40:90') && !dg.includes('5,5,5,5,5'));
+    dg.includes('山:') && dg.includes('40:90') && !dg.includes(rawRun), rawRun);
   check('★keptSample（60件）は載せない', !dg.includes("reason: 'change'") && !dg.includes('"reason"'));
 
   // ★★サイズ: 完全な JSON より桁で小さいこと
   const fullLen = JSON.stringify(out).length;
   check('★★digest は完全な JSON より桁で小さい', dg.length < fullLen / 5,
     `digest ${dg.length}文字 / 完全 ${fullLen}文字（${(fullLen / dg.length).toFixed(1)}倍）`);
+  // ★★**絶対量の番人**（2026-08-18f 新設）。
+  //   ⚠ 比だけだと、**完全 JSON が大きくなれば digest も一緒に膨らめてしまう**。
+  //     digest の存在理由は「**貼れること**」なので、絶対量そのものを縛る。
+  //   ★実測の見積り（実走に近い桁で合成）＝**約 8,800 字**。上限はその 1.4 倍に置く。
+  //   ⏳ CT が確定したら、昇格させた生配列（rawProfile / chroma / 標本）は畳み直してよい。
+  check('★★digest は貼れる大きさに収まる（12,000字以下）', dg.length <= 12000, `${dg.length}文字`);
   check('★「完全版を見よ」という逃げ道が明記されている', dg.includes('完全な診断 JSON'));
+
+  // ★★測定器の可視範囲を、測定結果と同じ画面に出す（2026-08-18）
+  //   ⚠ v0.18.0 の digest は探索範囲を載せていなかったので、**上限 43px に潰れていたことが見えず**、
+  //     「どの帯も低い＝CT は ROI の外」という誤った結論に進みかけた。
+  check('★★探索できる周期の範囲が digest に出る（範囲外の「無し」は情報ではない）',
+    dg.includes('探索できる周期') && dg.includes('171'), dg.split('\n').find(l => l.includes('探索できる周期')));
+  // ★2026-08-18f: 帯ごとの探索は**要約1行**に畳んだ（採寸方式へ移行して役目を終えたため）。
+  //   ⚠ **役目を終えた出力を出し続けると、判断に効く行が埋もれる**＝digest の趣旨に反する。
+  //   生データは完全 JSON の `bandScan` に全部残る（捨ててはいない）。
+  check('★帯ごとの探索は要約1行に畳まれる（詳細は完全JSONへ）',
+    dg.includes('帯ごとの探索') && dg.includes('完全JSON の bandScan')
+    && !dg.includes('列: 4個'), dg.split('\n').find(l => l.includes('帯ごとの探索')));
+  // ★★捨てたフレームの中身が digest に出ること（2026-08-18 に無くて推測に頼った）
+  check('★★捨てたフレームの中身（原因・peak・帯）が digest に出る',
+    dg.includes('捨てたフレームの中身') && dg.includes('flash') && dg.includes('peak='),
+    dg.split('\n').find(l => l.includes('flash') && l.includes('peak=')));
+
+  // ★★専用 ROI で「どの数字を信じるか」が digest に書いてあること
+  check('★★生の輝度と時間σが digest に出る（要素の正体を決める生データ）',
+    dg.includes('生の輝度') && dg.includes('時間σ'));
+  // ★★この2本だけは全値を出す＝上位10山に畳んだら CT の枠数が決められなかった（2026-08-18b）
+  check('★★生の輝度は全120値が digest に出る（判断に効く桁は落とさない）',
+    dg.includes('生の輝度・全120値') && dg.includes(String(Math.round(big[7]))),
+    (dg.split('\n').find(l => l.includes('全120値')) ?? '').slice(0, 80));
+  check('★時間σも全値が出る', dg.includes('時間σ・全120値'));
+  // ★★山は「どれだけ高いか」で数える（上位N山の抽出は背景のノイズを山と数える）
+  check('★★山の数・間隔・水準が digest に出る（局所最大ではなく振幅でしきる）',
+    dg.includes('★山（振幅の中点でしきい・重心）: 5個') && dg.includes('中点 94.5'),
+    (dg.split('\n').find(l => l.includes('振幅の中点')) ?? '').slice(0, 90));
+  // ★2026-08-18g: 輝度の分布は**点灯を説明しないと確定した**ので1行に畳んだ（生値は完全JSON）。
+  check('★輝度の分布は1行に畳まれ、「点灯を表していない」と明記される',
+    dg.includes('（参考）山ごとの輝度 p50') && dg.includes('輝度は点灯を表していない'),
+    dg.split('\n').find(l => l.includes('参考）山ごとの輝度')));
+  check('★★色づいた区間・切れ目・差し引いた画面全体の色が digest に出る（＝CT の値そのもの）',
+    dg.includes('色づいた区間') && dg.includes('画面全体の色を差し引いた後')
+    && dg.includes('谷') && dg.includes('bg') && dg.includes('coin'),
+    dg.split('\n').find(l => l.includes('色づいた区間')));
+  check('★★モードゲージの塗り率とその時系列が digest に出る（＝与ダメージの観測値）',
+    dg.includes('塗り率（色みの階段フィット') && dg.includes('塗り率の時系列'));
+  check('★★モードゲージの節が digest に出る（未モデル化メカニクスの観測経路その2）',
+    dg.includes('## モードゲージ') && dg.includes('roi=modebar'));
+  check('★★山ごとの色と色み（R−B）が digest に出る（輝度で点灯を説明できなかったため）',
+    dg.includes('山ごとの色') && dg.includes('R−B'));
+  check('★★山ごとの色みの分布と時系列が digest に出る（立ち上がりの時刻＝CT の値）',
+    dg.includes('山ごとの色みの分布') && dg.includes('山ごとの色みの時系列') && dg.includes('3秒ごと'));
+  check('★★found/bestPeriod を当てにしない旨が明記される（|高域通過|は縁に山が立つ）',
+    dg.includes('found/bestPeriod は当てにしない'));
+  check('★生プロファイルの標本も出る（どの形からどの形へ変わったか）',
+    dg.includes('生プロファイルの標本'));
 }
 
 // ── 12. CT（チャージターン）ドット抽出 ─────────────────────
@@ -1033,28 +1132,297 @@ console.log('\n[12] CT ドット抽出（★個数を決め打ちしない・点
       Array.isArray(gh.meanProfile) && gh.meanProfile.length > 0);
   }
 
-  // ★★既知の装飾を「見つけた」と言わないこと（2026-08-17・ユーザー確認に基づく規則）
-  //   ⚠ **見つけたと誤報告するのは、見つからないより悪い**（偽の CT を作る）。
+  // ★★装飾の抑止は「機構としては残すが、既定では何も抑止しない」（2026-08-18 に方針変更）
+  //   ⚠⚠ 2026-08-17 に登録した `knownDecorX: [0.50, 0.72]` は**撤回した**＝
+  //     2026-08-18 に `ct` を直接採寸したら canvas x 693〜855 で、
+  //     「目盛り」と判定した6山（x 700〜802）は**その中に完全に入っていた＝あれは CT だった**。
+  //   ⭐⭐ **1つの回答から恒久的な抑止規則を作らない**＝静かで恒久的なブロッカーになる。
   {
-    const tr = new ChargeDotTracker();      // ← 既定（ガード有効）
-    for (let i = 0; i < 120; i++) {
+    const mk = () => {
       const img = makeImage(640, 54, [45, 40, 50]);
-      fillRect(img, 0, 8, Math.round(640 * (0.95 - 0.6 * i / 120)), 32, [205, 35, 55]);
-      // ★バー幅の 53〜69% に等間隔の構造を置く＝実走で見つかり「目盛り・模様」と判明した位置
-      for (let k = 0; k < 6; k++) fillRect(img, 341 + k * 21 - 5, 18, 10, 18, [200, 200, 205]);
-      tr.push(i / 30, img);
-    }
-    const g = tr.solveGeometry();
-    check('★★既知の装飾の位置で見つけても found=false（CT と呼ばない）',
+      return img;
+    };
+    const build = (opts) => {
+      const tr = new ChargeDotTracker(opts);
+      for (let i = 0; i < 120; i++) {
+        const img = mk();
+        fillRect(img, 0, 8, Math.round(640 * (0.95 - 0.6 * i / 120)), 32, [205, 35, 55]);
+        for (let k = 0; k < 6; k++) fillRect(img, 341 + k * 21 - 5, 18, 10, 18, [200, 200, 205]);
+        tr.push(i / 30, img);
+      }
+      return tr.solveGeometry();
+    };
+
+    // ★★回帰の本体: **既定では抑止しない**（＝2026-08-17 の抑止が復活していないこと）
+    const gDefault = build();
+    check('★★既定では中央付近の構造も抑止しない（撤回した knownDecorX が復活していない）',
+      gDefault.found === true && gDefault.decor === false,
+      `found=${gDefault.found} decor=${gDefault.decor} / ${gDefault.reason ?? ''}`);
+    check('　　CT_DEFAULTS.knownDecorX は既定で null（何も抑止しない）',
+      CT_DEFAULTS.knownDecorX === null, JSON.stringify(CT_DEFAULTS.knownDecorX));
+
+    // 機構自体は残す＝**確認できた装飾は呼び出し側が明示的に渡せる**
+    const g = build({ knownDecorX: [0.50, 0.72] });
+    check('★明示的に渡した装飾範囲では found=false（機構は残っている）',
       !g.found && g.decor === true, `found=${g.found} decor=${g.decor} / ${g.reason ?? ''}`);
-    check('★そのとき理由に位置と provenance が出る',
-      typeof g.reason === 'string' && g.reason.includes('2026-08-17'), g.reason);
-    check('★★縦の帯ごとの探索結果を返す（どの行に構造があるか＝次の一手が決まる）',
+    check('★そのとき理由に位置が出る',
+      typeof g.reason === 'string' && g.reason.includes('%'), g.reason);
+    check('★★縦の帯ごとの探索結果を返す（どの行に構造があるか）',
       Array.isArray(g.bandScan) && g.bandScan.length === 8
       && g.bandScan.every(b => Array.isArray(b.band) && Array.isArray(b.profile)),
       `bandScan ${g.bandScan?.length} 本`);
     check('★帯ごとに装飾かどうかも印がつく',
       g.bandScan.some(b => b.decor === true), JSON.stringify(g.bandScan.map(b => b.decor)));
+  }
+
+  // ★★★2026-08-18: **実走 v0.18.0 が「見つからない」と答えた真因を回帰に固定する** ─────
+  //   帯探索（v0.17.0）は**固定幅 0.25W の窓**の中で自己相関を測っていたので、
+  //   「窓に4周期入ること」と掛かって **探せる周期が W/16 で頭打ち**（`hp` 687px なら 43px）だった。
+  //   ∴ **バー全幅に散らばるドット列は原理的に見えなかった**。
+  //   ⚠ 一次情報の観測は「**バー上の丸ドット5個**」＝640px のバーなら間隔 ≈107px＝**上限の外**。
+  //   ★指紋: 実走の帯探索は **8帯中5帯が上限側の 43/43/43/41** を報告していた。
+  {
+    const { scanPeriodMultiScale, evenlySpacedRun, CT_DEFAULTS: CD }
+      = await import('../src/transcribe/charge_dots.js');
+
+    // `hp` ROI の実寸（687×127）で、バー（縦 0.283〜0.709）の上にドットを散らす合成
+    function hpFrame({ fill = 0.8, n = 5, lit = 2 } = {}) {
+      const W = 687, H = 127, img = makeImage(W, H, [30, 28, 36]);
+      const by0 = Math.round(H * 0.283), bh = Math.round(H * (0.709 - 0.283));
+      fillRect(img, 34, by0, Math.round(640 * fill), bh, [205, 35, 55]);
+      const P = Math.floor(640 / (n + 1));
+      for (let i = 0; i < n; i++) {
+        const v = i < lit ? 230 : 150;
+        fillRect(img, 34 + P * (i + 1) - 9, by0 + Math.round(bh / 2) - 9, 18, 18, [v, v, v]);
+      }
+      return { img, P };
+    }
+    const wide = (n) => {
+      const tr = new ChargeDotTracker(NO_DECOR);
+      let P = 0;
+      for (let i = 0; i < 120; i++) { const f = hpFrame({ fill: 0.95 - 0.6 * i / 120, n }); P = f.P; tr.push(i / 30, f.img); }
+      return { g: tr.solveGeometry(), P };
+    };
+
+    // ① 検出器の上限そのもの＝**もう W/16 で頭打ちにならない**
+    {
+      const W = 687;
+      const oldCeil = Math.floor(Math.round(W * CD.windowRatio) / CD.minRepeats);   // = 43
+      const prof = new Float64Array(W);
+      for (let x = 0; x < W; x++) prof[x] = 20 + 60 * Math.cos(2 * Math.PI * x / 106);
+      const r = scanPeriodMultiScale(prof, {});
+      check('★★探せる周期が窓の固定幅で頭打ちにならない（旧上限 43px の穴）',
+        r.best && r.best.period > oldCeil && Math.abs(r.best.period - 106) / 106 < 0.1,
+        `旧上限=${oldCeil}px / best=${JSON.stringify(r.best && { p: r.best.period, s: r.best.score })}`);
+    }
+
+    // ② 帯探索が**バー全幅に散らばるドット列**の周期を報告できる
+    {
+      const { g, P } = wide(5);
+      const hit = g.bandScan.filter(b => b.best && Math.abs(b.best.period - P) / P < 0.1);
+      check('★★帯探索がバー全幅のドット列（間隔 ≈107px）を見つける（v0.18.0 は原理的に不可能だった）',
+        hit.length >= 1, `真P=${P} / 各帯=${JSON.stringify(g.bandScan.map(b => b.best?.period))}`);
+      check('★★そのとき個数も正しい（窓の外にはみ出したドットを落とさない）',
+        g.found && g.dotCount === 5, `found=${g.found} dotCount=${g.dotCount} period=${g.period}`);
+    }
+
+    // ③ **少数ドット**でも数を外さない（自己相関には出にくい条件）
+    for (const n of [3, 4]) {
+      const { g } = wide(n);
+      check(`　　広い ROI でドット ${n} 個を ${n} 個と数える`,
+        g.found && g.dotCount === n, `found=${g.found} dotCount=${g.dotCount} / ${g.reason ?? ''}`);
+    }
+
+    // ④ ★何も写っていない帯は score 0（**平坦を標準化して偽の周期性を作らない**）
+    {
+      const { g } = wide(5);
+      const flat = g.bandScan[0];      // ROI 上端＝合成では一様な背景
+      check('★★空の帯は score 0（浮動小数の残差を「分散1」に引き伸ばさない）',
+        flat.best != null && flat.best.score === 0,
+        `score=${flat.best?.score}＝**0.99 が返るなら平坦ガードが壊れている**`);
+    }
+
+    // ⑤ ★等間隔の山の列は「数」ではなく「目立ちの総量」で選ぶ
+    //    ⚠ 背景のさざ波は**数だけは多い**＝数で順位をつけると本物の少数ドット列が必ず負ける。
+    {
+      const W = 600, prof = new Float64Array(W).fill(10);
+      for (let k = 0; k < 4; k++) prof[60 + k * 120] = 100;          // 本物＝4個・高い・間隔120
+      for (let k = 0; k < 20; k++) prof[300 + k * 12] += 6;          // さざ波＝20個・低い・間隔12
+      const run = evenlySpacedRun(prof, {});
+      check('★★山の列は「数」ではなく「目立ちの総量」で選ぶ（さざ波に負けない）',
+        run && run.count === 4 && Math.abs(run.spacing - 120) < 1,
+        `count=${run?.count} spacing=${run?.spacing} prominence=${run?.prominence}`);
+      check('★間隔のばらつき（CV）を生値で返す＝判定は読む側がする',
+        run && typeof run.cv === 'number', JSON.stringify(run));
+    }
+
+    // ⑥ ★少数の山は自己相関では出ないが `peakRun` には出る（帯探索の交差検査）
+    {
+      const { g } = wide(5);
+      const withRun = g.bandScan.filter(b => b.peakRun && b.peakRun.count >= 3);
+      check('★帯ごとに peakRun（等間隔の山の列）が付く＝自己相関に依らない交差検査',
+        withRun.length >= 1,
+        JSON.stringify(g.bandScan.map(b => b.peakRun && { n: b.peakRun.count, sp: b.peakRun.spacing })));
+    }
+  }
+
+  // ★★色の抽出（2026-08-18e）＝**輝度で点灯を説明できなかったので次に見る手掛かり**
+  //   ⚠ 実測: 5つのピップは p25/p50/p75 がすべて **120±0.5**、明るいフレームの割合も
+  //     2〜5個目が 0.084/0.087/0.086/0.088 と横並び＝**単調に減る階段になっていない**
+  //     ＝輝度は充電の状態を表していない。★残る仮説＝**点灯は色で表されている**。
+  //   ∴ 「**輝度がほぼ同じでも色が違えば区別できる**」ことを合成で固定する。
+  {
+    const tr = new ChargeDotTracker(NO_DECOR);
+    for (let i = 0; i < 60; i++) {
+      const img = makeImage(200, 40, [40, 40, 44]);
+      // ★2つの山を置く。**輝度はほぼ同じだが、片方は暖色・片方は灰色**。
+      //   暖色 (200,120,40) の輝度 ≈ 137.6 ／ 灰色 (137,137,137) の輝度 = 137
+      fillRect(img, 40 - 8, 12, 16, 16, [200, 120, 40]);
+      fillRect(img, 120 - 8, 12, 16, 16, [137, 137, 137]);
+      tr.push(i / 30, img);
+    }
+    const g = tr.solveGeometry();
+    check('★色（R/G/B）の走全体平均を返す', !!g.rgb && g.rgb.frames === 60, JSON.stringify(g.rgb?.frames));
+    check('★色み（R−B）の配列を返す', Array.isArray(g.chroma) && g.chroma.length === 120);
+    check('★山ごとの色を返す', Array.isArray(g.humpColors) && g.humpColors.length === 2,
+      JSON.stringify(g.humpColors));
+    const [warm, gray] = g.humpColors ?? [];
+    // ★★これが本テストの主眼＝**輝度がほぼ同じでも色で分かれる**
+    // ⚠ 山ごとの色は**中心 ±間隔/4 の平均**なので背景で薄まる（素の R−B=160 → 実測 60）。
+    //   ∴ 固定するのは「**桁で分かれる**」という性質であって、絶対値ではない。
+    check('★★輝度がほぼ同じ2つの山を、色（R−B）が区別する（灰は≈0・暖色は桁で大きい）',
+      warm && gray && warm.chroma > 30 && Math.abs(gray.chroma) < 10
+      && warm.chroma > 5 * Math.abs(gray.chroma),
+      `暖色 R−B=${warm?.chroma} / 灰色 R−B=${gray?.chroma}`);
+    check('　　灰色の山は R≈G≈B', gray && Math.abs(gray.r - gray.b) < 10 && Math.abs(gray.g - gray.b) < 10,
+      JSON.stringify(gray));
+  }
+
+  // ★★色みの時系列＝**いつ点いたか**（2026-08-18f）
+  //   ★ユーザー確定情報: **CT はターン1回につき1つ蓄積**・**オレンジ**・**M3-1.mp4 でも点灯を観測済み**。
+  //   ∴ 「録画中に必ず変化している」＝時系列が取れれば CT の値そのものが読める。
+  //   ここでは**途中でオレンジに変わる山**を作り、**立ち上がりの時刻が出る**ことを固定する。
+  {
+    const tr = new ChargeDotTracker(NO_DECOR);
+    const N = 120, LIT_AT = 60;      // 後半だけ点灯（2秒目から）
+    for (let i = 0; i < N; i++) {
+      const img = makeImage(200, 40, [40, 40, 44]);
+      const lit = i >= LIT_AT;
+      fillRect(img, 40 - 8, 12, 16, 16, lit ? [220, 130, 40] : [130, 130, 132]);
+      fillRect(img, 120 - 8, 12, 16, 16, [130, 130, 132]);   // こちらは最後まで消灯
+      tr.push(i / 30, img);
+    }
+    const g = tr.solveGeometry();
+    const [a, b] = g.humpChroma ?? [];
+    check('★山ごとの色みの分布と時系列を返す', !!a && Array.isArray(a.series), JSON.stringify(a?.p50));
+    // ★★点いた山は分布が二峰＝p25 と p75 が離れる／消灯のままの山は離れない
+    check('★★点灯した山は色みの分布が割れる（p25≪p75）・消灯のままの山は割れない',
+      a && b && (a.p75 - a.p25) > 20 && Math.abs(b.p75 - b.p25) < 10,
+      `点灯側 p25=${a?.p25} p75=${a?.p75} / 消灯側 p25=${b?.p25} p75=${b?.p75}`);
+    // ★★立ち上がりの時刻が時系列に出る
+    const s = a?.series ?? [];
+    const half = Math.floor(s.length / 2);
+    const early = s.slice(0, half).filter((v) => v != null);
+    const late = s.slice(half).filter((v) => v != null);
+    const avg = (v) => v.reduce((x, y) => x + y, 0) / Math.max(1, v.length);
+    check('★★時系列が立ち上がりを示す（前半 ≈0 → 後半で大きい）',
+      avg(late) - avg(early) > 20 && Math.abs(avg(early)) < 15,
+      `前半 ${avg(early).toFixed(1)} → 後半 ${avg(late).toFixed(1)}`);
+    check('★色みプロファイルの標本も返る', Array.isArray(g.chromaSamples) && g.chromaSamples.length >= 2,
+      String(g.chromaSamples?.length));
+  }
+
+  // ★★区間の切り出し・大津法・塗り率（2026-08-18g）
+  //   ⭐ 実測で分かった2つの信号を、合成でそのまま再現して固定する:
+  //     **全ピップ同時 13〜20**＝画面全体のオレンジ演出／**1個だけ 104〜130**＝そのピップの点灯。
+  {
+    const { otsuSplit, otsuSplit2, litIntervals, chromaFillSeries }
+      = await import('../src/transcribe/charge_dots.js');
+
+    // ① ★★大津法は2クラス法＝**3層あると一度では足りない**（実測の色みは 灰/演出/点灯 の3層）
+    const vals = [...Array(500).fill(-1.5), ...Array(60).fill(17), ...Array(40).fill(120)];
+    const one = otsuSplit(vals);
+    check('★★1段だけだと切れ目が「灰とそれ以外」に落ちる（＝演出が点灯側に混ざる）',
+      one != null && one < 17, `1段目=${one}`);
+    const lv = otsuSplit2(vals);
+    const split = lv.high;
+    check('★★2段掛けなら演出（17）と点灯（120）の間に入る',
+      split != null && split > 17 && split < 120, `1段目=${lv.low} / 2段目=${lv.high}`);
+    check('★どちらの切れ目も返す（どこで切ったかを隠さない）',
+      typeof lv.low === 'number' && typeof lv.high === 'number', JSON.stringify(lv));
+    check('★上位クラスが乏しければ2段目は作らない（無いものを作らない）',
+      otsuSplit2([...Array(500).fill(-1.5), ...Array(3).fill(120)]).high === null);
+
+    // ② 区間の切り出し＝**短い点灯もバケット平均で薄まらない**
+    const nF = 300, times = Array.from({ length: nF }, (_, i) => i / 30);
+    const mk = (spans, base = -1.5) => {
+      const a = new Array(nF).fill(base);
+      for (const [s, e, v] of spans) for (let i = s; i < e; i++) a[i] = v;
+      return a;
+    };
+    // 1個目＝t 3.0〜5.0 に点灯／全体演出は t 1.0〜1.5 に全山で 17
+    const perHump = [
+      mk([[30, 45, 17], [90, 150, 125]]),
+      mk([[30, 45, 17]]),
+      mk([[30, 45, 17], [200, 206, 90]]),   // ★**0.2秒だけの短い点灯**
+    ];
+    const iv = litIntervals(perHump, times, split);
+    check('★★1個目の点灯区間が時刻つきで出る', iv[0].runs.length === 1
+      && Math.abs(iv[0].runs[0].from - 3.0) < 0.1 && Math.abs(iv[0].runs[0].to - 4.97) < 0.1,
+      JSON.stringify(iv[0].runs));
+    check('　　演出（切れ目より下）は区間にならない', iv[1].count === 0, JSON.stringify(iv[1]));
+    check('★★0.2秒の短い点灯も消えない（3秒バケットの平均なら薄まって見えなくなる）',
+      iv[2].count === 1 && iv[2].runs[0].frames === 6, JSON.stringify(iv[2].runs));
+    check('★同時に超えた本数（coin）を併記する＝全体演出と個別点灯を読み分けられる',
+      iv[0].runs[0].coincident === 1, String(iv[0].runs[0].coincident));
+
+    // ③ ★★★共通モード除去＝**画面全体の演出は何段階あっても消える／点灯だけ残る**
+    //   ⚠ 実測でこれを外した＝色みの層が4つ（灰/演出/点灯/強い演出）あり、
+    //     大津法の多段掛けは **CT の点灯を切り捨てて強い演出だけ**を拾った（出た区間の 7/8 が coin=5）。
+    //   ⭐ 正しい切り分けは**大きさではなく「どこが色づいたか」**＝
+    //     全体演出は**谷も**色づけるが、点灯は**ピップだけ**を色づける。
+    {
+      const { subtractCommonMode } = await import('../src/transcribe/charge_dots.js');
+      const W2 = 120, centers = [20, 45, 70, 95], sp = 25;
+      const frames = [];
+      const paint = (pipVals, bgVal) => {
+        const p = new Float32Array(W2).fill(bgVal);
+        centers.forEach((c, k) => { for (let x = c - 6; x <= c + 6; x++) p[x] = bgVal + pipVals[k]; });
+        return p;
+      };
+      frames.push(paint([0, 0, 0, 0], -2));          // 何も無い
+      frames.push(paint([0, 0, 0, 0], 17));          // ★弱い全体演出（谷も 17）
+      frames.push(paint([0, 0, 0, 0], 190));         // ★★強い全体演出（谷も 190）
+      frames.push(paint([130, 0, 0, 0], -2));        // ★1個目だけ点灯
+      frames.push(paint([130, 130, 130, 130], -2));  // ★★全部点灯（他ピップ参照だと消える例）
+      const cm = subtractCommonMode(frames, centers, sp, W2);
+      const r = (i, h) => Math.round(cm.excess[h][i]);
+      check('★★弱い全体演出は差し引きで消える', Math.abs(r(1, 0)) < 5, `残差 ${r(1, 0)}`);
+      check('★★★強い全体演出も消える（大きさで切ろうとして外した当のもの）',
+        Math.abs(r(2, 0)) < 5, `残差 ${r(2, 0)}`);
+      check('★1個だけの点灯は残る', r(3, 0) > 100 && Math.abs(r(3, 1)) < 5,
+        `1個目 ${r(3, 0)} / 2個目 ${r(3, 1)}`);
+      check('★★全部点灯しても残る（★他のピップを参照にしていたら消えていた）',
+        [0, 1, 2, 3].every((h) => r(4, h) > 100), [0, 1, 2, 3].map((h) => r(4, h)).join(','));
+      check('★参照に使った谷の位置を返す（どこを引いたかを隠さない）',
+        Array.isArray(cm.troughs) && cm.troughs.length >= 3, JSON.stringify(cm.troughs));
+    }
+
+    // ④ 塗り率＝色みの階段フィットが境界の移動に追随する
+    const W = 100;
+    const frames = [], ts = [];
+    for (let i = 0; i < 40; i++) {
+      const edge = Math.round(W * (0.2 + 0.6 * i / 40));
+      const prof = new Float32Array(W);
+      for (let x = 0; x < W; x++) prof[x] = x < edge ? 100 : -2;
+      frames.push(prof); ts.push(i / 30);
+    }
+    const fs = chromaFillSeries(frames, ts, 8);
+    check('★★塗り率が境界の移動に追随する（0.2 → 0.8 へ増える）',
+      fs && fs.series[0] < 0.3 && fs.series.at(-1) > 0.7,
+      `${fs?.series[0]} → ${fs?.series.at(-1)}`);
+    check('★段差の大きさも返す（小さければ境界が無い＝塗り率を信じない、と判断できる）',
+      fs && fs.step.p50 > 50, JSON.stringify(fs?.step));
   }
 
   // 薄すぎる ROI は失敗と言う
@@ -1076,6 +1444,98 @@ console.log('\n[10] ROI 定義の健全性');
     JSON.stringify(Object.entries(ROIS).filter(([, r]) => r && (r.x + r.w > 1.0001))));
   check('★hpbar は P2-5 の入力として登録されている（未採寸でもキーは在る）',
     'hpbar' in ROIS);
+  // ★2026-08-18: 要素ごとに人が採寸する方式へ（ユーザー提案）＝4枠とも採寸済み。
+  for (const k of ['hpbar', 'modebar', 'ct', 'debuff']) {
+    check(`　　${k} が採寸済み（値が入っている）`, !!ROIS[k], JSON.stringify(ROIS[k]));
+  }
+  // ★★`ct` は 2026-08-17 に「目盛り」と判定した6山（canvas x 700〜802）を含むこと。
+  //   ⚠ これが崩れたら、あの構造が CT だったという同定の根拠が消える＝採寸のやり直しが要る。
+  {
+    const box = { x: 290, y: 198, w: 1684, h: 1129 };
+    const cx0 = ROIS.ct.x * box.w, cx1 = cx0 + ROIS.ct.w * box.w;
+    check('★★ct は 2026-08-17 の「等間隔6山」(canvas x 700〜802) を含む＝あれは CT だった',
+      cx0 <= 700 && cx1 >= 802, `ct: x ${cx0.toFixed(0)}〜${cx1.toFixed(0)}`);
+  }
+}
+
+// ── 14. ★★ページ配線の健全性（2026-08-18c 新設）─────────────
+//   ⚠⚠ **なぜ要るか（実際に起きた事故）**: `src/transcribe/main.js` が
+//     **0 バイトに切り詰められたまま2コミット出荷された**。原因は書き換えスクリプトの評価順のバグで、
+//     `open(path,'w')` が先に評価されてファイルを空にしてから、その空ファイルを読んで書き戻していた。
+//   ★**そして 190 件のテストが全部通った**＝`main.js` は DOM 依存で import できないため、
+//     **唯一「全部を配線しているファイル」だけが無検査だった**。
+//   ∴ import せずに検査できることだけを検査する＝**存在・構文・配線**。
+//   ⭐ 「壊れたら気づける」より弱い保証でも、**気づけない箇所をゼロにする**ほうが効く。
+console.log('\n[14] ページ配線の健全性（★main.js は import できないので、存在・構文・配線を検査する）');
+{
+  const { readFileSync, readdirSync } = await import('node:fs');
+  const { execFileSync } = await import('node:child_process');
+  const root = new URL('../', import.meta.url).pathname;
+
+  const dir = root + 'src/transcribe/';
+  const files = readdirSync(dir).filter((f) => f.endsWith('.js'));
+  check('★src/transcribe/ に .js が期待どおり在る（11本以上）', files.length >= 11, `${files.length}本`);
+
+  for (const f of files) {
+    const body = readFileSync(dir + f, 'utf8');
+    // ★★切り詰め検出＝**空でないこと**。事故はここだけで捕まえられた。
+    check(`　　${f} が空でない`, body.length > 500, `${body.length} 字`);
+    // 構文が壊れていないこと（ESM として parse できるか）
+    let ok = true, err = '';
+    try {
+      execFileSync(process.execPath, ['--input-type=module', '--check'], { input: body, stdio: 'pipe' });
+    } catch (e) { ok = false; err = String(e.stderr ?? e).split('\n').slice(0, 2).join(' '); }
+    check(`　　${f} が ESM として構文エラーなく parse できる`, ok, err);
+  }
+
+  // ★配線＝main.js が触る DOM の id が index.html に実在すること
+  const main = readFileSync(dir + 'main.js', 'utf8');
+  const html = readFileSync(root + 'transcribe/index.html', 'utf8');
+  const used = [...new Set([...main.matchAll(/\$\('([A-Za-z0-9_-]+)'\)/g)].map((m) => m[1]))];
+  check('★main.js が DOM の id を参照している（10個以上）', used.length >= 10, `${used.length}個`);
+  const missing = used.filter((id) => !html.includes(`id="${id}"`));
+  check('★★main.js が触る id はすべて index.html に実在する', missing.length === 0,
+    `index.html に無い id: ${JSON.stringify(missing)}`);
+
+  // ★逆向き＝index.html のボタンが main.js から配線されていること（押しても無反応を防ぐ）
+  const buttons = [...html.matchAll(/<button[^>]*id="([A-Za-z0-9_-]+)"/g)].map((m) => m[1]);
+  const unwired = buttons.filter((id) => !main.includes(`'${id}'`));
+  check('★★index.html のボタンはすべて main.js から配線されている（押しても無反応を作らない）',
+    unwired.length === 0, `配線が無いボタン: ${JSON.stringify(unwired)}`);
+
+  // ★版が刻まれていること（provenance＝どの版の出力かが分からないと走が無駄になる）
+  const ver = main.match(/const VERSION = '([0-9]+\.[0-9]+\.[0-9]+)'/);
+  check('★main.js に VERSION が刻まれている', !!ver, ver?.[1] ?? '見つからない');
+}
+
+// ── 15. ★★★ページの初期化スモーク（2026-08-18i 新設）───────────
+//   ⚠⚠ **2回続けて「ボタンが全部効かない」を出した**のに、そのたびセルフテストは全部通っていた。
+//     [14] は「空でない・ESM として parse できる・id が index.html に在る」までしか見ておらず、
+//     ★**parse できることと、実行して初期化が通ることは別**だから。
+//   ∴ **最小の DOM スタブで main.js を実際に読み込む**（別プロセス＝globalThis を汚さない）。
+console.log('\n[15] ページの初期化スモーク（★main.js を DOM スタブで実際に実行する）');
+{
+  const { execFileSync } = await import('node:child_process');
+  const { readFileSync } = await import('node:fs');
+  const root = new URL('../', import.meta.url).pathname;
+  let out = '', failed = false;
+  try {
+    out = execFileSync(process.execPath, [root + 'tools/t1_page_smoke.mjs'], { encoding: 'utf8' });
+  } catch (e) { failed = true; out = String(e.stdout ?? '') + String(e.stderr ?? ''); }
+  check('★★★main.js が例外なく初期化される（import 解決・初期化中の例外を含む）',
+    !failed && out.includes('INIT_OK'), out.split('\n')[0]);
+  check('★★全ボタンにハンドラが付く（＝押しても無反応、を作らない）',
+    out.includes('BUTTONS_OK'), out.split('\n').find((l) => l.startsWith('DEAD_BUTTONS')) ?? '');
+  check('★初期化完了の合図（window.__t1Ready）が立つ', out.includes('READY_OK'), out);
+
+  // ★★壊れたときに**画面が黙らない**こと（2回とも画面は無反応なだけだった）
+  const html = readFileSync(root + 'transcribe/index.html', 'utf8');
+  check('★★module の読み込みエラーを画面に出す番人が index.html に在る',
+    html.includes("addEventListener('error'") && html.includes('id="fatal"'));
+  check('★★読み込み自体が起きなかった場合も「初期化されていません」と言う',
+    html.includes('__t1Ready') && html.includes('初期化されていません'));
+  check('★その番人は classic script（module が壊れていても動く）',
+    /<script>[\s\S]*__t1Ready[\s\S]*<\/script>/.test(html));
 }
 
 console.log('\n' + '='.repeat(60));
