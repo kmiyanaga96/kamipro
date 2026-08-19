@@ -1508,6 +1508,36 @@ console.log('\n[14] ページ配線の健全性（★main.js は import でき�
   check('★main.js に VERSION が刻まれている', !!ver, ver?.[1] ?? '見つからない');
 }
 
+// ── 15. ★★★ページの初期化スモーク（2026-08-18i 新設）───────────
+//   ⚠⚠ **2回続けて「ボタンが全部効かない」を出した**のに、そのたびセルフテストは全部通っていた。
+//     [14] は「空でない・ESM として parse できる・id が index.html に在る」までしか見ておらず、
+//     ★**parse できることと、実行して初期化が通ることは別**だから。
+//   ∴ **最小の DOM スタブで main.js を実際に読み込む**（別プロセス＝globalThis を汚さない）。
+console.log('\n[15] ページの初期化スモーク（★main.js を DOM スタブで実際に実行する）');
+{
+  const { execFileSync } = await import('node:child_process');
+  const { readFileSync } = await import('node:fs');
+  const root = new URL('../', import.meta.url).pathname;
+  let out = '', failed = false;
+  try {
+    out = execFileSync(process.execPath, [root + 'tools/t1_page_smoke.mjs'], { encoding: 'utf8' });
+  } catch (e) { failed = true; out = String(e.stdout ?? '') + String(e.stderr ?? ''); }
+  check('★★★main.js が例外なく初期化される（import 解決・初期化中の例外を含む）',
+    !failed && out.includes('INIT_OK'), out.split('\n')[0]);
+  check('★★全ボタンにハンドラが付く（＝押しても無反応、を作らない）',
+    out.includes('BUTTONS_OK'), out.split('\n').find((l) => l.startsWith('DEAD_BUTTONS')) ?? '');
+  check('★初期化完了の合図（window.__t1Ready）が立つ', out.includes('READY_OK'), out);
+
+  // ★★壊れたときに**画面が黙らない**こと（2回とも画面は無反応なだけだった）
+  const html = readFileSync(root + 'transcribe/index.html', 'utf8');
+  check('★★module の読み込みエラーを画面に出す番人が index.html に在る',
+    html.includes("addEventListener('error'") && html.includes('id="fatal"'));
+  check('★★読み込み自体が起きなかった場合も「初期化されていません」と言う',
+    html.includes('__t1Ready') && html.includes('初期化されていません'));
+  check('★その番人は classic script（module が壊れていても動く）',
+    /<script>[\s\S]*__t1Ready[\s\S]*<\/script>/.test(html));
+}
+
 console.log('\n' + '='.repeat(60));
 console.log(`結果: ${pass} passed / ${fail} failed`);
 if (fail) {

@@ -147,6 +147,49 @@ th{background:#f0f2f5;}
   </div>
 </div>
 
+<!--
+  ★★★**壊れたら画面がそう言う**（2026-08-18i 新設）。
+  ⚠ 2回続けて「ボタンが全部効かない」で時間を失った。1回目は `main.js` が 0 バイト、
+    2回目は原因不明。**どちらも画面は何も言わず、ただ無反応**だった＝
+    ユーザーからは「壊れた」としか分からず、私（Claude）はブラウザを見られない。
+  ★module の読み込みや初期化で例外が出たら**赤い帯で理由を出す**。
+    さらに、読み込み自体が起きなかった場合（0バイト・404・ネットワーク）も
+    **「初期化されていません」と明示する**＝無言で死なせない。
+  ⚠ これは classic script（type="module" ではない）＝module が壊れていても必ず動く。
+-->
+<div id="fatal" style="display:none;position:fixed;left:0;right:0;bottom:0;z-index:9999;
+  background:#e0392b;color:#fff;padding:10px 14px;font-size:12px;line-height:1.5;
+  white-space:pre-wrap;max-height:45vh;overflow:auto"></div>
+<script>
+(function () {
+  var box = document.getElementById('fatal');
+  function show(title, detail) {
+    box.style.display = 'block';
+    box.textContent = '⚠ ' + title + '\n' + (detail || '')
+      + '\n\n★この文面をそのまま Claude に貼ってください（Claude は画面を見られません）。';
+  }
+  window.addEventListener('error', function (e) {
+    show('ページの読み込みでエラーが出ました（ボタンは効きません）',
+      (e.message || '') + '\n' + (e.filename || '') + ':' + (e.lineno || '')
+      + (e.error && e.error.stack ? '\n' + e.error.stack : ''));
+  }, true);
+  window.addEventListener('unhandledrejection', function (e) {
+    show('非同期処理でエラーが出ました', String((e.reason && e.reason.stack) || e.reason || ''));
+  });
+  // ★読み込み自体が起きなかった場合の番人（0バイト・404・ネットワーク断）
+  window.addEventListener('load', function () {
+    setTimeout(function () {
+      if (!window.__t1Ready) {
+        show('スクリプトが初期化されていません（ボタンは効きません）',
+          '/src/transcribe/main.js が読み込まれていないか、途中で止まっています。\n'
+          + '① ブラウザをハードリロード（Ctrl+Shift+R）\n'
+          + '② それでも直らなければ `npm run dev` を再起動\n'
+          + '③ ブラウザの開発者ツール → Console のエラーを貼る');
+      }
+    }, 1500);
+  });
+})();
+</script>
 <script type="module" src="/src/transcribe/main.js"></script>
 </body>
 </html>

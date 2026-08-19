@@ -308,6 +308,13 @@ $('copyDiag').onclick = () => {
 };
 $('saveDiag').onclick = downloadDiag;
 
+// ★★**初期化が最後まで通った合図**（2026-08-18i）。
+//   ⚠ これが立たなければ index.html の番人が「初期化されていません」と赤帯を出す。
+//   ★2回続けて「ボタンが全部効かない」で時間を失ったが、**どちらも画面は無言だった**。
+//     ツールは**壊れたら壊れたと言う**（`hp_bar` の「読めないときは読めないと言う」と同じ規律）。
+window.__t1Ready = true;
+window.__t1Version = VERSION;
+
 // ── ★フレーム間隔の実測（P1 発見⑧ / VFR の飛び） ───────────
 // requestVideoFrameCallback は「実際に表示されたフレーム」ごとに mediaTime を返す。
 // ∴ ffprobe を使わずブラウザ内で間隔分布が取れる＝ユーザーの手数が減る。
