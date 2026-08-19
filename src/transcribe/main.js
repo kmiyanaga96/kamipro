@@ -40,6 +40,17 @@ let lastHarvest = null;  // ★P3-1 グリフ採取の結果（代表をシー�
 let lastHarvestObj = null;  // 実画素を取り出すための採取器そのもの（描画専用）
 let loadedAtlas = null;  // ★読み込み済みのアトラス（まだ無いのが正常＝P3-1 はこれを作る段）
 
+const rois = {};         // 登録済み ROI（name → 正規化座標）
+// ★★**起動時に `rois.js` の採寸済み ROI を読み込む**（2026-08-18）。
+//   ⚠ これが無いと、**既に採寸済みの枠が画面に出ない**＝
+//     ①重なりを目で確認できない ②採り直しの基準が見えない
+//     ③どの名前を埋めればよいのか分からない、の3つが同時に起きる（実際に起きた）。
+//   ★採寸は「白紙から始める作業」ではなく「**既にある定義を確認・更新する作業**」。
+const roiOrigin = {};    // name → 'rois.js' | 'measured'（provenance＝どちらの由来か）
+for (const [k, v] of Object.entries(ROIS)) {
+  if (v) { rois[k] = { ...v }; roiOrigin[k] = 'rois.js'; }
+}
+
 /** 分位点だけに畳む（生の配列は完全 JSON にも載せない＝数千件になるため）。 */
 function quant(arr) {
   if (!arr?.length) return null;

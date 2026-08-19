@@ -1527,6 +1527,15 @@ console.log('\n[15] ページの初期化スモーク（★main.js を DOM ス�
   check('★★全ボタンにハンドラが付く（＝押しても無反応、を作らない）',
     out.includes('BUTTONS_OK'), out.split('\n').find((l) => l.startsWith('DEAD_BUTTONS')) ?? '');
   check('★初期化完了の合図（window.__t1Ready）が立つ', out.includes('READY_OK'), out);
+  // ★★★2026-08-19c 追加＝**実際に全ボタンを押して例外が出ないこと**。
+  //   ⚠⚠ これが無くて出荷した: リファクタで `rois` の宣言を消してしまい、
+  //     「このフレームを解析」を押した瞬間に `ReferenceError: rois is not defined`。
+  //     **294件のセルフテストは全部通っていた**（初期化は通り、ハンドラも付いていたため）。
+  //   ★**ハンドラが付いていることと、押して動くことは別**。
+  //   ✅ 採用前に**バグを戻して落ちること**を確認済（`CLICK_ERRORS copyRois: ReferenceError`）。
+  check('★★★全ボタンを実際に押しても例外が出ない（未定義参照をここで捕まえる）',
+    out.includes('CLICKS_OK'),
+    out.split('\n').find((l) => l.startsWith('CLICK_ERRORS')) ?? out);
 
   // ★★壊れたときに**画面が黙らない**こと（2回とも画面は無反応なだけだった）
   const html = readFileSync(root + 'transcribe/index.html', 'utf8');
