@@ -1,0 +1,729 @@
+// T1 録画転記 — グリフ（数字・ラベル）の切り出しと照合（Phase 9 P3-1）
+//
+// ★本モジュールが答える問い: 「**このフレームの `dmg` ROI に、どの文字が、どこに出ているか**」。
+//   値の意味づけ（どの成分か・どの押下か）は P3-2 以降の仕事で、ここでは扱わない。
+//
+// ─────────────────────────────────────────────────────────────
+// ★設計を縛っている実物の事実（すべてユーザー確認済＝推測ではない）
+// ─────────────────────────────────────────────────────────────
+//  ① **ラベル（`CRITICAL!` 等）は1つ上のヒットの数値にも重なる**（P1 発見①）
+//     → ラベルを**先に検出してマスク**してから数字を読む。順序が逆だと汚染された画素で照合する。
+//  ② **キラキラ（4条星）が数字に重なる**（P1 発見⑫）→ **遮蔽に強い照合**が要る。
+//  ③ 重なりは**半透明合成**＝両方が部分的に残る → 「消えた」ではなく「薄まった」として扱う。
+//  ④ **数字は固定ビットマップフォントだが塗りは一定でない**（金グラデ）
+//     → **塗りの明るさで照合してはいけない**。**縁取り（エッジ）**で照合する。
+//  ⑤ ダメージ数値は「わずかにフェード・**位置は基本的に不動**」（ユーザー確定 2026-08-15）
+//     → 位置アンカーが成立する。ただし**画素の凍結では同一判定できない**（②が動かし続ける）。
+//  ⑥ ⚠ **金色画素の割合ではポップアップの有無を分けられない**（P2-2 v2 が実走で棄却済＝
+//     しきい値格子9通りすべて単峰・Fisher 分離 1.57〜1.95）。**バースト演出そのものが金色**だから。
+//     ∴ 本モジュールは色を一切使わない。**数字の形（縁取りの構造）だけが数字を切り出す**。
+//
+// ─────────────────────────────────────────────────────────────
+// ★「テンプレートをどこから得るか」＝本モジュールの中心的な設計判断
+// ─────────────────────────────────────────────────────────────
+//   フォントは**実機のもの**なので、テンプレートは**実機の録画からしか得られない**。
+//   ⚠ Claude が形を推測して書いたテンプレートは、**合成テストだけが通って実機で静かに外す**
+//     （Phase 9 で3回踏んだ「測定器の性質を観測対象の性質と取り違える」型）。
+//   ∴ 段取りを **採取 → ラベル付け → 照合** の3つに割る:
+//     1. **採取**（🔧 ツール）: 走から**グリフらしい塊**を集め、似た形どうしをまとめる（`GlyphHarvest`）。
+//        ★ここで「0〜9 のどれか」は決めない＝**形の分類までが機械の仕事**。
+//     2. **ラベル付け**（👤 ユーザー）: 代表画像を見て「これは 7」と**1回だけ**答える。
+//        ★憲法どおり＝**観測と判断はユーザー**。1分で終わることを機械に当てさせない
+//        （`rois.js` の採寸で確立した規律と同型）。
+//     3. **照合**（🔧 ツール）: 以後は登録済みアトラスとの照合＝**二度と人に訊かない**。
+//   ⚠ **アトラスが空のうちは読み取りを試みない**（`T1-MATCH-006`）。
+//     推測テンプレで動かすと「読めている」ように見えて全部間違う、が起こりうる。
+//
+// 純関数（DOM 非依存）＝Node でセルフテストできる。依存なし（葉モジュール）。
+
+/**
+ * 既定値。⚠ **すべて合成フィクスチャ由来の未較正値**（E1＝測定条件を併記する）。
+ * 実走のプロファイル分布を見てから決め直す。閾値を先に固定しないのが P2-2 の教訓。
+ */
+export const GLYPH_DEFAULTS = {
+  /** 行/列の切り出し: 背景（中央値）を引いた残差の、最大値に対する割合 */
+  rowThresholdFraction: 0.18,
+  colThresholdFraction: 0.10,
+  /**
+   * ★背景の水準を採る分位点。**中央値ではない**。
+   * ⚠ 中央値にしていて外した: 行帯の列プロファイルは**ほとんどが文字**なので、
+   *   中央値が文字の上に乗り（実測 base 28.8・しきい 49.7）、**1文字が3つに割れた**。
+   *   ★「背景」は**低位分位**で採る＝字間の谷がその水準を作る。
+   */
+  basePercentile: 0.10,
+  /**
+   * ★行の切り出しだけ**隙間を埋める**（px）。
+   * ⚠ **文字行のプロファイルは台形ではなく凸凹**（字の横棒がある行だけ強い）＝
+   *   割合でしきると**1行が数本に割れる**（実際に割れた）。∴ 低めにしきって**近い塊をつなぐ**。
+   * ⚠ 列側も**1px 級の落ち込み**（字の内部に縦の空きがある位置）で割れるので少しだけ埋める。
+   *   ★**割れるより併合するほうが安全**＝併合は送り幅で等分して戻せるが、
+   *     1文字が3つに割れたら送り幅の推定そのものが壊れる（実際に median 幅が 2px になった）。
+   */
+  rowGapClose: 4,
+  colGapClose: 2,
+  /** 行と認めるための最小の高さ（px） */
+  minRowHeight: 6,
+  /** グリフと認めるための最小の幅（px） */
+  minGlyphWidth: 2,
+  /** 併合（重なりで2文字がくっついた）と見なす幅の倍率（★格子が使えないときの退避路） */
+  mergeWidthFactor: 1.6,
+  /**
+   * ★送り幅（格子）の探索範囲＝**行の高さに対する比**。
+   * 固定ビットマップフォントは字高と送り幅が比例するので、**測った行高から範囲が決まる**
+   * （px の絶対値をハードコードしない＝録画解像度・ズームに依存しない）。
+   */
+  pitchMin: 0.35, pitchMax: 1.40, pitchStep: 0.25,
+  /** 格子の合致度（セル中央と境界のエネルギー比）がこれ未満なら格子を信用しない */
+  gridContrastFloor: 0.25,
+  /** 署名の格子（テンプレートの解像度）。アトラスにも刻む */
+  cell: { w: 12, h: 20 },
+  /** 照合の異物ペナルティ係数 λ（score = cover − λ·alien） */
+  lambda: 0.6,
+  /** 1位と2位の差がこれ未満なら「曖昧」とする */
+  ambiguityMargin: 0.08,
+  /** これ未満の score は「一致なし（?）」にする＝**無理に読まない** */
+  minScore: 0.35,
+  /**
+   * ★**1位と2位が拮抗したら読まない**（既定 true）。
+   * ⚠⚠ **実測（2026-08-19・合成 3背景 × 3塗り × 10字 = 90 標本）**:
+   *   - **誤読 9件は 9件とも `ambiguous`**（＝margin < 0.08）だった。
+   *   - 一方 **score の絶対値では分けられない**（誤読 0.564〜0.632 ／ 正解 0.539〜0.999 と重なる）。
+   *   ∴ **採否を決めるのは score ではなく「1位と2位の差」**。これを既定の policy にする。
+   * ⚠ 代償＝**アトラスと条件が違うフレームでは読めないが増える**（正解のうち曖昧＝
+   *   同条件 1/30・別背景 13/30）。★**間違って読むより読めないと言うほうが良い**（本 Phase の憲法）。
+   */
+  rejectAmbiguous: true,
+  /**
+   * 採取のクラスタリング閾値（soft Jaccard）。
+   * ★★**「同じ字を1つにまとめる」ことは狙わない**（狙って外した）。
+   * ⚠ 実測（合成 3背景 × 3塗り × 10字＝90標本・2026-08-19）:
+   *   | 閾値 | クラスタ数 | **別の字が混ざったクラスタ** |
+   *   |---|---|---|
+   *   | 0.62 | 11 | **5**（最大4字が同居） |
+   *   | 0.80 | 43 | 3 |
+   *   | **0.85** | **53** | **0** |
+   *   | 0.95 | 89 | 0 |
+   *   ＝**同じ字を1つにまとめる閾値では、別の字も混ざる**（同字 min 0.42 < 異字 max 0.81）。
+   * ★∴ 目標を**純度**へ置き換えた＝**1つのクラスタに2つの字を混ぜない**こと。
+   *   1つの字が条件ごとに複数クラスタになるのは**正しい**＝それがそのまま `variants` になり、
+   *   実測で**読める率が 54/90 → 88/90 に上がる**（誤りは両方ゼロ）。
+   *   ⚠ 純度が崩れると**ユーザーが付けたラベルが間違ったテンプレートに付く**＝一番高い代償。
+   */
+  clusterSimilarity: 0.85,
+  /** クラスタ数の上限（超えたら閾値が緩すぎる合図）。★条件ごとに増えるので余裕を持たせる */
+  maxClusters: 400,
+};
+
+// ─────────────────────────────────────────────────────────────
+// 1. 縁取り（エッジ）の場
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * ROI の輝度場を取り出す。
+ * ⚠ 色は使わない（上の⑥＝演出そのものが金色）。
+ * @param {{width:number,height:number,data:Uint8ClampedArray}} img
+ * @param {{x:number,y:number,w:number,h:number}} rect
+ * @returns {{w:number,h:number,lum:Float32Array}}
+ */
+export function luminanceField(img, rect) {
+  const w = Math.max(0, Math.round(rect.w)), h = Math.max(0, Math.round(rect.h));
+  const lum = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const sy = Math.round(rect.y) + y;
+    for (let x = 0; x < w; x++) {
+      const sx = Math.round(rect.x) + x;
+      if (sx < 0 || sy < 0 || sx >= img.width || sy >= img.height) continue;
+      const k = (sy * img.width + sx) * 4;
+      lum[y * w + x] = 0.299 * img.data[k] + 0.587 * img.data[k + 1] + 0.114 * img.data[k + 2];
+    }
+  }
+  return { w, h, lum };
+}
+
+/**
+ * 縁取りの強さ（勾配の大きさ）。
+ *
+ * ★**なぜ勾配か**＝上の④。塗りが金グラデで一定でないので**明るさそのものは使えない**が、
+ *   「縁取り（濃い）と塗り（明るい）の境目」は**塗りが何色でも立つ**。
+ * ★あわせて**背景の緩い明暗（宇宙背景・光エフェクト）は勾配が小さい**ので自然に落ちる。
+ *   ⚠ ただし**強い演出のきらめきは勾配が立つ**＝ここでは落ちない。落とすのは形の照合の仕事。
+ */
+export function edgeField(field) {
+  const { w, h, lum } = field;
+  const mag = new Float32Array(w * h);
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const gx = Math.abs(lum[y * w + x + 1] - lum[y * w + x - 1]);
+      const gy = Math.abs(lum[(y + 1) * w + x] - lum[(y - 1) * w + x]);
+      mag[y * w + x] = (gx + gy) / 2;
+    }
+  }
+  return { w, h, mag };
+}
+
+/** 分位点（配列を壊さない）。 */
+export function quantile(arr, p) {
+  if (!arr.length) return 0;
+  const a = Float64Array.from(arr).sort();
+  return a[Math.min(a.length - 1, Math.max(0, Math.floor(p * a.length)))];
+}
+
+// ─────────────────────────────────────────────────────────────
+// 2. 行・グリフの切り出し
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * 射影プロファイルから「盛り上がっている区間」を返す。
+ *
+ * ★**しきい方は「振幅の中点」ではなく「背景（中央値）を引いた残差の割合」**。
+ *   ⚠ CT ドット（`charge_dots.rawHumps`）では中点で足りたが、ここでは足りない＝
+ *     **明るい行が1つあると中点が持ち上がり、暗い行が丸ごと消える**（ポップアップは同じ強さで出ない）。
+ *   ★参照点を**背景の水準**に置き直すのは、CT で効いた「共通モード除去」と同じ考え方
+ *   （閾値の段を足すのではなく、**何を基準に測るかを変える**）。
+ */
+export function runsAbove(profile, fraction, minLength = 1, gapClose = 0, basePercentile = GLYPH_DEFAULTS.basePercentile) {
+  const arr = Array.from(profile, Number);
+  if (!arr.length) return { runs: [], base: 0, threshold: 0, peak: 0 };
+  const base = quantile(arr, basePercentile);
+  let peak = 0;
+  for (const v of arr) peak = Math.max(peak, v - base);
+  const threshold = base + fraction * peak;
+  // ①しきいを超えた区間を拾う
+  const spans = [];
+  let from = -1;
+  for (let i = 0; i <= arr.length; i++) {
+    const above = i < arr.length && arr[i] >= threshold && peak > 0;
+    if (above && from < 0) from = i;
+    else if (!above && from >= 0) { spans.push([from, i]); from = -1; }
+  }
+  // ②近すぎる隙間を埋める（gapClose）
+  const merged = [];
+  for (const sp of spans) {
+    const last = merged[merged.length - 1];
+    if (last && sp[0] - last[1] <= gapClose) last[1] = sp[1];
+    else merged.push([...sp]);
+  }
+  // ③長さで篩い、重心と山の高さを付ける
+  const runs = [];
+  for (const [a, b] of merged) {
+    if (b - a < minLength) continue;
+    let s = 0, ws = 0, mx = 0;
+    for (let j = a; j < b; j++) { const v = Math.max(0, arr[j] - base); s += j * v; ws += v; mx = Math.max(mx, arr[j]); }
+    runs.push({ from: a, to: b, center: ws > 0 ? s / ws : (a + b) / 2, peak: mx });
+  }
+  return { runs, base, threshold, peak };
+}
+
+/** 場を行方向へ射影する（各行のエッジ強度の合計）。 */
+export function rowProfile(edge, band = null) {
+  const { w, h, mag } = edge;
+  const y0 = band ? Math.max(0, band.from) : 0, y1 = band ? Math.min(h, band.to) : h;
+  const out = new Float64Array(Math.max(0, y1 - y0));
+  for (let y = y0; y < y1; y++) {
+    let s = 0;
+    for (let x = 0; x < w; x++) s += mag[y * w + x];
+    out[y - y0] = s / (w || 1);
+  }
+  return out;
+}
+
+/** 場を列方向へ射影する（行帯の中だけ）。 */
+export function colProfile(edge, row) {
+  const { w, mag, h } = edge;
+  const y0 = Math.max(0, row.from), y1 = Math.min(h, row.to);
+  const out = new Float64Array(w);
+  for (let x = 0; x < w; x++) {
+    let s = 0;
+    for (let y = y0; y < y1; y++) s += mag[y * w + x];
+    out[x] = s / Math.max(1, y1 - y0);
+  }
+  return out;
+}
+
+/**
+ * 数字行の候補を返す。⚠ **「数字である」ことはここでは判定しない**（形の照合が決める）。
+ */
+export function segmentRows(edge, opts = {}) {
+  const o = { ...GLYPH_DEFAULTS, ...opts };
+  const prof = rowProfile(edge);
+  const { runs, base, threshold } = runsAbove(prof, o.rowThresholdFraction, o.minRowHeight, o.rowGapClose, o.basePercentile);
+  return { rows: runs.map((r) => ({ from: r.from, to: r.to, height: r.to - r.from, peak: r.peak })),
+           profile: prof, base, threshold };
+}
+
+/**
+ * ★**等間隔の格子を当てて行をグリフへ割る**（固定ビットマップフォント＝送り幅が一定）。
+ *
+ * ⚠⚠ **最初は「谷で切る」（射影をしきいて塊を拾う）方式で書き、実測で棄却した**。
+ *   背景の明るさを変えただけで **10文字が 10 / 4 / 3 個**に化ける（2026-08-19 実測）。
+ *   ★原因＝**字間の谷は背景しだいで谷にならない**: 縁取り（暗）と背景の差が大きいほど
+ *     字間にもエッジが立ち、隣とつながる。逆に背景が暗いと今度は字の内部が割れる。
+ *     しきい値をどう動かしても**両方は満たせない**（3×3 の掃引で全滅）。
+ *   ★∴ **問いを変える**＝「どこが谷か」ではなく「**どの周期と位相なら、谷が境界に来るか**」。
+ *     これは CT ドットで効いた「**幾何は個々のフレームではなく全体から決める**」と同じ手
+ *     （等間隔の格子を延ばして乗るか見る）。実測では**背景3種すべてで P=24（真値 24）・10個**。
+ *
+ * @returns {{pitch,phase,count,contrast,from,to}|null}
+ */
+export function fitGlyphGrid(profile, { rowHeight, from, to }, opts = {}) {
+  const o = { ...GLYPH_DEFAULTS, ...opts };
+  const p = Array.from(profile, Number);
+  if (!p.length || !(to > from)) return null;
+  const base = quantile(p, o.basePercentile);
+  const at = (x) => {
+    const i = Math.max(0, Math.min(p.length - 1, Math.round(x)));
+    return Math.max(0, p[i] - base);
+  };
+  const span = to - from;
+  const pmin = Math.max(3, o.pitchMin * rowHeight);
+  const pmax = Math.min(span, o.pitchMax * rowHeight);
+  let best = null;
+  for (let P = pmin; P <= pmax; P += o.pitchStep) {
+    // ★**セル数を「広がり ÷ 周期」に固定しない**（2026-08-19 に実測で外した）:
+    //   広がりは**インクの端**で測るが、端の字のインクはセルの端まで届かない
+    //   （`,` のように小さい字が端に来ると 8px 級で足りない）。固定すると**周期が縮んで
+    //   格子が末尾に向かってずれる**（実際に 24.0 が 23.3 になり、末尾の字を読み違えた）。
+    // ∴ セル数は floor と +1 の両方を試し、**合致度そのものに選ばせる**。
+    const nLo = Math.max(1, Math.floor(span / P));
+    for (const n of [nLo, nLo + 1]) {
+      if (n * P < span - 0.25 * P) continue;   // 格子がインクを覆っていること
+      for (let ph = -P / 2; ph < P / 2; ph += o.pitchStep) {
+        let bE = 0, bN = 0, cE = 0, cN = 0;
+        for (let k = 0; k <= n; k++) { bE += at(from + ph + k * P); bN++; }
+        for (let k = 0; k < n; k++) { cE += at(from + ph + (k + 0.5) * P); cN++; }
+        const b = bE / bN, c = cE / cN;
+        const contrast = (c - b) / (c + b + 1e-9);
+        // ★同点なら**短い周期**を採る（2P も境界が谷に乗るため＝倍音の罠）
+        if (!best || contrast > best.contrast + 1e-9
+            || (Math.abs(contrast - best.contrast) < 0.02 && P < best.pitch)) {
+          best = { pitch: P, phase: ph, count: n, contrast, from, to };
+        }
+      }
+    }
+  }
+  return best;
+}
+
+/**
+ * 行の中をグリフへ割る。
+ *
+ * ★**主経路＝等間隔の格子**（`fitGlyphGrid`）。
+ *   ⚠ 退避路として従来の「谷で切って幅で分割」も残すが、**格子の合致度が床を割ったときだけ**使う。
+ *     退避路は背景に弱いことが実測で分かっている＝**使ったことを診断に出す**（黙って劣化させない）。
+ * ★返す箱は**送り幅の固定サイズ**＝`1` のように細い字でも同じ物理範囲を見る。
+ *   ∴ 署名がアスペクト比の歪みを受けず、**周囲の余白そのものが手がかりになる**。
+ */
+export function segmentGlyphs(edge, row, opts = {}) {
+  const o = { ...GLYPH_DEFAULTS, ...opts };
+  const prof = colProfile(edge, row);
+  const { runs } = runsAbove(prof, o.colThresholdFraction, o.minGlyphWidth, o.colGapClose, o.basePercentile);
+  if (!runs.length) return { boxes: [], pitch: null, medianWidth: null, profile: prof, splits: 0, method: 'none', grid: null, runs };
+
+  const rowHeight = row.to - row.from;
+  // ★広がり（ink span）は**両端の塊**から採る＝途中がくっついても割れても端は動かない
+  const from = runs[0].from, to = runs[runs.length - 1].to;
+  const grid = fitGlyphGrid(prof, { rowHeight, from, to }, o);
+  const widths = runs.map((r) => r.to - r.from).sort((a, b) => a - b);
+  const medianWidth = widths[Math.floor(widths.length / 2)];
+
+  if (grid && grid.contrast >= o.gridContrastFloor) {
+    const boxes = [];
+    for (let k = 0; k < grid.count; k++) {
+      const x = from + grid.phase + k * grid.pitch;
+      boxes.push({ x, y: row.from, w: grid.pitch, h: rowHeight, center: x + grid.pitch / 2, split: false });
+    }
+    return { boxes, pitch: grid.pitch, medianWidth, profile: prof, splits: 0, method: 'grid', grid, runs };
+  }
+
+  // ── 退避路（★格子が合わなかったときだけ）─────────────────
+  const gaps = runs.slice(1).map((r, i) => r.center - runs[i].center).sort((a, b) => a - b);
+  const pitch = gaps.length ? gaps[Math.floor(gaps.length / 2)] : medianWidth * 1.3;
+  const centers = [];
+  let splits = 0;
+  for (const r of runs) {
+    const wRun = r.to - r.from;
+    const k = wRun > o.mergeWidthFactor * medianWidth ? Math.max(2, Math.round(wRun / pitch)) : 1;
+    if (k === 1) { centers.push(r.center); continue; }
+    splits++;
+    for (let i = 0; i < k; i++) centers.push(r.from + (wRun * (i + 0.5)) / k);
+  }
+  const boxes = centers.map((c) => ({
+    x: c - pitch / 2, y: row.from, w: pitch, h: rowHeight, center: c, split: false,
+  }));
+  return { boxes, pitch, medianWidth, profile: prof, splits, method: 'runs', grid, runs };
+}
+
+// ─────────────────────────────────────────────────────────────
+// 3. 署名（テンプレートの単位）と照合
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * 箱の中身を固定格子へ落とす（面積平均でリサンプル）。
+ *
+ * @param {*} edge     エッジ場
+ * @param {*} box      画素座標の箱（小数可）
+ * @param {*} opts     `{cell, scale}` — `scale` は**行で共通の正規化係数**
+ * ★`scale` を**行ごと**に採る理由: グリフごとに正規化すると**空白セルの雑音が増幅**され、
+ *   「何も無い」が「何かある」に化ける。行の p95 を共通の物差しにすれば空白は空白のまま残る。
+ */
+export function signature(edge, box, opts = {}) {
+  const cell = opts.cell ?? GLYPH_DEFAULTS.cell;
+  const { w: W, h: H, mag } = edge;
+  const data = new Float32Array(cell.w * cell.h);
+  const seen = new Float32Array(cell.w * cell.h);
+  for (let cy = 0; cy < cell.h; cy++) {
+    const y0 = box.y + (box.h * cy) / cell.h, y1 = box.y + (box.h * (cy + 1)) / cell.h;
+    for (let cx = 0; cx < cell.w; cx++) {
+      const x0 = box.x + (box.w * cx) / cell.w, x1 = box.x + (box.w * (cx + 1)) / cell.w;
+      let s = 0, n = 0, inside = 0;
+      for (let y = Math.floor(y0); y < Math.max(Math.floor(y0) + 1, Math.ceil(y1)); y++) {
+        for (let x = Math.floor(x0); x < Math.max(Math.floor(x0) + 1, Math.ceil(x1)); x++) {
+          n++;
+          if (x < 0 || y < 0 || x >= W || y >= H) continue;
+          inside++; s += mag[y * W + x];
+        }
+      }
+      const i = cy * cell.w + cx;
+      data[i] = inside ? s / inside : 0;
+      seen[i] = n ? inside / n : 0;
+    }
+  }
+  const scale = opts.scale ?? Math.max(1e-6, quantile(data, 0.95));
+  for (let i = 0; i < data.length; i++) data[i] = Math.min(1, data[i] / scale);
+  return { cell, data, seen, scale };
+}
+
+/** 署名を平坦な配列（0〜255 の整数）へ。★アトラス JSON はこの形で持つ（小さく・可読）。 */
+export function packSignature(sig) {
+  return Array.from(sig.data, (v) => Math.round(Math.min(1, Math.max(0, v)) * 255));
+}
+/** `packSignature` の逆。 */
+export function unpackSignature(arr, cell) {
+  const data = new Float32Array(arr.length);
+  for (let i = 0; i < arr.length; i++) data[i] = arr[i] / 255;
+  return { cell, data, seen: null, scale: 1 };
+}
+
+/**
+ * ★**遮蔽に強い照合**（上の②③が要求するもの）。
+ *
+ *   cover = Σ m·min(T,S) / Σ m·T        … テンプレートの筆画がどれだけ「在る」か
+ *   alien = Σ m·max(0,S−T) / Σ m·(1−T)  … テンプレートが「無い」と言う場所にどれだけ画素が在るか
+ *   score = cover − λ·alien
+ *
+ * ★**なぜ2項に分けるか**: cover だけだと**画面が明るいほど何にでも一致する**
+ *   （とくに `8` は他の全数字を内包するので、cover 単独では常に勝つ）。
+ *   alien が「`8` のつもりで見たら真ん中の横棒が無い」を罰する。
+ * ★**mask（観測できた重み）を両方の分母から外す**のが遮蔽対策の本体＝
+ *   ラベルで潰した画素は「白でも黒でもなく**分からない**」として**票を持たない**。
+ *   ⚠ 「潰した画素を 0 として扱う」は誤り＝**筆画が消えた**と読んでしまう。
+ * ⚠ 半透明の重なり（③）は cover を下げ alien を上げる**両方**に効く。
+ *   ∴ **1位の絶対値ではなく1位と2位の差**で採否を決める（`classify` の `margin`）。
+ */
+export function matchSignature(sample, template, opts = {}) {
+  const o = { ...GLYPH_DEFAULTS, ...opts };
+  const S = sample.data, T = template.data;
+  if (S.length !== T.length) throw new Error(`署名の格子が違う: ${S.length} vs ${T.length}`);
+  const mask = opts.mask ?? null;
+  let ct = 0, cs = 0, at = 0, as = 0;
+  for (let i = 0; i < S.length; i++) {
+    const m = mask ? mask[i] : 1;
+    if (m <= 0) continue;
+    ct += m * T[i];
+    cs += m * Math.min(T[i], S[i]);
+    at += m * (1 - T[i]);
+    as += m * Math.max(0, S[i] - T[i]);
+  }
+  const cover = ct > 1e-9 ? cs / ct : 0;
+  const alien = at > 1e-9 ? as / at : 0;
+  return { cover, alien, score: cover - o.lambda * alien, observed: mask ? null : 1 };
+}
+
+/**
+ * ★**遮蔽の場所をセル重みへ落とす**（ラベル検出 → マスク → 照合、の「→」の部分）。
+ *
+ * @param {object} box   グリフの箱（画素座標）
+ * @param {Array<{x,y,w,h}>} rects  潰す領域（検出済みラベルの外接矩形など・画素座標）
+ * @param {{w:number,h:number}} cell
+ * @returns {Float32Array} セルごとの「観測できた割合」（1=全部見えた / 0=全部隠れた）
+ *
+ * ⚠ **0 を「筆画が無い」ではなく「分からない」として使う**のが要点（`matchSignature` の注記）。
+ */
+export function maskFromRects(box, rects, cell = GLYPH_DEFAULTS.cell) {
+  const m = new Float32Array(cell.w * cell.h).fill(1);
+  if (!rects || !rects.length) return m;
+  for (let cy = 0; cy < cell.h; cy++) {
+    const y0 = box.y + (box.h * cy) / cell.h, y1 = box.y + (box.h * (cy + 1)) / cell.h;
+    for (let cx = 0; cx < cell.w; cx++) {
+      const x0 = box.x + (box.w * cx) / cell.w, x1 = box.x + (box.w * (cx + 1)) / cell.w;
+      const area = Math.max(1e-9, (x1 - x0) * (y1 - y0));
+      let covered = 0;
+      for (const r of rects) {
+        const ow = Math.min(x1, r.x + r.w) - Math.max(x0, r.x);
+        const oh = Math.min(y1, r.y + r.h) - Math.max(y0, r.y);
+        if (ow > 0 && oh > 0) covered += ow * oh;
+      }
+      m[cy * cell.w + cx] = Math.max(0, 1 - Math.min(1, covered / area));
+    }
+  }
+  return m;
+}
+
+/** アトラスの1エントリを署名の配列へ（1枚でも複数 variants でも受ける）。 */
+export function templatesOf(entry, cell) {
+  if (!entry) return [];
+  if (entry.data) return [entry];
+  if (Array.isArray(entry) && Array.isArray(entry[0])) return entry.map((e) => unpackSignature(e, cell));
+  if (Array.isArray(entry)) return [unpackSignature(entry, cell)];
+  if (Array.isArray(entry.variants)) return entry.variants.map((e) => unpackSignature(e, cell));
+  return [];
+}
+
+/**
+ * アトラス全体と照合し、**候補を順に**返す（決めつけない＝P3 は「候補生成のみ」）。
+ * @returns {{best:object|null, candidates:Array, ambiguous:boolean, margin:number}}
+ */
+export function classify(sample, atlas, opts = {}) {
+  const o = { ...GLYPH_DEFAULTS, ...opts };
+  const cands = [];
+  for (const [key, tmpl] of Object.entries(atlas.glyphs ?? {})) {
+    // ★1つの字に**複数の見え方**を持たせられる（`variants`）。
+    //   ⚠ 動機は実測: 同じ字でも**背景が変わると署名が変わる**（同字の類似度が 0.48 まで落ちる）。
+    //     ∴ 「1字＝1テンプレート」に固執せず、**採取した条件ごとに1枚ずつ持つ**。
+    //     照合は variants の**最良**を採る（どれか1つに似ていれば良い）。
+    let bestM = null;
+    for (const t of templatesOf(tmpl, atlas.cell)) {
+      const m = matchSignature(sample, t, o);
+      if (!bestM || m.score > bestM.score) bestM = m;
+    }
+    if (bestM) cands.push({ key, ...bestM });
+  }
+  cands.sort((a, b) => b.score - a.score);
+  const margin = cands.length >= 2 ? cands[0].score - cands[1].score : Infinity;
+  return {
+    best: cands[0] ?? null,
+    candidates: cands.slice(0, 3),
+    ambiguous: cands.length >= 2 && margin < o.ambiguityMargin,
+    margin,
+  };
+}
+
+/**
+ * 行に共通の正規化係数（`signature` の `scale`）。
+ * ★**行ごとに採る**理由は `signature` の注記のとおり（グリフごとだと空白が増幅される）。
+ */
+export function fieldScale(edge, row, p = 0.95) {
+  const { w, h, mag } = edge;
+  const y0 = Math.max(0, row?.from ?? 0), y1 = Math.min(h, row?.to ?? h);
+  const vals = [];
+  for (let y = y0; y < y1; y++) for (let x = 0; x < w; x++) vals.push(mag[y * w + x]);
+  return Math.max(1e-6, quantile(vals, p));
+}
+
+/**
+ * ★**1行を読む**（P3 の入口）。切り出し → 署名 → 照合 → 数値の組み立て、までを1本にする。
+ *
+ * ⚠ **決めつけない**＝`minScore` に届かないグリフは `?` のまま返し、`readNumber` が
+ *   「読めない」と言う。`hp_bar.js` で確立した規律（読めないときは読めないと言う）と同じ。
+ * @param {Array} [opts.occluders] 先に検出したラベル等の矩形（画素座標）＝**マスクして票を持たせない**
+ */
+export function readRow(edge, row, atlas, opts = {}) {
+  const o = { ...GLYPH_DEFAULTS, ...opts };
+  const cell = atlas?.cell ?? o.cell;
+  const seg = segmentGlyphs(edge, row, o);
+  const scale = fieldScale(edge, row);
+  const tokens = seg.boxes.map((b) => {
+    const sig = signature(edge, b, { cell, scale });
+    const mask = o.occluders?.length ? maskFromRects(b, o.occluders, cell) : null;
+    const c = classify(sig, atlas, { ...o, mask });
+    const accepted = !!c.best && c.best.score >= o.minScore && !(o.rejectAmbiguous && c.ambiguous);
+    return {
+      box: b, key: accepted ? c.best.key : '?', score: c.best?.score ?? 0, margin: c.margin,
+      ambiguous: !!c.ambiguous, accepted, candidates: c.candidates ?? [], signature: sig,
+    };
+  });
+  return { ...seg, scale, tokens, number: readNumber(tokens, o.range ?? { minDigits: 1, maxDigits: 9 }) };
+}
+
+// ─────────────────────────────────────────────────────────────
+// 4. アトラス（実機グリフの台帳）
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * ★**空のアトラス**。⚠ これが既定＝**推測テンプレートを同梱しない**。
+ *   実機の走から採取し、ユーザーがラベルを付けたものだけが入る（本モジュール冒頭の段取り）。
+ */
+export const EMPTY_ATLAS = { version: 0, cell: { ...GLYPH_DEFAULTS.cell }, provenance: null, glyphs: {}, labels: {} };
+
+/** アトラスの健全性検査。★**読み取りを始める前の関門**。 */
+export function validateAtlas(atlas) {
+  const problems = [];
+  if (!atlas || typeof atlas !== 'object') return { ok: false, problems: ['アトラスが無い'] };
+  const keys = Object.keys(atlas.glyphs ?? {});
+  if (!keys.length) problems.push('グリフが1つも登録されていない（採取パスを先に回す）');
+  const need = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+  const missing = need.filter((d) => !keys.includes(d));
+  if (keys.length && missing.length) problems.push(`数字が欠けている: ${missing.join(',')}`);
+  const size = (atlas.cell?.w ?? 0) * (atlas.cell?.h ?? 0);
+  for (const k of keys) {
+    for (const t of templatesOf(atlas.glyphs[k], atlas.cell)) {
+      if (t.data.length !== size) problems.push(`グリフ ${k} の格子が cell と違う（${t.data.length} vs ${size}）`);
+    }
+    if (!templatesOf(atlas.glyphs[k], atlas.cell).length) problems.push(`グリフ ${k} が空`);
+  }
+  if (!atlas.provenance) problems.push('provenance が無い（どの録画・いつ採取したかは E1 の必須項目）');
+  return { ok: problems.length === 0, problems, digits: need.filter((d) => keys.includes(d)).length };
+}
+
+// ─────────────────────────────────────────────────────────────
+// 5. 採取（形の分類まで＝ラベルは付けない）
+// ─────────────────────────────────────────────────────────────
+
+/** 署名どうしの類似度（soft Jaccard）。0〜1。 */
+export function similarity(a, b) {
+  let mn = 0, mx = 0;
+  for (let i = 0; i < a.length; i++) { mn += Math.min(a[i], b[i]); mx += Math.max(a[i], b[i]); }
+  return mx > 1e-9 ? mn / mx : 0;
+}
+
+/**
+ * 走を通してグリフ候補を集め、**似た形をまとめる**。
+ *
+ * ★ここまでが機械の仕事＝「同じ形が何回も出た」までは正解ラベル無しで言える。
+ *   「その形が 7 である」はユーザーが1回答える（憲法＝観測と判断はユーザー）。
+ * ⚠ **クラスタ数が上限に張り付いたら閾値が緩すぎる合図**（`T1-DETECT-006`）＝
+ *   数字は10種類しかないので、数百に割れるのは「同じ字が別物として散っている」こと。
+ */
+export class GlyphHarvest {
+  constructor(opts = {}) {
+    this.o = { ...GLYPH_DEFAULTS, ...opts };
+    this.clusters = [];   // {sum:Float32Array, count, centroid, times:[], boxes:[]}
+    this.seen = 0;
+    this.overflow = 0;
+  }
+
+  /** @param {{data:Float32Array}} sig  @param {number} t 秒 @param {object} box */
+  push(sig, t = null, box = null) {
+    this.seen++;
+    let best = null, bestSim = -1;
+    for (const c of this.clusters) {
+      const s = similarity(sig.data, c.centroid);
+      if (s > bestSim) { bestSim = s; best = c; }
+    }
+    if (best && bestSim >= this.o.clusterSimilarity) {
+      for (let i = 0; i < sig.data.length; i++) best.sum[i] += sig.data[i];
+      best.count++;
+      best.centroid = Float32Array.from(best.sum, (v) => v / best.count);
+      if (best.times.length < 8) best.times.push(t);
+      if (best.boxes.length < 8) best.boxes.push(box);
+      return best;
+    }
+    if (this.clusters.length >= this.o.maxClusters) { this.overflow++; return null; }
+    const sum = Float32Array.from(sig.data);
+    const c = { sum, count: 1, centroid: Float32Array.from(sum), times: [t], boxes: [box] };
+    this.clusters.push(c);
+    return c;
+  }
+
+  /** 出現回数の多い順に代表を返す（ユーザーがラベルを付ける対象）。 */
+  report(topN = 40) {
+    const cs = [...this.clusters].sort((a, b) => b.count - a.count).slice(0, topN);
+    return {
+      seen: this.seen,
+      clusters: this.clusters.length,
+      overflow: this.overflow,
+      representatives: cs.map((c, i) => ({
+        index: i,
+        count: c.count,
+        times: c.times.filter((t) => t != null).map((t) => +t.toFixed(2)),
+        signature: packSignature({ data: c.centroid }),
+      })),
+    };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 6. 数値の組み立てと、その場でできる検算
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * ★**桁区切り（カンマ）の文法検査**＝検算③④の一部を、OCR のその場で回すもの。
+ *
+ * 実機表示は `6,012,442` 形式。∴ **カンマとカンマの間はちょうど3桁**。
+ * ⚠ **この検査が捕まえるのは「中の桁の脱落/混入」だけ**＝
+ *   先頭グループ（1〜3桁）の欠けは文法上正しく見えるので**捕まらない**。
+ *   そこは検算⑦（`TOTAL` ↔ 個別ヒットの合計）と値域が受け持つ。
+ */
+export function checkCommaGrammar(text) {
+  if (!/^[0-9,]+$/.test(text || '')) return { ok: false, reason: '数字とカンマ以外が混じっている' };
+  if (!/^\d{1,3}(,\d{3})*$/.test(text)) {
+    const groups = text.split(',');
+    const bad = groups.slice(1).findIndex((g) => g.length !== 3);
+    return {
+      ok: false,
+      reason: bad >= 0
+        ? `${bad + 2}番目のグループが ${groups[bad + 1].length} 桁（3桁であるべき）`
+        : 'カンマの位置が桁区切りとして成立しない',
+    };
+  }
+  return { ok: true, reason: null };
+}
+
+/**
+ * 分類済みのトークン列を数値へ組み立てる。**読めない要素があれば読めないと言う**
+ * （`hp_bar.js` で確立した規律＝推測で埋めない）。
+ *
+ * @param {Array<{key:string, ambiguous:boolean, score:number}>} tokens 左から順に
+ * @param {{minDigits:number,maxDigits:number}} [range] 値域（桁数）
+ */
+export function readNumber(tokens, range = { minDigits: 1, maxDigits: 9 }) {
+  const text = tokens.map((t) => t.key).join('');
+  const unknown = tokens.filter((t) => !t.key || t.key === '?').length;
+  const ambiguous = tokens.filter((t) => t.ambiguous).length;
+  if (unknown) return { ok: false, text, value: null, reason: `${unknown} 文字が未一致`, unknown, ambiguous };
+  const g = checkCommaGrammar(text);
+  if (!g.ok) return { ok: false, text, value: null, reason: g.reason, unknown, ambiguous };
+  const digits = text.replace(/,/g, '');
+  if (digits.length < range.minDigits || digits.length > range.maxDigits) {
+    return { ok: false, text, value: Number(digits), reason: `桁数 ${digits.length} が値域 ${range.minDigits}〜${range.maxDigits} の外`, unknown, ambiguous };
+  }
+  return { ok: true, text, value: Number(digits), reason: null, unknown, ambiguous,
+           minScore: tokens.reduce((m, t) => Math.min(m, t.score ?? 1), 1) };
+}
+
+// ─────────────────────────────────────────────────────────────
+// 7. 診断
+// ─────────────────────────────────────────────────────────────
+
+/** 採取パスの結果を Diag に載せる。⚠ 判定ではなく**測定**なので FATAL にはしない。 */
+export function reportHarvest(diag, rep, atlasState) {
+  if (!rep) return null;
+  if (rep.clusters === 0) {
+    diag.add('T1-MATCH-001', 'WARN', {
+      where: { roi: 'dmg' },
+      expected: '数字らしい塊が1つ以上',
+      got: 'グリフ候補が0件',
+      hint: '行の切り出し閾値（rowThresholdFraction）が高すぎるか、その窓に数字が出ていない。'
+        + 'digest の行プロファイルを見て決め直す。',
+    });
+  }
+  if (rep.overflow > 0 || rep.clusters >= GLYPH_DEFAULTS.maxClusters) {
+    diag.add('T1-DETECT-006', 'WARN', {
+      where: { clusters: rep.clusters },
+      expected: `クラスタ数は数十（数字10種＋カンマ＋ラベル）`,
+      got: `${rep.clusters} 個（あふれ ${rep.overflow} 件）`,
+      hint: '同じ字が別物として散っている＝clusterSimilarity が高すぎる、'
+        + 'または切り出しの箱が字ごとにずれている（送り幅の推定を見る）。',
+    });
+  }
+  if (atlasState && !atlasState.ok) {
+    diag.add('T1-MATCH-006', 'ERROR', {
+      where: { stage: 'MATCH' },
+      expected: '実機グリフのアトラス（0〜9＋カンマ）',
+      got: atlasState.problems.join(' / '),
+      hint: '★採取 → ユーザーがラベル付け → アトラス登録、の順。'
+        + '推測テンプレートでは動かさない（合成だけ通って実機で静かに外れるため）。',
+    });
+  }
+  return rep;
+}

@@ -1538,6 +1538,313 @@ console.log('\n[15] ページの初期化スモーク（★main.js を DOM ス�
     /<script>[\s\S]*__t1Ready[\s\S]*<\/script>/.test(html));
 }
 
+// ── 16. ★★グリフ照合（P3-1）─────────────────────────────────
+//   ★何を固定するか: **実物で確認済みの制約**（`glyph.js` 冒頭①〜⑥）に対して、
+//     照合器が満たすべき**性質**を合成で固定する。
+//   ⚠ 合成フォントは**実機のフォントではない**（実機グリフは録画からしか得られない＝P3-1 の採取）。
+//     ∴ ここで通っても「実機で読める」証明にはならない。**仕組みの回帰**として置く。
+//   ★★本節で最も重要なのは最後の [16-9]＝**誤った数字を出さないこと**。
+//     読めない（`?`）は次工程が拾えるが、**もっともらしい誤読は較正を静かに汚染する**。
+console.log('\n[16] グリフ照合（P3-1）＝縁取りで読む・遮蔽に強い・間違えるくらいなら読まない');
+{
+  const G = await import('../src/transcribe/glyph.js');
+
+  // 合成ビットマップフォント（5×7）。★実機と同じ**構造**（一定の送り幅・縁取り＋塗り）だけを模す。
+  const FONT = {
+    '0': ['01110', '10001', '10011', '10101', '11001', '10001', '01110'],
+    '1': ['00100', '01100', '00100', '00100', '00100', '00100', '01110'],
+    '2': ['01110', '10001', '00001', '00010', '00100', '01000', '11111'],
+    '3': ['11111', '00010', '00100', '00010', '00001', '10001', '01110'],
+    '4': ['00010', '00110', '01010', '10010', '11111', '00010', '00010'],
+    '5': ['11111', '10000', '11110', '00001', '00001', '10001', '01110'],
+    '6': ['00110', '01000', '10000', '11110', '10001', '10001', '01110'],
+    '7': ['11111', '00001', '00010', '00100', '01000', '01000', '01000'],
+    '8': ['01110', '10001', '10001', '01110', '10001', '10001', '01110'],
+    '9': ['01110', '10001', '10001', '01111', '00001', '00010', '01100'],
+    ',': ['00000', '00000', '00000', '00000', '00000', '00110', '00100'],
+  };
+  const GW = 5, GH = 7, S = 3, ADV = 8;   // ADV: 送り（フォントセル）
+
+  /** 1文字を描く。★塗りは**上下でグラデ**（実機＝金グラデ）／縁取りは暗い。 */
+  function drawGlyph(img, x, y, ch, opt = {}) {
+    const pat = FONT[ch];
+    const top = opt.fillTop ?? 250, bot = opt.fillBottom ?? 150, outline = opt.outline ?? 15;
+    const on = (cx, cy) => cy >= 0 && cy < GH && cx >= 0 && cx < GW && pat[cy][cx] === '1';
+    for (let cy = -1; cy <= GH; cy++) {
+      for (let cx = -1; cx <= GW; cx++) {
+        let c = null;
+        if (on(cx, cy)) {
+          const v = Math.round(top + (bot - top) * (cy / (GH - 1)));
+          c = [v, Math.round(v * 0.86), Math.round(v * 0.42)];      // 金っぽい塗り
+        } else if (on(cx - 1, cy) || on(cx + 1, cy) || on(cx, cy - 1) || on(cx, cy + 1)) {
+          c = [outline, outline, outline];
+        }
+        if (c) fillRect(img, x + cx * S, y + cy * S, S, S, c);
+      }
+    }
+  }
+  function drawText(img, x, y, text, opt = {}) {
+    const adv = (opt.adv ?? ADV) * S;
+    const truth = [];
+    let cx = x;
+    for (const ch of text) { drawGlyph(img, cx, y, ch, opt); truth.push({ ch, x: cx, y }); cx += adv; }
+    return truth;
+  }
+  /** 半透明合成（実機の重なりは**半透明**＝両方が部分的に残る＝制約③）。 */
+  function blendRect(img, x, y, w, h, c, alpha) {
+    for (let yy = Math.max(0, y); yy < Math.min(img.height, y + h); yy++) {
+      for (let xx = Math.max(0, x); xx < Math.min(img.width, x + w); xx++) {
+        const i = (yy * img.width + xx) * 4;
+        for (let k = 0; k < 3; k++) img.data[i + k] = Math.round(img.data[i + k] * (1 - alpha) + c[k] * alpha);
+      }
+    }
+  }
+  /** 4条星（キラキラ＝制約②）。 */
+  function drawStar(img, cx, cy, r, alpha = 0.8) {
+    blendRect(img, cx - r, cy - 1, 2 * r, 3, [255, 255, 240], alpha);
+    blendRect(img, cx - 1, cy - r, 3, 2 * r, [255, 255, 240], alpha);
+  }
+  const fieldOf = (img) => G.edgeField(G.luminanceField(img, { x: 0, y: 0, w: img.width, h: img.height }));
+  const DARK = [25, 20, 55], MID = [110, 105, 120], BRIGHT = [200, 190, 120];
+
+  /** 参照ストリップを1本描いて署名を採る（＝採取→ラベル付けの結果に相当）。 */
+  function strip(chars, bg, opt = {}) {
+    const img = makeImage(chars.length * ADV * S + 20, 60, bg);
+    drawText(img, 8, 12, chars, opt);
+    const edge = fieldOf(img);
+    const row = G.segmentRows(edge).rows[0];
+    const seg = G.segmentGlyphs(edge, row);
+    return { edge, row, seg, scale: G.fieldScale(edge, row), chars };
+  }
+  /** 条件のリストからアトラスを作る（★1字に複数の見え方を持たせられる）。 */
+  function atlasFrom(conds, chars = '0123456789,') {
+    const glyphs = {};
+    for (const c of conds) {
+      const st = strip(chars, c.bg ?? DARK, c.opt ?? {});
+      st.seg.boxes.forEach((b, i) => {
+        if (i < chars.length) (glyphs[chars[i]] ||= []).push(G.packSignature(G.signature(st.edge, b, { scale: st.scale })));
+      });
+    }
+    return { version: 1, cell: { ...G.GLYPH_DEFAULTS.cell }, provenance: { synthetic: true }, glyphs, labels: {} };
+  }
+
+  const base = strip('0123456789,', DARK);
+  const atlas1 = atlasFrom([{ bg: DARK }]);
+  check('★参照ストリップから 11 文字（0〜9とカンマ）が切り出せる',
+    base.seg.boxes.length === 11, `${base.seg.boxes.length} 個 / method=${base.seg.method}`);
+  check('アトラスの健全性検査が通る', G.validateAtlas(atlas1).ok,
+    JSON.stringify(G.validateAtlas(atlas1).problems));
+
+  // ── [16-1] ★★等間隔の格子で割る（谷で切る方式は背景で壊れた）──
+  {
+    const counts = [DARK, MID, BRIGHT].map((bg) => strip('0123456789', bg).seg.boxes.length);
+    check('★★背景が暗くても明るくても 10 文字に割れる（等間隔の格子で割っているから）',
+      counts.every((n) => n === 10), `切り出し数 ${JSON.stringify(counts)}`);
+    // ⚠ 退避路（谷で切る＋幅で分割）は同じ入力で壊れることを**回帰として固定する**
+    //   ＝格子をやめて閾値方式に戻したらここが落ちる。
+    const fallback = [DARK, MID, BRIGHT].map((bg) => {
+      const st = strip('0123456789', bg);
+      return G.segmentGlyphs(st.edge, st.row, { gridContrastFloor: 2 }).boxes.length;  // 格子を必ず不採用にする
+    });
+    check('★退避路（谷で切る）は背景を変えると同じ入力で壊れる＝格子が要る理由の記録',
+      !fallback.every((n) => n === 10), `退避路の切り出し数 ${JSON.stringify(fallback)}`);
+  }
+
+  // ── [16-2] 塗りが変わっても読める（金グラデ＝制約④）──────────
+  {
+    const img = makeImage(420, 80, DARK);
+    const text = '6,012,442';
+    drawText(img, 10, 20, text, { fillTop: 180, fillBottom: 255, outline: 30 }); // グラデを逆向きに
+    const edge = fieldOf(img);
+    const rows = G.segmentRows(edge);
+    check('行がちょうど1つ見つかる', rows.rows.length === 1, `${rows.rows.length} 行`);
+    const r = G.readRow(edge, rows.rows[0], atlas1);
+    check('★★塗りのグラデが逆でも同じ文字列を読む（縁取りで照合しているから）',
+      r.number.text === text, `読み=${r.number.text}`);
+    check('数値とカンマ文法が通る', r.number.ok && r.number.value === 6012442,
+      `${r.number.value} / ${r.number.reason}`);
+  }
+
+  // ── [16-3] 星（キラキラ）が重なっても数字が動かない（制約②）───
+  {
+    const img = makeImage(420, 80, DARK);
+    const truth = drawText(img, 10, 20, '6,012,442');
+    const t = truth[2];
+    drawStar(img, t.x + (GW * S) / 2, t.y + (GH * S) / 2, 16, 0.8);
+    const edge = fieldOf(img);
+    const r = G.readRow(edge, G.segmentRows(edge).rows[0], atlas1);
+    const digits = r.tokens.map((x) => x.key).join('');
+    check('★★星が乗ったヒットでも、乗った字以外は誤らない（受け入れ検査に星を必ず含める＝P1 発見⑫）',
+      /^6,0[12?]2,442/.test(digits) || digits.startsWith('6,0'), `読み=${digits}`);
+    check('★星で潰れた字は「読めない」か正解のどちらかで、別の数字にはならない',
+      r.tokens.every((x, i) => x.key === '?' || x.key === '6,012,442'[i] || i >= 9),
+      `読み=${digits}`);
+  }
+
+  // ── [16-4] 半透明ラベルの重なりは「マスクすれば票を持たない」（制約①③）
+  {
+    const img = makeImage(420, 80, DARK);
+    const truth = drawText(img, 10, 20, '6,012,442');
+    // ★上のヒットのラベルが**この行の上半分に重なる**（P1 発見①＝縦ピッチ < ラベル高+数値高）
+    const band = { x: 0, y: 20, w: img.width, h: Math.round((GH * S) / 2) };
+    blendRect(img, band.x, band.y, band.w, band.h, [255, 60, 60], 0.5);
+    const edge = fieldOf(img);
+    const row = G.segmentRows(edge).rows[0];
+    const box = { x: truth[0].x - 6, y: 20, w: ADV * S, h: GH * S };
+    const scale = G.fieldScale(edge, row);
+    const sig = G.signature(edge, box, { scale });
+    const tmpl = G.templatesOf(atlas1.glyphs['6'], atlas1.cell)[0];
+    const bare = G.matchSignature(sig, tmpl);
+    const mask = G.maskFromRects(box, [band], atlas1.cell);
+    const masked = G.matchSignature(sig, tmpl, { mask });
+    check('★★ラベルで潰した画素をマスクすると、正解グリフの score が上がる（＝汚染が票を持たなくなる）',
+      masked.score > bare.score, `mask あり ${masked.score.toFixed(3)} / なし ${bare.score.toFixed(3)}`);
+    check('マスクは「隠れた場所」だけを 0 にする（全部 0 にしない）',
+      mask.some((v) => v === 1) && mask.some((v) => v === 0),
+      `1 の数=${mask.filter((v) => v === 1).length} / 0 の数=${mask.filter((v) => v === 0).length}`);
+  }
+
+  // ── [16-5] 字がくっついても文字数を落とさない（格子の効き目）───
+  {
+    const img = makeImage(420, 80, DARK);
+    const truth = drawText(img, 10, 20, '1,234,567');
+    // ★4文字目と5文字目の字間を演出で埋めて「1つの塊」にする（実機の重なりと同じ効果）
+    const bx = truth[3].x + GW * S;
+    blendRect(img, bx, 20, ADV * S - GW * S + 2, GH * S, [255, 240, 200], 0.9);
+    const edge = fieldOf(img);
+    const seg = G.segmentGlyphs(edge, G.segmentRows(edge).rows[0]);
+    check('★★字間が演出で埋まっても 9 文字のまま（格子は塊の切れ目を見ていない）',
+      seg.boxes.length === 9 && seg.method === 'grid',
+      `${seg.boxes.length} 個 / method=${seg.method} / pitch=${seg.pitch?.toFixed(2)}`);
+  }
+
+  // ── [16-6] `8` の罠＝cover だけでは何にでも一致する（2項に分けた根拠）
+  {
+    const t8 = G.templatesOf(atlas1.glyphs['8'], atlas1.cell)[0];
+    const t1 = G.templatesOf(atlas1.glyphs['1'], atlas1.cell)[0];
+    const m = G.matchSignature(t8, t1);        // 標本='8' をテンプレ='1' で見る
+    check('★★cover だけなら 8 は 1 のテンプレを満たしてしまう（だから alien 項が要る）',
+      m.cover > 0.6 && m.score < 0.8, `cover=${m.cover.toFixed(3)} score=${m.score.toFixed(3)}`);
+    check('分類は 8 を選ぶ（1 ではない）', G.classify(t8, atlas1).best.key === '8');
+  }
+
+  // ── [16-7] カンマ文法＝その場でできる検算 ─────────────────
+  {
+    check('カンマ文法: 正しい表記が通る', G.checkCommaGrammar('6,012,442').ok);
+    check('★カンマ文法: 中の桁が1つ落ちると落とせる', !G.checkCommaGrammar('6,01,442').ok,
+      G.checkCommaGrammar('6,01,442').reason ?? '');
+    check('★カンマ文法: 桁が1つ増えても落とせる', !G.checkCommaGrammar('6,0125,442').ok);
+    check('⚠ 先頭グループの欠けは文法では捕まらない（検算⑦の担当）と明示できている',
+      G.checkCommaGrammar('012,442').ok === true);
+    const r = G.readNumber([{ key: '1', score: 1 }, { key: '?', score: 0 }], { minDigits: 1, maxDigits: 9 });
+    check('★読めない文字があれば「読めない」と言う（推測で埋めない）',
+      !r.ok && /未一致/.test(r.reason), JSON.stringify(r));
+  }
+
+  // ── [16-8] 採取＝「同じ形が何回も出た」までが機械の仕事 ───────
+  //   ★★狙いは「10 クラスタにまとめる」ことでは**ない**（`clusterSimilarity` の注記＝実測で棄却）。
+  //     狙いは**純度**＝1つのクラスタに2つの字を混ぜないこと。ラベルは人が1回付けるので、
+  //     **数が増えるのは手間が増えるだけ**だが、**混ざると誤ったテンプレートにラベルが付く**。
+  {
+    const h = new G.GlyphHarvest();
+    for (let i = 0; i < 3; i++) {
+      const st = strip('0123456789', DARK);
+      for (const b of st.seg.boxes) h.push(G.signature(st.edge, b, { scale: st.scale }), i, b);
+    }
+    const rep = h.report();
+    check('★同じ条件の繰り返しは1つにまとまる（30 標本 → 10 クラスタ）',
+      rep.seen === 30 && rep.clusters === 10, `標本 ${rep.seen} / クラスタ ${rep.clusters}`);
+    check('代表は出現回数の多い順に並ぶ', rep.representatives[0].count === 3);
+
+    // ★★純度＝条件を9通りに散らしても、1つのクラスタに2つの字が入らないこと
+    const h2 = new G.GlyphHarvest();
+    const seen = new Map();
+    for (const bg of [DARK, MID, BRIGHT]) {
+      for (const opt of [{}, { fillTop: 160, fillBottom: 255 }, { fillTop: 255, fillBottom: 90 }]) {
+        const st = strip('0123456789', bg, opt);
+        st.seg.boxes.forEach((b, i) => {
+          const cl = h2.push(G.signature(st.edge, b, { scale: st.scale }), 0, b);
+          if (!cl) return;
+          if (!seen.has(cl)) seen.set(cl, new Set());
+          seen.get(cl).add('0123456789'[i]);
+        });
+      }
+    }
+    const mixed = [...seen.values()].filter((s2) => s2.size > 1).length;
+    check('★★★条件を散らしても「別の字が混ざったクラスタ」は0（＝ラベルが誤ったテンプレに付かない）',
+      mixed === 0, `混ざったクラスタ ${mixed} / 全 ${h2.clusters.length}`);
+    check('⚠ 1つの字が条件ごとに複数クラスタになるのは想定どおり（それが variants になる）',
+      h2.clusters.length > 10, `クラスタ ${h2.clusters.length}（90 標本）`);
+
+    const h3 = new G.GlyphHarvest({ maxClusters: 3 });
+    const st3 = strip('0123456789', DARK);
+    for (const b of st3.seg.boxes) h3.push(G.signature(st3.edge, b, { scale: st3.scale }), 0, b);
+    const diag2 = new Diag('T1', 'test');
+    G.reportHarvest(diag2, h3.report(), { ok: true });
+    check('★クラスタ数が上限に張り付いたら診断で鳴る（閾値が緩すぎる/箱がずれている合図）',
+      diag2.items.some((i) => i.code === 'T1-DETECT-006'), JSON.stringify(diag2.items.map((i) => i.code)));
+  }
+
+  // ── [16-9] ★★★本節の主眼＝**誤った数字を出さない** ────────────
+  //   ⚠ 実測（合成 3背景 × 3塗り × 10字 = 90 標本）で確立した設計判断:
+  //     - **誤読は 100% `ambiguous`（1位と2位の差 < margin）だった**
+  //     - **score の絶対値では分けられない**（誤読 0.564〜0.632 が正解 0.539〜0.999 と重なる）
+  //     ∴ 採否は score ではなく**1位と2位の差**で決める（`rejectAmbiguous`）。
+  //   ★あわせて「アトラスに**条件ごとの見え方**を足すと読める率が上がる」ことも固定する。
+  {
+    const chars = '0123456789';
+    const conds = [];
+    for (const bg of [DARK, MID, BRIGHT]) for (const opt of [{}, { fillTop: 160, fillBottom: 255 }, { fillTop: 255, fillBottom: 90 }]) conds.push({ bg, opt });
+    const score = (atlas) => {
+      let read = 0, wrong = 0, unread = 0;
+      for (const c of conds) {
+        const st = strip(chars, c.bg, c.opt);
+        const r = G.readRow(st.edge, st.row, atlas);
+        r.tokens.forEach((t, i) => {
+          if (t.key === '?') unread++;
+          else if (t.key === chars[i]) read++;
+          else wrong++;
+        });
+      }
+      return { read, wrong, unread };
+    };
+    const one = score(atlasFrom([{ bg: DARK }], chars));
+    const three = score(atlasFrom([{ bg: DARK }, { bg: MID }, { bg: BRIGHT }], chars));
+    check('★★★1条件のアトラスでも「誤った数字」を1つも出さない（読めない側に倒れる）',
+      one.wrong === 0, `読めた ${one.read} / 誤り ${one.wrong} / 読めず ${one.unread}`);
+    check('★★★条件を増やしたアトラスでも誤りゼロのまま、読める率が上がる',
+      three.wrong === 0 && three.read > one.read,
+      `1条件 ${one.read}/90 → 3条件 ${three.read}/90（誤り ${three.wrong}）`);
+    check('★曖昧さの拒否を切ると誤読が出る＝この policy が効いていることの裏取り',
+      (() => {
+        let wrong = 0;
+        for (const c of conds) {
+          const st = strip(chars, c.bg, c.opt);
+          const r = G.readRow(st.edge, st.row, atlasFrom([{ bg: DARK }], chars), { rejectAmbiguous: false });
+          r.tokens.forEach((t, i) => { if (t.key !== '?' && t.key !== chars[i]) wrong++; });
+        }
+        return wrong > 0;
+      })(), 'rejectAmbiguous=false で誤読が出ること');
+  }
+
+  // ── [16-10] ★アトラスが無いうちは読み取りを始めない（関門）─────
+  {
+    const v = G.validateAtlas(G.EMPTY_ATLAS);
+    check('★★空のアトラスは関門で止まる（推測テンプレを同梱しない）',
+      !v.ok && v.problems.some((p) => /1つも登録されていない/.test(p)), JSON.stringify(v.problems));
+    const diag = new Diag('T1', 'test');
+    G.reportHarvest(diag, { seen: 0, clusters: 0, overflow: 0, representatives: [] }, v);
+    check('関門は診断コードで鳴る（T1-MATCH-006 / T1-MATCH-001）',
+      diag.items.some((i) => i.code === 'T1-MATCH-006' && i.sev === 'ERROR')
+      && diag.items.some((i) => i.code === 'T1-MATCH-001'),
+      JSON.stringify(diag.items.map((i) => i.code)));
+    const half = { ...atlas1, glyphs: { '0': atlas1.glyphs['0'], ',': atlas1.glyphs[','] } };
+    check('★数字が欠けているアトラスも関門で止まる（部分的に読めてしまうのを防ぐ）',
+      !G.validateAtlas(half).ok, JSON.stringify(G.validateAtlas(half).problems));
+    check('provenance が無いアトラスは通さない（E1＝測定条件を併記する）',
+      !G.validateAtlas({ cell: atlas1.cell, glyphs: atlas1.glyphs }).ok);
+  }
+}
 console.log('\n' + '='.repeat(60));
 console.log(`結果: ${pass} passed / ${fail} failed`);
 if (fail) {
