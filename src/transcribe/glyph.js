@@ -393,6 +393,24 @@ export function signature(edge, box, opts = {}) {
   return { cell, data, seen, scale };
 }
 
+/**
+ * ★箱の中の**実画素**を切り出す（人に見せるのは常にこれ）。
+ *
+ * ⚠ **署名（`signature`）と混同しない**＝署名は機械が照合するための表現で、
+ *   **人が見て「7 だ」と言える表現ではない**（2026-08-19b にユーザー報告で判明）。
+ * @returns {{w:number,h:number,data:Uint8ClampedArray}} 範囲外なら w=h=0
+ */
+export function cropPatch(img, box) {
+  const x0 = Math.max(0, Math.floor(box.x)), y0 = Math.max(0, Math.floor(box.y));
+  const x1 = Math.min(img.width, Math.ceil(box.x + box.w)), y1 = Math.min(img.height, Math.ceil(box.y + box.h));
+  const w = Math.max(0, x1 - x0), h = Math.max(0, y1 - y0);
+  const data = new Uint8ClampedArray(w * h * 4);
+  for (let y = 0; y < h; y++) {
+    data.set(img.data.subarray(((y0 + y) * img.width + x0) * 4, ((y0 + y) * img.width + x1) * 4), y * w * 4);
+  }
+  return { w, h, data };
+}
+
 /** 署名を平坦な配列（0〜255 の整数）へ。★アトラス JSON はこの形で持つ（小さく・可読）。 */
 export function packSignature(sig) {
   return Array.from(sig.data, (v) => Math.round(Math.min(1, Math.max(0, v)) * 255));
@@ -579,6 +597,13 @@ export function validateAtlas(atlas) {
 // 5. 採取（形の分類まで＝ラベルは付けない）
 // ─────────────────────────────────────────────────────────────
 
+/** 中央値（空なら 0）。 */
+function median(a) {
+  if (!a.length) return 0;
+  const v = [...a].sort((x, y) => x - y);
+  return v[Math.floor(v.length / 2)];
+}
+
 /** 署名どうしの類似度（soft Jaccard）。0〜1。 */
 export function similarity(a, b) {
   let mn = 0, mx = 0;
@@ -602,8 +627,20 @@ export class GlyphHarvest {
     this.overflow = 0;
   }
 
-  /** @param {{data:Float32Array}} sig  @param {number} t 秒 @param {object} box */
-  push(sig, t = null, box = null) {
+  /**
+   * @param {{data:Float32Array}} sig 署名（照合に使う）
+   * @param {number} t 秒
+   * @param {object} box 画素座標の箱
+   * @param {{w:number,h:number,data:Uint8ClampedArray}} [patch] ★**実画素の切り抜き**
+   *
+   * ⚠⚠ **`patch` は 2026-08-19b に追加した**（ユーザー報告で判明した設計ミスの修正）:
+   *   代表を**署名（12×20 の縁取りの強さ）**として画面に描いていたが、
+   *   **人はそれを見て「7 だ」と判断できない**（荒い・白黒・字の一部にしか見えない）。
+   *   ★署名は**機械が照合するための表現**であって、**人が見るための表現ではない**。
+   *   ∴ 人に見せるものは**実画素**（色つき・元の解像度）にする。
+   *   ★教訓の一般形＝**人に判断を頼むなら、人が判断できる形で見せる**（憲法の運用側の条件）。
+   */
+  push(sig, t = null, box = null, patch = null, meta = null) {
     this.seen++;
     let best = null, bestSim = -1;
     for (const c of this.clusters) {
@@ -616,18 +653,26 @@ export class GlyphHarvest {
       best.centroid = Float32Array.from(best.sum, (v) => v / best.count);
       if (best.times.length < 8) best.times.push(t);
       if (best.boxes.length < 8) best.boxes.push(box);
+      if (patch && best.patches.length < 3) best.patches.push(patch);
+      if (meta) best.meta.push(meta);
       return best;
     }
     if (this.clusters.length >= this.o.maxClusters) { this.overflow++; return null; }
     const sum = Float32Array.from(sig.data);
-    const c = { sum, count: 1, centroid: Float32Array.from(sum), times: [t], boxes: [box] };
+    const c = { sum, count: 1, centroid: Float32Array.from(sum), times: [t], boxes: [box],
+                patches: patch ? [patch] : [], meta: meta ? [meta] : [] };
     this.clusters.push(c);
     return c;
   }
 
-  /** 出現回数の多い順に代表を返す（ユーザーがラベルを付ける対象）。 */
+  /**
+   * 出現回数の多い順に代表を返す（ユーザーがラベルを付ける対象）。
+   * ⚠ **実画素（`patches`）は返さない**＝診断 JSON に載せると桁違いに膨らむため。
+   *   画面へ描くときは `patchAt(i)` を使う（順序は本メソッドと同じ）。
+   */
   report(topN = 40) {
     const cs = [...this.clusters].sort((a, b) => b.count - a.count).slice(0, topN);
+    this._reported = cs;
     return {
       seen: this.seen,
       clusters: this.clusters.length,
@@ -636,10 +681,24 @@ export class GlyphHarvest {
         index: i,
         count: c.count,
         times: c.times.filter((t) => t != null).map((t) => +t.toFixed(2)),
+        // ★箱の実寸も返す（**字の一部しか映っていない**ことに人が気づける）
+        box: c.boxes[0] ? { w: +c.boxes[0].w.toFixed(1), h: +c.boxes[0].h.toFixed(1) } : null,
+        // ★★「これは文字か、背景の模様か」を後で切り分けるための材料（**まだ篩には使わない**）。
+        //   ⚠ 実データを見る前に篩を入れない（本 Phase の規律）。まずは**測って持ち帰る**:
+        //   `contrast`＝出てきた行の格子の合致度（文字行なら高いはず）
+        //   `spread`＝箱の位置のばらつき（背景の模様は同じ位置に出続ける／数字は動く）
+        contrast: c.meta.length ? +median(c.meta.map((x) => x.contrast ?? 0)).toFixed(3) : null,
+        spread: c.boxes.filter(Boolean).length >= 2
+          ? { x: +(Math.max(...c.boxes.filter(Boolean).map((b) => b.x)) - Math.min(...c.boxes.filter(Boolean).map((b) => b.x))).toFixed(0),
+              y: +(Math.max(...c.boxes.filter(Boolean).map((b) => b.y)) - Math.min(...c.boxes.filter(Boolean).map((b) => b.y))).toFixed(0) }
+          : null,
         signature: packSignature({ data: c.centroid }),
       })),
     };
   }
+
+  /** ★`report()` と同じ並び順で、代表の**実画素**を返す（画面描画専用）。 */
+  patchAt(i) { return this._reported?.[i]?.patches?.[0] ?? null; }
 }
 
 // ─────────────────────────────────────────────────────────────

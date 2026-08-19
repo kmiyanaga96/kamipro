@@ -1614,7 +1614,7 @@ console.log('\n[16] グリフ照合（P3-1）＝縁取りで読む・遮蔽に�
     const edge = fieldOf(img);
     const row = G.segmentRows(edge).rows[0];
     const seg = G.segmentGlyphs(edge, row);
-    return { edge, row, seg, scale: G.fieldScale(edge, row), chars };
+    return { img, edge, row, seg, scale: G.fieldScale(edge, row), chars };
   }
   /** 条件のリストからアトラスを作る（★1字に複数の見え方を持たせられる）。 */
   function atlasFrom(conds, chars = '0123456789,') {
@@ -1825,6 +1825,50 @@ console.log('\n[16] グリフ照合（P3-1）＝縁取りで読む・遮蔽に�
         }
         return wrong > 0;
       })(), 'rejectAmbiguous=false で誤読が出ること');
+  }
+
+  // ── [16-11] ★★人に見せるのは「実画素」──────────────────────
+  //   ⚠⚠ **初版はここで事故った**（ユーザー報告 2026-08-19b）＝代表シートに
+  //     **署名（12×20 の縁取りの強さ）**を描いていて、「荒すぎる・白黒・一部分」で**何も判別できない**。
+  //   ★署名は**機械が照合するための表現**であって**人が見るための表現ではない**。
+  //     人に判断を頼むなら、**人が判断できる形**（色つき・元の解像度の画素）で見せる。
+  //   ∴ 採取器は署名と**実画素の両方**を持ち、画面には実画素を描く。ここはその回帰。
+  {
+    const img = makeImage(40, 30, [10, 20, 30]);
+    fillRect(img, 10, 5, 6, 8, [200, 100, 50]);
+    const patch = G.cropPatch(img, { x: 10, y: 5, w: 6, h: 8 });
+    check('★切り出しは実画素をそのまま返す（色が保たれる）',
+      patch.w === 6 && patch.h === 8 && patch.data[0] === 200 && patch.data[1] === 100 && patch.data[2] === 50,
+      `${patch.w}×${patch.h} 先頭=${[...patch.data.slice(0, 3)]}`);
+    const edgeCrop = G.cropPatch(img, { x: 38, y: 28, w: 10, h: 10 });
+    check('画面の外へはみ出しても落ちない（内側だけ返す）',
+      edgeCrop.w === 2 && edgeCrop.h === 2, `${edgeCrop.w}×${edgeCrop.h}`);
+
+    const h = new G.GlyphHarvest();
+    const st = strip('0123456789', DARK);
+    // 同じ字を5回入れて、実画素の保持数に上限があること（記憶が膨らまない）も見る
+    for (let k = 0; k < 5; k++) {
+      st.seg.boxes.forEach((b) => h.push(G.signature(st.edge, b, { scale: st.scale }), k,
+        b, G.cropPatch({ width: 0, height: 0, data: new Uint8ClampedArray(0) }, b)));
+    }
+    const st2 = strip('0123456789', DARK);
+    const h2 = new G.GlyphHarvest();
+    st2.seg.boxes.forEach((b) => h2.push(G.signature(st2.edge, b, { scale: st2.scale }), 0, b,
+      G.cropPatch(st2.img ?? makeImage(4, 4, [0, 0, 0]), b)));
+    const rep2 = h2.report();
+    check('★★代表から実画素が取り出せる（シートに描くのはこれ）',
+      h2.patchAt(0) !== null, `patchAt(0)=${h2.patchAt(0) ? 'あり' : 'なし'}`);
+    check('★代表には箱の実寸が付く（字の一部しか入っていないことに人が気づける）',
+      rep2.representatives[0].box && rep2.representatives[0].box.w > 0,
+      JSON.stringify(rep2.representatives[0].box));
+    // ★診断 JSON に実画素を混ぜない（桁違いに膨らむ）
+    check('★実画素は診断 JSON には載らない（digest/JSON が膨らまない）',
+      !JSON.stringify(rep2).includes('"data"') && !JSON.stringify(rep2).includes('patches'),
+      `JSON 長 ${JSON.stringify(rep2).length}`);
+    h.report();
+    check('保持する実画素はクラスタあたり3枚まで（記憶が膨らまない）',
+      h.clusters.every((c) => c.patches.length <= 3),
+      `最大 ${Math.max(...h.clusters.map((c) => c.patches.length))} 枚`);
   }
 
   // ── [16-10] ★アトラスが無いうちは読み取りを始めない（関門）─────

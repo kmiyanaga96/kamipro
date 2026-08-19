@@ -239,6 +239,13 @@ export function digest(diag) {
     add(`  代表 ${r.glyphs.representatives?.length ?? 0} 個 / クラスタ ${r.glyphs.clusters}`
       + `（あふれ ${r.glyphs.overflow}）  出現回数上位: `
       + (r.glyphs.representatives ?? []).slice(0, 20).map((x) => x.count).join(','));
+    // ★★「文字か背景の模様か」の切り分け材料（**まだ篩には使っていない**＝実データを見てから決める）
+    add('  代表ごと（出現回数 / 行の格子の合致度 / 箱の位置のばらつき px / 箱の実寸）:');
+    for (const x of (r.glyphs.representatives ?? []).slice(0, 24)) {
+      add(`    #${x.index} ×${x.count} contrast=${x.contrast ?? '-'} `
+        + `spread=${x.spread ? `${x.spread.x},${x.spread.y}` : '-'} `
+        + `box=${x.box ? `${x.box.w}×${x.box.h}` : '-'} t=${(x.times ?? []).slice(0, 3).join('/')}`);
+    }
     add('  ⚠ 形そのものは digest には載せない（画面のシートを見てラベルを付ける＝人の仕事）');
   }
 

@@ -137,6 +137,14 @@ th{background:#f0f2f5;}
     入力は<b>空白区切り・番号順</b>。数字は <code>0</code>〜<code>9</code>、桁区切りは <code>,</code>、
     数字でない／分からないものは <code>-</code>。例: <code>7 - 0 , 3 8 - -</code>
   </p>
+  <div class="row" style="margin-bottom:8px">
+    <button class="btn sec" id="checkDmg">★ダメージ枠を確認（いまのフレーム）</button>
+    <button class="btn sec" id="saveDmgView">この確認画像をPNGで保存</button>
+    <span class="note" id="dmgNote">数字が大きく出ている時刻にしてから押してください</span>
+  </div>
+  <div style="overflow:auto;max-height:420px;border:1px solid #333;background:#111;margin-bottom:10px">
+    <canvas id="dmgView" width="10" height="10"></canvas>
+  </div>
   <div style="overflow:auto;max-height:420px;border:1px solid #333;background:#111">
     <canvas id="glyphSheet" width="10" height="10"></canvas>
   </div>
