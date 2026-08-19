@@ -78,8 +78,9 @@
 ---
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 3）
+## この md を参照している文書（現役層 4）
 
+- [PHASE9_PLAN.md](../../../PHASE9_PLAN.md)
 - [gamedata/md/敵/README.md](./README.md)
 - [gamedata/md/敵/ryomen_sukuna.md](./ryomen_sukuna.md)
 - [gamedata/md/敵/variant_chimera.md](./variant_chimera.md)

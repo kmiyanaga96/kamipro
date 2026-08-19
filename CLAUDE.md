@@ -291,5 +291,5 @@ npm run test:t1          # Phase 9 T1 canvas 正規化のセルフテスト（�
 - [workspace/HANDOFF.md](./workspace/HANDOFF.md)
 - [workspace/TODO.md](./workspace/TODO.md)
 
-_他に 凍結sim/archive/essays から 33 件（更新対象外）_
+_他に 凍結sim/archive/essays から 34 件（更新対象外）_
 <!-- doc_refs:end -->
