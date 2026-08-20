@@ -14,12 +14,12 @@ import { LagProfile, EventDeduper, reportDedup, DEDUP_DEFAULTS } from './dedup.j
 import { ChargeDotTracker, ChargeSeries, reportChargeDots, CT_DEFAULTS } from './charge_dots.js';
 import { ROIS } from './rois.js';
 import { luminanceField, edgeField, segmentRows, segmentGlyphs, signature, fieldScale,
-         GlyphHarvest, reportHarvest, validateAtlas, selfCheckAtlas, packSignature, cropPatch,
-         fitTaughtGrid, GLYPH_DEFAULTS } from './glyph.js';
+         GlyphHarvest, reportHarvest, validateAtlas, selfCheckAtlas, leaveOneTeachingOut,
+         packSignature, cropPatch, fitTaughtGrid, GLYPH_DEFAULTS } from './glyph.js';
 import { Diag } from './diag.js';
 import { digest } from './digest.js';
 
-const VERSION = '0.32.0';
+const VERSION = '0.33.0';
 
 const $ = (id) => document.getElementById(id);
 const video = document.createElement('video');
@@ -50,6 +50,8 @@ let taught = [];
 let teachings = [];
 /** ★直前に教えた囲みの画素指紋。**同じ画素で二度教える事故**を止めるために持つ。 */
 let lastTeachFingerprint = null;
+/** ★直前に教えた**生の切り抜き**（Claude へ実画素を送るため＝画面を見られないので唯一の経路）。 */
+let lastTeachCrop = null;
 
 /** 教えたものからアトラスを組む（保存前の検査にも使う）。 */
 function buildAtlas() {
@@ -82,10 +84,16 @@ function atlasStateLine() {
   if (!taught.length) return '';
   const v = validateAtlas(buildAtlas());
   const sc = v.self;
+  const loto = leaveOneTeachingOut(taught, GLYPH_DEFAULTS.cell);
   return (v.ok ? '<span class="ok">アトラスの検査: 問題なし</span>'
                : `<span class="bad">アトラスの検査: ${v.problems.join(' / ')}</span>`)
-    + `（自己読み 正 ${sc?.correct ?? 0} / 曖昧 ${sc?.ambiguous ?? 0} / 誤 ${sc?.wrong ?? 0}`
-    + ` / 検査不能 ${sc?.unchecked ?? 0}・⚠ 参考値＝関門ではない）`;
+    + `（1枚抜き 正 ${sc?.correct ?? 0} / 曖昧 ${sc?.ambiguous ?? 0} / 誤 ${sc?.wrong ?? 0}`
+    + ` / 検査不能 ${sc?.unchecked ?? 0}・⚠ 参考値＝関門ではない）`
+    // ★★**本当の品質指標**＝教示回ごと抜いて残りで読む（「まだ見ていない表示を読む」に近い）
+    + (loto.total ? `<br>★<b>教示回抜き 正 ${loto.correct}/${loto.total}（${(loto.rate * 100).toFixed(0)}%）</b>`
+        + ` 曖昧 ${loto.ambiguous} 誤 ${loto.wrong}`
+        + `${loto.wrong ? ' — 取り違え ' + Object.entries(loto.confusions).slice(0, 6).map(([k, v]) => k + '×' + v).join(' ') : ''}`
+      : '');
 }
 
 const rois = {};         // 登録済み ROI（name → 正規化座標）
@@ -563,10 +571,12 @@ $('teachAdd').onclick = () => {
   const scale = fieldScale(edge, { from: fit.band.from, to: fit.band.to });
   const at = +video.currentTime.toFixed(2);
   for (const b of fit.boxes) {
-    taught.push({ ch: b.ch, sig: packSignature(signature(edge, b, { scale })), at, commaRatio: fit.commaRatio });
+    taught.push({ ch: b.ch, sig: packSignature(signature(edge, b, { scale })), at,
+                  ti: teachings.length, commaRatio: fit.commaRatio });
   }
   teachings.push({ at, text, pitch: +fit.pitch.toFixed(1), bandH: fit.band.to - fit.band.from,
                    contrast: +fit.contrast.toFixed(3) });
+  lastTeachCrop = { img, text, at };
   lastTeachFingerprint = fp;
   // ★★**次は必ず囲み直させる**（同じ囲みの使い回しが今回の事故の原因）
   lastRect = null; lastRoi = null;
@@ -587,8 +597,27 @@ $('teachAdd').onclick = () => {
     + '<br>★次を教えるには<b>もう一度「このフレームを解析」→ 囲み直し</b>が要ります（使い回し防止）';
 };
 
+// ★★**教えた切り抜きを生の PNG で保存**（2026-08-20 追加）。
+//   ⚠ Claude は画面を見られない（§10.1）＝**実画素が無いと、切り出しの良し悪しを測れない**。
+//     実際、2回のアトラスとも「壊れている」ことは分かっても、**なぜ壊れたかは実画素が無いと詰められなかった**。
+//   ★これを貼ってもらえば、**同じ切り抜きに対して手元で（Node で）検証**できる＝
+//     ユーザーに教え直しを何度も頼まずに済む。
+$('saveTeachCrop').onclick = () => {
+  if (!lastTeachCrop) { $('teachNote').innerHTML = '<span class="bad">先に1つ教えてください</span>'; return; }
+  const c = document.createElement('canvas');
+  c.width = lastTeachCrop.img.width; c.height = lastTeachCrop.img.height;
+  c.getContext('2d').putImageData(lastTeachCrop.img, 0, 0);
+  c.toBlob((b) => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(b);
+    a.download = `teach_${lastTeachCrop.text.replace(/,/g, '')}_${Math.round(lastTeachCrop.at * 1000)}ms.png`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }, 'image/png');
+};
+
 $('teachReset').onclick = () => {
-  taught = []; teachings = []; lastTeachFingerprint = null;
+  taught = []; teachings = []; lastTeachFingerprint = null; lastTeachCrop = null;
   $('teachNote').textContent = '教えたものを消しました';
   const cv = $('teachView');
   cv.getContext('2d').clearRect(0, 0, cv.width, cv.height);

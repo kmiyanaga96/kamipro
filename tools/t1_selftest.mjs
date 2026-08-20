@@ -2047,15 +2047,25 @@ console.log('\n[16] グリフ照合（P3-1）＝縁取りで読む・遮蔽に�
 
     // ★★もう1つの関門＝**教えるたびの寸法が揃っているか**（フォントは固定＝送り幅と字高は一定）
     const mixed = JSON.parse(JSON.stringify(good));
-    mixed.provenance.teachings = [{ at: 1, pitch: 100, bandH: 120 }, { at: 2, pitch: 140, bandH: 121 }];
-    check('★★★教えるたびに送り幅が揃っていなければ関門で止まる（囲み方が違う／大きさが違う）',
+    mixed.provenance.teachings = [{ at: 1, text: 'a', pitch: 100, bandH: 120 },
+                                  { at: 2, text: 'b', pitch: 140, bandH: 121 }];
+    check('★★★「字高/送り幅」の比が揃っていなければ関門で止まる（切り出しが安定していない）',
       !G.validateAtlas(mixed).ok
-      && G.validateAtlas(mixed).problems.some((p) => /pitch が揃っていない/.test(p)),
-      JSON.stringify(G.validateAtlas(mixed).problems));
-    const consistent = JSON.parse(JSON.stringify(good));
-    consistent.provenance.teachings = [{ at: 1, pitch: 100, bandH: 120 }, { at: 2, pitch: 104, bandH: 121 }];
-    check('揃っていれば通る（±15% 以内）', G.validateAtlas(consistent).ok,
-      JSON.stringify(G.validateAtlas(consistent).problems));
+      && G.validateAtlas(mixed).problems.some((p) => /比が揃っていない/.test(p)),
+      JSON.stringify(G.validateAtlas(mixed).problems).slice(0, 120));
+    // ★★**大きさ自体は変わってよい**（実機は個別ヒットとバースト TOTAL で送り幅 72〜113px）
+    const scaled = JSON.parse(JSON.stringify(good));
+    scaled.provenance.teachings = [{ at: 1, text: 'a', pitch: 72, bandH: 104 },
+                                   { at: 2, text: 'b', pitch: 113, bandH: 161 }];
+    check('★大きさが 1.6倍違っても、比が揃っていれば通る（表示サイズは変わるもの）',
+      G.validateAtlas(scaled).ok, JSON.stringify(G.validateAtlas(scaled).problems).slice(0, 120));
+
+    // ★★★教示回ごとに抜いて読む＝アトラスの本当の品質指標
+    const t1 = [{ ch: '1', sig: good.glyphs['1'][0], ti: 0 }, { ch: '2', sig: good.glyphs['2'][0], ti: 0 },
+                { ch: '1', sig: good.glyphs['1'][1], ti: 1 }, { ch: '2', sig: good.glyphs['2'][1], ti: 1 }];
+    const loto = G.leaveOneTeachingOut(t1, good.cell);
+    check('★教示回を1つ抜いて残りで読む指標が出る（1枚抜きより厳しい＝実際の読み取りに近い）',
+      loto.total === 4 && typeof loto.rate === 'number', JSON.stringify(loto));
   }
 
   // ── [16-10] ★アトラスが無いうちは読み取りを始めない（関門）─────

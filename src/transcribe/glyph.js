@@ -581,18 +581,25 @@ export function matchSignature(sample, template, opts = {}) {
   const S = sample.data, T = template.data;
   if (S.length !== T.length) throw new Error(`署名の格子が違う: ${S.length} vs ${T.length}`);
   const mask = opts.mask ?? null;
-  let ct = 0, cs = 0, at = 0, as = 0;
+  let ct = 0, cs = 0, ss = 0;
   for (let i = 0; i < S.length; i++) {
     const m = mask ? mask[i] : 1;
     if (m <= 0) continue;
     ct += m * T[i];
     cs += m * Math.min(T[i], S[i]);
-    at += m * (1 - T[i]);
-    as += m * Math.max(0, S[i] - T[i]);
+    ss += m * S[i];
   }
   const cover = ct > 1e-9 ? cs / ct : 0;
-  const alien = at > 1e-9 ? as / at : 0;
-  return { cover, alien, score: cover - o.lambda * alien, observed: mask ? null : 1 };
+  // ★**異物は「標本のインク」に対して測る**。
+  //   ⚠⚠ **分母をテンプレートの空白にしていて外した**（2026-08-20・実機データで判明）＝
+  //     `,` のように**ほとんど空のテンプレート**は空白が広いので異物項が薄まり、
+  //     **何にでも一致する吸い込み口**になった（誤りの約半分が `,` 行き＝`2→,` が5件など）。
+  //   ⭐ これは [16-6] の「8 の罠」の**裏返し**＝空のテンプレートは cover が飽和しやすい。
+  //   ★実測（受領アトラス 63点・教示回を1つ抜いて残りで読む）＝**旧 37/63 → 新 41/63**、
+  //     かつ `,` への吸い込みが消えた。
+  const explained = ss > 1e-9 ? cs / ss : 0;
+  const alien = 1 - explained;
+  return { cover, explained, alien, score: cover - o.lambda * alien, observed: mask ? null : 1 };
 }
 
 /**
@@ -770,6 +777,36 @@ export function selfCheckAtlas(atlas, opts = {}) {
            entries: entries.length, correct, ambiguous, wrong, unchecked, confusions, crossLabelDuplicates };
 }
 
+/**
+ * ★★**教示回を1つ抜いて、残りで読めるか**（アトラスの本当の品質指標）。
+ *
+ * ⚠ `selfCheckAtlas` の leave-one-out（1枚だけ抜く）は**同じ回の他の字**が残るので甘い。
+ *   実際の読み取りは「**まだ見ていない表示**を読む」ので、**回ごと**に抜くのが正しい。
+ * ★これで受領アトラス（46枚・7回）を測ったら **正 37/63** で、使えないことが分かった。
+ * @param {Array<{ch:string,sig:Array<number>,ti:number}>} taught 教えた順のテンプレート
+ */
+export function leaveOneTeachingOut(taught, cell = GLYPH_DEFAULTS.cell, opts = {}) {
+  const groups = [...new Set(taught.map((t) => t.ti))];
+  let correct = 0, ambiguous = 0, wrong = 0, total = 0;
+  const confusions = {};
+  for (const g of groups) {
+    const glyphs = {};
+    for (const t of taught) if (t.ti !== g) (glyphs[t.ch] ||= []).push(t.sig);
+    if (!Object.keys(glyphs).length) continue;
+    for (const t of taught) {
+      if (t.ti !== g || !glyphs[t.ch]) continue;
+      total++;
+      const c = classify(unpackSignature(t.sig, cell), { cell, glyphs }, opts);
+      if (!c.best) continue;
+      if (c.best.key !== t.ch) { wrong++; const k = `${t.ch}→${c.best.key}`; confusions[k] = (confusions[k] ?? 0) + 1; }
+      else if (c.ambiguous) ambiguous++;
+      else correct++;
+    }
+  }
+  return { total, correct, ambiguous, wrong, confusions,
+           rate: total ? +(correct / total).toFixed(3) : 0 };
+}
+
 /** アトラスの健全性検査。★**読み取りを始める前の関門**。 */
 export function validateAtlas(atlas) {
   const problems = [];
@@ -796,15 +833,25 @@ export function validateAtlas(atlas) {
   }
   // ★②**教えるたびの寸法が揃っているか**＝フォントは固定なので、送り幅と字の高さは走の中で一定のはず。
   //   ⚠ ばらつくのは「囲み方が違う」か「別の大きさの表示を教えた」＝**テンプレートが混ざる**。
+  // ⚠⚠ **絶対値（送り幅・字高）で揃えろと言ってはいけない**（2026-08-20・実機データで判明）＝
+  //   実機の表示は**大きさそのものが変わる**（個別ヒットとバースト TOTAL で送り幅 72〜113px）。
+  //   ★フォントが固定なら定数なのは**比**（字高/送り幅）。∴ 比だけを見る。
   const T = atlas.provenance?.teachings;
   if (Array.isArray(T) && T.length >= 2) {
-    for (const f of ['pitch', 'bandH']) {
-      const v = T.map((t) => t[f]).filter((x) => x > 0);
-      if (v.length < 2) continue;
-      const mn = Math.min(...v), mx = Math.max(...v);
+    const rs = T.map((t) => (t.pitch > 0 ? t.bandH / t.pitch : 0)).filter((x) => x > 0);
+    if (rs.length >= 2) {
+      const mn = Math.min(...rs), mx = Math.max(...rs);
+      // ⚠ 基準は**中央値**（[min,max] の中点だと外れ値そのものに引っぱられ、
+      //   「いちばん外れている回」を取り違える＝実際に取り違えた）
+      const sorted = [...rs].sort((a, b) => a - b);
+      const mid = sorted[Math.floor(sorted.length / 2)];
       if (mx > mn * 1.15) {
-        problems.push(`教えるたびに ${f} が揃っていない（${mn.toFixed(1)}〜${mx.toFixed(1)}・±15% 超）`
-          + '＝囲み方が違うか、大きさの違う表示を混ぜて教えている');
+        const worst = T.filter((t) => t.pitch > 0)
+          .map((t) => ({ t, r: t.bandH / t.pitch }))
+          .sort((a, b) => Math.abs(b.r - mid) - Math.abs(a.r - mid))[0];
+        problems.push(`教えるたびに「字高/送り幅」の比が揃っていない（${mn.toFixed(2)}〜${mx.toFixed(2)}・±15% 超）`
+          + `＝切り出しが安定していない。いちばん外れているのは t=${worst.t.at}「${worst.t.text}」`
+          + `（比 ${worst.r.toFixed(2)}）＝この回を教え直す`);
       }
     }
   }
