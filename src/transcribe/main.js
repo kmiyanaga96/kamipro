@@ -13,7 +13,7 @@ import { analyzeHpBar, HpSeries, reportHp, HP_DEFAULTS } from './hp_bar.js';
 import { LagProfile, EventDeduper, reportDedup, DEDUP_DEFAULTS } from './dedup.js';
 import { ChargeDotTracker, ChargeSeries, reportChargeDots, CT_DEFAULTS } from './charge_dots.js';
 import { ROIS } from './rois.js';
-import { luminanceField, edgeField, segmentRows, segmentGlyphs, signature, fieldScale,
+import { luminanceField, edgeField, brightField, segmentRows, segmentGlyphs, signature, fieldScale,
          GlyphHarvest, reportHarvest, validateAtlas, selfCheckAtlas, leaveOneTeachingOut,
          packSignature, cropPatch, fitTaughtGrid, GLYPH_DEFAULTS } from './glyph.js';
 import { Diag } from './diag.js';
@@ -541,7 +541,10 @@ $('teachAdd').onclick = () => {
     return;
   }
 
-  const edge = edgeField(luminanceField(img, { x: 0, y: 0, w: lastRect.w, h: lastRect.h }));
+  // ★★**明るさの場で切り出す**（エッジではない・2026-08-20 に実測で差し替え）。
+  //   実物の数字は**画面でいちばん明るい**が、背景はエッジだらけ＝勾配では背景に埋もれる。
+  //   忠実な合成での実測＝送り幅 エッジ 89/73/57（真値 80）→ 明るさ **81/81/80**。
+  const edge = brightField(img);
   const fit = fitTaughtGrid(edge, { x: 0, y: 0, w: lastRect.w, h: lastRect.h }, text);
   if (!fit.ok) { $('teachNote').innerHTML = `<span class="bad">格子を当てられません: ${fit.reason}</span>`; return; }
 

@@ -1984,41 +1984,75 @@ console.log('\n[16] グリフ照合（P3-1）＝縁取りで読む・遮蔽に�
       [...r1].filter((c) => c !== '?').length >= target.length - 2, `読み=${r1}`);
   }
 
-  // ── [16-13] ★★★囲みの余白でテンプレートが変わってはいけない ─────
-  //   ⚠⚠ **実機のアトラスが壊れた原因**（2026-08-20）＝人が囲むときの**上下の余白**で
-  //     署名が変わり、**同じ字どうし 0.65〜0.73 / 別の字どうし 0.879** と**順序が逆転**していた
-  //     （受領アトラス 46枚のうち 26枚が別の字に化けた）。
-  //   ★答え＝**共通モード除去で縦に締める**（セル中央の列 − 境界の列＝背景は両方に等しく乗るので消える）。
-  //     CT の点灯を読むときに効いたのと同じ手＝**新しい閾値ではなく参照点の選び方**。
+  // ── [16-13] ★★★特徴量は「縁取りのエッジ」ではなく「明るさ」───────────
+  //   ⚠⚠ **本モジュールは当初エッジで照合する前提で書いた。それが誤りだった**（2026-08-20）。
+  //     実物のダメージ数字は**白い縁取り＋金グラデ**＝**画面でいちばん明るい**が、
+  //     `dmg` の背景はキャラ絵・床グリッドで**エッジだらけ**＝**勾配は背景に埋もれる**。
+  //   ★ここでは**実物に忠実な合成**（白縁取り＋金芯＋むらのある背景）で両者を測り、
+  //     **エッジでは送り幅が当たらない／明るさでは当たる**ことを固定する。
+  //   ⭐ **帯（縦の切り出し）の不安定も、特徴量を変えたら一緒に消えた**＝
+  //     「切り出しが不安定」を切り出しの問題として直そうとして2度外した、その記録。
   {
-    const SZ2 = 6, str = '5,044,282';
-    const teachWithSlack = (top, bot) => {
-      const im = makeImage(1000, 240, [40, 20, 70]);
-      for (let y = 0; y < im.height; y += 7) fillRect(im, 0, y, im.width, 2, [120, 40, 160]);
-      for (let x = 0; x < im.width; x += 11) fillRect(im, x, 0, 2, im.height, [90, 30, 130]);
-      const d = drawTaught(im, 40, 60, str, 0.5);
-      const e = fieldOf(im);
-      const bx = { x: 40, y: 60 - top, w: d.width, h: GH * SZ2 + top + bot };
-      const f = G.fitTaughtGrid(e, bx, str);
-      const sc = G.fieldScale(e, { from: f.band.from, to: f.band.to });
-      return { fit: f, sigs: f.boxes.map((b) => G.signature(e, b, { scale: sc })) };
-    };
-    const tight = teachWithSlack(0, 0), loose = teachWithSlack(20, 25);
-    check('★★囲みに上下の余白があっても、締めた帯はほぼ同じ',
-      Math.abs(tight.fit.band.from - loose.fit.band.from) <= 2
-      && Math.abs(tight.fit.band.to - loose.fit.band.to) <= 2,
-      `${JSON.stringify(tight.fit.band)} vs ${JSON.stringify(loose.fit.band)}`);
-    const same = tight.sigs.map((a, i) => G.similarity(a.data, loose.sigs[i].data));
-    let diffMax = 0;
-    for (let i = 0; i < tight.sigs.length; i++) {
-      for (let j = 0; j < tight.sigs.length; j++) {
-        if (tight.fit.boxes[i].ch === tight.fit.boxes[j].ch) continue;
-        diffMax = Math.max(diffMax, G.similarity(tight.sigs[i].data, tight.sigs[j].data));
+    const SZ = 10, ADV2 = 8, CR = 0.45;
+    /** 実物に忠実な1文字（芯=金グラデ／その外=白い縁取り／さらに外=暗いリム）。 */
+    function realGlyph(img, x, y, ch) {
+      const p = FONT[ch];
+      const on = (ax, ay) => ay >= 0 && ay < GH && ax >= 0 && ax < GW && p[ay][ax] === '1';
+      const near = (ax, ay, r) => {
+        for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (on(ax + dx, ay + dy)) return true;
+        return false;
+      };
+      for (let ay = -2; ay <= GH + 1; ay++) {
+        for (let ax = -2; ax <= GW + 1; ax++) {
+          let c = null;
+          if (on(ax, ay)) { const v = Math.round(235 - 95 * (ay / (GH - 1))); c = [v, Math.round(v * 0.8), Math.round(v * 0.35)]; }
+          else if (near(ax, ay, 1)) c = [248, 246, 238];
+          else if (near(ax, ay, 2)) c = [28, 22, 30];
+          if (c) fillRect(img, x + ax * SZ, y + ay * SZ, SZ, SZ, c);
+        }
       }
     }
-    check('★★★余白が違っても「同じ字どうし」が「別の字どうし」より似ている（順序が逆転しない）',
-      Math.min(...same) > diffMax,
-      `同字 min ${Math.min(...same).toFixed(3)} / 異字 max ${diffMax.toFixed(3)}`);
+    /** 数字の切り抜きを1枚作る（余白は毎回変える＝人の囲みは毎回違う）。 */
+    function crop(text, padL, padR, padT, padB) {
+      const adv = [...text].map((ch) => (ch === ',' ? ADV2 * CR : ADV2) * SZ);
+      const total = Math.round(adv.reduce((a, b) => a + b, 0));
+      const img = makeImage(padL + total + padR, padT + GH * SZ + padB, [40, 20, 70]);
+      // 背景＝むらのある紫＋グリッド（キャラ絵と床を模す）
+      for (let y = 0; y < img.height; y++) {
+        for (let x = 0; x < img.width; x++) {
+          let v = 42 + 18 * Math.sin(x / 37) + 14 * Math.cos(y / 23);
+          if (x % 29 < 2 || y % 19 < 2) v += 38;
+          fillRect(img, x, y, 1, 1, [v * 0.9, v * 0.45, v * 1.5]);
+        }
+      }
+      let cx = padL;
+      [...text].forEach((ch, k) => {
+        realGlyph(img, Math.round(cx + (adv[k] - GW * SZ) / 2), padT, ch);
+        cx += adv[k];
+      });
+      return { img, text, truePitch: ADV2 * SZ };
+    }
+    const crops = [crop('5,044,101', 14, 20, 12, 18), crop('4,728,306', 30, 8, 30, 6),
+                   crop('5,063,212', 6, 40, 4, 40)];
+    const fitAll = (mkField) => crops.map((c) => {
+      const f = mkField(c.img);
+      return G.fitTaughtGrid(f, { x: 0, y: 0, w: c.img.width, h: c.img.height }, c.text);
+    });
+    const spread = (v) => (Math.max(...v) - Math.min(...v)) / Math.min(...v);
+    const byBright = fitAll((im) => G.brightField(im));
+    const byEdge = fitAll((im) => G.edgeField(G.luminanceField(im, { x: 0, y: 0, w: im.width, h: im.height })));
+    const pb = byBright.map((f) => f.pitch), pe = byEdge.map((f) => f.pitch);
+    check('★★★明るさの場なら、囲みが違っても送り幅が揃う（真値 80・ばらつき 3% 以内）',
+      spread(pb) < 0.03 && pb.every((p) => Math.abs(p - 80) / 80 < 0.05),
+      `送り幅 ${pb.map((p) => p.toFixed(1)).join(' / ')}`);
+    check('★★エッジの場では同じ入力で送り幅が当たらない＝特徴量を変えた理由の記録',
+      spread(pe) > 0.10, `送り幅 ${pe.map((p) => p.toFixed(1)).join(' / ')}`);
+    const hb = byBright.map((f) => f.band.to - f.band.from);
+    check('★帯の高さも揃う（囲みの余白に依存しない）',
+      spread(hb) < 0.10, `帯 ${hb.join(' / ')}px`);
+    check('カンマの送り幅比も揃う（真値 0.45）',
+      spread(byBright.map((f) => f.commaRatio)) < 0.25,
+      byBright.map((f) => f.commaRatio.toFixed(2)).join(' / '));
   }
 
   // ── [16-14] ★★アトラスは「保存できた」ではなく「自分を読めるか」で見る ──

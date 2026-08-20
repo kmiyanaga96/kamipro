@@ -52,6 +52,13 @@ export const GLYPH_DEFAULTS = {
    */
   basePercentile: 0.10,
   /**
+   * ★帯（縦の切り出し）の高さの下限＝**送り幅に対する比**。
+   * ⚠ これは**下限**であって当てにいく値ではない（本当の高さは t 統計量が決める）＝
+   *   degenerate な細い窓を防ぐためだけに置くので、**実物の比より小さめ**にする。
+   * ⚠ **未較正**（実機の字高/送り幅は未測定・合成の真値は 0.875）。
+   */
+  bandMinRatio: 1.0,
+  /**
    * ★行の切り出しだけ**隙間を埋める**（px）。
    * ⚠ **文字行のプロファイルは台形ではなく凸凹**（字の横棒がある行だけ強い）＝
    *   割合でしきると**1行が数本に割れる**（実際に割れた）。∴ 低めにしきって**近い塊をつなぐ**。
@@ -159,6 +166,61 @@ export function edgeField(field) {
     }
   }
   return { w, h, mag };
+}
+
+/**
+ * ★★**明るさの場**（2026-08-20・実切り抜きを模した忠実な合成で **エッジを棄却**して採用）。
+ *
+ * ⚠⚠ **本モジュールは当初「縁取り＝エッジで照合する」という前提で書いた。これが誤りだった**。
+ *   実物のダメージ数字は **白い縁取り＋金グラデの芯**＝**画面の中でいちばん明るい**。
+ *   一方 `dmg` の背景はキャラ絵・床グリッドで**エッジだらけ**＝**勾配は背景に埋もれる**。
+ *   ★忠実な合成（白縁取り＋金芯＋むらのある紫背景）で測った結果:
+ *
+ *   | 特徴量 | 送り幅（真値 80） | 1枚抜きの正解 |
+ *   |---|---|---|
+ *   | エッジ（旧） | **89.1 / 72.9 / 56.8** | **0 / 25** |
+ *   | **明るさ（本関数）** | **80.8 / 81.2 / 79.7** | **13〜14 / 25** |
+ *
+ *   ⭐ **帯（縦の切り出し）の不安定も、これで一緒に消えた**＝帯がばらついていたのは
+ *     帯の求め方の問題ではなく、**見ている量が背景に埋もれていた**ことの症状だった。
+ *     ★「切り出しが不安定」を切り出しの問題として直そうとして2度外している（本 Phase の教訓）。
+ *
+ * ⚠ **P2-2 の「金色画素の割合では判定できない」と矛盾しない**＝あれは
+ *   **`dmg` ROI 全体でポップアップの有無を判定する**話で、バースト演出そのものが金色だった。
+ *   ここは**人が数字だけを囲んだ切り抜きの中**なので、「いちばん明るいもの＝数字」が成立する。
+ *
+ * @returns {{w,h,mag}} 0〜1（しきい値未満は 0・上位は 1 で飽和）＝下流は `edgeField` と同じ形
+ */
+export function brightField(img, rect = null) {
+  const f = luminanceField(img, rect ?? { x: 0, y: 0, w: img.width, h: img.height });
+  const vals = Array.from(f.lum);
+  const thr = otsuThreshold(vals);
+  const top = quantile(vals, 0.99);
+  const span = Math.max(1, top - thr);
+  const mag = new Float32Array(f.w * f.h);
+  for (let i = 0; i < mag.length; i++) mag[i] = Math.max(0, Math.min(1, (f.lum[i] - thr) / span));
+  return { w: f.w, h: f.h, mag, threshold: thr };
+}
+
+/** 大津法のしきい値（0〜255）。★「明るいもの＝数字」を切り出す基準を**データに決めさせる**。 */
+export function otsuThreshold(vals) {
+  const h = new Array(256).fill(0);
+  for (const v of vals) h[Math.max(0, Math.min(255, Math.round(v)))]++;
+  const n = vals.length;
+  let sum = 0;
+  for (let i = 0; i < 256; i++) sum += i * h[i];
+  let sB = 0, wB = 0, best = 0, thr = 128;
+  for (let t = 0; t < 256; t++) {
+    wB += h[t];
+    if (!wB) continue;
+    const wF = n - wB;
+    if (!wF) break;
+    sB += t * h[t];
+    const mB = sB / wB, mF = (sum - sB) / wF;
+    const v = wB * wF * (mB - mF) ** 2;
+    if (v > best) { best = v; thr = t; }
+  }
+  return thr;
 }
 
 /** 分位点（配列を壊さない）。 */
@@ -384,13 +446,34 @@ export function tightenBand(edge, box, centers, bounds, opts = {}) {
     for (const x of bb) b += edge.mag[y * edge.w + x];
     residual.push(a / cc.length - b / bb.length);
   }
-  const peak = Math.max(...residual);
-  if (!(peak > 0)) return { from: y0, to: y1, tightened: false, residual };
-  const thr = peak * o.rowThresholdFraction;
-  let from = -1, to = -1;
-  for (let i = 0; i < residual.length; i++) if (residual[i] >= thr) { if (from < 0) from = i; to = i + 1; }
-  if (from < 0 || to - from < 4) return { from: y0, to: y1, tightened: false, residual };
-  return { from: y0 + from, to: y0 + to, tightened: true, residual };
+  // ★★**しきい値を使わず、当てはめで決める**（2026-08-20・実切り抜きを模した合成で作り直した）。
+  //   ⚠ 旧＝「残差が peak の 18% を超える範囲」＝**同じフレーム・同じ数字を2回教えると
+  //     帯が 114 と 156（37% 違い）**になった（実機）。合成でも 1〜114 / 25〜97 / 13〜85 と散った。
+  //     背景しだいで peak が動くので、切れ目も動く＝**テンプレートが教えるたびに変わる**。
+  //   ★新＝**2標本 t 統計量が最大になる区間**を採る。「中と外の平均差」を**区間の長さで正規化**するので、
+  //     峰の高さにも囲みの広さにも依存しない。⭐ HP の階段フィットと同じ発想
+  //     （**閾値を決めるのをやめて、当てはめで決める**）。
+  //   ⚠ 窓の下限を送り幅に対して置く（下限が無いと「いちばん強い数行」だけの細い窓を選ぶ）。
+  const n = residual.length;
+  const minH = Math.max(4, Math.round(o.bandMinRatio * (o.pitch > 0 ? o.pitch : 8)));
+  if (n < minH + 4) return { from: y0, to: y1, tightened: false, residual };
+  const pre = [0], pre2 = [0];
+  for (let i = 0; i < n; i++) { pre.push(pre[i] + residual[i]); pre2.push(pre2[i] + residual[i] * residual[i]); }
+  let best = { t: -Infinity, from: 0, to: n };
+  for (let i = 0; i < n; i++) {
+    for (let j = i + minH; j <= n; j++) {
+      const nin = j - i, nout = n - nin;
+      if (nout < 4) continue;
+      const sin = pre[j] - pre[i], sout = pre[n] - sin;
+      const mIn = sin / nin, mOut = sout / nout;
+      const ssIn = pre2[j] - pre2[i], ssOut = pre2[n] - ssIn;
+      const varPooled = ((ssIn - nin * mIn * mIn) + (ssOut - nout * mOut * mOut)) / Math.max(1, n - 2);
+      const t = (mIn - mOut) / Math.sqrt(Math.max(1e-9, varPooled) * (1 / nin + 1 / nout));
+      if (t > best.t) best = { t, from: i, to: j };
+    }
+  }
+  if (!(best.t > 0)) return { from: y0, to: y1, tightened: false, residual };
+  return { from: y0 + best.from, to: y0 + best.to, tightened: true, residual };
 }
 
 /**
@@ -428,7 +511,7 @@ export function fitTaughtGrid(edge, box, text, opts = {}) {
   //   → ③締めた帯でもう一度横を当てる。②の理由は `tightenBand` の注記（人の囲みに依存させない）。
   const pass1 = fitOnce(edge, box, chars, nWide, nComma, o);
   if (!pass1) return { ok: false, reason: '格子を当てられない', boxes: [], pitch: 0, commaRatio: 0, contrast: 0 };
-  const band = tightenBand(edge, box, pass1.centers, pass1.bounds, o);
+  const band = tightenBand(edge, box, pass1.centers, pass1.bounds, { ...o, pitch: pass1.pitch });
   const box2 = { ...box, y: band.from, h: band.to - band.from };
   const best = fitOnce(edge, box2, chars, nWide, nComma, o) ?? pass1;
 
@@ -445,50 +528,66 @@ export function fitTaughtGrid(edge, box, text, opts = {}) {
   };
 }
 
-/** `fitTaughtGrid` の1段ぶん（送り幅・カンマ比・位相を当てる）。 */
+/**
+ * `fitTaughtGrid` の1段ぶん（送り幅・カンマ比・**開始位置**を当てる）。
+ *
+ * ⚠⚠ **最初は「囲みの中央に等分に並ぶ」と仮定して位相だけ振っていて、外した**
+ *   （2026-08-20・実切り抜きを模した合成で再現）＝**同じ大きさの3枚で送り幅 75〜90px** と
+ *   12% ばらつき、カンマ比も 0.30〜0.80 に散った。原因は2つ:
+ *   ①**囲みは中央揃えではない**（人が引く枠なので左右の余白が非対称）＝位相 ±0.6 では届かない
+ *   ②**1列だけを見て境界の強さを測っていた**＝背景の縦縞に当たると値が跳ねる
+ * ★∴ ①**開始位置そのものを探索**し、②**セル中央付近／境界付近を「幅を持たせて」平均する**。
+ */
 function fitOnce(edge, box, chars, nWide, nComma, o) {
   const prof = colProfile(edge, { from: Math.round(box.y), to: Math.round(box.y + box.h) });
   const base = quantile(Array.from(prof), o.basePercentile);
-  const at = (x) => {
+  const val = (x) => {
     const i = Math.max(0, Math.min(prof.length - 1, Math.round(x)));
     return Math.max(0, prof[i] - base);
   };
+  /** 幅を持たせた平均（背景の縦縞1本で跳ねないように）。 */
+  const band = (x, half) => {
+    let s = 0, n = 0;
+    for (let d = -half; d <= half; d++) { s += val(x + d); n++; }
+    return n ? s / n : 0;
+  };
   const x0 = box.x, W = box.w;
-
+  const nCells = chars.length;
   let best = null;
-  // ★カンマの送り幅は**数字より狭い**（実機の見た目）。比そのものを探索して**測る**。
-  for (let c = 0.30; c <= 1.0001; c += 0.05) {
-    const units = nWide + c * nComma;
-    // 囲みは人の手なので少し緩める（±10%）。★囲みが厳密でなくても壊れないため。
-    for (let scale = 0.88; scale <= 1.1201; scale += 0.01) {
-      const pitch = (W * scale) / units;
-      if (pitch < 3) continue;
+  const pMin = Math.max(3, 0.45 * W / nCells), pMax = 1.8 * W / nCells;
+  const pStep = Math.max(0.25, (pMax - pMin) / 120);
+  for (let pitch = pMin; pitch <= pMax; pitch += pStep) {
+    for (let c = 0.30; c <= 1.0001; c += 0.05) {
       const adv = chars.map((ch) => (ch === ',' ? pitch * c : pitch));
       const total = adv.reduce((a, b) => a + b, 0);
-      for (let ph = -pitch * 0.6; ph <= pitch * 0.6; ph += 0.5) {
-        const start = x0 + ph + (W - total) / 2;
+      // ★**格子は囲みをほぼ覆っていなければならない**。
+      //   ⚠ これが無いと**送り幅が半分の解**（囲みの一部だけを覆う格子）が勝つ＝実際に 80→40 に落ちた。
+      //   人は「数字だけ」を囲む前提なので、**囲みの幅 ≈ 数字の並びの幅**でよい。
+      if (total < W * 0.72 || total > W * 1.15) continue;
+      const sMin = x0 - 0.15 * W, sMax = x0 + W - total + 0.15 * W;
+      const sStep = Math.max(1, pitch / 8);
+      for (let start = sMin; start <= sMax; start += sStep) {
+        const hb = Math.max(1, Math.round(pitch * 0.08));   // 境界まわりの窓
+        const hc = Math.max(1, Math.round(pitch * 0.20));   // セル中央の窓
         let bE = 0, bN = 0, cE = 0, cN = 0, x = start;
-        bE += at(x); bN++;
+        bE += band(x, hb); bN++;
         for (let i = 0; i < chars.length; i++) {
-          cE += at(x + adv[i] / 2); cN++;
+          cE += band(x + adv[i] / 2, hc); cN++;
           x += adv[i];
-          bE += at(x); bN++;
+          bE += band(x, hb); bN++;
         }
         const b = bE / bN, cc = cE / cN;
         const contrast = (cc - b) / (cc + b + 1e-9);
-        if (!best || contrast > best.contrast + 1e-9) {
-          best = { pitch, commaRatio: c, phase: ph, contrast, start, adv };
-        }
+        if (!best || contrast > best.contrast + 1e-9) best = { pitch, commaRatio: c, start, contrast, adv };
       }
     }
   }
   if (!best) return null;
-  // セル中央と境界の x（②の縦締めで使う）
   const centers = [], bounds = [];
   let x = best.start;
   bounds.push(x);
   for (let i = 0; i < chars.length; i++) { centers.push(x + best.adv[i] / 2); x += best.adv[i]; bounds.push(x); }
-  return { ...best, centers, bounds, profile: prof };
+  return { ...best, phase: best.start - x0, centers, bounds, profile: prof };
 }
 
 // ─────────────────────────────────────────────────────────────
