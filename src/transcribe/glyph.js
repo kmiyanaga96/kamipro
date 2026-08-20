@@ -354,6 +354,46 @@ export function segmentGlyphs(edge, row, opts = {}) {
 }
 
 /**
+ * ★★**囲みの中の「字の帯」へ縦に締める**（2026-08-20・実機のアトラスが壊れた原因への答え）。
+ *
+ * ⚠⚠ **テンプレートが「人がどう囲んだか」に依存していた**＝上下に余白を付けて囲むと、
+ *   同じ字の署名どうしの類似度が **0.65〜0.73** まで落ちる。**別の字どうしが 0.879** なので
+ *   **順序が逆転する**＝アトラスが自分自身を読めなくなる（実機で 32枚中 18枚が別の字に化けた）。
+ *
+ * ⚠ **素朴に「行の射影がしきい値を超える範囲」では取れない**（1度そう書いて効かなかった）＝
+ *   背景（キャラ絵・床グリッド）のエッジが**どの行にもある**ので、帯が囲み全体に広がる。
+ *
+ * ★∴ **共通モードを差し引く**＝**字のあるセル中央の列**と**字間の境界の列**で行射影を作り、
+ *   **その差**を見る。背景は両方に等しく乗るので消え、**字だけが残る**。
+ *   ⭐ これは CT の点灯を読むときに効いた手と同じ（**新しい閾値ではなく参照点の選び方**）。
+ *
+ * @param {Array<number>} centers セル中央の x（グリッドの1段目のフィット結果）
+ * @param {Array<number>} bounds  セル境界の x
+ * @returns {{from:number,to:number,tightened:boolean,residual:Array<number>}}
+ */
+export function tightenBand(edge, box, centers, bounds, opts = {}) {
+  const o = { ...GLYPH_DEFAULTS, ...opts };
+  const y0 = Math.max(0, Math.round(box.y)), y1 = Math.min(edge.h, Math.round(box.y + box.h));
+  if (!(y1 > y0) || !centers?.length || !bounds?.length) return { from: y0, to: y1, tightened: false, residual: [] };
+  const colsAt = (xs) => xs.map((x) => Math.max(0, Math.min(edge.w - 1, Math.round(x))));
+  const cc = colsAt(centers), bb = colsAt(bounds);
+  const residual = [];
+  for (let y = y0; y < y1; y++) {
+    let a = 0, b = 0;
+    for (const x of cc) a += edge.mag[y * edge.w + x];
+    for (const x of bb) b += edge.mag[y * edge.w + x];
+    residual.push(a / cc.length - b / bb.length);
+  }
+  const peak = Math.max(...residual);
+  if (!(peak > 0)) return { from: y0, to: y1, tightened: false, residual };
+  const thr = peak * o.rowThresholdFraction;
+  let from = -1, to = -1;
+  for (let i = 0; i < residual.length; i++) if (residual[i] >= thr) { if (from < 0) from = i; to = i + 1; }
+  if (from < 0 || to - from < 4) return { from: y0, to: y1, tightened: false, residual };
+  return { from: y0 + from, to: y0 + to, tightened: true, residual };
+}
+
+/**
  * ★★**教わった文字列に格子を合わせる**（P3-1 のアトラス取得の主経路・2026-08-19c 新設）。
  *
  * ⚠⚠ **採取＋クラスタリングでアトラスを作る経路は、実機で破綻した**（2026-08-19c 実走）:
@@ -384,6 +424,29 @@ export function fitTaughtGrid(edge, box, text, opts = {}) {
   const nComma = chars.filter((c) => c === ',').length;
   const nWide = chars.length - nComma;
 
+  // ★**2段で当てる**: ①囲み全体で横の格子を当てる → ②その格子を使って**縦に締める**
+  //   → ③締めた帯でもう一度横を当てる。②の理由は `tightenBand` の注記（人の囲みに依存させない）。
+  const pass1 = fitOnce(edge, box, chars, nWide, nComma, o);
+  if (!pass1) return { ok: false, reason: '格子を当てられない', boxes: [], pitch: 0, commaRatio: 0, contrast: 0 };
+  const band = tightenBand(edge, box, pass1.centers, pass1.bounds, o);
+  const box2 = { ...box, y: band.from, h: band.to - band.from };
+  const best = fitOnce(edge, box2, chars, nWide, nComma, o) ?? pass1;
+
+  const boxes = [];
+  let bx = best.start;
+  chars.forEach((ch, i) => {
+    boxes.push({ x: bx, y: band.from, w: best.adv[i], h: band.to - band.from, ch, center: bx + best.adv[i] / 2 });
+    bx += best.adv[i];
+  });
+  return {
+    ok: true, reason: null,
+    pitch: best.pitch, commaRatio: best.commaRatio, phase: best.phase,
+    contrast: best.contrast, boxes, band,
+  };
+}
+
+/** `fitTaughtGrid` の1段ぶん（送り幅・カンマ比・位相を当てる）。 */
+function fitOnce(edge, box, chars, nWide, nComma, o) {
   const prof = colProfile(edge, { from: Math.round(box.y), to: Math.round(box.y + box.h) });
   const base = quantile(Array.from(prof), o.basePercentile);
   const at = (x) => {
@@ -419,19 +482,13 @@ export function fitTaughtGrid(edge, box, text, opts = {}) {
       }
     }
   }
-  if (!best) return { ok: false, reason: '格子を当てられない', boxes: [], pitch: 0, commaRatio: 0, contrast: 0 };
-
-  const boxes = [];
+  if (!best) return null;
+  // セル中央と境界の x（②の縦締めで使う）
+  const centers = [], bounds = [];
   let x = best.start;
-  chars.forEach((ch, i) => {
-    boxes.push({ x, y: box.y, w: best.adv[i], h: box.h, ch, center: x + best.adv[i] / 2 });
-    x += best.adv[i];
-  });
-  return {
-    ok: true, reason: null,
-    pitch: best.pitch, commaRatio: best.commaRatio, phase: best.phase,
-    contrast: best.contrast, boxes, profile: prof,
-  };
+  bounds.push(x);
+  for (let i = 0; i < chars.length; i++) { centers.push(x + best.adv[i] / 2); x += best.adv[i]; bounds.push(x); }
+  return { ...best, centers, bounds, profile: prof };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -572,6 +629,8 @@ export function maskFromRects(box, rects, cell = GLYPH_DEFAULTS.cell) {
 export function templatesOf(entry, cell) {
   if (!entry) return [];
   if (entry.data) return [entry];
+  // ⚠ 署名オブジェクトの配列（メモリ上の形）も受ける＝`selfCheckAtlas` がこの形を渡す
+  if (Array.isArray(entry) && entry[0]?.data) return entry;
   if (Array.isArray(entry) && Array.isArray(entry[0])) return entry.map((e) => unpackSignature(e, cell));
   if (Array.isArray(entry)) return [unpackSignature(entry, cell)];
   if (Array.isArray(entry.variants)) return entry.variants.map((e) => unpackSignature(e, cell));
@@ -658,6 +717,59 @@ export function readRow(edge, row, atlas, opts = {}) {
  */
 export const EMPTY_ATLAS = { version: 0, cell: { ...GLYPH_DEFAULTS.cell }, provenance: null, glyphs: {}, labels: {} };
 
+/**
+ * ★★**アトラスが自分自身を読めるか**（自己整合性）。
+ *
+ * ⚠⚠ **これが無くて壊れたアトラスを出荷した**（2026-08-20・実機）:
+ *   46枚のうち **10枚が別のラベルと画素まで同一**（＝同じ囲みのまま別の数字を教えた）で、
+ *   さらに掃除しても **32枚中 18枚が別の字に分類された**（＝囲みの余白でテンプレートが歪んでいた）。
+ *   ★**「保存できた」は「使える」ではない**。∴ 保存の前に**自分で自分を読ませて**確かめる。
+ *
+ * @returns {{ok:boolean, correct:number, ambiguous:number, wrong:number,
+ *            confusions:object, crossLabelDuplicates:Array}}
+ */
+export function selfCheckAtlas(atlas, opts = {}) {
+  const cell = atlas?.cell ?? GLYPH_DEFAULTS.cell;
+  const entries = [];
+  for (const [k, v] of Object.entries(atlas?.glyphs ?? {})) {
+    templatesOf(v, cell).forEach((t, i) => entries.push({ k, i, t }));
+  }
+  // ①**別のラベルどうしで画素まで同じ**＝どちらが正しいか決められない（教え方の事故）
+  const byPix = new Map();
+  for (const e of entries) {
+    const key = Array.from(e.t.data, (x) => Math.round(x * 255)).join(',');
+    (byPix.get(key) ?? byPix.set(key, []).get(key)).push(e);
+  }
+  const crossLabelDuplicates = [];
+  for (const list of byPix.values()) {
+    const labels = new Set(list.map((x) => x.k));
+    if (labels.size > 1) crossLabelDuplicates.push(list.map((x) => `${x.k}#${x.i}`));
+  }
+  // ②各テンプレを**自分を除いたアトラス**で分類する（＝実際の読み取りと同じ条件）
+  //   ⚠ **1枚しか無い字は検査できない**（自分を除くとその字がアトラスから消える）＝
+  //     「必ず外れる」ので誤りに数えない。**検査できないこと自体を数えて報告する**
+  //     （2枚以上教われば検査できるようになる＝そう促すための数字）。
+  const count = {};
+  for (const e of entries) count[e.k] = (count[e.k] ?? 0) + 1;
+  let correct = 0, ambiguous = 0, wrong = 0, unchecked = 0;
+  const confusions = {};
+  for (const e of entries) {
+    if (count[e.k] < 2) { unchecked++; continue; }
+    const glyphs = {};
+    for (const other of entries) {
+      if (other === e) continue;
+      (glyphs[other.k] ||= []).push(other.t);
+    }
+    const c = classify(e.t, { cell, glyphs }, opts);
+    if (!c.best) continue;
+    if (c.best.key !== e.k) { wrong++; const kk = `${e.k}→${c.best.key}`; confusions[kk] = (confusions[kk] ?? 0) + 1; }
+    else if (c.ambiguous) ambiguous++;
+    else correct++;
+  }
+  return { ok: wrong === 0 && crossLabelDuplicates.length === 0,
+           entries: entries.length, correct, ambiguous, wrong, unchecked, confusions, crossLabelDuplicates };
+}
+
 /** アトラスの健全性検査。★**読み取りを始める前の関門**。 */
 export function validateAtlas(atlas) {
   const problems = [];
@@ -675,7 +787,33 @@ export function validateAtlas(atlas) {
     if (!templatesOf(atlas.glyphs[k], atlas.cell).length) problems.push(`グリフ ${k} が空`);
   }
   if (!atlas.provenance) problems.push('provenance が無い（どの録画・いつ採取したかは E1 の必須項目）');
-  return { ok: problems.length === 0, problems, digits: need.filter((d) => keys.includes(d)).length };
+  const self = keys.length ? selfCheckAtlas(atlas) : null;
+  // ★①**別のラベルどうしで画素が同一**＝教え方の事故。どちらが正しいか決められない＝**関門**。
+  if (self?.crossLabelDuplicates.length) {
+    problems.push(`別のラベルどうしで画素が同一＝${self.crossLabelDuplicates.length}組`
+      + `（${self.crossLabelDuplicates.slice(0, 3).map((g) => g.join('=')).join(' / ')}）`
+      + '＝同じ囲みのまま別の数字を教えた疑い。どちらが正しいか決められないので両方捨てる');
+  }
+  // ★②**教えるたびの寸法が揃っているか**＝フォントは固定なので、送り幅と字の高さは走の中で一定のはず。
+  //   ⚠ ばらつくのは「囲み方が違う」か「別の大きさの表示を教えた」＝**テンプレートが混ざる**。
+  const T = atlas.provenance?.teachings;
+  if (Array.isArray(T) && T.length >= 2) {
+    for (const f of ['pitch', 'bandH']) {
+      const v = T.map((t) => t[f]).filter((x) => x > 0);
+      if (v.length < 2) continue;
+      const mn = Math.min(...v), mx = Math.max(...v);
+      if (mx > mn * 1.15) {
+        problems.push(`教えるたびに ${f} が揃っていない（${mn.toFixed(1)}〜${mx.toFixed(1)}・±15% 超）`
+          + '＝囲み方が違うか、大きさの違う表示を混ぜて教えている');
+      }
+    }
+  }
+  // ⚠⚠ **自己読み（leave-one-out）は関門にしない**（2026-08-20 に測って却下）＝
+  //   **健全なアトラスも落とす**（条件をまたぐ variants を持つ合成アトラスで 14/22 枚が落ちた）。
+  //   理由＝1枚抜くと「その条件のテンプレート」が消えるので、**読み取り時より不利な条件**になる。
+  //   ★情報としては出す（`self`）が、判定には使わない。★**測って落ちた指標を関門にしない**。
+  return { ok: problems.length === 0, problems, self,
+           digits: need.filter((d) => keys.includes(d)).length };
 }
 
 // ─────────────────────────────────────────────────────────────

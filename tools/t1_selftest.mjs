@@ -1639,6 +1639,7 @@ console.log('\n[16] グリフ照合（P3-1）＝縁取りで読む・遮蔽に�
     return { version: 1, cell: { ...G.GLYPH_DEFAULTS.cell }, provenance: { synthetic: true }, glyphs, labels: {} };
   }
 
+  let drawTaught;   // ★[16-12] で定義し [16-13] でも使う（同じフォントで測るため）
   const base = strip('0123456789,', DARK);
   const atlas1 = atlasFrom([{ bg: DARK }]);
   check('★参照ストリップから 11 文字（0〜9とカンマ）が切り出せる',
@@ -1891,7 +1892,7 @@ console.log('\n[16] グリフ照合（P3-1）＝縁取りで読む・遮蔽に�
   //     文字数が既知になり、ラベルも自動で付き、**カンマの送り幅比まで測れる**。
   {
     // カンマだけ送り幅が狭いフォント（実機の見た目に合わせる）
-    function drawTaught(img, x, y, text, commaRatio = 0.5, opt = {}) {
+    drawTaught = function (img, x, y, text, commaRatio = 0.5, opt = {}) {
       const SZ = opt.s ?? 6;   // ★実機のダメージ数字は背景の模様より遥かに大きい（125px 級）
       const adv = ADV * SZ;
       const truth = [];
@@ -1906,7 +1907,7 @@ console.log('\n[16] グリフ照合（P3-1）＝縁取りで読む・遮蔽に�
         cx += a;
       }
       return { truth, width: cx - x };
-    }
+    };
     // ★背景を「エッジだらけ」にする＝実機の `dmg`（キャラ絵・床グリッド）を模す
     function busyBackground(img) {
       for (let y = 0; y < img.height; y += 7) fillRect(img, 0, y, img.width, 2, [120, 40, 160]);
@@ -1981,6 +1982,80 @@ console.log('\n[16] グリフ照合（P3-1）＝縁取りで読む・遮蔽に�
       wrong(r2) === 0, `1本教え=${r1} / 2本教え=${r2}`);
     check('★1本教えただけでも大半は読める（残りは「読めない」に倒れる）',
       [...r1].filter((c) => c !== '?').length >= target.length - 2, `読み=${r1}`);
+  }
+
+  // ── [16-13] ★★★囲みの余白でテンプレートが変わってはいけない ─────
+  //   ⚠⚠ **実機のアトラスが壊れた原因**（2026-08-20）＝人が囲むときの**上下の余白**で
+  //     署名が変わり、**同じ字どうし 0.65〜0.73 / 別の字どうし 0.879** と**順序が逆転**していた
+  //     （受領アトラス 46枚のうち 26枚が別の字に化けた）。
+  //   ★答え＝**共通モード除去で縦に締める**（セル中央の列 − 境界の列＝背景は両方に等しく乗るので消える）。
+  //     CT の点灯を読むときに効いたのと同じ手＝**新しい閾値ではなく参照点の選び方**。
+  {
+    const SZ2 = 6, str = '5,044,282';
+    const teachWithSlack = (top, bot) => {
+      const im = makeImage(1000, 240, [40, 20, 70]);
+      for (let y = 0; y < im.height; y += 7) fillRect(im, 0, y, im.width, 2, [120, 40, 160]);
+      for (let x = 0; x < im.width; x += 11) fillRect(im, x, 0, 2, im.height, [90, 30, 130]);
+      const d = drawTaught(im, 40, 60, str, 0.5);
+      const e = fieldOf(im);
+      const bx = { x: 40, y: 60 - top, w: d.width, h: GH * SZ2 + top + bot };
+      const f = G.fitTaughtGrid(e, bx, str);
+      const sc = G.fieldScale(e, { from: f.band.from, to: f.band.to });
+      return { fit: f, sigs: f.boxes.map((b) => G.signature(e, b, { scale: sc })) };
+    };
+    const tight = teachWithSlack(0, 0), loose = teachWithSlack(20, 25);
+    check('★★囲みに上下の余白があっても、締めた帯はほぼ同じ',
+      Math.abs(tight.fit.band.from - loose.fit.band.from) <= 2
+      && Math.abs(tight.fit.band.to - loose.fit.band.to) <= 2,
+      `${JSON.stringify(tight.fit.band)} vs ${JSON.stringify(loose.fit.band)}`);
+    const same = tight.sigs.map((a, i) => G.similarity(a.data, loose.sigs[i].data));
+    let diffMax = 0;
+    for (let i = 0; i < tight.sigs.length; i++) {
+      for (let j = 0; j < tight.sigs.length; j++) {
+        if (tight.fit.boxes[i].ch === tight.fit.boxes[j].ch) continue;
+        diffMax = Math.max(diffMax, G.similarity(tight.sigs[i].data, tight.sigs[j].data));
+      }
+    }
+    check('★★★余白が違っても「同じ字どうし」が「別の字どうし」より似ている（順序が逆転しない）',
+      Math.min(...same) > diffMax,
+      `同字 min ${Math.min(...same).toFixed(3)} / 異字 max ${diffMax.toFixed(3)}`);
+  }
+
+  // ── [16-14] ★★アトラスは「保存できた」ではなく「自分を読めるか」で見る ──
+  {
+    const good = atlasFrom([{ bg: DARK }, { bg: MID }], '0123456789,');
+    const gv = G.validateAtlas(good);
+    check('★健全なアトラスは自己検査を通る', gv.ok, JSON.stringify(gv.problems));
+    check('自己検査は1枚しか無い字を「検査できない」と数える（誤りに数えない）',
+      G.selfCheckAtlas(atlasFrom([{ bg: DARK }], '0123456789,')).unchecked === 11,
+      JSON.stringify(G.selfCheckAtlas(atlasFrom([{ bg: DARK }], '0123456789,'))));
+
+    // ★★実機で起きた事故そのもの＝**同じ画素が別のラベルで2回入る**
+    const dup = JSON.parse(JSON.stringify(good));
+    dup.glyphs['7'] = [...dup.glyphs['7'], dup.glyphs['3'][0]];
+    const dv = G.validateAtlas(dup);
+    check('★★★別のラベルどうしで画素が同一なら関門で止まる（教え方の事故を捕まえる）',
+      !dv.ok && dv.problems.some((p) => /画素が同一/.test(p)), JSON.stringify(dv.problems));
+
+    // ★★もう1つの事故＝**歪んだテンプレートが混ざり、自分自身を読めない**
+    const broken = JSON.parse(JSON.stringify(good));
+    broken.glyphs['8'] = [...broken.glyphs['8'], broken.glyphs['0'][0].map((v) => Math.min(255, v + 3))];
+    const bv = G.validateAtlas(broken);
+    check('⚠ 自己読み（leave-one-out）は関門にしない＝**健全なアトラスも落とす**ので情報に留める',
+      bv.ok === true && G.selfCheckAtlas(broken).wrong > 0,
+      `ok=${bv.ok} / 自己読みの誤り ${G.selfCheckAtlas(broken).wrong}`);
+
+    // ★★もう1つの関門＝**教えるたびの寸法が揃っているか**（フォントは固定＝送り幅と字高は一定）
+    const mixed = JSON.parse(JSON.stringify(good));
+    mixed.provenance.teachings = [{ at: 1, pitch: 100, bandH: 120 }, { at: 2, pitch: 140, bandH: 121 }];
+    check('★★★教えるたびに送り幅が揃っていなければ関門で止まる（囲み方が違う／大きさが違う）',
+      !G.validateAtlas(mixed).ok
+      && G.validateAtlas(mixed).problems.some((p) => /pitch が揃っていない/.test(p)),
+      JSON.stringify(G.validateAtlas(mixed).problems));
+    const consistent = JSON.parse(JSON.stringify(good));
+    consistent.provenance.teachings = [{ at: 1, pitch: 100, bandH: 120 }, { at: 2, pitch: 104, bandH: 121 }];
+    check('揃っていれば通る（±15% 以内）', G.validateAtlas(consistent).ok,
+      JSON.stringify(G.validateAtlas(consistent).problems));
   }
 
   // ── [16-10] ★アトラスが無いうちは読み取りを始めない（関門）─────

@@ -14,12 +14,12 @@ import { LagProfile, EventDeduper, reportDedup, DEDUP_DEFAULTS } from './dedup.j
 import { ChargeDotTracker, ChargeSeries, reportChargeDots, CT_DEFAULTS } from './charge_dots.js';
 import { ROIS } from './rois.js';
 import { luminanceField, edgeField, segmentRows, segmentGlyphs, signature, fieldScale,
-         GlyphHarvest, reportHarvest, validateAtlas, packSignature, cropPatch, fitTaughtGrid,
-         GLYPH_DEFAULTS } from './glyph.js';
+         GlyphHarvest, reportHarvest, validateAtlas, selfCheckAtlas, packSignature, cropPatch,
+         fitTaughtGrid, GLYPH_DEFAULTS } from './glyph.js';
 import { Diag } from './diag.js';
 import { digest } from './digest.js';
 
-const VERSION = '0.31.0';
+const VERSION = '0.32.0';
 
 const $ = (id) => document.getElementById(id);
 const video = document.createElement('video');
@@ -46,6 +46,47 @@ let loadedAtlas = null;  // ★読み込み済みのアトラス（まだ無い�
  *   ∴ 「ここに 5,044,282 と出ている」と**人が教える**のが主経路。
  */
 let taught = [];
+/** 教えた回ごとの記録（寸法の揃い方を検査するため＝`validateAtlas` の関門②）。 */
+let teachings = [];
+/** ★直前に教えた囲みの画素指紋。**同じ画素で二度教える事故**を止めるために持つ。 */
+let lastTeachFingerprint = null;
+
+/** 教えたものからアトラスを組む（保存前の検査にも使う）。 */
+function buildAtlas() {
+  const glyphs = {};
+  const ratios = [];
+  for (const t of taught) { (glyphs[t.ch] ||= []).push(t.sig); if (t.commaRatio) ratios.push(t.commaRatio); }
+  const toks = ($('glyphLabels')?.value ?? '').trim().split(/\s+/).filter((t) => t.length);
+  lastHarvest?.representatives?.forEach((r, i) => {
+    const lab = toks[i];
+    if (!lab || lab === '-') return;
+    (glyphs[lab] ||= []).push(r.signature);
+  });
+  ratios.sort((a, b) => a - b);
+  return {
+    version: 1,
+    cell: { ...GLYPH_DEFAULTS.cell },
+    provenance: {
+      tool: 'T1', toolVersion: VERSION, labeledAt: new Date().toISOString(),
+      file: $('file').files?.[0]?.name ?? '(none)',
+      resolution: video.videoWidth ? `${video.videoWidth}x${video.videoHeight}` : null,
+      taught: taught.length, teachings,
+    },
+    metrics: ratios.length ? { commaRatio: +ratios[Math.floor(ratios.length / 2)].toFixed(2) } : null,
+    glyphs, labels: {},
+  };
+}
+
+/** ★いまのアトラスの状態を1行で（保存前に**使えるかどうか**が分かるように）。 */
+function atlasStateLine() {
+  if (!taught.length) return '';
+  const v = validateAtlas(buildAtlas());
+  const sc = v.self;
+  return (v.ok ? '<span class="ok">アトラスの検査: 問題なし</span>'
+               : `<span class="bad">アトラスの検査: ${v.problems.join(' / ')}</span>`)
+    + `（自己読み 正 ${sc?.correct ?? 0} / 曖昧 ${sc?.ambiguous ?? 0} / 誤 ${sc?.wrong ?? 0}`
+    + ` / 検査不能 ${sc?.unchecked ?? 0}・⚠ 参考値＝関門ではない）`;
+}
 
 const rois = {};         // 登録済み ROI（name → 正規化座標）
 // ★★**起動時に `rois.js` の採寸済み ROI を読み込む**（2026-08-18）。
@@ -478,6 +519,20 @@ $('teachAdd').onclick = () => {
       .getImageData(lastRect.x, lastRect.y, lastRect.w, lastRect.h);
   } catch (e) { $('teachNote').innerHTML = `<span class="bad">切り出せません: ${e}</span>`; return; }
 
+  // ★★**同じ画素で二度教える事故**を止める（2026-08-20 に実機で起きた）。
+  //   ⚠ 受領アトラスは 46枚中 10枚が**別ラベルなのに画素まで同一**だった＝
+  //     解析し直さず・囲み直さずに次の数字を入力すると、**同じ切り抜きに違うラベルが付く**。
+  //   ★どちらが正しいか**後からは決められない**＝起きてからでは直せないので、ここで止める。
+  let fp = 0;
+  for (let i = 0; i < img.data.length; i += 997) fp = (fp * 31 + img.data[i]) >>> 0;
+  fp = `${lastRect.x},${lastRect.y},${lastRect.w},${lastRect.h},${fp}`;
+  if (fp === lastTeachFingerprint) {
+    $('teachNote').innerHTML = '<span class="bad">さっきと同じ画素・同じ囲みです</span>'
+      + '（別の時刻へ動かして「このフレームを解析」→ 囲み直してください）'
+      + '<br>⚠ このまま教えると、同じ切り抜きに違うラベルが付いてアトラスが壊れます。';
+    return;
+  }
+
   const edge = edgeField(luminanceField(img, { x: 0, y: 0, w: lastRect.w, h: lastRect.h }));
   const fit = fitTaughtGrid(edge, { x: 0, y: 0, w: lastRect.w, h: lastRect.h }, text);
   if (!fit.ok) { $('teachNote').innerHTML = `<span class="bad">格子を当てられません: ${fit.reason}</span>`; return; }
@@ -494,18 +549,29 @@ $('teachAdd').onclick = () => {
   cx.imageSmoothingEnabled = false;
   cx.drawImage(tmp, 0, 0, cv.width, lastRect.h * Z);
   cx.font = '12px monospace'; cx.textBaseline = 'top';
+  // ★締めた帯（緑）＝**テンプレートとして切り出す範囲**。囲みの余白はここで捨てられる。
+  cx.strokeStyle = 'rgba(80,255,120,0.9)';
+  cx.strokeRect(0.5, fit.band.from * Z + 0.5, cv.width - 1, (fit.band.to - fit.band.from) * Z - 1);
   for (const b of fit.boxes) {
     cx.strokeStyle = b.ch === ',' ? 'rgba(255,160,0,0.95)' : 'rgba(0,220,255,0.95)';
-    cx.strokeRect(b.x * Z + 0.5, 0.5, b.w * Z - 1, lastRect.h * Z - 1);
+    cx.strokeRect(b.x * Z + 0.5, b.y * Z + 0.5, b.w * Z - 1, b.h * Z - 1);
     cx.fillStyle = '#8cf';
-    cx.fillText(b.ch, b.x * Z + (b.w * Z) / 2 - 3, lastRect.h * Z + 2);
+    cx.fillText(b.ch, b.x * Z + (b.w * Z) / 2 - 3, fit.band.to * Z + 2);
   }
 
-  const scale = fieldScale(edge, { from: 0, to: lastRect.h });
+  // ★正規化は**締めた帯**で採る（囲みの余白を混ぜない＝テンプレートを人の操作に依存させない）
+  const scale = fieldScale(edge, { from: fit.band.from, to: fit.band.to });
   const at = +video.currentTime.toFixed(2);
   for (const b of fit.boxes) {
     taught.push({ ch: b.ch, sig: packSignature(signature(edge, b, { scale })), at, commaRatio: fit.commaRatio });
   }
+  teachings.push({ at, text, pitch: +fit.pitch.toFixed(1), bandH: fit.band.to - fit.band.from,
+                   contrast: +fit.contrast.toFixed(3) });
+  lastTeachFingerprint = fp;
+  // ★★**次は必ず囲み直させる**（同じ囲みの使い回しが今回の事故の原因）
+  lastRect = null; lastRoi = null;
+  $('addRoi').disabled = true; $('cropRoi').disabled = true;
+
   const have = {};
   for (const t of taught) have[t.ch] = (have[t.ch] ?? 0) + 1;
   const missing = '0123456789,'.split('').filter((c) => !have[c]);
@@ -516,11 +582,13 @@ $('teachAdd').onclick = () => {
     + (missing.length
       ? `<span class="bad">まだ無い字: ${missing.join(' ')}</span> — これらが出ている数字を追加で教えてください`
       : '<span class="ok">0〜9 とカンマが揃いました</span> → 「アトラスJSONを保存」')
-    + '<br>⚠ 上の枠が<b>1文字ずつ正しく割れているか</b>を必ず見てください（ずれていたら囲み直し）';
+    + `<br>${atlasStateLine()}`
+    + '<br>⚠ 上の枠が<b>1文字ずつ正しく割れているか</b>を必ず見てください（ずれていたら囲み直し）'
+    + '<br>★次を教えるには<b>もう一度「このフレームを解析」→ 囲み直し</b>が要ります（使い回し防止）';
 };
 
 $('teachReset').onclick = () => {
-  taught = [];
+  taught = []; teachings = []; lastTeachFingerprint = null;
   $('teachNote').textContent = '教えたものを消しました';
   const cv = $('teachView');
   cv.getContext('2d').clearRect(0, 0, cv.width, cv.height);
@@ -531,40 +599,12 @@ $('teachReset').onclick = () => {
 //   ⚠ 入力は**空白区切り・番号順**。`-` は「数字ではない／分からない」＝飛ばす。
 //     区切りに `,` を使わないのは、**`,` 自体がラベル**（桁区切り）だから。
 $('makeAtlas').onclick = () => {
-  const glyphs = {};
-  const ratios = [];
-  let used = 0;
-  // ①**教わったもの**（主経路）
-  for (const t of taught) { (glyphs[t.ch] ||= []).push(t.sig); used++; if (t.commaRatio) ratios.push(t.commaRatio); }
-  // ②採取シートに手でラベルを付けたもの（副経路＝実機では代表の大半が背景の模様だった）
-  const toks = ($('glyphLabels').value ?? '').trim().split(/\s+/).filter((t) => t.length);
-  lastHarvest?.representatives?.forEach((r, i) => {
-    const lab = toks[i];
-    if (!lab || lab === '-') return;
-    (glyphs[lab] ||= []).push(r.signature);
-    used++;
-  });
-  if (!used) {
+  if (!taught.length && !($('glyphLabels').value ?? '').trim()) {
     $('glyphNote').innerHTML = '<span class="bad">まだ1文字も教わっていません</span>'
       + '（「この数字を教える」を先に使ってください）';
     return;
   }
-  ratios.sort((a, b) => a - b);
-  const atlas = {
-    version: 1,
-    cell: { ...GLYPH_DEFAULTS.cell },
-    // ★provenance は必須（E1＝測定条件を併記する）。`validateAtlas` が無いと落とす。
-    provenance: {
-      tool: 'T1', toolVersion: VERSION, labeledAt: new Date().toISOString(),
-      file: $('file').files?.[0]?.name ?? '(none)',
-      resolution: video.videoWidth ? `${video.videoWidth}x${video.videoHeight}` : null,
-      taught: taught.length, fromSheet: used - taught.length,
-      taughtAt: [...new Set(taught.map((t) => t.at))],
-    },
-    // ★フォントの寸法＝教わるときに**測れた**もの（以後の読み取りで使う）
-    metrics: ratios.length ? { commaRatio: +ratios[Math.floor(ratios.length / 2)].toFixed(2) } : null,
-    glyphs, labels: {},
-  };
+  const atlas = buildAtlas();
   const v = validateAtlas(atlas);
   loadedAtlas = atlas;
   const blob = new Blob([JSON.stringify(atlas)], { type: 'application/json' });
@@ -574,9 +614,11 @@ $('makeAtlas').onclick = () => {
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   // ⚠ 足りなくても保存はする（部分成功を保全する＝§10.5-2）。足りないことは**言う**。
-  $('glyphNote').innerHTML = v.ok
-    ? `<span class="ok">アトラスを保存しました</span>（${used} 枚 / 数字 ${v.digits}/10）`
-    : `<span class="bad">保存はしたが未完成</span>: ${v.problems.join(' / ')}`;
+  const n = Object.values(atlas.glyphs).reduce((s2, x) => s2 + x.length, 0);
+  $('glyphNote').innerHTML = (v.ok
+    ? `<span class="ok">アトラスを保存しました</span>（${n} 枚 / 数字 ${v.digits}/10）`
+    : `<span class="bad">保存はしたが問題あり</span>: ${v.problems.join(' / ')}`)
+    + `<br>${atlasStateLine()}`;
 };
 
 // ★★**初期化が最後まで通った合図**（2026-08-18i）。
