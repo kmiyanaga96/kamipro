@@ -26,19 +26,38 @@ let dump = null;
 const items = [];
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--dump') { dump = args[++i]; continue; }
+  // ★`.json`（ページの「この切り抜きをJSONで保存」）は**文字列を中に持っている**ので `=数字` は不要。
   const at = args[i].lastIndexOf('=');
-  if (at < 0) { console.error(`⚠ 引数の形式は <png>=<数字>: ${args[i]}`); process.exit(2); }
+  if (at < 0) { items.push({ file: args[i], text: null }); continue; }
   items.push({ file: args[i].slice(0, at), text: args[i].slice(at + 1) });
 }
 if (!items.length) { console.error('使い方: node tools/t1_teach_probe.mjs [--dump dir] <png>=<数字> ...'); process.exit(2); }
 if (dump) mkdirSync(dump, { recursive: true });
+
+/**
+ * 切り抜きを読む。`.png` そのものと、ページが吐く `.json`（PNG を data URL で包んだもの）の両方。
+ * ⚠ **JSON 経路が本命**＝PNG をチャットに貼ると「画像」になって画素が読めない（ユーザー報告）。
+ */
+function loadCrop(it) {
+  const buf = readFileSync(it.file);
+  if (buf[0] === 0x7b) {              // '{' で始まる＝JSON
+    const j = JSON.parse(buf.toString('utf8'));
+    const b64 = String(j.png ?? '').replace(/^data:image\/png;base64,/, '');
+    if (!b64) throw new Error(`${it.file}: png フィールドが無い`);
+    return { img: decodePng(Buffer.from(b64, 'base64')), text: it.text ?? j.text, meta: j };
+  }
+  if (!it.text) throw new Error(`${it.file}: PNG には <png>=<数字> の形で正解を付けてください`);
+  return { img: decodePng(buf), text: it.text, meta: null };
+}
 
 const shots = [];
 console.log('# 切り出しの寸法（教えるたびに揃うか）');
 console.log('file'.padEnd(28), 'text'.padEnd(12), '画素'.padEnd(11), '送り幅'.padStart(7),
   '帯'.padStart(11), '比'.padStart(6), 'カンマ比'.padStart(8), '合致度'.padStart(7));
 for (const it of items) {
-  const img = decodePng(readFileSync(it.file));
+  const loaded = loadCrop(it);
+  const img = loaded.img;
+  it.text = loaded.text;
   // ★**明るさの場**（production と同じ経路＝`main.js` の「教える」もこれ）
   const edge = brightField(img);
   const fit = fitTaughtGrid(edge, { x: 0, y: 0, w: img.width, h: img.height }, it.text);

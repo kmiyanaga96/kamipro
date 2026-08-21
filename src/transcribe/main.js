@@ -19,7 +19,7 @@ import { luminanceField, edgeField, brightField, segmentRows, segmentGlyphs, sig
 import { Diag } from './diag.js';
 import { digest } from './digest.js';
 
-const VERSION = '0.33.0';
+const VERSION = '0.34.0';
 
 const $ = (id) => document.getElementById(id);
 const video = document.createElement('video');
@@ -579,7 +579,7 @@ $('teachAdd').onclick = () => {
   }
   teachings.push({ at, text, pitch: +fit.pitch.toFixed(1), bandH: fit.band.to - fit.band.from,
                    contrast: +fit.contrast.toFixed(3) });
-  lastTeachCrop = { img, text, at };
+  lastTeachCrop = { img, text, at, rect: { ...lastRect } };
   lastTeachFingerprint = fp;
   // ★★**次は必ず囲み直させる**（同じ囲みの使い回しが今回の事故の原因）
   lastRect = null; lastRoi = null;
@@ -600,23 +600,35 @@ $('teachAdd').onclick = () => {
     + '<br>★次を教えるには<b>もう一度「このフレームを解析」→ 囲み直し</b>が要ります（使い回し防止）';
 };
 
-// ★★**教えた切り抜きを生の PNG で保存**（2026-08-20 追加）。
-//   ⚠ Claude は画面を見られない（§10.1）＝**実画素が無いと、切り出しの良し悪しを測れない**。
-//     実際、2回のアトラスとも「壊れている」ことは分かっても、**なぜ壊れたかは実画素が無いと詰められなかった**。
-//   ★これを貼ってもらえば、**同じ切り抜きに対して手元で（Node で）検証**できる＝
-//     ユーザーに教え直しを何度も頼まずに済む。
+// ★★**教えた切り抜きを JSON で保存**（2026-08-20b・ユーザー報告を受けて PNG から変更）。
+//   ⚠ Claude は画面を見られない（§10.1）＝**実画素が無いと切り出しの良し悪しを測れない**。
+//     実際、アトラスが2回とも壊れた原因（**特徴量がエッジで正しくなかった**）は、
+//     実画素をオフラインで回せるようにして初めて分かった。
+//   ⚠⚠ **PNG で保存すると、チャットに貼ったとき「画像」として扱われ、画素を読めない**
+//     （ユーザー報告 2026-08-20）。**JSON はファイルとして届く**ので、**JSON に包む**。
+//   ★中身＝PNG を data URL にしたもの＋教えた文字列と囲みの座標（provenance）。
+//     受け取り側は `tools/t1_teach_probe.mjs` がそのまま読む。
 $('saveTeachCrop').onclick = () => {
   if (!lastTeachCrop) { $('teachNote').innerHTML = '<span class="bad">先に1つ教えてください</span>'; return; }
   const c = document.createElement('canvas');
   c.width = lastTeachCrop.img.width; c.height = lastTeachCrop.img.height;
   c.getContext('2d').putImageData(lastTeachCrop.img, 0, 0);
-  c.toBlob((b) => {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(b);
-    a.download = `teach_${lastTeachCrop.text.replace(/,/g, '')}_${Math.round(lastTeachCrop.at * 1000)}ms.png`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  }, 'image/png');
+  const payload = {
+    tool: 'T1', toolVersion: VERSION, kind: 'teach-crop',
+    file: $('file').files?.[0]?.name ?? '(none)',
+    at: lastTeachCrop.at, text: lastTeachCrop.text,
+    rect: lastTeachCrop.rect ?? null,
+    width: c.width, height: c.height,
+    png: c.toDataURL('image/png'),
+  };
+  const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `teach_${lastTeachCrop.text.replace(/,/g, '')}_${Math.round(lastTeachCrop.at * 1000)}ms.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  $('teachNote').innerHTML = `<span class="ok">切り抜きを JSON で保存しました</span>`
+    + `（${c.width}×${c.height}px・「${lastTeachCrop.text}」）— そのままチャットに貼ってください`;
 };
 
 $('teachReset').onclick = () => {

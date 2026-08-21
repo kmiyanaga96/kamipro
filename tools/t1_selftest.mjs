@@ -1503,6 +1503,14 @@ console.log('\n[14] ページ配線の健全性（★main.js は import でき�
   check('★★index.html のボタンはすべて main.js から配線されている（押しても無反応を作らない）',
     unwired.length === 0, `配線が無いボタン: ${JSON.stringify(unwired)}`);
 
+  // ★★切り抜きは **JSON で保存**すること（2026-08-20b）。
+  //   ⚠ PNG で保存するとチャットに貼ったとき「画像」として扱われ、**画素を読めない**
+  //     （ユーザー報告）。JSON はファイルとして届く＝**Claude が実画素で検証できる唯一の経路**。
+  check('★★教えた切り抜きは JSON（PNG を data URL で内包）で保存する',
+    /saveTeachCrop[\s\S]{0,1200}toDataURL\('image\/png'\)/.test(main)
+    && /saveTeachCrop[\s\S]{0,1400}\.json`/.test(main),
+    '切り抜き保存が JSON 経路になっていない（PNG 直保存に戻っていないか）');
+
   // ★版が刻まれていること（provenance＝どの版の出力かが分からないと走が無駄になる）
   const ver = main.match(/const VERSION = '([0-9]+\.[0-9]+\.[0-9]+)'/);
   check('★main.js に VERSION が刻まれている', !!ver, ver?.[1] ?? '見つからない');
