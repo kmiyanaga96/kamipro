@@ -72,6 +72,12 @@ export const GLYPH_DEFAULTS = {
   minRowHeight: 6,
   /** グリフと認めるための最小の幅（px） */
   minGlyphWidth: 2,
+  /**
+   * ★**カンマの送り幅比**（フォント定数）。**実測 0.5**
+   *   （ユーザーの実切り抜き `5,044,101` に候補格子を重ねて目視で確定・2026-08-21）。
+   * ⚠ ゲーム側のフォントが変われば測り直す（`tools/t1_teach_probe.mjs` の `--dump` で重ねて見る）。
+   */
+  commaRatio: 0.5,
   /** 併合（重なりで2文字がくっついた）と見なす幅の倍率（★格子が使えないときの退避路） */
   mergeWidthFactor: 1.6,
   /**
@@ -221,6 +227,41 @@ export function otsuThreshold(vals) {
     if (v > best) { best = v; thr = t; }
   }
   return thr;
+}
+
+/**
+ * ★**グリフ画素のマスク**（白い縁取り ∪ 金の芯）＝「そこが字の一部か」を色で言う。
+ *
+ * ⚠⚠ **明るさ1本のしきい値では駄目**（2026-08-21・実画素で判明）＝実物の芯は**上が明るく下が暗い金グラデ**なので、
+ *   大津法で切ると**字の下半分が丸ごと消える**（行プロファイルが上半分だけになった）。
+ *   ★∴ **明るさではなく「白いか、金か」で判定する**＝縁取り（ほぼ無彩色で明るい）と
+ *     芯（赤みが強い）は、グラデの上下どちらでも条件を満たす。
+ *
+ * ⚠ **これは背景を排除しない**（実測）＝`dmg` の背景には**数字と同じくらい明るく同じ色の
+ *   キャラ絵**がいる。∴ **画素特徴だけで数字を見つけることはできない**。
+ *   だから切り出しは人の囲みに任せ（`fitTaughtGrid`）、この関数は**囲みの中の形**を作るだけ。
+ *
+ * ⏳ **暫定**: 実切り抜き3枚（うち2枚は囲みがずれていた）での比較＝
+ *   誤り **エッジ 12 / 明るさ 10 / 白か金 8**（18点中）。**きれいな切り抜きで測り直す**。
+ */
+export function glyphMask(img, rect = null) {
+  const r0 = rect ?? { x: 0, y: 0, w: img.width, h: img.height };
+  const w = Math.round(r0.w), h = Math.round(r0.h);
+  const mag = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const sy = Math.round(r0.y) + y;
+    for (let x = 0; x < w; x++) {
+      const sx = Math.round(r0.x) + x;
+      if (sx < 0 || sy < 0 || sx >= img.width || sy >= img.height) continue;
+      const k = (sy * img.width + sx) * 4;
+      const R = img.data[k], G = img.data[k + 1], B = img.data[k + 2];
+      const mn = Math.min(R, G, B), mx = Math.max(R, G, B);
+      const white = mn > 190 && mx - mn < 50;      // 縁取り＝明るく無彩色
+      const gold = R > 140 && R - B > 50;          // 芯＝赤みが強い（グラデの上下どちらでも成立）
+      mag[y * w + x] = white || gold ? 1 : 0;
+    }
+  }
+  return { w, h, mag };
 }
 
 /** 分位点（配列を壊さない）。 */
@@ -477,28 +518,28 @@ export function tightenBand(edge, box, centers, bounds, opts = {}) {
 }
 
 /**
- * ★★**教わった文字列に格子を合わせる**（P3-1 のアトラス取得の主経路・2026-08-19c 新設）。
+ * ★★★**教わった文字列を、囲みの中へ等分に置く**（P3-1 の中核・2026-08-21 に「探索」を捨てた）。
  *
- * ⚠⚠ **採取＋クラスタリングでアトラスを作る経路は、実機で破綻した**（2026-08-19c 実走）:
- *   `dmg` ROI は**キャラ絵・床グリッド・光**でエッジが埋まっており、
- *   **行の射影は「文字行」を切り出さない**（実測: 行の高さ p50 32 / p90 230 / max 561、
- *   「TOTAL / STING! / 数字」が **1つの帯 h=308** に潰れ、背景のグリッド線が行として4本出た）。
- *   ∴ 集まった代表の大半が**背景の模様**で、ラベルを付ける対象になっていなかった。
+ * ⚠⚠⚠ **ここは3回作り直している。3回とも「機械が位置を当てる」方向で、3回とも実機で外した**:
+ *   ①谷で切って幅で分割 → 背景しだいで 10文字が 10/4/3 に化ける
+ *   ②等間隔の格子＋合致度の最大化（合成では完璧） → **実画素では送り幅 73.5 の真値に対し 54〜68**
+ *   ③特徴量を明るさへ変更 → **金グラデで字の下半分が消え**、背景のキャラ絵が最も明るい領域になる
+ *   ★実画素で分かった決定的な事実＝**`dmg` の背景には、数字と同じくらい明るくて同じ色の
+ *     キャラ絵がいる**。∴ **どんな画素特徴でも数字と背景は分離できない**。分離しているのは
+ *     「そこに数字がある」と知っている**人**だけ。
  *
- * ★**問いを変える**＝「どこに文字があるか当てる」のではなく、
- *   **人が「ここに 5,044,282 と出ている」と教える**。憲法そのもの（観測と判断はユーザー）で、
- *   しかも**人の手間は数字を1つ打つだけ**（60個の謎の絵にラベルを付けるより軽い）。
+ * ★∴ **探索をやめた**。人が数字の左端〜右端・上端〜下端を囲む＝**それが測定**であり、
+ *   ツールは**等分に置くだけ**（憲法どおり＝観測はユーザー／転記はツール）。
+ *   ⭐ `rois.js` の採寸で確立した規律とまったく同じ＝**位置は当てにいかず、人が測る**。
  *
- * ★**教わると何が効くか**:
- *   ①**文字数が既知になる**＝格子探索でいちばん効く自由度が消える
- *   ②**ラベルが自動で付く**（i 文字目のテンプレート＝`text[i]`）
- *   ③**カンマの送り幅比が測れる**＝フォントの寸法そのもの（以後の読み取りで使える）
+ * **実測の裏付け**（ユーザーの実切り抜き `5,044,101`・588×134px・2026-08-21）:
+ *   候補格子を実画像に重ねて目視 → **カンマ比 0.5・送り幅 73.5px（= 幅 ÷ (7 + 0.5×2)）がぴたり一致**。
+ *   同じ規則で別の切り抜きも 73.8px（バースト本体）・99.8px（バーストストリーク＝表示が大きい）と、
+ *   **表示種別ごとに素直な値**になる。★**囲みが正しければ、幾何は計算で決まる**。
  *
- * @param {*} edge  切り抜きのエッジ場
- * @param {{x,y,w,h}} box  ユーザーが囲んだ矩形（**数字だけを囲む**）
+ * @param {*} edge  切り抜きの場（`edgeField` など）
+ * @param {{x,y,w,h}} box  ユーザーが囲んだ矩形＝**数字の外接矩形そのもの**
  * @param {string} text  そこに出ている文字列（例 `5,044,282`）
- * @returns {{ok:boolean, pitch:number, commaRatio:number, contrast:number,
- *            boxes:Array<{x,y,w,h,ch:string}>, reason:string|null}}
  */
 export function fitTaughtGrid(edge, box, text, opts = {}) {
   const o = { ...GLYPH_DEFAULTS, ...opts };
@@ -506,88 +547,21 @@ export function fitTaughtGrid(edge, box, text, opts = {}) {
   if (!chars.length) return { ok: false, reason: '文字列が空', boxes: [], pitch: 0, commaRatio: 0, contrast: 0 };
   const nComma = chars.filter((c) => c === ',').length;
   const nWide = chars.length - nComma;
-
-  // ★**2段で当てる**: ①囲み全体で横の格子を当てる → ②その格子を使って**縦に締める**
-  //   → ③締めた帯でもう一度横を当てる。②の理由は `tightenBand` の注記（人の囲みに依存させない）。
-  const pass1 = fitOnce(edge, box, chars, nWide, nComma, o);
-  if (!pass1) return { ok: false, reason: '格子を当てられない', boxes: [], pitch: 0, commaRatio: 0, contrast: 0 };
-  const band = tightenBand(edge, box, pass1.centers, pass1.bounds, { ...o, pitch: pass1.pitch });
-  const box2 = { ...box, y: band.from, h: band.to - band.from };
-  const best = fitOnce(edge, box2, chars, nWide, nComma, o) ?? pass1;
+  const c = o.commaRatio > 0 ? o.commaRatio : 0.5;
+  const pitch = box.w / (nWide + c * nComma);
+  if (!(pitch > 2)) return { ok: false, reason: '囲みが狭すぎる', boxes: [], pitch: 0, commaRatio: c, contrast: 0 };
 
   const boxes = [];
-  let bx = best.start;
-  chars.forEach((ch, i) => {
-    boxes.push({ x: bx, y: band.from, w: best.adv[i], h: band.to - band.from, ch, center: bx + best.adv[i] / 2 });
-    bx += best.adv[i];
-  });
-  return {
-    ok: true, reason: null,
-    pitch: best.pitch, commaRatio: best.commaRatio, phase: best.phase,
-    contrast: best.contrast, boxes, band,
-  };
-}
-
-/**
- * `fitTaughtGrid` の1段ぶん（送り幅・カンマ比・**開始位置**を当てる）。
- *
- * ⚠⚠ **最初は「囲みの中央に等分に並ぶ」と仮定して位相だけ振っていて、外した**
- *   （2026-08-20・実切り抜きを模した合成で再現）＝**同じ大きさの3枚で送り幅 75〜90px** と
- *   12% ばらつき、カンマ比も 0.30〜0.80 に散った。原因は2つ:
- *   ①**囲みは中央揃えではない**（人が引く枠なので左右の余白が非対称）＝位相 ±0.6 では届かない
- *   ②**1列だけを見て境界の強さを測っていた**＝背景の縦縞に当たると値が跳ねる
- * ★∴ ①**開始位置そのものを探索**し、②**セル中央付近／境界付近を「幅を持たせて」平均する**。
- */
-function fitOnce(edge, box, chars, nWide, nComma, o) {
-  const prof = colProfile(edge, { from: Math.round(box.y), to: Math.round(box.y + box.h) });
-  const base = quantile(Array.from(prof), o.basePercentile);
-  const val = (x) => {
-    const i = Math.max(0, Math.min(prof.length - 1, Math.round(x)));
-    return Math.max(0, prof[i] - base);
-  };
-  /** 幅を持たせた平均（背景の縦縞1本で跳ねないように）。 */
-  const band = (x, half) => {
-    let s = 0, n = 0;
-    for (let d = -half; d <= half; d++) { s += val(x + d); n++; }
-    return n ? s / n : 0;
-  };
-  const x0 = box.x, W = box.w;
-  const nCells = chars.length;
-  let best = null;
-  const pMin = Math.max(3, 0.45 * W / nCells), pMax = 1.8 * W / nCells;
-  const pStep = Math.max(0.25, (pMax - pMin) / 120);
-  for (let pitch = pMin; pitch <= pMax; pitch += pStep) {
-    for (let c = 0.30; c <= 1.0001; c += 0.05) {
-      const adv = chars.map((ch) => (ch === ',' ? pitch * c : pitch));
-      const total = adv.reduce((a, b) => a + b, 0);
-      // ★**格子は囲みをほぼ覆っていなければならない**。
-      //   ⚠ これが無いと**送り幅が半分の解**（囲みの一部だけを覆う格子）が勝つ＝実際に 80→40 に落ちた。
-      //   人は「数字だけ」を囲む前提なので、**囲みの幅 ≈ 数字の並びの幅**でよい。
-      if (total < W * 0.72 || total > W * 1.15) continue;
-      const sMin = x0 - 0.15 * W, sMax = x0 + W - total + 0.15 * W;
-      const sStep = Math.max(1, pitch / 8);
-      for (let start = sMin; start <= sMax; start += sStep) {
-        const hb = Math.max(1, Math.round(pitch * 0.08));   // 境界まわりの窓
-        const hc = Math.max(1, Math.round(pitch * 0.20));   // セル中央の窓
-        let bE = 0, bN = 0, cE = 0, cN = 0, x = start;
-        bE += band(x, hb); bN++;
-        for (let i = 0; i < chars.length; i++) {
-          cE += band(x + adv[i] / 2, hc); cN++;
-          x += adv[i];
-          bE += band(x, hb); bN++;
-        }
-        const b = bE / bN, cc = cE / cN;
-        const contrast = (cc - b) / (cc + b + 1e-9);
-        if (!best || contrast > best.contrast + 1e-9) best = { pitch, commaRatio: c, start, contrast, adv };
-      }
-    }
+  let x = box.x;
+  for (const ch of chars) {
+    const w = ch === ',' ? pitch * c : pitch;
+    boxes.push({ x, y: box.y, w, h: box.h, ch, center: x + w / 2 });
+    x += w;
   }
-  if (!best) return null;
-  const centers = [], bounds = [];
-  let x = best.start;
-  bounds.push(x);
-  for (let i = 0; i < chars.length; i++) { centers.push(x + best.adv[i] / 2); x += best.adv[i]; bounds.push(x); }
-  return { ...best, phase: best.start - x0, centers, bounds, profile: prof };
+  // ⚠ 帯（縦）も**囲みをそのまま使う**。⚠ 縦を機械に当てさせて2度外している
+  //   （同じフレーム・同じ数字で帯が 114 と 156 になった）。
+  const band = { from: box.y, to: box.y + box.h, tightened: false };
+  return { ok: true, reason: null, pitch, commaRatio: c, phase: 0, contrast: null, boxes, band };
 }
 
 // ─────────────────────────────────────────────────────────────

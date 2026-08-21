@@ -1938,8 +1938,11 @@ console.log('\n[16] グリフ照合（P3-1）＝縁取りで読む・遮蔽に�
       `最大ずれ ${Math.max(...errs).toFixed(1)}px / pitch ${fit.pitch.toFixed(1)}`);
     check('★カンマの送り幅比を**測って**返す（フォントの寸法そのもの・真値 0.50）',
       Math.abs(fit.commaRatio - 0.5) <= 0.15, `commaRatio=${fit.commaRatio.toFixed(2)}`);
-    check('★★★背景がエッジだらけでも成立する（実機で採取が壊れた当の条件）',
-      fit.contrast > 0.2, `contrast=${fit.contrast.toFixed(3)}`);
+    // ⚠⚠ **「合致度」はもう無い**（2026-08-21）＝**探索そのものを捨てた**ので当てはめの良し悪しが無い。
+    //   ★代わりに固定されるべき性質は「**囲みの幅と文字列だけから幾何が決まる**」こと。
+    check('★★★探索なしで幾何が決まる（送り幅 = 囲みの幅 ÷ (数字数 + カンマ比×カンマ数)）',
+      Math.abs(fit.pitch - box.w / (7 + 0.5 * 2)) < 0.01 && fit.commaRatio === 0.5,
+      `送り幅 ${fit.pitch.toFixed(2)} / カンマ比 ${fit.commaRatio}`);
 
     // ★端から端まで通す＝**教わった数字から作ったアトラスで、別の数字が読めるか**
     const teach = (img0, x0, y0, str) => {
@@ -1992,75 +1995,57 @@ console.log('\n[16] グリフ照合（P3-1）＝縁取りで読む・遮蔽に�
       [...r1].filter((c) => c !== '?').length >= target.length - 2, `読み=${r1}`);
   }
 
-  // ── [16-13] ★★★特徴量は「縁取りのエッジ」ではなく「明るさ」───────────
-  //   ⚠⚠ **本モジュールは当初エッジで照合する前提で書いた。それが誤りだった**（2026-08-20）。
-  //     実物のダメージ数字は**白い縁取り＋金グラデ**＝**画面でいちばん明るい**が、
-  //     `dmg` の背景はキャラ絵・床グリッドで**エッジだらけ**＝**勾配は背景に埋もれる**。
-  //   ★ここでは**実物に忠実な合成**（白縁取り＋金芯＋むらのある背景）で両者を測り、
-  //     **エッジでは送り幅が当たらない／明るさでは当たる**ことを固定する。
-  //   ⭐ **帯（縦の切り出し）の不安定も、特徴量を変えたら一緒に消えた**＝
-  //     「切り出しが不安定」を切り出しの問題として直そうとして2度外した、その記録。
+  // ── [16-13] ★★★囲みが測定そのもの（探索は捨てた）─────────────────
+  //   ⚠⚠⚠ **ここは3回作り直し、3回とも「機械が位置を当てる」方向で実機に外された**:
+  //     ①谷で切る（背景で 10文字が 10/4/3 に化ける）②等間隔格子＋合致度の最大化
+  //     （合成では完璧・**実画素では送り幅 73.5 の真値に対し 54〜68**）③明るさへ特徴量変更
+  //     （**金グラデで字の下半分が消える**）。
+  //   ★実画素で分かった決定的な事実＝**背景に数字と同じ明るさ・同じ色のキャラ絵がいる**＝
+  //     **どんな画素特徴でも数字と背景は分離できない**。分離しているのは「そこに数字がある」と
+  //     知っている**人**だけ。∴ **囲みを測定として受け取り、等分に置くだけにした**。
+  //   ⭐ `rois.js` の採寸と同じ規律＝**位置は当てにいかず、人が測る**。
   {
-    const SZ = 10, ADV2 = 8, CR = 0.45;
-    /** 実物に忠実な1文字（芯=金グラデ／その外=白い縁取り／さらに外=暗いリム）。 */
-    function realGlyph(img, x, y, ch) {
-      const p = FONT[ch];
-      const on = (ax, ay) => ay >= 0 && ay < GH && ax >= 0 && ax < GW && p[ay][ax] === '1';
-      const near = (ax, ay, r) => {
-        for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (on(ax + dx, ay + dy)) return true;
-        return false;
-      };
-      for (let ay = -2; ay <= GH + 1; ay++) {
-        for (let ax = -2; ax <= GW + 1; ax++) {
-          let c = null;
-          if (on(ax, ay)) { const v = Math.round(235 - 95 * (ay / (GH - 1))); c = [v, Math.round(v * 0.8), Math.round(v * 0.35)]; }
-          else if (near(ax, ay, 1)) c = [248, 246, 238];
-          else if (near(ax, ay, 2)) c = [28, 22, 30];
-          if (c) fillRect(img, x + ax * SZ, y + ay * SZ, SZ, SZ, c);
-        }
-      }
+    const cases = [
+      { text: '5,044,101', w: 588 },      // 実切り抜きの実寸（2026-08-21 ユーザー提供）
+      { text: '7,880,627', w: 590 },
+      { text: '10,301,906', w: 898 },     // バーストストリーク＝表示が大きい
+    ];
+    for (const c of cases) {
+      const chars = [...c.text];
+      const nC = chars.filter((x) => x === ',').length, nW = chars.length - nC;
+      const fit = G.fitTaughtGrid(null, { x: 0, y: 0, w: c.w, h: 100 }, c.text);
+      const want = c.w / (nW + 0.5 * nC);
+      check(`★★★「${c.text}」＝囲みの幅と文字列だけで送り幅が決まる（${want.toFixed(1)}px）`,
+        fit.ok && Math.abs(fit.pitch - want) < 1e-9 && fit.boxes.length === chars.length,
+        `送り幅 ${fit.pitch?.toFixed(2)} / 箱 ${fit.boxes.length}`);
+      // 箱は隙間なく並び、全体で囲みをちょうど覆う
+      const last = fit.boxes[fit.boxes.length - 1];
+      check(`  箱が隙間なく並び、囲みをちょうど覆う`,
+        Math.abs(last.x + last.w - c.w) < 1e-6
+        && fit.boxes.every((b, i) => i === 0 || Math.abs(b.x - (fit.boxes[i - 1].x + fit.boxes[i - 1].w)) < 1e-9),
+        `右端 ${(last.x + last.w).toFixed(2)} / 囲み ${c.w}`);
     }
-    /** 数字の切り抜きを1枚作る（余白は毎回変える＝人の囲みは毎回違う）。 */
-    function crop(text, padL, padR, padT, padB) {
-      const adv = [...text].map((ch) => (ch === ',' ? ADV2 * CR : ADV2) * SZ);
-      const total = Math.round(adv.reduce((a, b) => a + b, 0));
-      const img = makeImage(padL + total + padR, padT + GH * SZ + padB, [40, 20, 70]);
-      // 背景＝むらのある紫＋グリッド（キャラ絵と床を模す）
-      for (let y = 0; y < img.height; y++) {
-        for (let x = 0; x < img.width; x++) {
-          let v = 42 + 18 * Math.sin(x / 37) + 14 * Math.cos(y / 23);
-          if (x % 29 < 2 || y % 19 < 2) v += 38;
-          fillRect(img, x, y, 1, 1, [v * 0.9, v * 0.45, v * 1.5]);
-        }
-      }
-      let cx = padL;
-      [...text].forEach((ch, k) => {
-        realGlyph(img, Math.round(cx + (adv[k] - GW * SZ) / 2), padT, ch);
-        cx += adv[k];
-      });
-      return { img, text, truePitch: ADV2 * SZ };
-    }
-    const crops = [crop('5,044,101', 14, 20, 12, 18), crop('4,728,306', 30, 8, 30, 6),
-                   crop('5,063,212', 6, 40, 4, 40)];
-    const fitAll = (mkField) => crops.map((c) => {
-      const f = mkField(c.img);
-      return G.fitTaughtGrid(f, { x: 0, y: 0, w: c.img.width, h: c.img.height }, c.text);
-    });
-    const spread = (v) => (Math.max(...v) - Math.min(...v)) / Math.min(...v);
-    const byBright = fitAll((im) => G.brightField(im));
-    const byEdge = fitAll((im) => G.edgeField(G.luminanceField(im, { x: 0, y: 0, w: im.width, h: im.height })));
-    const pb = byBright.map((f) => f.pitch), pe = byEdge.map((f) => f.pitch);
-    check('★★★明るさの場なら、囲みが違っても送り幅が揃う（真値 80・ばらつき 3% 以内）',
-      spread(pb) < 0.03 && pb.every((p) => Math.abs(p - 80) / 80 < 0.05),
-      `送り幅 ${pb.map((p) => p.toFixed(1)).join(' / ')}`);
-    check('★★エッジの場では同じ入力で送り幅が当たらない＝特徴量を変えた理由の記録',
-      spread(pe) > 0.10, `送り幅 ${pe.map((p) => p.toFixed(1)).join(' / ')}`);
-    const hb = byBright.map((f) => f.band.to - f.band.from);
-    check('★帯の高さも揃う（囲みの余白に依存しない）',
-      spread(hb) < 0.10, `帯 ${hb.join(' / ')}px`);
-    check('カンマの送り幅比も揃う（真値 0.45）',
-      spread(byBright.map((f) => f.commaRatio)) < 0.25,
-      byBright.map((f) => f.commaRatio.toFixed(2)).join(' / '));
+    // ★カンマは数字より狭い（実測 0.5）＝**フォント定数**であって推定値ではない
+    const f2 = G.fitTaughtGrid(null, { x: 0, y: 0, w: 800, h: 100 }, '1,234');
+    const digitW = f2.boxes[0].w, commaW = f2.boxes[1].w;
+    check('★カンマの送り幅は数字の 0.5 倍（実切り抜きに格子を重ねて目視で確定）',
+      Math.abs(commaW / digitW - 0.5) < 1e-9, `${commaW.toFixed(1)} / ${digitW.toFixed(1)}`);
+    // ⚠⚠ **囲みが測定そのもの**＝囲みが 10% 広ければ送り幅も 10% 広くなる。
+    //   これは欠陥ではなく契約。**だから画面は必ず箱を描いて人に見せる**。
+    const tight = G.fitTaughtGrid(null, { x: 0, y: 0, w: 588, h: 100 }, '5,044,101');
+    const loose = G.fitTaughtGrid(null, { x: 0, y: 0, w: 647, h: 100 }, '5,044,101');
+    check('⚠ 囲みが 10% 広ければ送り幅も 10% 広くなる（＝囲みが測定・人が見て直す）',
+      Math.abs(loose.pitch / tight.pitch - 1.1) < 0.01,
+      `${tight.pitch.toFixed(1)} → ${loose.pitch.toFixed(1)}`);
+    // ★グリフ画素のマスク（白い縁取り ∪ 金の芯）＝金グラデの上下どちらでも拾えること
+    const im = makeImage(6, 3, [60, 30, 90]);
+    fillRect(im, 0, 0, 1, 1, [245, 243, 236]);   // 白い縁取り
+    fillRect(im, 1, 0, 1, 1, [235, 188, 82]);    // 金（明るい側）
+    fillRect(im, 2, 0, 1, 1, [150, 118, 52]);    // 金（暗い側＝グラデの下）
+    const m = G.glyphMask(im);
+    check('★★白い縁取りも、金グラデの明るい側も暗い側も、同じく「字」と判定する',
+      m.mag[0] === 1 && m.mag[1] === 1 && m.mag[2] === 1 && m.mag[3] === 0,
+      `[${m.mag[0]},${m.mag[1]},${m.mag[2]},${m.mag[3]}]`);
   }
 
   // ── [16-14] ★★アトラスは「保存できた」ではなく「自分を読めるか」で見る ──

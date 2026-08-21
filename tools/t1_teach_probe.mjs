@@ -17,7 +17,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { decodePng, encodePng } from './lib/png.mjs';
-import { luminanceField, edgeField, brightField, fitTaughtGrid, fieldScale, signature,
+import { luminanceField, edgeField, brightField, glyphMask, fitTaughtGrid, fieldScale, signature,
          packSignature, unpackSignature, classify, similarity,
          GLYPH_DEFAULTS } from '../src/transcribe/glyph.js';
 
@@ -58,8 +58,8 @@ for (const it of items) {
   const loaded = loadCrop(it);
   const img = loaded.img;
   it.text = loaded.text;
-  // ★**明るさの場**（production と同じ経路＝`main.js` の「教える」もこれ）
-  const edge = brightField(img);
+  // ★production と同じ経路（`main.js` の「教える」もこれ）
+  const edge = glyphMask(img);
   const fit = fitTaughtGrid(edge, { x: 0, y: 0, w: img.width, h: img.height }, it.text);
   if (!fit.ok) { console.log(basename(it.file).padEnd(28), '格子を当てられない:', fit.reason); continue; }
   const bandH = fit.band.to - fit.band.from;
@@ -72,7 +72,7 @@ for (const it of items) {
     `${fit.band.from}〜${fit.band.to}`.padStart(11),
     (bandH / fit.pitch).toFixed(3).padStart(6),
     fit.commaRatio.toFixed(2).padStart(8),
-    fit.contrast.toFixed(3).padStart(7));
+    (fit.contrast == null ? '—' : fit.contrast.toFixed(3)).padStart(7));
 
   if (dump) {
     // ★切り出し位置を描いた PNG（帯＝緑・数字＝水色・カンマ＝橙）
