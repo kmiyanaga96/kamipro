@@ -13,13 +13,13 @@ import { analyzeHpBar, HpSeries, reportHp, HP_DEFAULTS } from './hp_bar.js';
 import { LagProfile, EventDeduper, reportDedup, DEDUP_DEFAULTS } from './dedup.js';
 import { ChargeDotTracker, ChargeSeries, reportChargeDots, CT_DEFAULTS } from './charge_dots.js';
 import { ROIS } from './rois.js';
-import { luminanceField, edgeField, brightField, glyphMask, segmentRows, segmentGlyphs, signature, fieldScale,
+import { luminanceField, edgeField, brightField, glyphMask, teachSummary, segmentRows, segmentGlyphs, signature, fieldScale,
          GlyphHarvest, reportHarvest, validateAtlas, selfCheckAtlas, leaveOneTeachingOut,
          packSignature, cropPatch, fitTaughtGrid, GLYPH_DEFAULTS } from './glyph.js';
 import { Diag } from './diag.js';
 import { digest } from './digest.js';
 
-const VERSION = '0.34.0';
+const VERSION = '0.35.0';
 
 const $ = (id) => document.getElementById(id);
 const video = document.createElement('video');
@@ -577,8 +577,9 @@ $('teachAdd').onclick = () => {
     taught.push({ ch: b.ch, sig: packSignature(signature(edge, b, { scale })), at,
                   ti: teachings.length, commaRatio: fit.commaRatio });
   }
-  teachings.push({ at, text, pitch: +fit.pitch.toFixed(1), bandH: fit.band.to - fit.band.from,
-                   contrast: +fit.contrast.toFixed(3) });
+  // ★書式と数値は純関数へ（`main.js` は検査できないので、ここにロジックを置かない）
+  const sum = teachSummary(fit, text, at);
+  teachings.push(sum.record);
   lastTeachCrop = { img, text, at, rect: { ...lastRect } };
   lastTeachFingerprint = fp;
   // ★★**次は必ず囲み直させる**（同じ囲みの使い回しが今回の事故の原因）
@@ -589,8 +590,7 @@ $('teachAdd').onclick = () => {
   for (const t of taught) have[t.ch] = (have[t.ch] ?? 0) + 1;
   const missing = '0123456789,'.split('').filter((c) => !have[c]);
   $('teachNote').innerHTML = `<span class="ok">${fit.boxes.length} 文字を教わりました</span>`
-    + `（格子の合致度 ${fit.contrast.toFixed(3)} / 送り幅 ${fit.pitch.toFixed(1)}px / `
-    + `カンマ比 ${fit.commaRatio.toFixed(2)}）<br>`
+    + `（${sum.line}）<br>`
     + `いま持っている字: ${Object.entries(have).map(([k, v]) => `${k}×${v}`).join(' ')}<br>`
     + (missing.length
       ? `<span class="bad">まだ無い字: ${missing.join(' ')}</span> — これらが出ている数字を追加で教えてください`

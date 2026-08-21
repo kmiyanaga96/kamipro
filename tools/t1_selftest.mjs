@@ -1503,6 +1503,18 @@ console.log('\n[14] ページ配線の健全性（★main.js は import でき�
   check('★★index.html のボタンはすべて main.js から配線されている（押しても無反応を作らない）',
     unwired.length === 0, `配線が無いボタン: ${JSON.stringify(unwired)}`);
 
+  // ★★★`fit.○○.toFixed(` を `main.js` に直書きしない（2026-08-21 の出荷事故）。
+  //   ⚠ `fitTaughtGrid` の返り値は**設計が変われば欄が消える**（実際「合致度」が消えた）。
+  //     画面側に書式を直書きすると、**押した瞬間に落ちる**のに全テストが通ってしまう。
+  //   ★書式は `teachSummary()` を通す＝検査できる場所に置く。
+  {
+    const bad = [...main.matchAll(/fit\.[A-Za-z]+\.toFixed\(/g)].map((m) => m[0]);
+    check('★★★fit の欄を main.js で直接 toFixed しない（teachSummary を通す）',
+      bad.length === 0, `直書き: ${JSON.stringify(bad)}`);
+    check('  この検査は実際に効く（旧コードの書き方なら落ちる）',
+      /fit\.[A-Za-z]+\.toFixed\(/.test("+ `（格子の合致度 ${fit.contrast.toFixed(3)} / `"));
+  }
+
   // ★★切り抜きは **JSON で保存**すること（2026-08-20b）。
   //   ⚠ PNG で保存するとチャットに貼ったとき「画像」として扱われ、**画素を読めない**
   //     （ユーザー報告）。JSON はファイルとして届く＝**Claude が実画素で検証できる唯一の経路**。
@@ -2046,6 +2058,27 @@ console.log('\n[16] グリフ照合（P3-1）＝縁取りで読む・遮蔽に�
     check('★★白い縁取りも、金グラデの明るい側も暗い側も、同じく「字」と判定する',
       m.mag[0] === 1 && m.mag[1] === 1 && m.mag[2] === 1 && m.mag[3] === 0,
       `[${m.mag[0]},${m.mag[1]},${m.mag[2]},${m.mag[3]}]`);
+  }
+
+  // ── [16-13b] ★★教えた回の要約は純関数（画面に直書きしない）──────────
+  //   ⚠⚠ **ここを `main.js` に直書きしていて出荷事故**（2026-08-21）＝探索を捨てて
+  //     `fitTaughtGrid` から「合致度」を無くしたのに、画面側が `contrast.toFixed()` を呼び続け、
+  //     **「この数字を教える」を押した瞬間に落ちた**。**319件は全部通っていた**
+  //     （`main.js` は import できず、押した先の書式まで検査できていなかった）。
+  //   ★∴ **書式を検査できる場所へ移す**＝本 Phase で繰り返し効いた規律。
+  {
+    const fit = G.fitTaughtGrid(null, { x: 0, y: 0, w: 588, h: 134 }, '5,044,101');
+    const sum = G.teachSummary(fit, '5,044,101', 20);
+    check('★教えた回の要約が数値と1行の文字列を返す',
+      Math.abs(sum.pitch - 73.5) < 0.01 && sum.bandH === 134
+      && /送り幅 73\.5px \/ 字高 134px \/ 比 1\.82/.test(sum.line), sum.line);
+    check('★台帳に残す記録は比まで持つ（囲み方が揃っているかの検査に使う）',
+      sum.record.ratio > 1.8 && sum.record.ratio < 1.83 && sum.record.text === '5,044,101',
+      JSON.stringify(sum.record));
+    // ★壊れた fit を渡しても**例外を投げない**（画面が落ちない）
+    const bad = G.teachSummary({ pitch: 0, band: null, commaRatio: null }, '', null);
+    check('★★値が欠けていても落ちず「—」を出す（画面を落とさない）',
+      typeof bad.line === 'string' && bad.line.includes('—'), bad.line);
   }
 
   // ── [16-14] ★★アトラスは「保存できた」ではなく「自分を読めるか」で見る ──

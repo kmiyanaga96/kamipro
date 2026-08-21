@@ -880,6 +880,29 @@ export function leaveOneTeachingOut(taught, cell = GLYPH_DEFAULTS.cell, opts = {
            rate: total ? +(correct / total).toFixed(3) : 0 };
 }
 
+/**
+ * ★**教えた1回ぶんの要約**（画面に出す文字列と、台帳に残す数値）。
+ *
+ * ⚠⚠ **ここを `main.js` に直書きしていて事故った**（2026-08-21）＝`fitTaughtGrid` から
+ *   「合致度」を無くした（探索を捨てた）のに、画面側が `contrast.toFixed()` を呼び続けていて
+ *   **「この数字を教える」を押した瞬間に落ちた**。**319件のセルフテストは全部通っていた**＝
+ *   `main.js` は import できず、押した先の書式まで検査できていなかったから。
+ * ★∴ **書式を純関数へ出す**（検査できる場所へ移す）＝本 Phase で繰り返し効いた規律。
+ *
+ * @returns {{pitch:number,bandH:number,ratio:number,line:string,record:object}}
+ */
+export function teachSummary(fit, text = '', at = null) {
+  const pitch = fit?.pitch ?? 0;
+  const bandH = fit?.band ? fit.band.to - fit.band.from : 0;
+  const ratio = pitch > 0 ? bandH / pitch : 0;
+  const f = (v, d = 1) => (typeof v === 'number' && isFinite(v) ? v.toFixed(d) : '—');
+  return {
+    pitch, bandH, ratio,
+    line: `送り幅 ${f(pitch)}px / 字高 ${bandH}px / 比 ${f(ratio, 2)} / カンマ比 ${f(fit?.commaRatio, 2)}`,
+    record: { at, text, pitch: +f(pitch), bandH, ratio: +f(ratio, 3) },
+  };
+}
+
 /** アトラスの健全性検査。★**読み取りを始める前の関門**。 */
 export function validateAtlas(atlas) {
   const problems = [];
