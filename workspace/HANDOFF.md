@@ -4,7 +4,7 @@
 > **次タスクの詳細リスト**は `workspace/TODO.md`。過去の経緯・provenance は `archive/SESSION_LOG.md`（オンデマンド）。
 > **更新規律（セッション末）**: 本書は「今」だけを短く保つ。現状化した記述は `archive/SESSION_LOG.md` の先頭へ1ブロック畳み、本書は最新状態へ上書きする（規律は REPO_STANDARDS §6）。
 >
-> 最終更新: 2026-08-22（スキル4本を新設＝規約の検査・転記を機械化。Phase 9 は P3-1 完了・P3-1b が次）
+> 最終更新: 2026-08-22（スキル5本＋運用規律 S1〜S10。Phase 9 は P3-1 完了・**P3-1b が次の着手点**）
 
 ---
 
@@ -30,6 +30,9 @@
 | 実体 | `tools/skills/*.mjs` 4本 ＋ `tools/skills/lib/skill_util.mjs`（**Node 標準のみ**＝E7）＋ `tools/skills/baselines/t1_baseline.json` | 静的検査 **負のテストで5種の発火を確認** |
 | 索引・台帳 | `tools/skills/README.md` 新設／`tools/README.md` §5 新設／`CLAUDE.md` に登録行・`npm run skill:*`・更新履歴 | `doc:check` 現役層 **0 件**（グリーン） |
 | 検査ツール | `tools/doc_refs.mjs` が `.claude/` と `tools/skills/.reports/` を検査対象外へ | スキル本文に被参照ブロックを注入しない |
+| **オーケストレーター** | **`skills-doctor`**（`tools/skills/skill_doctor.mjs`）＝5点整合／description 予算／**検査の根拠**／**関門の緩み**／必要性／発火確認／スモーク。関門の台帳＝`tools/skills/baselines/guardrails.json`（変更は `--reason` 必須） | 違反0・警告0 |
+| **発火確認** | `tools/skills/negative_tests.mjs`＝`SKILL_ROOT` でサンドボックスへ複製し**わざと壊す**（本物のリポジトリは触らない） | **13/13 通過**（invariants 7・doctor 4・clean 2） |
+| **運用規律** | `tools/skills/README.md` §4 に **S1〜S10**。**S1〜S5 は機械が見張り・S6〜S10 は人**と明示 | — |
 
 **回帰**: `test:golden` **3/3**（202,005,923 / 215,161,915 / 299,523,354）・`test:t1` **337件**・`doc:check` グリーン。
 
@@ -51,6 +54,7 @@
 | 4 | HP 違反の残り5件（遮蔽が空区間検査を通る型・**0.16%**） | ⏳ 低優先 | 3090 フレーム中5件 |
 | 5 | sim05 の本丸 **C40 / C41 / C44** は open のまま（**意図的コスト**＝Phase 9 先行のため凍結） | ⏸ 凍結中 | `CALIBRATION_ANALYSIS.md` の Cx 行が正 |
 | 6 | 新設スキルは**まだ実戦を1周していない**（エンジン改修・重い掃引で通していない） | ⏳ 次にエンジン/実験を触るとき | `workspace/TODO.md`「スキル」節 |
+| 7 | **S6〜S10 は機械化できていない**（同時実行しない・simNN 新設の判断・HANDOFF の言語化・緑を信じすぎない・スキルを増やしすぎない） | ⏳ **人が見る**と明示済み | `tools/skills/README.md` §4 |
 
 ⚠ ユーザー手元の**アトラスJSON（v0.35.0・cell 12×20）は世代が古い**＝受け取ってもそのままは使わない。
 正は `tools/fixtures/t1_glyph_atlas_M3-1.json`（cell 16×26・カンマを覚えない）。新しい切り抜きが来たら
@@ -63,7 +67,8 @@
    照合パラメータの掃引は続行できる。関門＝`npm run test:t1` [16-15]（誤≦6 / 正≧80 / 曖昧≦20）を**締める方向にだけ**動かす。
 2. **👤 緩い囲み2枚の教え直しを依頼**（枚数を足すより効く。①2枚の教え直し ②`3`/`7` を含む表示 ③条件を混ぜる）。
 3. **スキルを実戦で1周する**（`workspace/TODO.md`「スキル」節）。エンジンを触るセッションでは
-   `npm run skill:invariants`（golden 込み 2分20秒・**背景実行**）を締めの手順に入れる。
+   `npm run skill:invariants`（golden 込み 2分20秒・**背景実行**）を、検査や閾値を触ったら
+   `npm run skill:doctor` を締めの手順に入れる（回し方＝`tools/skills/README.md` §4.2）。
 4. DOC_RELATION_PLAN の完了条件③（常駐サブタスク2周）— 本セッションで**トリガ該当のため 0 リセット**済み。
 
 **ポインタ**: 成果物＝`transcribe/index.html` ＋ `src/transcribe/*.js`（12本・**シム本体と非結線＝golden に非干渉**）。

@@ -180,8 +180,11 @@ npm run test:t1     # [16-15] の閾値を実測へ**締め直す**（緩めな�
 | `run-sim-experiment` | `skills/run_sim_experiment.mjs` | `exp_*.mjs` を1条件=1プロセスで実行し、生ログ・provenance・数値を `simulation/simNN/` の様式へ転記 |
 | `sync-workspace-handoff` | `skills/sync_workspace_handoff.mjs` | git 差分の層別集計・TODO のチェックボックス/点検カウンタ転記・HANDOFF ドラフト生成 |
 | `verify-transcribe-pipeline` | `skills/verify_transcribe_pipeline.mjs` | `fixtures/` の実走データで T1 の精度を測り、`skills/baselines/t1_baseline.json` と突合 |
+| **`skills-doctor`** | `skills/skill_doctor.mjs` | **スキル群そのものの点検**＝登録の5点整合／description 予算／検査の根拠（`doc:` の節が実在するか）／**関門の緩み**（`skills/baselines/guardrails.json`）／必要性／発火確認／スモーク |
+| （実体のみ） | `skills/negative_tests.mjs` | **検査器の発火確認 13ケース**。`SKILL_ROOT` でサンドボックスへ複製して壊す＝**本物のリポジトリは触らない** |
 
 ⚠ **判断はスキル側（Claude）**＝実体が出すのは観測値と「規定のどの節に反しているか」まで。
+⚠ **運用規律（S1〜S10）の正は [tools/skills/README.md](skills/README.md) §4**＝「何を機械が見て、何を人が見るか」を明記してある。
 ⚠ `skills/.reports/` は一時出力（git 管理外・`doc_refs` の検査対象外）。
 
 ---
@@ -192,6 +195,7 @@ npm run test:t1     # [16-15] の閾値を実測へ**締め直す**（緩めな�
 
 | 日付 | 変更点 | 波及確認 |
 |---|---|---|
+| 2026-08-22 | §5 に **`skills-doctor` / `negative_tests.mjs`** を追加（スキル群の乖離を1本で見るオーケストレーター＋検査器の発火確認） | 負のテスト **13/13**。関門の台帳＝`skills/baselines/guardrails.json`（変更には `--reason` が要る） |
 | 2026-08-22 | **§5 を新設**＝スキル（`tools/skills/` の4本＋`lib/skill_util.mjs`）。`doc_refs.mjs` は `.claude/` と `tools/skills/.reports/` を検査対象外へ（スキル本文に被参照ブロックを注入しない・一時出力で被参照ランキングを汚さない） | 静的検査は**負のテストで5種の発火を確認**（TDZ・キャラ名リテラル・`_refineRoute` 結線・app.js export 漏れ・golden 期待値の台帳同期）。⚠ 実際に踏んだ罠＝**文字列を見る検査で `stripJs` を使うと黙って空振りする**（`from './app.js'` の中身まで潰れる）＝`stripComments` と使い分ける。`--write` 実行で**既存の被参照ブロック4本の陳腐化**（HANDOFF/TODO が参照しなくなった先が残っていた）も同時に解消 |
 | 2026-08-22 | **§4 を新設**＝Phase 9 T1（録画転記）のオフライン検証（`t1_selftest.mjs` / `t1_teach_probe.mjs` / `lib/png.mjs` / `fixtures/*`）。`t1_teach_probe.mjs` に **`--atlas` / `--source`** を追加 | ★**索引が T1 を1本も持っていなかった**（P2/P3 の工具はすべて本書の外にあった）＝どの数値がどのスクリプト由来かの原則に反していた。★`--atlas` は**再現性の担保**＝初版のフィクスチャは使い捨てスクリプト製で次セッションに再現できなかった。**再構築で `glyphs`/`samples` がビット一致**することを確認済（差分は `builtAt`/`builtBy`/`labels` のみ）。⚠ 実際に踏んだ罠＝同じ表示の切り抜きが2通り（588×134 と 573×113）あり、広い方だと **`validateAtlas` が比 1.82 で落ちる**＝**関門が緩い囲みを捕まえている** |
 | 2026-08-06 | `exp_puvoir_lever.mjs` を追加（M3 の設計支援・見積り専用） | `puvoir` が cap 専用でないこと（`elem_puvoir` +15%）を一次情報で確認したうえでの分離設計。trial01 の holy 8ヒットから**ヒット間 CV 1.04%** を実測し、効果 3.11% が約10σで見えることを確認 |

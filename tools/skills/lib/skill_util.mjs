@@ -11,8 +11,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-/** リポジトリ根（tools/skills/lib/ から3つ上）。 */
-export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+/**
+ * リポジトリ根（tools/skills/lib/ から3つ上）。
+ * ★`SKILL_ROOT` で差し替えられる＝**負のテスト**（わざと壊したサンドボックスに検査をかける）のための入口。
+ *   これが無いと、検査器を検査するために本物のリポジトリを壊すことになる（中断すると壊れたまま残る）。
+ */
+export const ROOT = process.env.SKILL_ROOT
+  ? path.resolve(process.env.SKILL_ROOT)
+  : path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
 export const rel = (p) => path.relative(ROOT, path.resolve(ROOT, p)).replace(/\\/g, '/');
 export const abs = (p) => path.resolve(ROOT, p);

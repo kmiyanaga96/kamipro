@@ -4,7 +4,7 @@
 > **更新規律**: 完了項は `[x]` にしてセッション末に `archive/SESSION_LOG.md` の該当ブロックへ畳む（**本書からは削除する**）。新規タスクは REPO_STANDARDS §1 の振り分けを通してから追加。
 > 現状の全体像は `workspace/HANDOFF.md`。**クローズ済みタスクの一覧は `archive/SESSION_LOG.md` が正**（本書に控えを置かない）。
 >
-> 最終更新: 2026-08-22（セッション末・スキル4本を新設＝`tools/skills/`）
+> 最終更新: 2026-08-22（セッション末・`skills-doctor` 追加＝スキル運用の規律 S1〜S10 を制定）
 
 ---
 
@@ -45,7 +45,11 @@
       ①`check-engine-invariants` を**実際のエンジン改修**で通す（今は無変更＝静的検査の空振り確認まで）
       ②`run-sim-experiment` を**重い掃引**（`exp_beam_width_sweep` 等）で通し、timeout と背景実行の運用を確かめる
       ③`verify-transcribe-pipeline` のベースラインを**フィクスチャ作り直しのタイミング**で更新する運用に乗せる。
-      ⚠ 検査を足すときは**規定（ENGINE_INVARIANTS / REPO_STANDARDS）を先に更新**し、負のテストで発火を確認する。
+      ⚠ 検査を足すときは**規定（ENGINE_INVARIANTS / REPO_STANDARDS）を先に更新**し、負のテストで発火を確認する（S1/S2）。
+- [x] **スキル運用の規律化＝`skills-doctor`**（2026-08-22 完了）。運用規律 **S1〜S10** を `tools/skills/README.md` §4 に制定し、
+      **S1〜S5 は機械（`npm run skill:doctor`）・S6〜S10 は人**と明示。`negative_tests.mjs`（13ケース）で発火を担保。
+- [ ] **人が守る側（S6〜S10）の運用を実地で確かめる**＝①同時実行しない（S7）②simNN 新設の判断（S8）
+      ③HANDOFF の言語化（S9）。⚠ **90日未使用のスキルが出たら棚卸し**（S6・`[E]` が検出する）。
 
 ---
 

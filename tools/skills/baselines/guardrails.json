@@ -1,0 +1,37 @@
+{
+  "kind": "skills-doctor guardrails",
+  "at": "2026-08-22T15:41:23Z",
+  "guardrails": {
+    "golden": [
+      {
+        "fixture": "edison/raw",
+        "exp": 202005923
+      },
+      {
+        "fixture": "edison/cal",
+        "exp": 215161915
+      },
+      {
+        "fixture": "napoleon/static",
+        "exp": 299523354
+      }
+    ],
+    "t1": {
+      "wrongMax": 6,
+      "correctMin": 80,
+      "ambiguousMax": 20
+    },
+    "t1Baseline": {
+      "wrong": 6,
+      "correct": 80,
+      "ambiguous": 15
+    }
+  },
+  "history": [
+    {
+      "at": "2026-08-22T15:41:23Z",
+      "reason": "初期基準の記録（golden は C39 再fit 後の現行値・t1 [16-15] は 2026-08-22 の実測 誤6/正80/曖昧15 に締めた版）",
+      "before": null
+    }
+  ]
+}
