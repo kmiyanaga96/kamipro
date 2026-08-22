@@ -6,26 +6,35 @@
 //   ∴ **ユーザーが保存した切り抜き PNG を Node で読み、同じ切り出しを再現して測る**経路を作る。
 //
 // 使い方:
-//   node tools/t1_teach_probe.mjs [--dump 出力先] <png>=<数字> [<png>=<数字> ...]
+//   node tools/t1_teach_probe.mjs [--dump 出力先] [--atlas 出力.json] [--source 由来] <切り抜き> ...
 //   例) node tools/t1_teach_probe.mjs --dump /tmp/out a.png=5,044,101 b.png=4,728,306
+//   例) node tools/t1_teach_probe.mjs --atlas tools/fixtures/t1_glyph_atlas_M3-1.json \
+//         --source 'M3-1.mp4 の教え切り抜き（ユーザー提供）' /path/teach_*.json
 //
 // 出すもの:
 //   ①切り出しの寸法（送り幅・帯・比・格子の合致度）＝**教えるたびに揃うか**
 //   ②**1枚を抜いて残りで読む**＝アトラスとして使えるかの本当の指標
 //   ③`--dump` で**切り出し位置を描いた PNG**（人／Claude が目で確かめる）
+//   ④`--atlas` で**リポジトリに置けるフィクスチャ**（署名の数値だけ＝画像ではない・PHASE9_PLAN §10.3 の例外）
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { decodePng, encodePng } from './lib/png.mjs';
 import { luminanceField, edgeField, brightField, glyphMask, fitTaughtGrid, fieldScale, signature,
          packSignature, unpackSignature, classify, similarity,
+         validateAtlas, leaveOneTeachingOut,
          GLYPH_DEFAULTS } from '../src/transcribe/glyph.js';
 
 const args = process.argv.slice(2);
 let dump = null;
+let atlasOut = null;
+let ATLAS_SOURCE = '（--source 未指定）';
+const TOOL_VERSION = '0.36.0';   // ★`src/transcribe/main.js` の VERSION と揃える（教え方が変わったら上げる）
 const items = [];
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--dump') { dump = args[++i]; continue; }
+  if (args[i] === '--atlas') { atlasOut = args[++i]; continue; }
+  if (args[i] === '--source') { ATLAS_SOURCE = args[++i]; continue; }
   // ★`.json`（ページの「この切り抜きをJSONで保存」）は**文字列を中に持っている**ので `=数字` は不要。
   const at = args[i].lastIndexOf('=');
   if (at < 0) { items.push({ file: args[i], text: null }); continue; }
@@ -67,7 +76,7 @@ for (const it of items) {
   // ⚠ **カンマはテンプレートにしない**（production と同じ＝セルの8割が背景・桁区切りは文法で決まる）
   const sigs = fit.boxes.filter((b) => b.ch !== ',')
     .map((b) => ({ ch: b.ch, sig: packSignature(signature(edge, b, { scale })), box: b }));
-  shots.push({ ...it, img, edge, fit, sigs, bandH });
+  shots.push({ ...it, img, edge, fit, sigs, bandH, meta: loaded.meta });
   console.log(basename(it.file).padEnd(28), it.text.padEnd(12),
     `${img.width}×${img.height}`.padEnd(11),
     fit.pitch.toFixed(1).padStart(7),
@@ -138,4 +147,39 @@ if (shots.length >= 2) {
   //   判断に使うのは上の「1枚を抜いて残りで読む」。
   console.log(`\n（参考）ずらさない類似度: 同じ字どうし min ${sameMin.toFixed(3)} / 別の字どうし max ${diffMax.toFixed(3)}`
     + `  ⚠ 照合は ±${GLYPH_DEFAULTS.shift.x} 格子ずらして最良を採るので、ここは低くてよい`);
+}
+
+// ── ④`--atlas <path>` でフィクスチャを書き出す ───────────────────────
+//   ⚠⚠ **これが無くて事故りかけた**（2026-08-22）: 初版のフィクスチャは `/tmp` の使い捨てスクリプトで
+//   作っており、**次のセッションでは再現できない**状態だった＝本 Phase の教訓
+//   「**検査できない場所にだけ事故が起きる**」そのもの。∴ 生成経路をツールへ入れる。
+//   ★出すのは**署名の数値だけ**（画像は入らない＝PHASE9_PLAN §10.3 の例外）。
+if (atlasOut && shots.length) {
+  const glyphs = {}, samples = [], teachings = [];
+  shots.forEach((s, ti) => {
+    for (const g of s.sigs) { (glyphs[g.ch] ||= []).push(g.sig); samples.push({ ch: g.ch, ti, sig: g.sig }); }
+    teachings.push({ ti, at: s.meta?.at ?? null, text: s.text,
+                     pitch: +s.fit.pitch.toFixed(1), bandH: s.bandH,
+                     ratio: +(s.bandH / s.fit.pitch).toFixed(3),
+                     size: `${s.img.width}x${s.img.height}` });
+  });
+  const atlas = {
+    version: 1, cell: { ...GLYPH_DEFAULTS.cell }, glyphs,
+    labels: Object.keys(glyphs).sort(),
+    provenance: { tool: 'T1', toolVersion: TOOL_VERSION, builtBy: 'tools/t1_teach_probe.mjs --atlas',
+                  builtAt: new Date().toISOString(), source: ATLAS_SOURCE,
+                  crops: shots.map((s) => basename(s.file)), teachings },
+    metrics: { commaRatio: GLYPH_DEFAULTS.commaRatio },
+    samples,
+  };
+  const v = validateAtlas(atlas);
+  const loto = leaveOneTeachingOut(samples, atlas.cell);
+  writeFileSync(atlasOut, JSON.stringify(atlas));
+  console.log(`\n# アトラスを書き出した → ${atlasOut}`);
+  console.log(`  教示回 ${teachings.length} ／ 標本 ${samples.length}`
+    + ` ／ 字ごと ${Object.entries(glyphs).sort().map(([k, v2]) => `${k}×${v2.length}`).join(' ')}`);
+  console.log(`  validateAtlas: ${v.ok}${v.ok ? '' : ' — ' + JSON.stringify(v.problems)}`);
+  console.log(`  ★教示回抜き: 正 ${loto.correct} / 曖昧 ${loto.ambiguous} / 誤 ${loto.wrong}`
+    + `（計 ${loto.total}） ${JSON.stringify(loto.confusions)}`);
+  console.log('  ⚠ `tools/t1_selftest.mjs` [16-15] の閾値を、この実測へ**締め直す**（緩めない）。');
 }

@@ -2188,6 +2188,41 @@ console.log('\n[16] グリフ照合（P3-1）＝縁取りで読む・遮蔽に�
     check('provenance が無いアトラスは通さない（E1＝測定条件を併記する）',
       !G.validateAtlas({ cell: atlas1.cell, glyphs: atlas1.glyphs }).ok);
   }
+
+  // ── [16-15] ★★★実データ回帰（合成ではなく**実機のグリフ**で照合器を固定する）────
+  //   フィクスチャ＝`tools/fixtures/t1_glyph_atlas_M3-1.json`。
+  //     由来: M3-1.mp4 の「この数字を教える」切り抜き **14枚**（ユーザー提供・2026-08-19〜21）から
+  //           オフラインで再構築。**署名（数値グリッド）だけ**で画像は入っていない＝§10.3 に抵触しない。
+  //   ⚠⚠ **本テストで唯一「実機のグリフを読めるか」を測る節**。[16-1〜14] は合成＝性質しか見ていない。
+  //      本 Phase で合成が実機を裏切った型は 3 つあった（明るさ特徴／帯の推定／曖昧マージンの安全網）。
+  //      ∴ 実データの数値をここに焼いて、**次の「改善」が実は劣化だったら落ちる**ようにする。
+  //   ★閾値は「良い」ではなく「これ以上悪くしない」床。改善したら締め直す（E1＝測定条件を併記）。
+  {
+    const fx = JSON.parse(readFileSync(join(HERE, 'fixtures/t1_glyph_atlas_M3-1.json'), 'utf8'));
+    const fv = G.validateAtlas(fx);
+    check('★実データのアトラスが関門を通る（validateAtlas）', fv.ok, JSON.stringify(fv.problems));
+    check('寸法が実装の既定と同じ（cell 16×26）＝フィクスチャと実装がずれたら気づく',
+      fx.cell.w === G.GLYPH_DEFAULTS.cell.w && fx.cell.h === G.GLYPH_DEFAULTS.cell.h,
+      `${JSON.stringify(fx.cell)} vs ${JSON.stringify(G.GLYPH_DEFAULTS.cell)}`);
+    check('カンマは覚えていない（送り幅から位置で決める＝実画素で決めた方針）',
+      !fx.glyphs[','] && Object.keys(fx.glyphs).length === 10,
+      Object.keys(fx.glyphs).join(''));
+    check('10字すべてに複数枚ある（1枚しかない字は照合が不安定）',
+      Object.values(fx.glyphs).every((v) => v.length >= 6),
+      JSON.stringify(Object.fromEntries(Object.entries(fx.glyphs).map(([k, v]) => [k, v.length]))));
+
+    // ★★★本丸＝**教えた回ごと抜いて読む**（まだ見ていない表示を読むのに一番近い指標）
+    const loto = G.leaveOneTeachingOut(fx.samples, fx.cell);
+    check('標本数が台帳どおり（14回・101点）＝フィクスチャの取りこぼしを検出',
+      loto.total === 101, JSON.stringify(loto));
+    check('★★★実データの誤読が 6件以下（2026-08-22 の実測＝正80/曖昧15/誤6）',
+      loto.wrong <= 6, JSON.stringify(loto));
+    check('★★実データの正読が 80件以上（曖昧に逃がして誤りを減らす退化を防ぐ）',
+      loto.correct >= 80, JSON.stringify(loto));
+    // ⚠ 曖昧は**誤りではない**（読まずに人へ返す）が、増えすぎたら自動化にならない
+    check('曖昧が 20件以下（「全部曖昧」にすれば誤読ゼロになってしまうのを防ぐ）',
+      loto.ambiguous <= 20, JSON.stringify(loto));
+  }
 }
 console.log('\n' + '='.repeat(60));
 console.log(`結果: ${pass} passed / ${fail} failed`);
