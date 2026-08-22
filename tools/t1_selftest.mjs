@@ -1827,11 +1827,11 @@ console.log('\n[16] グリフ照合（P3-1）＝縁取りで読む・遮蔽に�
     const chars = '0123456789';
     const conds = [];
     for (const bg of [DARK, MID, BRIGHT]) for (const opt of [{}, { fillTop: 160, fillBottom: 255 }, { fillTop: 255, fillBottom: 90 }]) conds.push({ bg, opt });
-    const score = (atlas) => {
+    const score = (atlas, opts = {}) => {
       let read = 0, wrong = 0, unread = 0;
       for (const c of conds) {
         const st = strip(chars, c.bg, c.opt);
-        const r = G.readRow(st.edge, st.row, atlas);
+        const r = G.readRow(st.edge, st.row, atlas, opts);
         r.tokens.forEach((t, i) => {
           if (t.key === '?') unread++;
           else if (t.key === chars[i]) read++;
@@ -1842,8 +1842,18 @@ console.log('\n[16] グリフ照合（P3-1）＝縁取りで読む・遮蔽に�
     };
     const one = score(atlasFrom([{ bg: DARK }], chars));
     const three = score(atlasFrom([{ bg: DARK }, { bg: MID }, { bg: BRIGHT }], chars));
-    check('★★★1条件のアトラスでも「誤った数字」を1つも出さない（読めない側に倒れる）',
-      one.wrong === 0, `読めた ${one.read} / 誤り ${one.wrong} / 読めず ${one.unread}`);
+    // ⚠⚠ **合成と実機で結論が割れた**（2026-08-21c）＝**合成では**マージンを広げると誤りがゼロになるが、
+    //   **実画素（切り抜き10枚・73点）ではマージンを上げても誤りが1件も減らない**
+    //   （margin 0.04 で 正58/曖昧7/誤8 ／ 0.12 で 正33/曖昧32/**誤8**）。
+    //   ★**実機の誤読は「自信のある誤読」**＝マージンは安全網ではなく歩留まりを削るだけ。
+    //   ∴ 既定は 0.04（実測）にし、**安全網は検算（§5）に置く**。
+    //   ここでは「機構としては効く」ことだけを固定する（広いマージンを明示して渡す）。
+    check('★機構としてのマージンは効く（合成・広いマージンを明示すれば誤りゼロ）',
+      score(atlasFrom([{ bg: DARK }], chars), { ambiguityMargin: 0.20 }).wrong === 0,
+      JSON.stringify(score(atlasFrom([{ bg: DARK }], chars), { ambiguityMargin: 0.20 })));
+    check('⚠ 実機ではマージンで誤りは減らない（既定 0.04・安全網は検算）＝この記述が残っている',
+      /実画素ではマージンを上げても誤りが1件も減らない/.test(
+        readFileSync(new URL('../src/transcribe/glyph.js', import.meta.url), 'utf8')));
     check('★★★条件を増やしたアトラスでも誤りゼロのまま、読める率が上がる',
       three.wrong === 0 && three.read > one.read,
       `1条件 ${one.read}/90 → 3条件 ${three.read}/90（誤り ${three.wrong}）`);
