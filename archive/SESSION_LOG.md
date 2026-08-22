@@ -9,6 +9,60 @@
 
 ---
 
+## 2026-08-22b（ワークフロー自動化 ── 規約の検査・転記をスキル4本へ落とし込む）
+
+**ユーザー指示**によるツーリングのセッション。**シム本体・T1 実装ともに未変更**（`src/`・`gamedata/js/` 無改変＝
+**golden 3/3 不変**を実行確認: 202,005,923 / 215,161,915 / 299,523,354）。
+
+### ① 何を作ったか（2層構成）
+
+| 層 | 置き場所 | 責務 |
+|---|---|---|
+| スキル定義 | `.claude/skills/<name>/`（4本） | いつ使うか・**何を判断するか**・規約のどの節に照らすか |
+| 実体 | `tools/skills/*.mjs`（4本＋`lib/skill_util.mjs`） | 検出・実行・突合・転記・整形。**判断はしない** |
+
+- `check-engine-invariants` … 静的検査8種（TDZ／キャラ名リテラル／`_refineRoute` 結線／app.js export 漏れ／
+  ESM Worker／ホットパス走査順／golden 期待値の台帳同期／`ENGINE_VERSION`）＋ `test:t1` ＋ `test:golden`（`--full` で `exp_ls_incremental_verify`）
+- `run-sim-experiment` … `exp_*.mjs` を **1条件=1プロセス**（E8）で実行し、生ログ・provenance（HEAD／`ENGINE_VERSION`／
+  **config バナー**／E2 bit 一致）・数値行を `simulation/simNN/` の TEMPLATE 様式へ転記。**章番号をずらさない**ためマーカー付きブロックで追記
+- `sync-workspace-handoff` … git 差分を**層別**に集計し、TODO のチェックボックス／点検カウンタを転記、HANDOFF ドラフト（3項目）を生成・検査つきで反映
+- `verify-transcribe-pipeline` … `tools/fixtures/` の実走データで glyph（1回抜き）・hp_bar（塗り率）・ROI 9枠を測り、
+  `tools/skills/baselines/t1_baseline.json` と突合。**退行がある状態ではベースラインを更新しない**（安全弁）
+
+### ② 設計判断
+
+- **実体を `tools/` に置いた**理由: ①npm から直接叩ける ②`.claude/` を使わない経路でも同じ検査が回る
+  ③スキル本文を短く保てる。`.gitignore` は `.claude/*` ＋ `!.claude/skills/` に変え、**定義だけ共有対象**にした。
+- **依存は Node 標準のみ**（E7＝外部コマンドの存在を前提にしない）。使うのは `node` と `git` だけ。
+- **既定は無改変**＝書き込みは明示フラグ（`--check-todo` / `--bump-counter` / `--apply-handoff` / `--new-sim`）を付けたときだけ。
+- `tools/doc_refs.mjs` は `.claude/` と `tools/skills/.reports/` を**検査対象外**へ（スキル本文に被参照ブロックを
+  注入しない・一時出力で被参照ランキングを汚さない）。
+
+### ③ ★実装中に踏んだ罠（同型を繰り返さないため）
+
+**文字列リテラルを見る検査で `stripJs`（文字列も潰す）を使うと、検査が黙って空振りする。**
+`from './app.js'` のパス文字列まで空白化されるため、`app.js` の **export 漏れ検査**と **ESM Worker 検査**が
+「常に ✅」を返していた。**負のテスト**（わざと壊して発火を見る）を書いていなければ、
+「検査があるのに素通りする」状態でコミットしていた。
+∴ `lib/skill_util.mjs` は `stripJs`（識別子だけ見る）と `stripComments`（文字列を見る）を分けて持つ。
+同じ理屈で、TDZ 検査は**簡潔アロー body**（`(sim) => sim.x * DMG.y`）を関数と数えないと実装済みコードを誤検出した
+（`functionMask` で波括弧 body と簡潔 body の両方をマスクする）。
+
+**負のテストで発火を確認した5種**: TDZ ／ キャラ名リテラル ／ `_refineRoute` 結線 ／ app.js export 漏れ ／ golden 期待値の台帳同期。
+クリーンな状態では違反0（＝誤検出のある検査を残さない。`doc_refs.mjs` 初版が実数の約10倍を報告して信用を落とした教訓）。
+
+### ④ ★副産物 ── 被参照ブロック4本の陳腐化を検出・解消
+
+`node tools/doc_refs.mjs --write` が、`workspace/HANDOFF.md` と `workspace/TODO.md` が**もう参照していない**先
+（`gamedata/md/敵/cath_palug.md`・`gamedata/md/幻獣/catastrophia_light.md`・`simulation/README.md`・
+`simulation/sim05/analysis/integrated_analysis.md`）の被参照リストにそれらが残っていたのを検出し、まとめて直した。
+**被参照ブロックを手で書かない**という決定（REPO_STANDARDS §4.1）が実際に効いた事例。
+
+### ⑤ 検証
+
+`test:golden` **3/3**（背景実行）／ `test:t1` **337件**／ `doc:check` **現役層グリーン**（md 新設＝即実行トリガ該当で
+カウンタを **0 へリセット**）。
+
 ## 2026-08-19〜22（★★Phase 9: P3-1 ── 数字を読むための「教える」方式が立ち、アトラスが揃うまで）
 
 **セッションの結び**。P3（OCR＋検算）に着手し、**アトラス取得（P3-1）を完了**した。

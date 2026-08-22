@@ -41,7 +41,11 @@ function layerOf(f) {
 }
 
 const allFiles = execSync(
-  `find . -name "*.md" -not -path "./node_modules/*" -not -path "./.git/*"`,
+  // ⚠ `.claude/` は**ハーネス設定**（スキル定義）＝プロジェクト文書ではない。
+  //    検査対象に入れると被参照ブロックが SKILL.md へ注入され、スキル読み込みのたびに無関係な
+  //    リンク一覧を読ませることになる（スキル本文は短く保つのが要件）。∴ 除外する。
+  //    `tools/skills/.reports/` も同様＝スキルの一時出力（git 管理外）で、被参照ランキングを汚す。
+  `find . -name "*.md" -not -path "./node_modules/*" -not -path "./.git/*" -not -path "./.claude/*" -not -path "./tools/skills/.reports/*"`,
   { cwd: ROOT, encoding: 'utf8' }
 ).trim().split('\n').map(s => s.replace(/^\.\//, '')).sort();
 

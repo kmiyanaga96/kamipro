@@ -91,7 +91,7 @@
 - [gamedata/md/README.md](./gamedata/md/README.md)
 - [gamedata/md/神姫/README.md](./gamedata/md/神姫/README.md)
 - [simulation/sim05/analysis/per_trial/trial01_quant.md](./simulation/sim05/analysis/per_trial/trial01_quant.md)
-- [workspace/HANDOFF.md](./workspace/HANDOFF.md)
+- [tools/skills/README.md](./tools/skills/README.md)
 
 _他に 凍結sim/archive/essays から 1 件（更新対象外）_
 <!-- doc_refs:end -->

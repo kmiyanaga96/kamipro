@@ -124,7 +124,7 @@ judg ph2 の「1ヒット ×0.99」は**シムの1加算を実機1ヒットと�
 
 - [CLAUDE.md](./CLAUDE.md)
 - [REPO_STANDARDS.md](./REPO_STANDARDS.md)
-- [workspace/HANDOFF.md](./workspace/HANDOFF.md)
+- [tools/skills/README.md](./tools/skills/README.md)
 - [workspace/TODO.md](./workspace/TODO.md)
 
 _他に 凍結sim/archive/essays から 1 件（更新対象外）_
