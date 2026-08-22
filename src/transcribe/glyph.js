@@ -92,6 +92,16 @@ export const GLYPH_DEFAULTS = {
   cell: { w: 12, h: 20 },
   /** 照合の異物ペナルティ係数 λ（score = cover − λ·alien） */
   lambda: 0.6,
+  /**
+   * ★★**照合時に許すずれ**（署名の格子いくつぶん）。
+   * ⚠⚠ **実画素で判明**（2026-08-21）＝同じ字を別の切り抜きから採ると、**横に 1〜3 格子ずれる**
+   *   （送り幅の 8〜25%）。ずらさずに重ねると**同じ字どうし 0.35〜0.50 に対し、別の字どうし 0.70**＝
+   *   **順序が逆転**していた。少しずらして最良を採ると同字は **0.50〜0.76** まで戻る。
+   * ★実測（実切り抜き3枚・数字12点の1枚抜き）: **ずらし無し 正2/誤10 → ±2格子 正6/誤3**。
+   * ⚠ ずれの出どころ（送り幅の微差か、字ごとの字割りか）は**未解明**＝
+   *   分かるまでは**照合側で吸収する**（原因を推測して幾何を触らない）。
+   */
+  shift: { x: 2, y: 1 },
   /** 1位と2位の差がこれ未満なら「曖昧」とする */
   ambiguityMargin: 0.08,
   /** これ未満の score は「一致なし（?）」にする＝**無理に読まない** */
@@ -705,6 +715,18 @@ export function maskFromRects(box, rects, cell = GLYPH_DEFAULTS.cell) {
   return m;
 }
 
+/** 署名を格子いくつぶんずらす（外に出た分は 0 で埋める）。 */
+export function shiftSignature(data, dx, dy, cell = GLYPH_DEFAULTS.cell) {
+  const out = new Float32Array(data.length);
+  for (let y = 0; y < cell.h; y++) {
+    for (let x = 0; x < cell.w; x++) {
+      const sx = x - dx, sy = y - dy;
+      out[y * cell.w + x] = (sx < 0 || sy < 0 || sx >= cell.w || sy >= cell.h) ? 0 : data[sy * cell.w + sx];
+    }
+  }
+  return out;
+}
+
 /** アトラスの1エントリを署名の配列へ（1枚でも複数 variants でも受ける）。 */
 export function templatesOf(entry, cell) {
   if (!entry) return [];
@@ -735,8 +757,16 @@ export function classify(sample, atlas, opts = {}) {
     //     ∴ **効くのは条件が違う variants だけ**。アトラスは闇雲に太らせない。
     let bestM = null;
     for (const t of templatesOf(tmpl, atlas.cell)) {
-      const m = matchSignature(sample, t, o);
-      if (!bestM || m.score > bestM.score) bestM = m;
+      // ★**少しずらして最良を採る**（`GLYPH_DEFAULTS.shift` の注記＝実画素で横に 1〜3 格子ずれる）
+      for (let dy = -(o.shift?.y ?? 0); dy <= (o.shift?.y ?? 0); dy++) {
+        for (let dx = -(o.shift?.x ?? 0); dx <= (o.shift?.x ?? 0); dx++) {
+          const moved = (dx || dy)
+            ? { cell: sample.cell, data: shiftSignature(sample.data, dx, dy, atlas.cell ?? o.cell) }
+            : sample;
+          const m = matchSignature(moved, t, o);
+          if (!bestM || m.score > bestM.score) bestM = { ...m, dx, dy };
+        }
+      }
     }
     if (bestM) cands.push({ key, ...bestM });
   }
@@ -909,6 +939,10 @@ export function validateAtlas(atlas) {
   if (!atlas || typeof atlas !== 'object') return { ok: false, problems: ['アトラスが無い'] };
   const keys = Object.keys(atlas.glyphs ?? {});
   if (!keys.length) problems.push('グリフが1つも登録されていない（採取パスを先に回す）');
+  // ⚠ **カンマはテンプレートに要らない**（2026-08-21・実画素で決定）＝
+  //   カンマのセルは**高さの 8割以上が背景**で、実測でも誤りの過半がカンマ絡みだった
+  //   （`,→1` ×3 など）。**桁区切りは文法（`checkCommaGrammar`）で決まる**ので、
+  //   形として覚える必要がない。★**読めないものを無理に覚えない**。
   const need = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
   const missing = need.filter((d) => !keys.includes(d));
   if (keys.length && missing.length) problems.push(`数字が欠けている: ${missing.join(',')}`);

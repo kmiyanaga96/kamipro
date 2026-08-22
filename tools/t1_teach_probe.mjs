@@ -64,7 +64,9 @@ for (const it of items) {
   if (!fit.ok) { console.log(basename(it.file).padEnd(28), '格子を当てられない:', fit.reason); continue; }
   const bandH = fit.band.to - fit.band.from;
   const scale = fieldScale(edge, { from: fit.band.from, to: fit.band.to });
-  const sigs = fit.boxes.map((b) => ({ ch: b.ch, sig: packSignature(signature(edge, b, { scale })), box: b }));
+  // ⚠ **カンマはテンプレートにしない**（production と同じ＝セルの8割が背景・桁区切りは文法で決まる）
+  const sigs = fit.boxes.filter((b) => b.ch !== ',')
+    .map((b) => ({ ch: b.ch, sig: packSignature(signature(edge, b, { scale })), box: b }));
   shots.push({ ...it, img, edge, fit, sigs, bandH });
   console.log(basename(it.file).padEnd(28), it.text.padEnd(12),
     `${img.width}×${img.height}`.padEnd(11),
@@ -131,6 +133,9 @@ if (shots.length >= 2) {
   for (let a = 0; a < chs.length; a++) for (let b = a + 1; b < chs.length; b++) {
     for (const x of byCh[chs[a]]) for (const y of byCh[chs[b]]) diffMax = Math.max(diffMax, similarity(x.d, y.d));
   }
-  console.log(`\n★類似度: 同じ字どうし min ${sameMin.toFixed(3)} / 別の字どうし max ${diffMax.toFixed(3)}`
-    + `  → ${sameMin > diffMax ? '✅ 順序は正しい' : '❌ **順序が逆転**（この状態では何を教えても混ざる）'}`);
+  // ⚠ **これはずらしを許さない生の類似度**（照合は `GLYPH_DEFAULTS.shift` の範囲でずらす）＝
+  //   実画素では同じ字が横に 1〜3 格子ずれるので、この行は**低く出るのが正常**。
+  //   判断に使うのは上の「1枚を抜いて残りで読む」。
+  console.log(`\n（参考）ずらさない類似度: 同じ字どうし min ${sameMin.toFixed(3)} / 別の字どうし max ${diffMax.toFixed(3)}`
+    + `  ⚠ 照合は ±${GLYPH_DEFAULTS.shift.x} 格子ずらして最良を採るので、ここは低くてよい`);
 }

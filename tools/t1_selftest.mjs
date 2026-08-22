@@ -2081,6 +2081,39 @@ console.log('\n[16] グリフ照合（P3-1）＝縁取りで読む・遮蔽に�
       typeof bad.line === 'string' && bad.line.includes('—'), bad.line);
   }
 
+  // ── [16-13c] ★★★照合はずらしを許す／カンマは覚えない（実画素で決めた2つ）──
+  //   ⚠⚠ **実画素で判明**（2026-08-21）＝同じ字を別の切り抜きから採ると**横に 1〜3 格子ずれる**。
+  //     ずらさずに重ねると**同字 0.35〜0.50 / 異字 0.70 で順序が逆転**していた。
+  //     ★実測（実切り抜き3枚・数字12点の1枚抜き）＝**ずらし無し 正2/誤10 → ±2格子 正6/誤3**。
+  //   ⚠ カンマは**セルの8割以上が背景**で、誤りの過半がカンマ絡みだった（`,→1` ×3 など）。
+  //     ★**桁区切りは文法で決まる**ので形として覚えない＝**読めないものを無理に覚えない**。
+  {
+    const cell = G.GLYPH_DEFAULTS.cell;
+    const base = new Float32Array(cell.w * cell.h);
+    base[5 * cell.w + 4] = 1; base[5 * cell.w + 5] = 1;
+    const moved = G.shiftSignature(base, 2, 1, cell);
+    check('★署名を格子ぶんずらせる（外に出た分は 0）',
+      moved[6 * cell.w + 6] === 1 && moved[6 * cell.w + 7] === 1 && moved[5 * cell.w + 4] === 0,
+      '2格子右・1格子下へ動くこと');
+    // ★ずれた標本でも、ずらし許容の照合なら正しい字を選ぶ
+    const atlas = { cell, provenance: {}, glyphs: { A: [Array.from(base, (v) => v * 255)],
+                                                    B: [Array.from(G.shiftSignature(base, 5, 0, cell), (v) => v * 255)] } };
+    const sample = { cell, data: G.shiftSignature(base, 2, 0, cell) };
+    check('★★★横に 2 格子ずれた標本でも正しい字を選ぶ（ずらし許容）',
+      G.classify(sample, atlas).best.key === 'A', JSON.stringify(G.classify(sample, atlas).best));
+    check('  ずらしを 0 にすると選べなくなる＝この許容が効いていることの裏取り',
+      G.classify(sample, atlas, { shift: { x: 0, y: 0 } }).best.score
+      < G.classify(sample, atlas).best.score);
+    // ★カンマはアトラスの必須項目ではない（文法で決まる）
+    const noComma = { cell, provenance: {}, glyphs: {} };
+    // ⚠ 字ごとに違うテンプレートにする（同一だと「別ラベルで画素が同一」の関門に引っかかる）
+    '0123456789'.split('').forEach((d, i) => {
+      noComma.glyphs[d] = [Array.from(G.shiftSignature(base, i % 4, (i / 4) | 0, cell), (v) => v * 255)];
+    });
+    check('★★カンマが無くてもアトラスの関門は通る（桁区切りは文法で決まる）',
+      G.validateAtlas(noComma).ok, JSON.stringify(G.validateAtlas(noComma).problems));
+  }
+
   // ── [16-14] ★★アトラスは「保存できた」ではなく「自分を読めるか」で見る ──
   {
     const good = atlasFrom([{ bg: DARK }, { bg: MID }], '0123456789,');

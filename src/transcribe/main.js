@@ -19,7 +19,7 @@ import { luminanceField, edgeField, brightField, glyphMask, teachSummary, segmen
 import { Diag } from './diag.js';
 import { digest } from './digest.js';
 
-const VERSION = '0.35.0';
+const VERSION = '0.36.0';
 
 const $ = (id) => document.getElementById(id);
 const video = document.createElement('video');
@@ -574,6 +574,9 @@ $('teachAdd').onclick = () => {
   const scale = fieldScale(edge, { from: fit.band.from, to: fit.band.to });
   const at = +video.currentTime.toFixed(2);
   for (const b of fit.boxes) {
+    // ⚠ **カンマはテンプレートにしない**（`validateAtlas` の注記＝セルの8割が背景で、
+    //   実測でも誤りの過半がカンマ絡みだった）。桁区切りは文法で決まる。
+    if (b.ch === ',') continue;
     taught.push({ ch: b.ch, sig: packSignature(signature(edge, b, { scale })), at,
                   ti: teachings.length, commaRatio: fit.commaRatio });
   }
@@ -588,13 +591,13 @@ $('teachAdd').onclick = () => {
 
   const have = {};
   for (const t of taught) have[t.ch] = (have[t.ch] ?? 0) + 1;
-  const missing = '0123456789,'.split('').filter((c) => !have[c]);
+  const missing = '0123456789'.split('').filter((c) => !have[c]);
   $('teachNote').innerHTML = `<span class="ok">${fit.boxes.length} 文字を教わりました</span>`
     + `（${sum.line}）<br>`
     + `いま持っている字: ${Object.entries(have).map(([k, v]) => `${k}×${v}`).join(' ')}<br>`
     + (missing.length
       ? `<span class="bad">まだ無い字: ${missing.join(' ')}</span> — これらが出ている数字を追加で教えてください`
-      : '<span class="ok">0〜9 とカンマが揃いました</span> → 「アトラスJSONを保存」')
+      : '<span class="ok">0〜9 が揃いました</span> → 「アトラスJSONを保存」')
     + `<br>${atlasStateLine()}`
     + '<br>⚠ 上の枠が<b>1文字ずつ正しく割れているか</b>を必ず見てください（ずれていたら囲み直し）'
     + '<br>★次を教えるには<b>もう一度「このフレームを解析」→ 囲み直し</b>が要ります（使い回し防止）';
