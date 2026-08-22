@@ -13,10 +13,13 @@ import { analyzeHpBar, HpSeries, reportHp, HP_DEFAULTS } from './hp_bar.js';
 import { LagProfile, EventDeduper, reportDedup, DEDUP_DEFAULTS } from './dedup.js';
 import { ChargeDotTracker, ChargeSeries, reportChargeDots, CT_DEFAULTS } from './charge_dots.js';
 import { ROIS } from './rois.js';
+import { luminanceField, edgeField, brightField, glyphMask, teachSummary, segmentRows, segmentGlyphs, signature, fieldScale,
+         GlyphHarvest, reportHarvest, validateAtlas, selfCheckAtlas, leaveOneTeachingOut,
+         packSignature, cropPatch, fitTaughtGrid, GLYPH_DEFAULTS } from './glyph.js';
 import { Diag } from './diag.js';
 import { digest } from './digest.js';
 
-const VERSION = '0.28.0';
+const VERSION = '0.36.0';
 
 const $ = (id) => document.getElementById(id);
 const video = document.createElement('video');
@@ -34,6 +37,65 @@ let lastRect = null;     // 同上の画素矩形（PNG 切り出しに使う）
 let lastDiag = null;     // 直近の診断 JSON
 let walkStats = null;    // フレーム間隔の実測結果
 let lastPanel = null;    // 右パネルのモード判定結果
+let lastHarvest = null;  // ★P3-1 グリフ採取の結果（代表をシートに描き、ユーザーがラベルを付ける）
+let lastHarvestObj = null;  // 実画素を取り出すための採取器そのもの（描画専用）
+let loadedAtlas = null;  // ★読み込み済みのアトラス（まだ無いのが正常＝P3-1 はこれを作る段）
+/**
+ * ★★**教わったグリフ**（P3-1 の主経路・2026-08-19c）。`{ ch, sig, at, commaRatio }` の配列。
+ * ⚠ **採取＋クラスタリングは実機で破綻した**（背景の模様ばかり集まる＝`fitTaughtGrid` の注記）。
+ *   ∴ 「ここに 5,044,282 と出ている」と**人が教える**のが主経路。
+ */
+let taught = [];
+/** 教えた回ごとの記録（寸法の揃い方を検査するため＝`validateAtlas` の関門②）。 */
+let teachings = [];
+/** ★直前に教えた囲みの画素指紋。**同じ画素で二度教える事故**を止めるために持つ。 */
+let lastTeachFingerprint = null;
+/** ★直前に教えた**生の切り抜き**（Claude へ実画素を送るため＝画面を見られないので唯一の経路）。 */
+let lastTeachCrop = null;
+
+/** 教えたものからアトラスを組む（保存前の検査にも使う）。 */
+function buildAtlas() {
+  const glyphs = {};
+  const ratios = [];
+  for (const t of taught) { (glyphs[t.ch] ||= []).push(t.sig); if (t.commaRatio) ratios.push(t.commaRatio); }
+  const toks = ($('glyphLabels')?.value ?? '').trim().split(/\s+/).filter((t) => t.length);
+  lastHarvest?.representatives?.forEach((r, i) => {
+    const lab = toks[i];
+    if (!lab || lab === '-') return;
+    (glyphs[lab] ||= []).push(r.signature);
+  });
+  ratios.sort((a, b) => a - b);
+  return {
+    version: 1,
+    cell: { ...GLYPH_DEFAULTS.cell },
+    provenance: {
+      tool: 'T1', toolVersion: VERSION, labeledAt: new Date().toISOString(),
+      file: $('file').files?.[0]?.name ?? '(none)',
+      resolution: video.videoWidth ? `${video.videoWidth}x${video.videoHeight}` : null,
+      taught: taught.length, teachings,
+    },
+    metrics: ratios.length ? { commaRatio: +ratios[Math.floor(ratios.length / 2)].toFixed(2) } : null,
+    glyphs, labels: {},
+  };
+}
+
+/** ★いまのアトラスの状態を1行で（保存前に**使えるかどうか**が分かるように）。 */
+function atlasStateLine() {
+  if (!taught.length) return '';
+  const v = validateAtlas(buildAtlas());
+  const sc = v.self;
+  const loto = leaveOneTeachingOut(taught, GLYPH_DEFAULTS.cell);
+  return (v.ok ? '<span class="ok">アトラスの検査: 問題なし</span>'
+               : `<span class="bad">アトラスの検査: ${v.problems.join(' / ')}</span>`)
+    + `（1枚抜き 正 ${sc?.correct ?? 0} / 曖昧 ${sc?.ambiguous ?? 0} / 誤 ${sc?.wrong ?? 0}`
+    + ` / 検査不能 ${sc?.unchecked ?? 0}・⚠ 参考値＝関門ではない）`
+    // ★★**本当の品質指標**＝教示回ごと抜いて残りで読む（「まだ見ていない表示を読む」に近い）
+    + (loto.total ? `<br>★<b>教示回抜き 正 ${loto.correct}/${loto.total}（${(loto.rate * 100).toFixed(0)}%）</b>`
+        + ` 曖昧 ${loto.ambiguous} 誤 ${loto.wrong}`
+        + `${loto.wrong ? ' — 取り違え ' + Object.entries(loto.confusions).slice(0, 6).map(([k, v]) => k + '×' + v).join(' ') : ''}`
+      : '');
+}
+
 const rois = {};         // 登録済み ROI（name → 正規化座標）
 // ★★**起動時に `rois.js` の採寸済み ROI を読み込む**（2026-08-18）。
 //   ⚠ これが無いと、**既に採寸済みの枠が画面に出ない**＝
@@ -43,6 +105,76 @@ const rois = {};         // 登録済み ROI（name → 正規化座標）
 const roiOrigin = {};    // name → 'rois.js' | 'measured'（provenance＝どちらの由来か）
 for (const [k, v] of Object.entries(ROIS)) {
   if (v) { rois[k] = { ...v }; roiOrigin[k] = 'rois.js'; }
+}
+
+/** 分位点だけに畳む（生の配列は完全 JSON にも載せない＝数千件になるため）。 */
+function quant(arr) {
+  if (!arr?.length) return null;
+  const a = [...arr].sort((x, y) => x - y);
+  const q = (p) => a[Math.min(a.length - 1, Math.floor(p * a.length))];
+  return { n: a.length, min: a[0], p10: q(0.10), p50: q(0.50), p90: q(0.90), max: a[a.length - 1] };
+}
+
+/** ImageData 互換のオブジェクトを canvas へ描く（拡大は最近傍＝画素をぼかさない）。 */
+function blitScaled(ctx, patch, x, y, z) {
+  if (!patch || !patch.w || !patch.h) return;
+  const tmp = document.createElement('canvas');
+  tmp.width = patch.w; tmp.height = patch.h;
+  tmp.getContext('2d').putImageData(new ImageData(patch.data, patch.w, patch.h), 0, 0);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(tmp, x, y, patch.w * z, patch.h * z);
+}
+
+/**
+ * ★**採取したグリフの代表をシートに描く**（ユーザーがラベルを付けるための唯一の入口）。
+ *
+ * ⚠⚠ **初版は「署名（12×20 の縁取りの強さ）」を描いていて、人には何も判別できなかった**
+ *   （ユーザー報告 2026-08-19b＝「荒すぎる・白黒・一部分の画像」）。
+ *   ★**署名は機械が照合するための表現であって、人が見るための表現ではない**。
+ *   ∴ 描くのは**実画素（色つき・元の解像度を最近傍で拡大）**にした。
+ *   ★一般形＝**人に判断を頼むなら、人が判断できる形で見せる**（憲法の運用側の条件）。
+ * ⚠ 箱の実寸（w×h）も併記する＝**字の一部しか入っていない**ことに人が気づけるように。
+ */
+function drawGlyphSheet(rep, harvest) {
+  const cv = $('glyphSheet');
+  if (!cv) return;
+  const reps = rep?.representatives ?? [];
+  const patches = reps.map((_, i) => harvest?.patchAt?.(i) ?? null);
+  const maxW = Math.max(8, ...patches.map((p) => p?.w ?? 0));
+  const maxH = Math.max(8, ...patches.map((p) => p?.h ?? 0));
+  // ★小さい字でも見えるように拡大率を実寸から決める（狙い＝1文字が 80px 級）
+  const Z = Math.max(2, Math.min(8, Math.round(80 / Math.max(maxW, maxH))));
+  const PAD = 6, CAP = 26, COLS = 8;
+  const cw = maxW * Z + PAD * 2, ch = maxH * Z + PAD + CAP;
+  const rows = Math.max(1, Math.ceil(reps.length / COLS));
+  cv.width = COLS * cw; cv.height = rows * ch;
+  const x = cv.getContext('2d');
+  x.fillStyle = '#181818'; x.fillRect(0, 0, cv.width, cv.height);
+  x.font = '11px monospace'; x.textBaseline = 'top';
+  reps.forEach((r, i) => {
+    const ox = (i % COLS) * cw + PAD, oy = Math.floor(i / COLS) * ch + PAD;
+    if (patches[i]) blitScaled(x, patches[i], ox, oy, Z);
+    else {
+      // 実画素が無いとき（古い走）は署名を描く。⚠ これは判別できない表現だと明記する
+      x.fillStyle = '#333'; x.fillRect(ox, oy, maxW * Z, maxH * Z);
+      x.fillStyle = '#f66'; x.fillText('画素なし', ox + 2, oy + 2);
+    }
+    x.strokeStyle = '#444'; x.strokeRect(ox - 0.5, oy - 0.5, maxW * Z + 1, maxH * Z + 1);
+    x.fillStyle = '#8cf'; x.fillText(`${i}`, ox, oy + maxH * Z + 2);
+    x.fillStyle = '#999';
+    x.fillText(`×${r.count}`, ox + 18, oy + maxH * Z + 2);
+    x.fillStyle = '#777';
+    x.fillText(`${patches[i]?.w ?? '?'}×${patches[i]?.h ?? '?'}px`, ox, oy + maxH * Z + 14);
+  });
+  if ($('glyphNote')) {
+    $('glyphNote').innerHTML = reps.length
+      ? `<span class="ok">${reps.length} 個の代表</span>（${rep.clusters} クラスタ / ${rep.seen} 標本 / `
+        + `1コマ ${maxW}×${maxH}px を ${Z}倍）`
+        + ' — 番号順にラベルを入力してください（数字は <b>0〜9</b>・桁区切りは <b>,</b>・'
+        + '数字でないものは <b>-</b>）<br>'
+        + '⚠ <b>数字に見えないものばかりなら、先に「ダメージ枠を確認」</b>で枠と切り出しを見てください。'
+      : '<span class="bad">グリフ候補が0件</span>（診断 JSON の glyphStats を見る）';
+  }
 }
 
 // ── ファイル読み込み ────────────────────────────────────────
@@ -308,6 +440,234 @@ $('copyDiag').onclick = () => {
 };
 $('saveDiag').onclick = downloadDiag;
 
+// ── ★★P3-1 診断: 「ダメージ枠を確認」────────────────────────
+//   ⚠⚠ ユーザー報告（2026-08-19b）＝代表が何も判別できない。原因は2つありえて、
+//     ①**人に見せる表現が悪い**（署名を描いていた＝修正済）
+//     ②**枠か切り出しが実物に合っていない**（＝ここで見る）
+//   ★①と②は**画面を見れば1分で分かる**が、Claude は画面を見られない（§10.1）。
+//     ∴ **枠と切り出しを実画素の上に描いて、人が見て言えるようにする**
+//     （`rois.js` の採寸で確立した規律＝位置の問題は当てにいかず、見て決める）。
+$('checkDmg').onclick = () => {
+  if (!video.videoWidth) { $('dmgNote').innerHTML = '<span class="bad">先に録画ファイルを開いてください</span>'; return; }
+  const full = document.createElement('canvas');
+  full.width = video.videoWidth; full.height = video.videoHeight;
+  const fx = full.getContext('2d', { willReadFrequently: true });
+  fx.drawImage(video, 0, 0);
+  const det = detectCanvas(fx.getImageData(0, 0, full.width, full.height));
+  if (!det.box) { $('dmgNote').innerHTML = '<span class="bad">canvas を検出できません（ページ余白が写っていない）</span>'; return; }
+  const rect = roiToPixels(det.box, ROIS.dmg);
+  const img = fx.getImageData(rect.x, rect.y, rect.w, rect.h);
+
+  const cv = $('dmgView');
+  cv.width = rect.w; cv.height = rect.h;
+  const cx = cv.getContext('2d');
+  cx.putImageData(img, 0, 0);
+
+  const edge = edgeField(luminanceField(img, { x: 0, y: 0, w: rect.w, h: rect.h }));
+  const found = segmentRows(edge);
+  const lines = [];
+  cx.font = '12px monospace'; cx.textBaseline = 'bottom';
+  found.rows.forEach((row, i) => {
+    const seg = segmentGlyphs(edge, row);
+    // 行帯（黄）と、切り出した1文字ぶんの箱（水色）
+    cx.strokeStyle = 'rgba(255,220,0,0.9)'; cx.lineWidth = 1;
+    cx.strokeRect(0.5, row.from + 0.5, rect.w - 1, row.to - row.from - 1);
+    cx.strokeStyle = 'rgba(0,220,255,0.9)';
+    for (const b of seg.boxes) cx.strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1);
+    cx.fillStyle = 'rgba(255,220,0,0.95)';
+    cx.fillText(`#${i} h=${row.to - row.from} ${seg.method} n=${seg.boxes.length}`
+      + ` pitch=${seg.pitch ? seg.pitch.toFixed(1) : '-'}`, 2, row.from - 1);
+    lines.push(`#${i} y=${row.from}〜${row.to}（高さ ${row.to - row.from}）`
+      + ` / 割り方 ${seg.method} / 文字数 ${seg.boxes.length}`
+      + ` / 送り幅 ${seg.pitch ? seg.pitch.toFixed(1) : '-'}`
+      + ` / 格子の合致度 ${seg.grid ? seg.grid.contrast.toFixed(3) : '-'}`);
+  });
+
+  $('dmgNote').innerHTML = `<span class="${found.rows.length ? 'ok' : 'bad'}">`
+    + `dmg ROI = ${rect.w}×${rect.h}px（canvas ${det.box.w}×${det.box.h}）/ 行 ${found.rows.length} 本</span>`
+    + (found.rows.length
+      ? '<br>' + lines.join('<br>')
+        + '<br>⚠ <b>黄=行 / 水色=1文字の箱</b>。数字の上に箱が乗っていなければ、'
+        + '枠（`dmg`）か切り出しが実物に合っていません。'
+      : '<br>⚠ この時刻には数字が出ていないか、行の切り出しが実物に合っていません。'
+        + '<b>数字が大きく出ている時刻</b>にしてからもう一度押してください。');
+};
+
+$('saveDmgView').onclick = () => {
+  const cv = $('dmgView');
+  if (!cv.width) return;
+  cv.toBlob((b) => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(b);
+    a.download = `dmg_check_${Math.round(video.currentTime * 1000)}ms.png`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }, 'image/png');
+};
+
+// ── ★★★P3-1 主経路: 「この数字を教える」────────────────────
+//   ★憲法そのもの＝**観測と判断はユーザー**（「ここに 5,044,282 と出ている」は人にしか言えない）。
+//     ツールは**転記**する＝教わった文字列に格子を合わせ、i 文字目のテンプレートに `text[i]` を付ける。
+//   ⚠ **前提**: 「このフレームを解析」を押してから、**数字だけ**をドラッグで囲むこと
+//     （`view` は解析時に実解像度で描かれ、`lastRect` はその画素座標）。
+$('teachAdd').onclick = () => {
+  const text = ($('teachText').value ?? '').trim();
+  if (!lastRect) {
+    $('teachNote').innerHTML = '<span class="bad">先に「このフレームを解析」→ 数字をドラッグで囲んでください</span>';
+    return;
+  }
+  if (!/^[0-9,]+$/.test(text)) {
+    $('teachNote').innerHTML = '<span class="bad">数字とカンマだけで入力してください（例 5,044,282）</span>';
+    return;
+  }
+  const view = $('view');
+  let img;
+  try {
+    img = view.getContext('2d', { willReadFrequently: true })
+      .getImageData(lastRect.x, lastRect.y, lastRect.w, lastRect.h);
+  } catch (e) { $('teachNote').innerHTML = `<span class="bad">切り出せません: ${e}</span>`; return; }
+
+  // ★★**同じ画素で二度教える事故**を止める（2026-08-20 に実機で起きた）。
+  //   ⚠ 受領アトラスは 46枚中 10枚が**別ラベルなのに画素まで同一**だった＝
+  //     解析し直さず・囲み直さずに次の数字を入力すると、**同じ切り抜きに違うラベルが付く**。
+  //   ★どちらが正しいか**後からは決められない**＝起きてからでは直せないので、ここで止める。
+  let fp = 0;
+  for (let i = 0; i < img.data.length; i += 997) fp = (fp * 31 + img.data[i]) >>> 0;
+  fp = `${lastRect.x},${lastRect.y},${lastRect.w},${lastRect.h},${fp}`;
+  if (fp === lastTeachFingerprint) {
+    $('teachNote').innerHTML = '<span class="bad">さっきと同じ画素・同じ囲みです</span>'
+      + '（別の時刻へ動かして「このフレームを解析」→ 囲み直してください）'
+      + '<br>⚠ このまま教えると、同じ切り抜きに違うラベルが付いてアトラスが壊れます。';
+    return;
+  }
+
+  // ★**グリフ画素のマスク**（白い縁取り ∪ 金の芯）で署名を作る。
+  //   ⚠ 明るさ1本のしきい値は**金グラデで字の下半分が消える**（実画素で判明・2026-08-21）。
+  //   ⏳ 特徴量の選択は暫定＝きれいな切り抜きが揃ったら測り直す（`glyphMask` の注記）。
+  const edge = glyphMask(img);
+  const fit = fitTaughtGrid(edge, { x: 0, y: 0, w: lastRect.w, h: lastRect.h }, text);
+  if (!fit.ok) { $('teachNote').innerHTML = `<span class="bad">格子を当てられません: ${fit.reason}</span>`; return; }
+
+  // ★**採る前に見せる**＝囲みの中に、割った位置と付くラベルを描く（人が納得してから採る）
+  const Z = Math.max(1, Math.min(3, Math.round(420 / Math.max(1, lastRect.w))));
+  const cv = $('teachView');
+  cv.width = lastRect.w * Z; cv.height = lastRect.h * Z + 18;
+  const cx = cv.getContext('2d');
+  cx.fillStyle = '#181818'; cx.fillRect(0, 0, cv.width, cv.height);
+  const tmp = document.createElement('canvas');
+  tmp.width = lastRect.w; tmp.height = lastRect.h;
+  tmp.getContext('2d').putImageData(img, 0, 0);
+  cx.imageSmoothingEnabled = false;
+  cx.drawImage(tmp, 0, 0, cv.width, lastRect.h * Z);
+  cx.font = '12px monospace'; cx.textBaseline = 'top';
+  // ★締めた帯（緑）＝**テンプレートとして切り出す範囲**。囲みの余白はここで捨てられる。
+  cx.strokeStyle = 'rgba(80,255,120,0.9)';
+  cx.strokeRect(0.5, fit.band.from * Z + 0.5, cv.width - 1, (fit.band.to - fit.band.from) * Z - 1);
+  for (const b of fit.boxes) {
+    cx.strokeStyle = b.ch === ',' ? 'rgba(255,160,0,0.95)' : 'rgba(0,220,255,0.95)';
+    cx.strokeRect(b.x * Z + 0.5, b.y * Z + 0.5, b.w * Z - 1, b.h * Z - 1);
+    cx.fillStyle = '#8cf';
+    cx.fillText(b.ch, b.x * Z + (b.w * Z) / 2 - 3, fit.band.to * Z + 2);
+  }
+
+  // ★正規化は**締めた帯**で採る（囲みの余白を混ぜない＝テンプレートを人の操作に依存させない）
+  const scale = fieldScale(edge, { from: fit.band.from, to: fit.band.to });
+  const at = +video.currentTime.toFixed(2);
+  for (const b of fit.boxes) {
+    // ⚠ **カンマはテンプレートにしない**（`validateAtlas` の注記＝セルの8割が背景で、
+    //   実測でも誤りの過半がカンマ絡みだった）。桁区切りは文法で決まる。
+    if (b.ch === ',') continue;
+    taught.push({ ch: b.ch, sig: packSignature(signature(edge, b, { scale })), at,
+                  ti: teachings.length, commaRatio: fit.commaRatio });
+  }
+  // ★書式と数値は純関数へ（`main.js` は検査できないので、ここにロジックを置かない）
+  const sum = teachSummary(fit, text, at);
+  teachings.push(sum.record);
+  lastTeachCrop = { img, text, at, rect: { ...lastRect } };
+  lastTeachFingerprint = fp;
+  // ★★**次は必ず囲み直させる**（同じ囲みの使い回しが今回の事故の原因）
+  lastRect = null; lastRoi = null;
+  $('addRoi').disabled = true; $('cropRoi').disabled = true;
+
+  const have = {};
+  for (const t of taught) have[t.ch] = (have[t.ch] ?? 0) + 1;
+  const missing = '0123456789'.split('').filter((c) => !have[c]);
+  $('teachNote').innerHTML = `<span class="ok">${fit.boxes.length} 文字を教わりました</span>`
+    + `（${sum.line}）<br>`
+    + `いま持っている字: ${Object.entries(have).map(([k, v]) => `${k}×${v}`).join(' ')}<br>`
+    + (missing.length
+      ? `<span class="bad">まだ無い字: ${missing.join(' ')}</span> — これらが出ている数字を追加で教えてください`
+      : '<span class="ok">0〜9 が揃いました</span> → 「アトラスJSONを保存」')
+    + `<br>${atlasStateLine()}`
+    + '<br>⚠ 上の枠が<b>1文字ずつ正しく割れているか</b>を必ず見てください（ずれていたら囲み直し）'
+    + '<br>★次を教えるには<b>もう一度「このフレームを解析」→ 囲み直し</b>が要ります（使い回し防止）';
+};
+
+// ★★**教えた切り抜きを JSON で保存**（2026-08-20b・ユーザー報告を受けて PNG から変更）。
+//   ⚠ Claude は画面を見られない（§10.1）＝**実画素が無いと切り出しの良し悪しを測れない**。
+//     実際、アトラスが2回とも壊れた原因（**特徴量がエッジで正しくなかった**）は、
+//     実画素をオフラインで回せるようにして初めて分かった。
+//   ⚠⚠ **PNG で保存すると、チャットに貼ったとき「画像」として扱われ、画素を読めない**
+//     （ユーザー報告 2026-08-20）。**JSON はファイルとして届く**ので、**JSON に包む**。
+//   ★中身＝PNG を data URL にしたもの＋教えた文字列と囲みの座標（provenance）。
+//     受け取り側は `tools/t1_teach_probe.mjs` がそのまま読む。
+$('saveTeachCrop').onclick = () => {
+  if (!lastTeachCrop) { $('teachNote').innerHTML = '<span class="bad">先に1つ教えてください</span>'; return; }
+  const c = document.createElement('canvas');
+  c.width = lastTeachCrop.img.width; c.height = lastTeachCrop.img.height;
+  c.getContext('2d').putImageData(lastTeachCrop.img, 0, 0);
+  const payload = {
+    tool: 'T1', toolVersion: VERSION, kind: 'teach-crop',
+    file: $('file').files?.[0]?.name ?? '(none)',
+    at: lastTeachCrop.at, text: lastTeachCrop.text,
+    rect: lastTeachCrop.rect ?? null,
+    width: c.width, height: c.height,
+    png: c.toDataURL('image/png'),
+  };
+  const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `teach_${lastTeachCrop.text.replace(/,/g, '')}_${Math.round(lastTeachCrop.at * 1000)}ms.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  $('teachNote').innerHTML = `<span class="ok">切り抜きを JSON で保存しました</span>`
+    + `（${c.width}×${c.height}px・「${lastTeachCrop.text}」）— そのままチャットに貼ってください`;
+};
+
+$('teachReset').onclick = () => {
+  taught = []; teachings = []; lastTeachFingerprint = null; lastTeachCrop = null;
+  $('teachNote').textContent = '教えたものを消しました';
+  const cv = $('teachView');
+  cv.getContext('2d').clearRect(0, 0, cv.width, cv.height);
+};
+
+// ── ★★P3-1: ラベル付け → アトラス JSON ──────────────────────
+//   ★ここが「人に1回だけ訊く」場所（憲法＝観測と判断はユーザー／転記はツール）。
+//   ⚠ 入力は**空白区切り・番号順**。`-` は「数字ではない／分からない」＝飛ばす。
+//     区切りに `,` を使わないのは、**`,` 自体がラベル**（桁区切り）だから。
+$('makeAtlas').onclick = () => {
+  if (!taught.length && !($('glyphLabels').value ?? '').trim()) {
+    $('glyphNote').innerHTML = '<span class="bad">まだ1文字も教わっていません</span>'
+      + '（「この数字を教える」を先に使ってください）';
+    return;
+  }
+  const atlas = buildAtlas();
+  const v = validateAtlas(atlas);
+  loadedAtlas = atlas;
+  const blob = new Blob([JSON.stringify(atlas)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `t1_glyph_atlas_${Date.now()}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  // ⚠ 足りなくても保存はする（部分成功を保全する＝§10.5-2）。足りないことは**言う**。
+  const n = Object.values(atlas.glyphs).reduce((s2, x) => s2 + x.length, 0);
+  $('glyphNote').innerHTML = (v.ok
+    ? `<span class="ok">アトラスを保存しました</span>（${n} 枚 / 数字 ${v.digits}/10）`
+    : `<span class="bad">保存はしたが問題あり</span>: ${v.problems.join(' / ')}`)
+    + `<br>${atlasStateLine()}`;
+};
+
 // ★★**初期化が最後まで通った合図**（2026-08-18i）。
 //   ⚠ これが立たなければ index.html の番人が「初期化されていません」と赤帯を出す。
 //   ★2回続けて「ボタンが全部効かない」で時間を失ったが、**どちらも画面は無言だった**。
@@ -480,7 +840,7 @@ $('scan').onclick = async () => {
     scanSeconds: secs,
     method: 'seek（決定的・全フレーム）',
   }).setConfig({ detect: DEFAULTS, select: SELECT_DEFAULTS, panel: PANEL_DEFAULTS, probe: PROBE_GRID,
-                 dedup: DEDUP_DEFAULTS, hp: HP_DEFAULTS, ct: CT_DEFAULTS,
+                 dedup: DEDUP_DEFAULTS, hp: HP_DEFAULTS, ct: CT_DEFAULTS, glyph: GLYPH_DEFAULTS,
                  panelDebounceSeconds: PANEL_DEBOUNCE_SECONDS })
     .stage('DETECT', 0, 0);
 
@@ -539,6 +899,14 @@ $('scan').onclick = async () => {
   const ctTracker = new ChargeDotTracker();
   // ★モードゲージ用（同じ抽出器＝生プロファイル・時間σ・山の検出をそのまま使える）
   const modeTracker = cutMode ? new ChargeDotTracker() : null;
+  // ★★P3-1: グリフ採取。**既存の走査に相乗りする**（`dmg` の切り出しは既に毎フレームある）。
+  //   ⚠ 別パスにすると走がもう1本要る＝seek 走査は実時間の6〜8倍かかるので、人の待ち時間が倍になる。
+  //   ⚠ クラスタリングは1標本あたり「クラスタ数×格子」の比較になるので、**間引いて上限を置く**。
+  const glyphHarvest = new GlyphHarvest();
+  const glyphStats = { frames: 0, framesWithRows: 0, rows: 0, glyphs: 0, pushed: 0,
+                       rowHeights: [], pitches: [], contrasts: [], methods: { grid: 0, runs: 0, none: 0 },
+                       samples: [] };
+  const HARVEST = { stride: 5, maxPerFrame: 40, maxTotal: 4000, maxRows: 6 };
   let lastHp = null;
   // ★違反フレームの生プロファイルを持ち帰る（クロップを人に頼まずに原因を特定するため）
   const hpViolationSamples = [];
@@ -562,6 +930,43 @@ $('scan').onclick = async () => {
     lag.push(dSig);            // ★署名は1回だけ作って両方へ渡す（走査コストを増やさない）
     dedup.push(m, dSig);
     probe.push(goldenFractions(dImg, local(dmgRect)));
+
+    // ★P3-1 グリフ採取（間引いて上限つき）。**読み取りはしない**＝形を集めるだけ。
+    if (glyphStats.frames % HARVEST.stride === 0 && glyphStats.pushed < HARVEST.maxTotal) {
+      const edge = edgeField(luminanceField(dImg, local(dmgRect)));
+      const rowsFound = segmentRows(edge);
+      if (rowsFound.rows.length) glyphStats.framesWithRows++;
+      let perFrame = 0;
+      for (const row of rowsFound.rows.slice(0, HARVEST.maxRows)) {
+        glyphStats.rows++;
+        const seg = segmentGlyphs(edge, row);
+        glyphStats.methods[seg.method] = (glyphStats.methods[seg.method] ?? 0) + 1;
+        if (!seg.boxes.length) continue;
+        glyphStats.glyphs += seg.boxes.length;
+        glyphStats.rowHeights.push(row.to - row.from);
+        if (seg.pitch) glyphStats.pitches.push(+seg.pitch.toFixed(2));
+        if (seg.grid) glyphStats.contrasts.push(+seg.grid.contrast.toFixed(3));
+        // ★最初の数行は**生プロファイルごと**持ち帰る（Claude は画面を見られない＝§10.1）
+        if (glyphStats.samples.length < 6) {
+          glyphStats.samples.push({
+            t: +m.toFixed(2), row: { from: row.from, to: row.to },
+            method: seg.method, pitch: seg.pitch ? +seg.pitch.toFixed(2) : null,
+            contrast: seg.grid ? +seg.grid.contrast.toFixed(3) : null,
+            count: seg.boxes.length,
+            colProfile: Array.from(seg.profile, (v) => Math.round(v)),
+          });
+        }
+        const scale = fieldScale(edge, row);
+        for (const b of seg.boxes) {
+          if (perFrame >= HARVEST.maxPerFrame || glyphStats.pushed >= HARVEST.maxTotal) break;
+          // ★実画素も一緒に渡す（人に見せるのは常に実画素＝`drawGlyphSheet` の注記）
+          glyphHarvest.push(signature(edge, b, { scale }), +m.toFixed(2), b, cropPatch(dImg, b),
+            { contrast: seg.grid ? +seg.grid.contrast.toFixed(3) : 0, rowH: row.to - row.from });
+          perFrame++; glyphStats.pushed++;
+        }
+      }
+    }
+    glyphStats.frames++;
     const pm = detectPanelMode(gImg, local(gaugeRect));
     modes[pm.mode]++;
     panelSeries.push(m, pm.mode);
@@ -640,6 +1045,11 @@ $('scan').onclick = async () => {
     });
   }
 
+  const harvestRep = glyphHarvest.report(60);
+  // ⚠ アトラスの関門はアトラスを読み込んでいるときだけ鳴らす（P3-1 は**アトラスを作る段**なので、
+  //   まだ無いのを毎回 ERROR で鳴らすのは誤導＝「読めない」ではなく「これから作る」）。
+  reportHarvest(diag, harvestRep, loadedAtlas ? validateAtlas(loadedAtlas) : null);
+
   $('scanNote').innerHTML = `<span class="${sampledFps >= 26 ? 'ok' : 'bad'}">`
     + `${total} フレーム / ${covered.toFixed(1)}秒 ＝ 実効 ${sampledFps.toFixed(1)} fps</span>`
     + ` / 実時間 ${wall.toFixed(0)}秒 / list ${modes.list}・detail ${modes.detail}`
@@ -683,8 +1093,21 @@ $('scan').onclick = async () => {
     panelModes: modes,
     // ★除振後が本命。生（`rawSample`）も併記＝**何を落としたかが見えないと検証できない**
     panelSeries: panelSum,
+    // ★★P3-1: グリフ採取。**ラベルは付けない**（＝人が1回付ける・憲法「観測と判断はユーザー」）。
+    //   `representatives` の signature を画面のシートに描き、ユーザーがそれを見て 0〜9 を答える。
+    glyphs: harvestRep,
+    glyphStats: {
+      ...glyphStats,
+      rowHeights: quant(glyphStats.rowHeights), pitches: quant(glyphStats.pitches),
+      contrasts: quant(glyphStats.contrasts),
+    },
     canvas: box,
   }, total > 0);
+
+  // ★採取の結果を画面のシートへ（ラベル付けの入口）
+  lastHarvest = harvestRep;
+  lastHarvestObj = glyphHarvest;
+  drawGlyphSheet(harvestRep, glyphHarvest);
 
   $('scan').disabled = false;
   seek(start);

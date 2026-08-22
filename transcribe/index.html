@@ -130,7 +130,58 @@ th{background:#f0f2f5;}
 </div>
 
 <div class="card">
-  <h2>4. 診断</h2>
+  <h2>4. ★グリフ採取（P3-1）</h2>
+  <h3 style="margin:6px 0">③ 走査で集めた形（副経路）</h3>
+  <p class="note">
+    ⚠ <b>実機ではこの経路は破綻しました</b>（背景の模様ばかり集まる）。①で教える方を使ってください。<br>
+    走査すると <code>dmg</code> ROI から<b>数字らしい形</b>を集め、似た見え方をまとめて下に並べます。
+    <b>ラベルは人が1回だけ付けます</b>（憲法＝観測と判断はユーザー／転記はツール）。<br>
+    入力は<b>空白区切り・番号順</b>。数字は <code>0</code>〜<code>9</code>、桁区切りは <code>,</code>、
+    数字でない／分からないものは <code>-</code>。例: <code>7 - 0 , 3 8 - -</code>
+  </p>
+  <h3 style="margin:6px 0">★① 数字を教える（これが本筋）</h3>
+  <p class="note">
+    <b>「2. フレームを選ぶ」で数字が出ている時刻にして「このフレームを解析」→ 上の画面で<u>数字だけ</u>をドラッグで囲む</b>
+    → 下にその数字を入力して「この数字を教える」。<br>
+    ⚠⚠ <b>囲みがそのまま測定です</b>。ツールは位置を推測しません（推測させて3回失敗しました）。
+    <b>数字の左端・右端・上端・下端にぴったり</b>合わせてください
+    （<code>TOTAL</code> や <code>STING!</code> の文字は絶対に入れない／数字の一部を切らない）。<br>
+    囲みの幅と入力した文字列だけで <b>送り幅 = 幅 ÷（数字の数 + 0.5 × カンマの数）</b>が決まり、
+    1文字ずつの枠とラベルが自動で付きます。カンマも含めて見えているとおりに入力してください（例 <code>5,044,282</code>）。<br>
+    ⚠ <b>枠が1文字ずつ正しく乗っているか</b>を必ず見てください。ずれていたら囲み直しです。
+  </p>
+  <div class="row" style="margin-bottom:8px">
+    <input id="teachText" style="flex:1;min-width:220px" placeholder="囲んだ数字（例 5,044,282）">
+    <button class="btn" id="teachAdd">この数字を教える</button>
+    <button class="btn sec" id="saveTeachCrop">この切り抜きをJSONで保存（チャットに貼れる形）</button>
+    <button class="btn sec" id="teachReset">教えたものを消す</button>
+  </div>
+  <div style="overflow:auto;max-height:260px;border:1px solid #333;background:#111;margin-bottom:6px">
+    <canvas id="teachView" width="10" height="10"></canvas>
+  </div>
+  <div class="row" style="margin-bottom:12px"><span class="note" id="teachNote">まだ何も教わっていません</span></div>
+
+  <h3 style="margin:6px 0">② 枠と切り出しの確認（うまくいかないときに見る）</h3>
+  <div class="row" style="margin-bottom:8px">
+    <button class="btn sec" id="checkDmg">★ダメージ枠を確認（いまのフレーム）</button>
+    <button class="btn sec" id="saveDmgView">この確認画像をPNGで保存</button>
+    <span class="note" id="dmgNote">数字が大きく出ている時刻にしてから押してください</span>
+  </div>
+  <div style="overflow:auto;max-height:420px;border:1px solid #333;background:#111;margin-bottom:10px">
+    <canvas id="dmgView" width="10" height="10"></canvas>
+  </div>
+  <div style="overflow:auto;max-height:420px;border:1px solid #333;background:#111">
+    <canvas id="glyphSheet" width="10" height="10"></canvas>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <input id="glyphLabels" style="flex:1;min-width:320px" placeholder="番号順にラベル（空白区切り・飛ばすときは -）">
+    <button class="btn" id="makeAtlas">アトラスJSONを保存</button>
+  </div>
+  <div class="row"><span class="note" id="glyphNote">走査するとここに代表が出ます</span></div>
+</div>
+
+<div class="card">
+  <h2>5. 診断</h2>
   <div class="row">
     <button class="btn" id="copyDiag">★digest をコピー（→ Claude に貼る）</button>
     <button class="btn sec" id="saveDiag">完全な診断JSONを保存</button>

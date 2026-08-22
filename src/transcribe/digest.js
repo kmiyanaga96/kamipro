@@ -216,6 +216,39 @@ export function digest(diag) {
     }
   }
 
+  // ── ④'' グリフ採取（P3-1）★いまの主戦場 ────────────────────
+  if (r.glyphStats) {
+    const g = r.glyphStats;
+    add('');
+    add(`## グリフ採取  走査 ${g.frames} / 行が見つかった ${g.framesWithRows} フレーム`
+      + ` / 行 ${g.rows} / グリフ ${g.glyphs}（採取 ${g.pushed}）`);
+    // ★★**どちらの経路で割ったか**を必ず出す。`runs`（退避路）が多いなら
+    //   格子が合っていない＝送り幅の前提か ROI か閾値のどれかが実物と違う。
+    add(`  割り方: ${JSON.stringify(g.methods)}  ⚠ runs が多いなら格子が合っていない`);
+    const q = (o) => (o ? `n=${o.n} min=${o.min} p10=${o.p10} p50=${o.p50} p90=${o.p90} max=${o.max}` : '—');
+    add(`  行の高さ: ${q(g.rowHeights)}`);
+    add(`  送り幅  : ${q(g.pitches)}   ★固定フォントなら p10〜p90 が狭いはず`);
+    add(`  格子の合致度: ${q(g.contrasts)}  ★低いと切り出しが信用できない`);
+    for (const sm of g.samples ?? []) {
+      add(`  例 t=${sm.t} 行 ${sm.row.from}〜${sm.row.to} ${sm.method} pitch=${sm.pitch} `
+        + `contrast=${sm.contrast} 文字数=${sm.count}`);
+      add(`     列プロファイルの山: ${peaks(sm.colProfile, 12).map(([i, v]) => `${i}:${v}`).join(' ')}`);
+    }
+  }
+  if (r.glyphs) {
+    add(`  代表 ${r.glyphs.representatives?.length ?? 0} 個 / クラスタ ${r.glyphs.clusters}`
+      + `（あふれ ${r.glyphs.overflow}）  出現回数上位: `
+      + (r.glyphs.representatives ?? []).slice(0, 20).map((x) => x.count).join(','));
+    // ★★「文字か背景の模様か」の切り分け材料（**まだ篩には使っていない**＝実データを見てから決める）
+    add('  代表ごと（出現回数 / 行の格子の合致度 / 箱の位置のばらつき px / 箱の実寸）:');
+    for (const x of (r.glyphs.representatives ?? []).slice(0, 24)) {
+      add(`    #${x.index} ×${x.count} contrast=${x.contrast ?? '-'} `
+        + `spread=${x.spread ? `${x.spread.x},${x.spread.y}` : '-'} `
+        + `box=${x.box ? `${x.box.w}×${x.box.h}` : '-'} t=${(x.times ?? []).slice(0, 3).join('/')}`);
+    }
+    add('  ⚠ 形そのものは digest には載せない（画面のシートを見てラベルを付ける＝人の仕事）');
+  }
+
   // ── ⑤モード遷移（除振）──────────────────────────────────
   if (r.panelSeries) {
     const p = r.panelSeries;

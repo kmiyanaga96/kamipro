@@ -1503,6 +1503,26 @@ console.log('\n[14] ページ配線の健全性（★main.js は import でき�
   check('★★index.html のボタンはすべて main.js から配線されている（押しても無反応を作らない）',
     unwired.length === 0, `配線が無いボタン: ${JSON.stringify(unwired)}`);
 
+  // ★★★`fit.○○.toFixed(` を `main.js` に直書きしない（2026-08-21 の出荷事故）。
+  //   ⚠ `fitTaughtGrid` の返り値は**設計が変われば欄が消える**（実際「合致度」が消えた）。
+  //     画面側に書式を直書きすると、**押した瞬間に落ちる**のに全テストが通ってしまう。
+  //   ★書式は `teachSummary()` を通す＝検査できる場所に置く。
+  {
+    const bad = [...main.matchAll(/fit\.[A-Za-z]+\.toFixed\(/g)].map((m) => m[0]);
+    check('★★★fit の欄を main.js で直接 toFixed しない（teachSummary を通す）',
+      bad.length === 0, `直書き: ${JSON.stringify(bad)}`);
+    check('  この検査は実際に効く（旧コードの書き方なら落ちる）',
+      /fit\.[A-Za-z]+\.toFixed\(/.test("+ `（格子の合致度 ${fit.contrast.toFixed(3)} / `"));
+  }
+
+  // ★★切り抜きは **JSON で保存**すること（2026-08-20b）。
+  //   ⚠ PNG で保存するとチャットに貼ったとき「画像」として扱われ、**画素を読めない**
+  //     （ユーザー報告）。JSON はファイルとして届く＝**Claude が実画素で検証できる唯一の経路**。
+  check('★★教えた切り抜きは JSON（PNG を data URL で内包）で保存する',
+    /saveTeachCrop[\s\S]{0,1200}toDataURL\('image\/png'\)/.test(main)
+    && /saveTeachCrop[\s\S]{0,1400}\.json`/.test(main),
+    '切り抜き保存が JSON 経路になっていない（PNG 直保存に戻っていないか）');
+
   // ★版が刻まれていること（provenance＝どの版の出力かが分からないと走が無駄になる）
   const ver = main.match(/const VERSION = '([0-9]+\.[0-9]+\.[0-9]+)'/);
   check('★main.js に VERSION が刻まれている', !!ver, ver?.[1] ?? '見つからない');
@@ -1527,6 +1547,15 @@ console.log('\n[15] ページの初期化スモーク（★main.js を DOM ス�
   check('★★全ボタンにハンドラが付く（＝押しても無反応、を作らない）',
     out.includes('BUTTONS_OK'), out.split('\n').find((l) => l.startsWith('DEAD_BUTTONS')) ?? '');
   check('★初期化完了の合図（window.__t1Ready）が立つ', out.includes('READY_OK'), out);
+  // ★★★2026-08-19c 追加＝**実際に全ボタンを押して例外が出ないこと**。
+  //   ⚠⚠ これが無くて出荷した: リファクタで `rois` の宣言を消してしまい、
+  //     「このフレームを解析」を押した瞬間に `ReferenceError: rois is not defined`。
+  //     **294件のセルフテストは全部通っていた**（初期化は通り、ハンドラも付いていたため）。
+  //   ★**ハンドラが付いていることと、押して動くことは別**。
+  //   ✅ 採用前に**バグを戻して落ちること**を確認済（`CLICK_ERRORS copyRois: ReferenceError`）。
+  check('★★★全ボタンを実際に押しても例外が出ない（未定義参照をここで捕まえる）',
+    out.includes('CLICKS_OK'),
+    out.split('\n').find((l) => l.startsWith('CLICK_ERRORS')) ?? out);
 
   // ★★壊れたときに**画面が黙らない**こと（2回とも画面は無反応なだけだった）
   const html = readFileSync(root + 'transcribe/index.html', 'utf8');
@@ -1538,6 +1567,663 @@ console.log('\n[15] ページの初期化スモーク（★main.js を DOM ス�
     /<script>[\s\S]*__t1Ready[\s\S]*<\/script>/.test(html));
 }
 
+// ── 16. ★★グリフ照合（P3-1）─────────────────────────────────
+//   ★何を固定するか: **実物で確認済みの制約**（`glyph.js` 冒頭①〜⑥）に対して、
+//     照合器が満たすべき**性質**を合成で固定する。
+//   ⚠ 合成フォントは**実機のフォントではない**（実機グリフは録画からしか得られない＝P3-1 の採取）。
+//     ∴ ここで通っても「実機で読める」証明にはならない。**仕組みの回帰**として置く。
+//   ★★本節で最も重要なのは最後の [16-9]＝**誤った数字を出さないこと**。
+//     読めない（`?`）は次工程が拾えるが、**もっともらしい誤読は較正を静かに汚染する**。
+console.log('\n[16] グリフ照合（P3-1）＝縁取りで読む・遮蔽に強い・間違えるくらいなら読まない');
+{
+  const G = await import('../src/transcribe/glyph.js');
+
+  // 合成ビットマップフォント（5×7）。★実機と同じ**構造**（一定の送り幅・縁取り＋塗り）だけを模す。
+  const FONT = {
+    '0': ['01110', '10001', '10011', '10101', '11001', '10001', '01110'],
+    '1': ['00100', '01100', '00100', '00100', '00100', '00100', '01110'],
+    '2': ['01110', '10001', '00001', '00010', '00100', '01000', '11111'],
+    '3': ['11111', '00010', '00100', '00010', '00001', '10001', '01110'],
+    '4': ['00010', '00110', '01010', '10010', '11111', '00010', '00010'],
+    '5': ['11111', '10000', '11110', '00001', '00001', '10001', '01110'],
+    '6': ['00110', '01000', '10000', '11110', '10001', '10001', '01110'],
+    '7': ['11111', '00001', '00010', '00100', '01000', '01000', '01000'],
+    '8': ['01110', '10001', '10001', '01110', '10001', '10001', '01110'],
+    '9': ['01110', '10001', '10001', '01111', '00001', '00010', '01100'],
+    ',': ['00000', '00000', '00000', '00000', '00000', '00110', '00100'],
+  };
+  const GW = 5, GH = 7, SBASE = 3, ADV = 8;   // ADV: 送り（フォントセル）
+  const S = SBASE;
+
+  /** 1文字を描く。★塗りは**上下でグラデ**（実機＝金グラデ）／縁取りは暗い。 */
+  function drawGlyph(img, x, y, ch, opt = {}) {
+    const pat = FONT[ch];
+    const S = opt.s ?? SBASE;   // ★字の大きさ（実機のダメージ数字は 100px 級＝背景より遥かに大きい）
+    const top = opt.fillTop ?? 250, bot = opt.fillBottom ?? 150, outline = opt.outline ?? 15;
+    const on = (cx, cy) => cy >= 0 && cy < GH && cx >= 0 && cx < GW && pat[cy][cx] === '1';
+    for (let cy = -1; cy <= GH; cy++) {
+      for (let cx = -1; cx <= GW; cx++) {
+        let c = null;
+        if (on(cx, cy)) {
+          const v = Math.round(top + (bot - top) * (cy / (GH - 1)));
+          c = [v, Math.round(v * 0.86), Math.round(v * 0.42)];      // 金っぽい塗り
+        } else if (on(cx - 1, cy) || on(cx + 1, cy) || on(cx, cy - 1) || on(cx, cy + 1)) {
+          c = [outline, outline, outline];
+        }
+        if (c) fillRect(img, x + cx * S, y + cy * S, S, S, c);
+      }
+    }
+  }
+  function drawText(img, x, y, text, opt = {}) {
+    const adv = (opt.adv ?? ADV) * (opt.s ?? SBASE);
+    const truth = [];
+    let cx = x;
+    for (const ch of text) { drawGlyph(img, cx, y, ch, opt); truth.push({ ch, x: cx, y }); cx += adv; }
+    return truth;
+  }
+  /** 半透明合成（実機の重なりは**半透明**＝両方が部分的に残る＝制約③）。 */
+  function blendRect(img, x, y, w, h, c, alpha) {
+    for (let yy = Math.max(0, y); yy < Math.min(img.height, y + h); yy++) {
+      for (let xx = Math.max(0, x); xx < Math.min(img.width, x + w); xx++) {
+        const i = (yy * img.width + xx) * 4;
+        for (let k = 0; k < 3; k++) img.data[i + k] = Math.round(img.data[i + k] * (1 - alpha) + c[k] * alpha);
+      }
+    }
+  }
+  /** 4条星（キラキラ＝制約②）。 */
+  function drawStar(img, cx, cy, r, alpha = 0.8) {
+    blendRect(img, cx - r, cy - 1, 2 * r, 3, [255, 255, 240], alpha);
+    blendRect(img, cx - 1, cy - r, 3, 2 * r, [255, 255, 240], alpha);
+  }
+  const fieldOf = (img) => G.edgeField(G.luminanceField(img, { x: 0, y: 0, w: img.width, h: img.height }));
+  const DARK = [25, 20, 55], MID = [110, 105, 120], BRIGHT = [200, 190, 120];
+
+  /** 参照ストリップを1本描いて署名を採る（＝採取→ラベル付けの結果に相当）。 */
+  function strip(chars, bg, opt = {}) {
+    const img = makeImage(chars.length * ADV * S + 20, 60, bg);
+    drawText(img, 8, 12, chars, opt);
+    const edge = fieldOf(img);
+    const row = G.segmentRows(edge).rows[0];
+    const seg = G.segmentGlyphs(edge, row);
+    return { img, edge, row, seg, scale: G.fieldScale(edge, row), chars };
+  }
+  /** 条件のリストからアトラスを作る（★1字に複数の見え方を持たせられる）。 */
+  function atlasFrom(conds, chars = '0123456789,') {
+    const glyphs = {};
+    for (const c of conds) {
+      const st = strip(chars, c.bg ?? DARK, c.opt ?? {});
+      st.seg.boxes.forEach((b, i) => {
+        if (i < chars.length) (glyphs[chars[i]] ||= []).push(G.packSignature(G.signature(st.edge, b, { scale: st.scale })));
+      });
+    }
+    return { version: 1, cell: { ...G.GLYPH_DEFAULTS.cell }, provenance: { synthetic: true }, glyphs, labels: {} };
+  }
+
+  let drawTaught;   // ★[16-12] で定義し [16-13] でも使う（同じフォントで測るため）
+  const base = strip('0123456789,', DARK);
+  const atlas1 = atlasFrom([{ bg: DARK }]);
+  check('★参照ストリップから 11 文字（0〜9とカンマ）が切り出せる',
+    base.seg.boxes.length === 11, `${base.seg.boxes.length} 個 / method=${base.seg.method}`);
+  check('アトラスの健全性検査が通る', G.validateAtlas(atlas1).ok,
+    JSON.stringify(G.validateAtlas(atlas1).problems));
+
+  // ── [16-1] ★★等間隔の格子で割る（谷で切る方式は背景で壊れた）──
+  {
+    const counts = [DARK, MID, BRIGHT].map((bg) => strip('0123456789', bg).seg.boxes.length);
+    check('★★背景が暗くても明るくても 10 文字に割れる（等間隔の格子で割っているから）',
+      counts.every((n) => n === 10), `切り出し数 ${JSON.stringify(counts)}`);
+    // ⚠ 退避路（谷で切る＋幅で分割）は同じ入力で壊れることを**回帰として固定する**
+    //   ＝格子をやめて閾値方式に戻したらここが落ちる。
+    const fallback = [DARK, MID, BRIGHT].map((bg) => {
+      const st = strip('0123456789', bg);
+      return G.segmentGlyphs(st.edge, st.row, { gridContrastFloor: 2 }).boxes.length;  // 格子を必ず不採用にする
+    });
+    check('★退避路（谷で切る）は背景を変えると同じ入力で壊れる＝格子が要る理由の記録',
+      !fallback.every((n) => n === 10), `退避路の切り出し数 ${JSON.stringify(fallback)}`);
+  }
+
+  // ── [16-2] 塗りが変わっても読める（金グラデ＝制約④）──────────
+  {
+    const img = makeImage(420, 80, DARK);
+    const text = '6,012,442';
+    drawText(img, 10, 20, text, { fillTop: 180, fillBottom: 255, outline: 30 }); // グラデを逆向きに
+    const edge = fieldOf(img);
+    const rows = G.segmentRows(edge);
+    check('行がちょうど1つ見つかる', rows.rows.length === 1, `${rows.rows.length} 行`);
+    const r = G.readRow(edge, rows.rows[0], atlas1);
+    check('★★塗りのグラデが逆でも同じ文字列を読む（縁取りで照合しているから）',
+      r.number.text === text, `読み=${r.number.text}`);
+    check('数値とカンマ文法が通る', r.number.ok && r.number.value === 6012442,
+      `${r.number.value} / ${r.number.reason}`);
+  }
+
+  // ── [16-3] 星（キラキラ）が重なっても数字が動かない（制約②）───
+  {
+    const img = makeImage(420, 80, DARK);
+    const truth = drawText(img, 10, 20, '6,012,442');
+    const t = truth[2];
+    drawStar(img, t.x + (GW * S) / 2, t.y + (GH * S) / 2, 16, 0.8);
+    const edge = fieldOf(img);
+    const r = G.readRow(edge, G.segmentRows(edge).rows[0], atlas1);
+    const digits = r.tokens.map((x) => x.key).join('');
+    check('★★星が乗ったヒットでも、乗った字以外は誤らない（受け入れ検査に星を必ず含める＝P1 発見⑫）',
+      /^6,0[12?]2,442/.test(digits) || digits.startsWith('6,0'), `読み=${digits}`);
+    check('★星で潰れた字は「読めない」か正解のどちらかで、別の数字にはならない',
+      r.tokens.every((x, i) => x.key === '?' || x.key === '6,012,442'[i] || i >= 9),
+      `読み=${digits}`);
+  }
+
+  // ── [16-4] 半透明ラベルの重なりは「マスクすれば票を持たない」（制約①③）
+  {
+    const img = makeImage(420, 80, DARK);
+    const truth = drawText(img, 10, 20, '6,012,442');
+    // ★上のヒットのラベルが**この行の上半分に重なる**（P1 発見①＝縦ピッチ < ラベル高+数値高）
+    const band = { x: 0, y: 20, w: img.width, h: Math.round((GH * S) / 2) };
+    blendRect(img, band.x, band.y, band.w, band.h, [255, 60, 60], 0.5);
+    const edge = fieldOf(img);
+    const row = G.segmentRows(edge).rows[0];
+    const box = { x: truth[0].x - 6, y: 20, w: ADV * S, h: GH * S };
+    const scale = G.fieldScale(edge, row);
+    const sig = G.signature(edge, box, { scale });
+    const tmpl = G.templatesOf(atlas1.glyphs['6'], atlas1.cell)[0];
+    const bare = G.matchSignature(sig, tmpl);
+    const mask = G.maskFromRects(box, [band], atlas1.cell);
+    const masked = G.matchSignature(sig, tmpl, { mask });
+    check('★★ラベルで潰した画素をマスクすると、正解グリフの score が上がる（＝汚染が票を持たなくなる）',
+      masked.score > bare.score, `mask あり ${masked.score.toFixed(3)} / なし ${bare.score.toFixed(3)}`);
+    check('マスクは「隠れた場所」だけを 0 にする（全部 0 にしない）',
+      mask.some((v) => v === 1) && mask.some((v) => v === 0),
+      `1 の数=${mask.filter((v) => v === 1).length} / 0 の数=${mask.filter((v) => v === 0).length}`);
+  }
+
+  // ── [16-5] 字がくっついても文字数を落とさない（格子の効き目）───
+  {
+    const img = makeImage(420, 80, DARK);
+    const truth = drawText(img, 10, 20, '1,234,567');
+    // ★4文字目と5文字目の字間を演出で埋めて「1つの塊」にする（実機の重なりと同じ効果）
+    const bx = truth[3].x + GW * S;
+    blendRect(img, bx, 20, ADV * S - GW * S + 2, GH * S, [255, 240, 200], 0.9);
+    const edge = fieldOf(img);
+    const seg = G.segmentGlyphs(edge, G.segmentRows(edge).rows[0]);
+    check('★★字間が演出で埋まっても 9 文字のまま（格子は塊の切れ目を見ていない）',
+      seg.boxes.length === 9 && seg.method === 'grid',
+      `${seg.boxes.length} 個 / method=${seg.method} / pitch=${seg.pitch?.toFixed(2)}`);
+  }
+
+  // ── [16-6] `8` の罠＝cover だけでは何にでも一致する（2項に分けた根拠）
+  {
+    const t8 = G.templatesOf(atlas1.glyphs['8'], atlas1.cell)[0];
+    const t1 = G.templatesOf(atlas1.glyphs['1'], atlas1.cell)[0];
+    const m = G.matchSignature(t8, t1);        // 標本='8' をテンプレ='1' で見る
+    check('★★cover だけなら 8 は 1 のテンプレを満たしてしまう（だから alien 項が要る）',
+      m.cover > 0.6 && m.score < 0.8, `cover=${m.cover.toFixed(3)} score=${m.score.toFixed(3)}`);
+    check('分類は 8 を選ぶ（1 ではない）', G.classify(t8, atlas1).best.key === '8');
+  }
+
+  // ── [16-7] カンマ文法＝その場でできる検算 ─────────────────
+  {
+    check('カンマ文法: 正しい表記が通る', G.checkCommaGrammar('6,012,442').ok);
+    check('★カンマ文法: 中の桁が1つ落ちると落とせる', !G.checkCommaGrammar('6,01,442').ok,
+      G.checkCommaGrammar('6,01,442').reason ?? '');
+    check('★カンマ文法: 桁が1つ増えても落とせる', !G.checkCommaGrammar('6,0125,442').ok);
+    check('⚠ 先頭グループの欠けは文法では捕まらない（検算⑦の担当）と明示できている',
+      G.checkCommaGrammar('012,442').ok === true);
+    const r = G.readNumber([{ key: '1', score: 1 }, { key: '?', score: 0 }], { minDigits: 1, maxDigits: 9 });
+    check('★読めない文字があれば「読めない」と言う（推測で埋めない）',
+      !r.ok && /未一致/.test(r.reason), JSON.stringify(r));
+  }
+
+  // ── [16-8] 採取＝「同じ形が何回も出た」までが機械の仕事 ───────
+  //   ★★狙いは「10 クラスタにまとめる」ことでは**ない**（`clusterSimilarity` の注記＝実測で棄却）。
+  //     狙いは**純度**＝1つのクラスタに2つの字を混ぜないこと。ラベルは人が1回付けるので、
+  //     **数が増えるのは手間が増えるだけ**だが、**混ざると誤ったテンプレートにラベルが付く**。
+  {
+    const h = new G.GlyphHarvest();
+    for (let i = 0; i < 3; i++) {
+      const st = strip('0123456789', DARK);
+      for (const b of st.seg.boxes) h.push(G.signature(st.edge, b, { scale: st.scale }), i, b);
+    }
+    const rep = h.report();
+    check('★同じ条件の繰り返しは1つにまとまる（30 標本 → 10 クラスタ）',
+      rep.seen === 30 && rep.clusters === 10, `標本 ${rep.seen} / クラスタ ${rep.clusters}`);
+    check('代表は出現回数の多い順に並ぶ', rep.representatives[0].count === 3);
+
+    // ★★純度＝条件を9通りに散らしても、1つのクラスタに2つの字が入らないこと
+    const h2 = new G.GlyphHarvest();
+    const seen = new Map();
+    for (const bg of [DARK, MID, BRIGHT]) {
+      for (const opt of [{}, { fillTop: 160, fillBottom: 255 }, { fillTop: 255, fillBottom: 90 }]) {
+        const st = strip('0123456789', bg, opt);
+        st.seg.boxes.forEach((b, i) => {
+          const cl = h2.push(G.signature(st.edge, b, { scale: st.scale }), 0, b);
+          if (!cl) return;
+          if (!seen.has(cl)) seen.set(cl, new Set());
+          seen.get(cl).add('0123456789'[i]);
+        });
+      }
+    }
+    const mixed = [...seen.values()].filter((s2) => s2.size > 1).length;
+    check('★★★条件を散らしても「別の字が混ざったクラスタ」は0（＝ラベルが誤ったテンプレに付かない）',
+      mixed === 0, `混ざったクラスタ ${mixed} / 全 ${h2.clusters.length}`);
+    check('⚠ 1つの字が条件ごとに複数クラスタになるのは想定どおり（それが variants になる）',
+      h2.clusters.length > 10, `クラスタ ${h2.clusters.length}（90 標本）`);
+
+    const h3 = new G.GlyphHarvest({ maxClusters: 3 });
+    const st3 = strip('0123456789', DARK);
+    for (const b of st3.seg.boxes) h3.push(G.signature(st3.edge, b, { scale: st3.scale }), 0, b);
+    const diag2 = new Diag('T1', 'test');
+    G.reportHarvest(diag2, h3.report(), { ok: true });
+    check('★クラスタ数が上限に張り付いたら診断で鳴る（閾値が緩すぎる/箱がずれている合図）',
+      diag2.items.some((i) => i.code === 'T1-DETECT-006'), JSON.stringify(diag2.items.map((i) => i.code)));
+  }
+
+  // ── [16-9] ★★★本節の主眼＝**誤った数字を出さない** ────────────
+  //   ⚠ 実測（合成 3背景 × 3塗り × 10字 = 90 標本）で確立した設計判断:
+  //     - **誤読は 100% `ambiguous`（1位と2位の差 < margin）だった**
+  //     - **score の絶対値では分けられない**（誤読 0.564〜0.632 が正解 0.539〜0.999 と重なる）
+  //     ∴ 採否は score ではなく**1位と2位の差**で決める（`rejectAmbiguous`）。
+  //   ★あわせて「アトラスに**条件ごとの見え方**を足すと読める率が上がる」ことも固定する。
+  {
+    const chars = '0123456789';
+    const conds = [];
+    for (const bg of [DARK, MID, BRIGHT]) for (const opt of [{}, { fillTop: 160, fillBottom: 255 }, { fillTop: 255, fillBottom: 90 }]) conds.push({ bg, opt });
+    const score = (atlas, opts = {}) => {
+      let read = 0, wrong = 0, unread = 0;
+      for (const c of conds) {
+        const st = strip(chars, c.bg, c.opt);
+        const r = G.readRow(st.edge, st.row, atlas, opts);
+        r.tokens.forEach((t, i) => {
+          if (t.key === '?') unread++;
+          else if (t.key === chars[i]) read++;
+          else wrong++;
+        });
+      }
+      return { read, wrong, unread };
+    };
+    const one = score(atlasFrom([{ bg: DARK }], chars));
+    const three = score(atlasFrom([{ bg: DARK }, { bg: MID }, { bg: BRIGHT }], chars));
+    // ⚠⚠ **合成と実機で結論が割れた**（2026-08-21c）＝**合成では**マージンを広げると誤りがゼロになるが、
+    //   **実画素（切り抜き10枚・73点）ではマージンを上げても誤りが1件も減らない**
+    //   （margin 0.04 で 正58/曖昧7/誤8 ／ 0.12 で 正33/曖昧32/**誤8**）。
+    //   ★**実機の誤読は「自信のある誤読」**＝マージンは安全網ではなく歩留まりを削るだけ。
+    //   ∴ 既定は 0.04（実測）にし、**安全網は検算（§5）に置く**。
+    //   ここでは「機構としては効く」ことだけを固定する（広いマージンを明示して渡す）。
+    check('★機構としてのマージンは効く（合成・広いマージンを明示すれば誤りゼロ）',
+      score(atlasFrom([{ bg: DARK }], chars), { ambiguityMargin: 0.20 }).wrong === 0,
+      JSON.stringify(score(atlasFrom([{ bg: DARK }], chars), { ambiguityMargin: 0.20 })));
+    check('⚠ 実機ではマージンで誤りは減らない（既定 0.04・安全網は検算）＝この記述が残っている',
+      /実画素ではマージンを上げても誤りが1件も減らない/.test(
+        readFileSync(new URL('../src/transcribe/glyph.js', import.meta.url), 'utf8')));
+    check('★★★条件を増やしたアトラスでも誤りゼロのまま、読める率が上がる',
+      three.wrong === 0 && three.read > one.read,
+      `1条件 ${one.read}/90 → 3条件 ${three.read}/90（誤り ${three.wrong}）`);
+    check('★曖昧さの拒否を切ると誤読が出る＝この policy が効いていることの裏取り',
+      (() => {
+        let wrong = 0;
+        for (const c of conds) {
+          const st = strip(chars, c.bg, c.opt);
+          const r = G.readRow(st.edge, st.row, atlasFrom([{ bg: DARK }], chars), { rejectAmbiguous: false });
+          r.tokens.forEach((t, i) => { if (t.key !== '?' && t.key !== chars[i]) wrong++; });
+        }
+        return wrong > 0;
+      })(), 'rejectAmbiguous=false で誤読が出ること');
+  }
+
+  // ── [16-11] ★★人に見せるのは「実画素」──────────────────────
+  //   ⚠⚠ **初版はここで事故った**（ユーザー報告 2026-08-19b）＝代表シートに
+  //     **署名（12×20 の縁取りの強さ）**を描いていて、「荒すぎる・白黒・一部分」で**何も判別できない**。
+  //   ★署名は**機械が照合するための表現**であって**人が見るための表現ではない**。
+  //     人に判断を頼むなら、**人が判断できる形**（色つき・元の解像度の画素）で見せる。
+  //   ∴ 採取器は署名と**実画素の両方**を持ち、画面には実画素を描く。ここはその回帰。
+  {
+    const img = makeImage(40, 30, [10, 20, 30]);
+    fillRect(img, 10, 5, 6, 8, [200, 100, 50]);
+    const patch = G.cropPatch(img, { x: 10, y: 5, w: 6, h: 8 });
+    check('★切り出しは実画素をそのまま返す（色が保たれる）',
+      patch.w === 6 && patch.h === 8 && patch.data[0] === 200 && patch.data[1] === 100 && patch.data[2] === 50,
+      `${patch.w}×${patch.h} 先頭=${[...patch.data.slice(0, 3)]}`);
+    const edgeCrop = G.cropPatch(img, { x: 38, y: 28, w: 10, h: 10 });
+    check('画面の外へはみ出しても落ちない（内側だけ返す）',
+      edgeCrop.w === 2 && edgeCrop.h === 2, `${edgeCrop.w}×${edgeCrop.h}`);
+
+    const h = new G.GlyphHarvest();
+    const st = strip('0123456789', DARK);
+    // 同じ字を5回入れて、実画素の保持数に上限があること（記憶が膨らまない）も見る
+    for (let k = 0; k < 5; k++) {
+      st.seg.boxes.forEach((b) => h.push(G.signature(st.edge, b, { scale: st.scale }), k,
+        b, G.cropPatch({ width: 0, height: 0, data: new Uint8ClampedArray(0) }, b)));
+    }
+    const st2 = strip('0123456789', DARK);
+    const h2 = new G.GlyphHarvest();
+    st2.seg.boxes.forEach((b) => h2.push(G.signature(st2.edge, b, { scale: st2.scale }), 0, b,
+      G.cropPatch(st2.img ?? makeImage(4, 4, [0, 0, 0]), b)));
+    const rep2 = h2.report();
+    check('★★代表から実画素が取り出せる（シートに描くのはこれ）',
+      h2.patchAt(0) !== null, `patchAt(0)=${h2.patchAt(0) ? 'あり' : 'なし'}`);
+    check('★代表には箱の実寸が付く（字の一部しか入っていないことに人が気づける）',
+      rep2.representatives[0].box && rep2.representatives[0].box.w > 0,
+      JSON.stringify(rep2.representatives[0].box));
+    // ★診断 JSON に実画素を混ぜない（桁違いに膨らむ）
+    check('★実画素は診断 JSON には載らない（digest/JSON が膨らまない）',
+      !JSON.stringify(rep2).includes('"data"') && !JSON.stringify(rep2).includes('patches'),
+      `JSON 長 ${JSON.stringify(rep2).length}`);
+    h.report();
+    check('保持する実画素はクラスタあたり3枚まで（記憶が膨らまない）',
+      h.clusters.every((c) => c.patches.length <= 3),
+      `最大 ${Math.max(...h.clusters.map((c) => c.patches.length))} 枚`);
+  }
+
+  // ── [16-12] ★★★「教わって格子を合わせる」（実機で採取が破綻した件の答え）──
+  //   ⚠⚠ **実機（M3-1.mp4）で採取＋クラスタリングは破綻した**（2026-08-19c）:
+  //     `dmg` ROI はキャラ絵・床グリッド・光でエッジが埋まり、**行の射影は文字行を切り出さない**
+  //     （実測: 行の高さ p50 32 / p90 230 / max 561、「TOTAL / STING! / 数字」が **1帯 h=308** に潰れ、
+  //      背景のグリッド線が行として出た）。集まった代表の大半が**背景の模様**だった。
+  //   ★∴ **人が「ここに 5,044,282 と出ている」と教える**経路にする（憲法そのもの）。
+  //     文字数が既知になり、ラベルも自動で付き、**カンマの送り幅比まで測れる**。
+  {
+    // カンマだけ送り幅が狭いフォント（実機の見た目に合わせる）
+    drawTaught = function (img, x, y, text, commaRatio = 0.5, opt = {}) {
+      const SZ = opt.s ?? 6;   // ★実機のダメージ数字は背景の模様より遥かに大きい（125px 級）
+      const adv = ADV * SZ;
+      const truth = [];
+      let cx = x;
+      for (const ch of text) {
+        const a = ch === ',' ? adv * commaRatio : adv;
+        // ★インクを送り幅の中央に置く（実フォントのサイドベアリング）。
+        //   ⚠ ここを手抜きして左詰めで描いたら、**真値の定義がずれて**テストだけが落ちた
+        //     （2026-08-19c＝「測定器（フィクスチャ）の性質を観測対象の性質と取り違えない」の小型版）。
+        drawGlyph(img, Math.round(cx + (a - GW * SZ) / 2), y, ch, { ...opt, s: SZ });
+        truth.push({ ch, x: cx, w: a, center: cx + a / 2 });
+        cx += a;
+      }
+      return { truth, width: cx - x };
+    };
+    // ★背景を「エッジだらけ」にする＝実機の `dmg`（キャラ絵・床グリッド）を模す
+    function busyBackground(img) {
+      for (let y = 0; y < img.height; y += 7) fillRect(img, 0, y, img.width, 2, [120, 40, 160]);
+      for (let x = 0; x < img.width; x += 11) fillRect(img, x, 0, 2, img.height, [90, 30, 130]);
+    }
+
+    const SZ = 6;
+    const text = '5,044,282';
+    const img = makeImage(1000, 140, [40, 20, 70]);
+    busyBackground(img);
+    const drawn = drawTaught(img, 40, 30, text, 0.5);
+    const edge = fieldOf(img);
+    const box = { x: 40, y: 30, w: drawn.width, h: GH * SZ };
+    const fit = G.fitTaughtGrid(edge, box, text);
+    check('★★教わった文字数どおりに割れる（文字数が既知＝探索の自由度が1つ消える）',
+      fit.ok && fit.boxes.length === text.length, `${fit.boxes.length} 個 / ${text.length} 文字`);
+    const errs = fit.boxes.map((b, i) => Math.abs(b.center - drawn.truth[i].center));
+    check('★★各文字の中心が真値に乗る（誤差 < 送り幅の 20%）',
+      Math.max(...errs) < fit.pitch * 0.2,
+      `最大ずれ ${Math.max(...errs).toFixed(1)}px / pitch ${fit.pitch.toFixed(1)}`);
+    check('★カンマの送り幅比を**測って**返す（フォントの寸法そのもの・真値 0.50）',
+      Math.abs(fit.commaRatio - 0.5) <= 0.15, `commaRatio=${fit.commaRatio.toFixed(2)}`);
+    // ⚠⚠ **「合致度」はもう無い**（2026-08-21）＝**探索そのものを捨てた**ので当てはめの良し悪しが無い。
+    //   ★代わりに固定されるべき性質は「**囲みの幅と文字列だけから幾何が決まる**」こと。
+    check('★★★探索なしで幾何が決まる（送り幅 = 囲みの幅 ÷ (数字数 + カンマ比×カンマ数)）',
+      Math.abs(fit.pitch - box.w / (7 + 0.5 * 2)) < 0.01 && fit.commaRatio === 0.5,
+      `送り幅 ${fit.pitch.toFixed(2)} / カンマ比 ${fit.commaRatio}`);
+
+    // ★端から端まで通す＝**教わった数字から作ったアトラスで、別の数字が読めるか**
+    const teach = (img0, x0, y0, str) => {
+      const e = fieldOf(img0);
+      const d = drawTaughtInfo.get(str);
+      const f = G.fitTaughtGrid(e, { x: x0, y: y0, w: d.width, h: GH * SZ }, str);
+      const sc = G.fieldScale(e, { from: y0, to: y0 + GH * SZ });
+      return f.boxes.map((b) => ({ ch: b.ch, sig: G.packSignature(G.signature(e, b, { scale: sc })) }));
+    };
+    const mkAtlas = (entries) => {
+      const glyphs = {};
+      for (const e of entries) (glyphs[e.ch] ||= []).push(e.sig);
+      return { version: 1, cell: { ...G.GLYPH_DEFAULTS.cell }, provenance: { taught: true },
+               glyphs, labels: {}, metrics: { commaRatio: fit.commaRatio } };
+    };
+    const drawTaughtInfo = new Map([[text, drawn]]);
+    const a1 = mkAtlas(teach(img, 40, 30, text));
+
+    // 2本目を教える（別の数字）＝variants が増える
+    const imgB = makeImage(1000, 140, [40, 20, 70]);
+    busyBackground(imgB);
+    const textB = '9,617,300';
+    drawTaughtInfo.set(textB, drawTaught(imgB, 40, 30, textB, 0.5));
+    const a2 = mkAtlas([...teach(img, 40, 30, text), ...teach(imgB, 40, 30, textB)]);
+
+    const target = '4,285,204';
+    const imgT = makeImage(1000, 140, [40, 20, 70]);
+    busyBackground(imgT);
+    drawTaughtInfo.set(target, drawTaught(imgT, 40, 30, target, 0.5));
+    const edgeT = fieldOf(imgT);
+    const fitT = G.fitTaughtGrid(edgeT, { x: 40, y: 30, w: drawTaughtInfo.get(target).width, h: GH * SZ }, target);
+    const scaleT = G.fieldScale(edgeT, { from: 30, to: 30 + GH * SZ });
+    const readWith = (atlas) => fitT.boxes.map((b) => {
+      const c = G.classify(G.signature(edgeT, b, { scale: scaleT }), atlas);
+      return c.best && !c.ambiguous && c.best.score >= G.GLYPH_DEFAULTS.minScore ? c.best.key : '?';
+    }).join('');
+    const r1 = readWith(a1), r2 = readWith(a2);
+    const wrong = (r) => [...r].filter((ch, i) => ch !== '?' && ch !== target[i]).length;
+    check('★★★教わったアトラスで別の数字を読んでも「誤った文字」は出ない',
+      wrong(r1) === 0 && wrong(r2) === 0, `1本教え=${r1} / 2本教え=${r2}`);
+    // ⚠⚠ **測って分かったこと（2026-08-19c）＝variants は多ければ良いわけではない**。
+    //   同じ条件で撮った別の数字を足すと、**読める文字が 8 → 7 に減った**（誤りは 0 のまま）。
+    //   ★理屈: `classify` は key ごとに variants の**最良**を採るので各 key の score は上がるが、
+    //     **競合する key の score も上がる**＝1位と2位の差（margin）が縮み、「読めない」に倒れる。
+    //   ∴ **効くのは「条件が違う variants」**（[16-9] の 54/90 → 88/90 は背景・塗りを散らした場合）。
+    //     **同じ条件の水増しは逆効果になりうる**＝アトラスは闇雲に太らせない。
+    check('⚠ 同じ条件で variants を足しても読める率は上がるとは限らない（誤りは増えない）',
+      wrong(r2) === 0, `1本教え=${r1} / 2本教え=${r2}`);
+    check('★1本教えただけでも大半は読める（残りは「読めない」に倒れる）',
+      [...r1].filter((c) => c !== '?').length >= target.length - 2, `読み=${r1}`);
+  }
+
+  // ── [16-13] ★★★囲みが測定そのもの（探索は捨てた）─────────────────
+  //   ⚠⚠⚠ **ここは3回作り直し、3回とも「機械が位置を当てる」方向で実機に外された**:
+  //     ①谷で切る（背景で 10文字が 10/4/3 に化ける）②等間隔格子＋合致度の最大化
+  //     （合成では完璧・**実画素では送り幅 73.5 の真値に対し 54〜68**）③明るさへ特徴量変更
+  //     （**金グラデで字の下半分が消える**）。
+  //   ★実画素で分かった決定的な事実＝**背景に数字と同じ明るさ・同じ色のキャラ絵がいる**＝
+  //     **どんな画素特徴でも数字と背景は分離できない**。分離しているのは「そこに数字がある」と
+  //     知っている**人**だけ。∴ **囲みを測定として受け取り、等分に置くだけにした**。
+  //   ⭐ `rois.js` の採寸と同じ規律＝**位置は当てにいかず、人が測る**。
+  {
+    const cases = [
+      { text: '5,044,101', w: 588 },      // 実切り抜きの実寸（2026-08-21 ユーザー提供）
+      { text: '7,880,627', w: 590 },
+      { text: '10,301,906', w: 898 },     // バーストストリーク＝表示が大きい
+    ];
+    for (const c of cases) {
+      const chars = [...c.text];
+      const nC = chars.filter((x) => x === ',').length, nW = chars.length - nC;
+      const fit = G.fitTaughtGrid(null, { x: 0, y: 0, w: c.w, h: 100 }, c.text);
+      const want = c.w / (nW + 0.5 * nC);
+      check(`★★★「${c.text}」＝囲みの幅と文字列だけで送り幅が決まる（${want.toFixed(1)}px）`,
+        fit.ok && Math.abs(fit.pitch - want) < 1e-9 && fit.boxes.length === chars.length,
+        `送り幅 ${fit.pitch?.toFixed(2)} / 箱 ${fit.boxes.length}`);
+      // 箱は隙間なく並び、全体で囲みをちょうど覆う
+      const last = fit.boxes[fit.boxes.length - 1];
+      check(`  箱が隙間なく並び、囲みをちょうど覆う`,
+        Math.abs(last.x + last.w - c.w) < 1e-6
+        && fit.boxes.every((b, i) => i === 0 || Math.abs(b.x - (fit.boxes[i - 1].x + fit.boxes[i - 1].w)) < 1e-9),
+        `右端 ${(last.x + last.w).toFixed(2)} / 囲み ${c.w}`);
+    }
+    // ★カンマは数字より狭い（実測 0.5）＝**フォント定数**であって推定値ではない
+    const f2 = G.fitTaughtGrid(null, { x: 0, y: 0, w: 800, h: 100 }, '1,234');
+    const digitW = f2.boxes[0].w, commaW = f2.boxes[1].w;
+    check('★カンマの送り幅は数字の 0.5 倍（実切り抜きに格子を重ねて目視で確定）',
+      Math.abs(commaW / digitW - 0.5) < 1e-9, `${commaW.toFixed(1)} / ${digitW.toFixed(1)}`);
+    // ⚠⚠ **囲みが測定そのもの**＝囲みが 10% 広ければ送り幅も 10% 広くなる。
+    //   これは欠陥ではなく契約。**だから画面は必ず箱を描いて人に見せる**。
+    const tight = G.fitTaughtGrid(null, { x: 0, y: 0, w: 588, h: 100 }, '5,044,101');
+    const loose = G.fitTaughtGrid(null, { x: 0, y: 0, w: 647, h: 100 }, '5,044,101');
+    check('⚠ 囲みが 10% 広ければ送り幅も 10% 広くなる（＝囲みが測定・人が見て直す）',
+      Math.abs(loose.pitch / tight.pitch - 1.1) < 0.01,
+      `${tight.pitch.toFixed(1)} → ${loose.pitch.toFixed(1)}`);
+    // ★グリフ画素のマスク（白い縁取り ∪ 金の芯）＝金グラデの上下どちらでも拾えること
+    const im = makeImage(6, 3, [60, 30, 90]);
+    fillRect(im, 0, 0, 1, 1, [245, 243, 236]);   // 白い縁取り
+    fillRect(im, 1, 0, 1, 1, [235, 188, 82]);    // 金（明るい側）
+    fillRect(im, 2, 0, 1, 1, [150, 118, 52]);    // 金（暗い側＝グラデの下）
+    const m = G.glyphMask(im);
+    check('★★白い縁取りも、金グラデの明るい側も暗い側も、同じく「字」と判定する',
+      m.mag[0] === 1 && m.mag[1] === 1 && m.mag[2] === 1 && m.mag[3] === 0,
+      `[${m.mag[0]},${m.mag[1]},${m.mag[2]},${m.mag[3]}]`);
+  }
+
+  // ── [16-13b] ★★教えた回の要約は純関数（画面に直書きしない）──────────
+  //   ⚠⚠ **ここを `main.js` に直書きしていて出荷事故**（2026-08-21）＝探索を捨てて
+  //     `fitTaughtGrid` から「合致度」を無くしたのに、画面側が `contrast.toFixed()` を呼び続け、
+  //     **「この数字を教える」を押した瞬間に落ちた**。**319件は全部通っていた**
+  //     （`main.js` は import できず、押した先の書式まで検査できていなかった）。
+  //   ★∴ **書式を検査できる場所へ移す**＝本 Phase で繰り返し効いた規律。
+  {
+    const fit = G.fitTaughtGrid(null, { x: 0, y: 0, w: 588, h: 134 }, '5,044,101');
+    const sum = G.teachSummary(fit, '5,044,101', 20);
+    check('★教えた回の要約が数値と1行の文字列を返す',
+      Math.abs(sum.pitch - 73.5) < 0.01 && sum.bandH === 134
+      && /送り幅 73\.5px \/ 字高 134px \/ 比 1\.82/.test(sum.line), sum.line);
+    check('★台帳に残す記録は比まで持つ（囲み方が揃っているかの検査に使う）',
+      sum.record.ratio > 1.8 && sum.record.ratio < 1.83 && sum.record.text === '5,044,101',
+      JSON.stringify(sum.record));
+    // ★壊れた fit を渡しても**例外を投げない**（画面が落ちない）
+    const bad = G.teachSummary({ pitch: 0, band: null, commaRatio: null }, '', null);
+    check('★★値が欠けていても落ちず「—」を出す（画面を落とさない）',
+      typeof bad.line === 'string' && bad.line.includes('—'), bad.line);
+  }
+
+  // ── [16-13c] ★★★照合はずらしを許す／カンマは覚えない（実画素で決めた2つ）──
+  //   ⚠⚠ **実画素で判明**（2026-08-21）＝同じ字を別の切り抜きから採ると**横に 1〜3 格子ずれる**。
+  //     ずらさずに重ねると**同字 0.35〜0.50 / 異字 0.70 で順序が逆転**していた。
+  //     ★実測（実切り抜き3枚・数字12点の1枚抜き）＝**ずらし無し 正2/誤10 → ±2格子 正6/誤3**。
+  //   ⚠ カンマは**セルの8割以上が背景**で、誤りの過半がカンマ絡みだった（`,→1` ×3 など）。
+  //     ★**桁区切りは文法で決まる**ので形として覚えない＝**読めないものを無理に覚えない**。
+  {
+    const cell = G.GLYPH_DEFAULTS.cell;
+    const base = new Float32Array(cell.w * cell.h);
+    base[5 * cell.w + 4] = 1; base[5 * cell.w + 5] = 1;
+    const moved = G.shiftSignature(base, 2, 1, cell);
+    check('★署名を格子ぶんずらせる（外に出た分は 0）',
+      moved[6 * cell.w + 6] === 1 && moved[6 * cell.w + 7] === 1 && moved[5 * cell.w + 4] === 0,
+      '2格子右・1格子下へ動くこと');
+    // ★ずれた標本でも、ずらし許容の照合なら正しい字を選ぶ
+    const atlas = { cell, provenance: {}, glyphs: { A: [Array.from(base, (v) => v * 255)],
+                                                    B: [Array.from(G.shiftSignature(base, 5, 0, cell), (v) => v * 255)] } };
+    const sample = { cell, data: G.shiftSignature(base, 2, 0, cell) };
+    check('★★★横に 2 格子ずれた標本でも正しい字を選ぶ（ずらし許容）',
+      G.classify(sample, atlas).best.key === 'A', JSON.stringify(G.classify(sample, atlas).best));
+    check('  ずらしを 0 にすると選べなくなる＝この許容が効いていることの裏取り',
+      G.classify(sample, atlas, { shift: { x: 0, y: 0 } }).best.score
+      < G.classify(sample, atlas).best.score);
+    // ★カンマはアトラスの必須項目ではない（文法で決まる）
+    const noComma = { cell, provenance: {}, glyphs: {} };
+    // ⚠ 字ごとに違うテンプレートにする（同一だと「別ラベルで画素が同一」の関門に引っかかる）
+    '0123456789'.split('').forEach((d, i) => {
+      noComma.glyphs[d] = [Array.from(G.shiftSignature(base, i % 4, (i / 4) | 0, cell), (v) => v * 255)];
+    });
+    check('★★カンマが無くてもアトラスの関門は通る（桁区切りは文法で決まる）',
+      G.validateAtlas(noComma).ok, JSON.stringify(G.validateAtlas(noComma).problems));
+  }
+
+  // ── [16-14] ★★アトラスは「保存できた」ではなく「自分を読めるか」で見る ──
+  {
+    const good = atlasFrom([{ bg: DARK }, { bg: MID }], '0123456789,');
+    const gv = G.validateAtlas(good);
+    check('★健全なアトラスは自己検査を通る', gv.ok, JSON.stringify(gv.problems));
+    check('自己検査は1枚しか無い字を「検査できない」と数える（誤りに数えない）',
+      G.selfCheckAtlas(atlasFrom([{ bg: DARK }], '0123456789,')).unchecked === 11,
+      JSON.stringify(G.selfCheckAtlas(atlasFrom([{ bg: DARK }], '0123456789,'))));
+
+    // ★★実機で起きた事故そのもの＝**同じ画素が別のラベルで2回入る**
+    const dup = JSON.parse(JSON.stringify(good));
+    dup.glyphs['7'] = [...dup.glyphs['7'], dup.glyphs['3'][0]];
+    const dv = G.validateAtlas(dup);
+    check('★★★別のラベルどうしで画素が同一なら関門で止まる（教え方の事故を捕まえる）',
+      !dv.ok && dv.problems.some((p) => /画素が同一/.test(p)), JSON.stringify(dv.problems));
+
+    // ★★もう1つの事故＝**歪んだテンプレートが混ざり、自分自身を読めない**
+    const broken = JSON.parse(JSON.stringify(good));
+    broken.glyphs['8'] = [...broken.glyphs['8'], broken.glyphs['0'][0].map((v) => Math.min(255, v + 3))];
+    const bv = G.validateAtlas(broken);
+    check('⚠ 自己読み（leave-one-out）は関門にしない＝**健全なアトラスも落とす**ので情報に留める',
+      bv.ok === true && G.selfCheckAtlas(broken).wrong > 0,
+      `ok=${bv.ok} / 自己読みの誤り ${G.selfCheckAtlas(broken).wrong}`);
+
+    // ★★もう1つの関門＝**教えるたびの寸法が揃っているか**（フォントは固定＝送り幅と字高は一定）
+    const mixed = JSON.parse(JSON.stringify(good));
+    mixed.provenance.teachings = [{ at: 1, text: 'a', pitch: 100, bandH: 120 },
+                                  { at: 2, text: 'b', pitch: 140, bandH: 121 }];
+    check('★★★「字高/送り幅」の比が揃っていなければ関門で止まる（切り出しが安定していない）',
+      !G.validateAtlas(mixed).ok
+      && G.validateAtlas(mixed).problems.some((p) => /比が揃っていない/.test(p)),
+      JSON.stringify(G.validateAtlas(mixed).problems).slice(0, 120));
+    // ★★**大きさ自体は変わってよい**（実機は個別ヒットとバースト TOTAL で送り幅 72〜113px）
+    const scaled = JSON.parse(JSON.stringify(good));
+    scaled.provenance.teachings = [{ at: 1, text: 'a', pitch: 72, bandH: 104 },
+                                   { at: 2, text: 'b', pitch: 113, bandH: 161 }];
+    check('★大きさが 1.6倍違っても、比が揃っていれば通る（表示サイズは変わるもの）',
+      G.validateAtlas(scaled).ok, JSON.stringify(G.validateAtlas(scaled).problems).slice(0, 120));
+
+    // ★★★教示回ごとに抜いて読む＝アトラスの本当の品質指標
+    const t1 = [{ ch: '1', sig: good.glyphs['1'][0], ti: 0 }, { ch: '2', sig: good.glyphs['2'][0], ti: 0 },
+                { ch: '1', sig: good.glyphs['1'][1], ti: 1 }, { ch: '2', sig: good.glyphs['2'][1], ti: 1 }];
+    const loto = G.leaveOneTeachingOut(t1, good.cell);
+    check('★教示回を1つ抜いて残りで読む指標が出る（1枚抜きより厳しい＝実際の読み取りに近い）',
+      loto.total === 4 && typeof loto.rate === 'number', JSON.stringify(loto));
+  }
+
+  // ── [16-10] ★アトラスが無いうちは読み取りを始めない（関門）─────
+  {
+    const v = G.validateAtlas(G.EMPTY_ATLAS);
+    check('★★空のアトラスは関門で止まる（推測テンプレを同梱しない）',
+      !v.ok && v.problems.some((p) => /1つも登録されていない/.test(p)), JSON.stringify(v.problems));
+    const diag = new Diag('T1', 'test');
+    G.reportHarvest(diag, { seen: 0, clusters: 0, overflow: 0, representatives: [] }, v);
+    check('関門は診断コードで鳴る（T1-MATCH-006 / T1-MATCH-001）',
+      diag.items.some((i) => i.code === 'T1-MATCH-006' && i.sev === 'ERROR')
+      && diag.items.some((i) => i.code === 'T1-MATCH-001'),
+      JSON.stringify(diag.items.map((i) => i.code)));
+    const half = { ...atlas1, glyphs: { '0': atlas1.glyphs['0'], ',': atlas1.glyphs[','] } };
+    check('★数字が欠けているアトラスも関門で止まる（部分的に読めてしまうのを防ぐ）',
+      !G.validateAtlas(half).ok, JSON.stringify(G.validateAtlas(half).problems));
+    check('provenance が無いアトラスは通さない（E1＝測定条件を併記する）',
+      !G.validateAtlas({ cell: atlas1.cell, glyphs: atlas1.glyphs }).ok);
+  }
+
+  // ── [16-15] ★★★実データ回帰（合成ではなく**実機のグリフ**で照合器を固定する）────
+  //   フィクスチャ＝`tools/fixtures/t1_glyph_atlas_M3-1.json`。
+  //     由来: M3-1.mp4 の「この数字を教える」切り抜き **14枚**（ユーザー提供・2026-08-19〜21）から
+  //           オフラインで再構築。**署名（数値グリッド）だけ**で画像は入っていない＝§10.3 に抵触しない。
+  //   ⚠⚠ **本テストで唯一「実機のグリフを読めるか」を測る節**。[16-1〜14] は合成＝性質しか見ていない。
+  //      本 Phase で合成が実機を裏切った型は 3 つあった（明るさ特徴／帯の推定／曖昧マージンの安全網）。
+  //      ∴ 実データの数値をここに焼いて、**次の「改善」が実は劣化だったら落ちる**ようにする。
+  //   ★閾値は「良い」ではなく「これ以上悪くしない」床。改善したら締め直す（E1＝測定条件を併記）。
+  {
+    const fx = JSON.parse(readFileSync(join(HERE, 'fixtures/t1_glyph_atlas_M3-1.json'), 'utf8'));
+    const fv = G.validateAtlas(fx);
+    check('★実データのアトラスが関門を通る（validateAtlas）', fv.ok, JSON.stringify(fv.problems));
+    check('寸法が実装の既定と同じ（cell 16×26）＝フィクスチャと実装がずれたら気づく',
+      fx.cell.w === G.GLYPH_DEFAULTS.cell.w && fx.cell.h === G.GLYPH_DEFAULTS.cell.h,
+      `${JSON.stringify(fx.cell)} vs ${JSON.stringify(G.GLYPH_DEFAULTS.cell)}`);
+    check('カンマは覚えていない（送り幅から位置で決める＝実画素で決めた方針）',
+      !fx.glyphs[','] && Object.keys(fx.glyphs).length === 10,
+      Object.keys(fx.glyphs).join(''));
+    check('10字すべてに複数枚ある（1枚しかない字は照合が不安定）',
+      Object.values(fx.glyphs).every((v) => v.length >= 6),
+      JSON.stringify(Object.fromEntries(Object.entries(fx.glyphs).map(([k, v]) => [k, v.length]))));
+
+    // ★★★本丸＝**教えた回ごと抜いて読む**（まだ見ていない表示を読むのに一番近い指標）
+    const loto = G.leaveOneTeachingOut(fx.samples, fx.cell);
+    check('標本数が台帳どおり（14回・101点）＝フィクスチャの取りこぼしを検出',
+      loto.total === 101, JSON.stringify(loto));
+    check('★★★実データの誤読が 6件以下（2026-08-22 の実測＝正80/曖昧15/誤6）',
+      loto.wrong <= 6, JSON.stringify(loto));
+    check('★★実データの正読が 80件以上（曖昧に逃がして誤りを減らす退化を防ぐ）',
+      loto.correct >= 80, JSON.stringify(loto));
+    // ⚠ 曖昧は**誤りではない**（読まずに人へ返す）が、増えすぎたら自動化にならない
+    check('曖昧が 20件以下（「全部曖昧」にすれば誤読ゼロになってしまうのを防ぐ）',
+      loto.ambiguous <= 20, JSON.stringify(loto));
+  }
+}
 console.log('\n' + '='.repeat(60));
 console.log(`結果: ${pass} passed / ${fail} failed`);
 if (fail) {
