@@ -106,7 +106,7 @@
 ---
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 11）
+## この md を参照している文書（現役層 12）
 
 - [CALIBRATION_ANALYSIS.md](../../../CALIBRATION_ANALYSIS.md)
 - [CLAUDE.md](../../../CLAUDE.md)
@@ -115,6 +115,7 @@
 - [TRANSCRIPTION_DESIGN.md](../../../TRANSCRIPTION_DESIGN.md)
 - [gamedata/md/その他/README.md](./README.md)
 - [gamedata/md/その他/attack_phase.md](./attack_phase.md)
+- [gamedata/md/その他/burst_display.md](./burst_display.md)
 - [gamedata/md/幻獣/catastrophia_light.md](../幻獣/catastrophia_light.md)
 - [simulation/sim05/README.md](../../../simulation/sim05/README.md)
 - [simulation/sim05/analysis/integrated_analysis.md](../../../simulation/sim05/analysis/integrated_analysis.md)

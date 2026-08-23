@@ -81,13 +81,11 @@
 ---
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 5）
+## この md を参照している文書（現役層 3）
 
 - [REPO_STANDARDS.md](../../../REPO_STANDARDS.md)
 - [gamedata/md/敵/README.md](./README.md)
 - [gamedata/md/敵/fimbulvetr.md](./fimbulvetr.md)
-- [workspace/HANDOFF.md](../../../workspace/HANDOFF.md)
-- [workspace/TODO.md](../../../workspace/TODO.md)
 
 _他に 凍結sim/archive/essays から 3 件（更新対象外）_
 <!-- doc_refs:end -->

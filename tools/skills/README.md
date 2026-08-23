@@ -118,4 +118,6 @@ npm run skill:handoff -- --bump-counter        # md 新設があったなら --r
 - [CLAUDE.md](../../CLAUDE.md)
 - [workspace/HANDOFF.md](../../workspace/HANDOFF.md)
 - [workspace/TODO.md](../../workspace/TODO.md)
+
+_他に 凍結sim/archive/essays から 1 件（更新対象外）_
 <!-- doc_refs:end -->

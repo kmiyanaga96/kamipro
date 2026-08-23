@@ -120,12 +120,11 @@ judg ph2 の「1ヒット ×0.99」は**シムの1加算を実機1ヒットと�
 | 2026-08-14 | **CLAUDE.md「開発ルール & 不変条件」§2・§5 を本書へ分冊**（ユーザー指示＝情報の羅列で伝達効率が悪い）。§1 ゲーム仕様／§2 実装不変条件／§3 転移可能性 の3層に整理し、CLAUDE.md 側は一行要約の索引表に置換 | **本文の内容は移設のみで不変**（golden 3/3 不変・`src/`・`gamedata/js/` 未変更）。⚠ 移設に伴い**旧記述にあった 2世代前のゴールデン値（197,775,394 / 211,462,826）を削除**し CLAUDE.md「検証方法」への参照へ一本化（同じ値を2箇所に書かない）。REPO_STANDARDS E9 の参照先を本書 §3 へ更新 |
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 4）
+## この md を参照している文書（現役層 3）
 
 - [CLAUDE.md](./CLAUDE.md)
 - [REPO_STANDARDS.md](./REPO_STANDARDS.md)
 - [tools/skills/README.md](./tools/skills/README.md)
-- [workspace/TODO.md](./workspace/TODO.md)
 
 _他に 凍結sim/archive/essays から 1 件（更新対象外）_
 <!-- doc_refs:end -->
