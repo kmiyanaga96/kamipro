@@ -39,6 +39,7 @@
 | [CHARACTER_ANALYSIS.md](./CHARACTER_ANALYSIS.md) | キャラ評価・採用論の考察台帳。ヤマト vs アリアン／ナポレオン評 |
 | [DOC_RELATION_PLAN.md](./DOC_RELATION_PLAN.md) | md 相互参照の整備（S1〜S5 完了＝**運用フェーズ**）。**§7 の常駐サブタスクが稼働中**＝セッション末にカウンタ +1、md を新設/改名したら `node tools/doc_refs.mjs --write` |
 | [tools/README.md](./tools/README.md) | **較正・探索ハーネスの索引**（どの数値がどのスクリプト由来か）。§0 並列実行／**§0.5 config は台帳から読む（E10）**／§3 ドキュメント検査 |
+| [tools/skills/README.md](./tools/skills/README.md) | **カスタムスキルの実体と運用規律**（`check-engine-invariants` / `run-sim-experiment` / `sync-workspace-handoff` / `verify-transcribe-pipeline` / `skills-doctor`）。定義は `.claude/skills/<name>/`・実体は `tools/skills/*.mjs` の2層。**判断はスキル側・転記と検算はツール側**。★**§4 運用規律（S1〜S10）＝「何を機械が見て、何を人が見るか」がスキル運用の正** |
 
 ### 現役データディレクトリ
 
@@ -73,6 +74,7 @@
 | `src/worker.js` | 背景並列計算の Worker エントリ（コアを import して並行実行） |
 | `src/app.js` | UI バインディング・Worker プール・リプレイモード・INIT |
 | **`transcribe/index.html`**<br>**`src/transcribe/`** | **Phase 9 T1＝録画転記ページ**（`canvas_detect.js` 正規化＋`diag.js` §10.5 診断＋`main.js` 配線）。⚠ **シム本体と非結線**＝golden に非干渉。回帰は `npm run test:t1` |
+| **`tools/skills/`** | **スキルの実体**（Node 標準のみ・`tools/skills/lib/skill_util.mjs` が共通処理）。`npm run skill:invariants` / `skill:experiment` / `skill:handoff` / `skill:transcribe` |
 | **`gamedata/js/`** | **シムが読む現在値**（ESM）: `weapons.js`(`WEAPON_MASTER`) / `summons.js`(`SUMMON_REGISTRY`) / `enemies.js`(`ENEMY_REGISTRY`) / `characters.js`(`CHAR_REGISTRY`・`DEBUFF_KEYS`/`buffCount`) |
 | **`gamedata/md/`** | **一次情報**（`神姫/` `英霊/` `幻獣/` `敵/` `その他/`・各 README に用途）。**md=根拠 / js=現在値** |
 
@@ -167,6 +169,14 @@
 npm run test:golden      # 3 fixture を並列実行（--serial で逐次 / --fixture <name> で単体）
 npm run doc:check        # md 相互参照の検査（現役層の壊れた参照があれば exit 1）
 npm run test:t1          # Phase 9 T1 canvas 正規化のセルフテスト（合成フィクスチャ・1秒未満）
+
+# ── スキル経由（検査＋実行＋差分報告をまとめて回す・実体は tools/skills/）──
+npm run skill:invariants -- --skip-golden   # 不変条件の静的検査8種 + test:t1（数秒）
+npm run skill:invariants                    # + golden 3 fixture（2分20秒・背景実行推奨）
+npm run skill:transcribe                    # T1 の精度をベースラインと突合（約15秒）
+npm run skill:handoff                       # セッション末の差分収集 + HANDOFF ドラフト
+npm run skill:doctor                        # ★スキル群の点検（整合・予算・根拠・関門の緩み・発火確認・スモーク）
+npm run skill:negtest                       # 検査器の発火確認 13ケース（わざと壊して鳴るか）
 ```
 
 ⚠ **golden は 2分07秒＝背景実行を推奨**。docs のみの変更なら golden は不変。
@@ -258,6 +268,8 @@ npm run test:t1          # Phase 9 T1 canvas 正規化のセルフテスト（�
 
 | 日付 | 変更点 | 波及確認 |
 |---|---|---|
+| 2026-08-22 | **`skills-doctor` を追加しスキル運用を規律化**（[tools/skills/README.md](./tools/skills/README.md) §4 の **S1〜S10**）。①検査の根拠が規定に実在するか（＝規定先行の機械化）②**関門の緩み検出**（golden 期待値・`test:t1` [16-15]・T1 ベースライン／台帳 `guardrails.json`・変更は `--reason` 必須）③登録の5点整合 ④description 予算 ⑤未使用検出 ⑥`negative_tests.mjs` による**発火確認 13ケース** ⑦スモーク | ★**「文書だけでは止められない」ことの実証**＝初版は `stripJs` 取り違えで **export 漏れ検査と Worker 検査が常に ✅** を返していた（負のテストで発覚）。`src/`・`gamedata/js/` 未変更＝**golden 3/3 不変**。負のテスト 13/13・`doc:check` 現役層グリーン |
+| 2026-08-22 | **カスタムスキル4本を新設**（[tools/skills/README.md](./tools/skills/README.md)・定義は `.claude/skills/`）。①`check-engine-invariants`＝不変条件の静的検査8種＋golden＋test:t1 ②`run-sim-experiment`＝`exp_*.mjs` の実行と simNN 様式への転記 ③`sync-workspace-handoff`＝セッション末の差分収集と HANDOFF/TODO 同期 ④`verify-transcribe-pipeline`＝T1 精度のベースライン比較。`.gitignore` を `.claude/*` ＋ `!.claude/skills/` へ | **`src/`・`gamedata/js/` 未変更＝golden 3/3 不変**（202,005,923 / 215,161,915 / 299,523,354 を実行確認）。静的検査は**負のテストで5種の発火を確認**。`test:t1` 337件・`doc:check` 現役層グリーン。★副産物＝`doc_refs.mjs --write` で**既存の被参照ブロック4本の陳腐化**（`workspace/HANDOFF.md`・`workspace/TODO.md` が既に参照していない先が残存）を解消 |
 | 2026-08-14 | **本書の可読性リファクタ**（ユーザー指示）。②コード地図を表へ／③開発ルールの詳細（確定仕様17項目・転移可能性）を **[ENGINE_INVARIANTS.md](./ENGINE_INVARIANTS.md) へ分冊**し本書は**索引表＝触る前のチェックリスト**に／④検証方法の実測コスト表を圧縮／⑤較正ステータスの索引を整理（★＝本丸・情報ゼロ行を統合）。**22,450→16,535字**（起動時に必ず読む量が −26%） | **削除した情報は無い**（③は移設・②④⑤は重複と歴史記述の圧縮）。★**2世代前のゴールデン値（197,775,394 / 211,462,826）が3か所に残っていた**のを検出＝開発ルール §2・§4 と **PHASE8_PLAN.md 3か所**。すべて「検証方法」節への参照へ一本化（同じ値を2箇所に書かない）。REPO_STANDARDS E9 の参照先も更新。**`src/`・`gamedata/js/` 未変更＝golden 3/3 不変**・doc:check 現役層グリーン |
 | 2026-08-07 | **Phase 9（実機観測 intake の自動化）を採番し注力先に**。`PHASE9_PLAN.md` 新設／`TRANSCRIPTION_DESIGN.md` を archive から解凍／**REPO_STANDARDS E11**（走の無効化条件）を制定 | ユーザー決定＝**sim05 は凍結して Phase 9 を先行**（C40/C41/C44 は open のまま＝意図的コスト）。**録画は貯めてよい**（`PHASE9_PLAN.md` §4.0.1 の録画時チェックリスト）。`src/`・`gamedata/js/` 未変更＝**golden 3/3 不変** |
 | 2026-08-07 | **C50 を同日クローズ**（wontfix＝現行実装が正しい）。ユーザー回答＝「光属性スキルの接頭辞が『レイ』『シャイン』＝**4名称は光属性スキルの総称**」＝限定ではない。索引からも削除 | 裏取り＝`WEAPON_MASTER` の**全7本が `elem:'light'`**＝対象外スキルが1本も無い。⚠ **非光属性ウェポンを装備したら一律適用は誤りになる**（低severity・非 Cx として `CALIBRATION_ANALYSIS` C50 行に記録）。**実装変更なし＝golden 3/3 不変** |
@@ -268,7 +280,7 @@ npm run test:t1          # Phase 9 T1 canvas 正規化のセルフテスト（�
 | 2026-08-05 | 末尾ブロックを新設（DOC_RELATION_PLAN S4・種別=規定・台帳・計画） | 参照関係は `npm run doc:check` がグリーン |
 
 <!-- doc_refs:begin ── 自動生成。手で編集しない（node tools/doc_refs.mjs --write が再生成する） -->
-## この md を参照している文書（現役層 20）
+## この md を参照している文書（現役層 21）
 
 - [CALIBRATION_ANALYSIS.md](./CALIBRATION_ANALYSIS.md)
 - [DOC_RELATION_PLAN.md](./DOC_RELATION_PLAN.md)
@@ -288,6 +300,7 @@ npm run test:t1          # Phase 9 T1 canvas 正規化のセルフテスト（�
 - [simulation/sim05/analysis/integrated_analysis.md](./simulation/sim05/analysis/integrated_analysis.md)
 - [simulation/sim05/analysis/per_trial/pre-trial_quant.md](./simulation/sim05/analysis/per_trial/pre-trial_quant.md)
 - [tools/README.md](./tools/README.md)
+- [tools/skills/README.md](./tools/skills/README.md)
 - [workspace/HANDOFF.md](./workspace/HANDOFF.md)
 - [workspace/TODO.md](./workspace/TODO.md)
 

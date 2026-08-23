@@ -4,7 +4,7 @@
 > **更新規律**: 完了項は `[x]` にしてセッション末に `archive/SESSION_LOG.md` の該当ブロックへ畳む（**本書からは削除する**）。新規タスクは REPO_STANDARDS §1 の振り分けを通してから追加。
 > 現状の全体像は `workspace/HANDOFF.md`。**クローズ済みタスクの一覧は `archive/SESSION_LOG.md` が正**（本書に控えを置かない）。
 >
-> 最終更新: 2026-08-22（セッション末・クローズ＝P3-1 完了）
+> 最終更新: 2026-08-22（セッション末・`skills-doctor` 追加＝スキル運用の規律 S1〜S10 を制定）
 
 ---
 
@@ -13,11 +13,14 @@
 > **なぜここか**（ユーザー判断 2026-08-05）: ①頻繁に参照・書き換えが行われる ②**いかなるセッションでも読み込まれる**。
 > 別ファイルの state は作らない（管理対象を増やすこと自体が新しい更新漏れの発生源になるため）。
 
-- 前回 `npm run doc:check`: **2026-08-19（現役層グリーン）**。★本セッションは
-  **`essays/PHASE9_MATERIAL.md` を新設**＝**即実行トリガ該当**なので `doc:check` と
-  `node tools/doc_refs.mjs --write` を実行し、**カウンタを 0 に戻した**（現役層 9本の被参照ブロックを再生成）。
-  ／前回 2026-08-18（非トリガ）／2026-08-17（非トリガ）／2026-08-14（`ENGINE_INVARIANTS.md` 新設＝トリガ該当）
-- カウンタ: `3/5`  ← **セッション末に +1**。5 到達で棚卸しの回（`doc_refs.mjs` がこの行を読んで警告を出す）
+- 前回 `npm run doc:check`: **2026-08-22（現役層グリーン）**。★本セッションは
+  **`tools/skills/README.md` とスキル定義4本（`.claude/skills/` 配下）を新設**＝**即実行トリガ該当**なので `doc:check` と
+  `node tools/doc_refs.mjs --write` を実行し、**カウンタを 0 に戻した**。
+  ★副産物＝**既存の被参照ブロック4本が陳腐化していた**のを検出（`workspace/HANDOFF.md` / `workspace/TODO.md` が
+  もう参照していない先＝`gamedata/md/敵/cath_palug.md`・`gamedata/md/幻獣/catastrophia_light.md`・
+  `simulation/README.md`・`simulation/sim05/analysis/integrated_analysis.md` に残存）＝同時に解消した。
+  ／2026-08-19（`essays/PHASE9_MATERIAL.md` 新設＝トリガ）／2026-08-18（非トリガ）／2026-08-14（`ENGINE_INVARIANTS.md` 新設＝トリガ）
+- カウンタ: `0/5`  ← **セッション末に +1**。5 到達で棚卸しの回（`doc_refs.mjs` がこの行を読んで警告を出す）
 - **⚠ 即実行トリガ**（カウンタに関係なく走らせて 0 に戻す）: md の**新設・リネーム・archive 移動**があったセッション
 
 **セッション末の手順**（REPO_STANDARDS §6-6 が正）:
@@ -35,6 +38,18 @@
       （CLAUDE.md は 48件→**実際に直しうる16件**に圧縮）。
 - [x] **S5 常駐化の運用開始**＝規約（§6-6）＋カウンタ（本書冒頭）＋ツールの超過警告の3点セット。
 - [ ] **⏳ 完了条件の残り**: 常駐サブタスクが**2周**回ること（DOC_RELATION_PLAN 完了条件③）。回りきったら本計画を archive へ。
+
+### スキル（`tools/skills/`・2026-08-22 新設）
+
+- [ ] **スキルを1周使ってみて手順書を締める**（[tools/skills/README.md](../tools/skills/README.md)）。
+      ①`check-engine-invariants` を**実際のエンジン改修**で通す（今は無変更＝静的検査の空振り確認まで）
+      ②`run-sim-experiment` を**重い掃引**（`exp_beam_width_sweep` 等）で通し、timeout と背景実行の運用を確かめる
+      ③`verify-transcribe-pipeline` のベースラインを**フィクスチャ作り直しのタイミング**で更新する運用に乗せる。
+      ⚠ 検査を足すときは**規定（ENGINE_INVARIANTS / REPO_STANDARDS）を先に更新**し、負のテストで発火を確認する（S1/S2）。
+- [x] **スキル運用の規律化＝`skills-doctor`**（2026-08-22 完了）。運用規律 **S1〜S10** を `tools/skills/README.md` §4 に制定し、
+      **S1〜S5 は機械（`npm run skill:doctor`）・S6〜S10 は人**と明示。`negative_tests.mjs`（13ケース）で発火を担保。
+- [ ] **人が守る側（S6〜S10）の運用を実地で確かめる**＝①同時実行しない（S7）②simNN 新設の判断（S8）
+      ③HANDOFF の言語化（S9）。⚠ **90日未使用のスキルが出たら棚卸し**（S6・`[E]` が検出する）。
 
 ---
 

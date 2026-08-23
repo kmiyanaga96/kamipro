@@ -11,7 +11,13 @@
     "test:golden": "node test/golden.mjs",
     "test:t1": "node tools/t1_selftest.mjs",
     "poc:ml": "node tools/ml_fit_static.mjs",
-    "doc:check": "node tools/doc_refs.mjs --check"
+    "doc:check": "node tools/doc_refs.mjs --check",
+    "skill:invariants": "node tools/skills/check_engine_invariants.mjs",
+    "skill:experiment": "node tools/skills/run_sim_experiment.mjs",
+    "skill:handoff": "node tools/skills/sync_workspace_handoff.mjs",
+    "skill:transcribe": "node tools/skills/verify_transcribe_pipeline.mjs",
+    "skill:doctor": "node tools/skills/skill_doctor.mjs",
+    "skill:negtest": "node tools/skills/negative_tests.mjs"
   },
   "devDependencies": {
     "vite": "^5.4.11"

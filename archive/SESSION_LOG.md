@@ -9,6 +9,106 @@
 
 ---
 
+## 2026-08-22c（スキル運用の規律化 ── 「文書だけでは止められない」を機械へ落とす）
+
+前ブロック（2026-08-22b）でスキル4本を入れた直後、**運用上の注意点を文書にすれば足りるか**という問いが出た。
+答えは**半分**で、そのままだと最も危ない型（検査が素通りする）を止められない。∴ 規律を10条に明文化しつつ、
+**機械で見られるものは全部 `skills-doctor` へ落とし、残りは「人が見る」と明示**した。
+
+### ① 運用規律 S1〜S10（`tools/skills/README.md` §4）
+
+**機械（`npm run skill:doctor`）**: S1 規定が正・スキルは写し／S2 検査を足したら負のテストを足す／
+S3 関門は締める方向にだけ／S4 登録は5点で揃える／S5 description 予算（1本 ≤300字・合計 ≤1200字）。
+**人**: S6 スキルは資産でなく維持コスト（新設は手で3回やってから・使わなくなったら消す）／S7 実験を同時実行しない／
+S8 simNN 新設は振り分け判断／S9 HANDOFF の言語化が本体／S10 緑を信頼しすぎない。
+
+**★分け方そのものが要点**＝「機械化できていない」と書いてある条だけを人が意識する。
+どちらか曖昧にすると、全部を人が見張る運用（＝E1〜E11 を作る羽目になった元の状態）へ戻る。
+
+### ② `skills-doctor`（オーケストレーター）
+
+[A] 登録の5点整合（SKILL.md ⇄ 実体 ⇄ npm script ⇄ tools/skills/README ⇄ CLAUDE.md）／[B] description 予算／
+[C] **検査の根拠**＝検査 id の `doc:` が指す規定 md と § が実在するか（＝**規定より先にツールが走った**の検出）／
+[D] **関門の緩み**＝golden 期待値・`test:t1` [16-15]・T1 ベースラインが緩む方向へ動いていないか（台帳
+`tools/skills/baselines/guardrails.json`・変更には `--reason` が要る）／[E] 必要性（最終実行日・90日で棚卸し候補）／
+[F] 発火確認／[G] スモーク。
+
+⚠ **実体は SKILL.md 本文が名乗るものを使う**＝別レジストリを作らない（管理対象を増やすと更新漏れの源になる）。
+
+### ③ `negative_tests.mjs` ── 検査器を検査する
+
+`SKILL_ROOT` でサンドボックス（tmp へ複製）を指し、**わざと壊して検査が鳴るか**を見る。本物のリポジトリは触らない。
+**13ケース**＝invariants 7（TDZ／キャラ名リテラル／`_refineRoute`／export 漏れ／ESM Worker／ホットパス走査順／
+golden 期待値の台帳同期）＋ doctor 4（関門の緩み／golden 変更／5点整合の欠落／根拠の不在）＋ clean 2。
+**期待した id が鳴ること**に加えて**巻き添えで他が鳴っていないこと**も見る。
+
+### ④ 実装中に自分で踏んだ穴2件（どちらも負のテストが出した）
+
+1. **サンドボックスに規定 md（ENGINE_INVARIANTS / REPO_STANDARDS）を入れ忘れ**、clean ケースが
+   `doc-anchor-missing` で落ちた。**サンドボックスの穴を検査の失敗と読み違える**型で、放置すると
+   「たまに落ちるから無視するテスト」になっていた。
+2. 負のテストで**末尾の npm script を消したら trailing comma で `package.json` が壊れ**、期待した検査ではなく
+   クラッシュになった。パッチを末尾以外へ変え、doctor 側も**壊れた JSON で落ちず所見として出す**よう硬化した。
+
+### ⑤ 検証
+
+`skill:doctor` 違反0・警告0（5スキル）／`negative_tests` **13/13**／`test:golden` **3/3**（`src/`・`gamedata/js/` 無改変）／
+`doc:check` 現役層グリーン。
+
+## 2026-08-22b（ワークフロー自動化 ── 規約の検査・転記をスキル4本へ落とし込む）
+
+**ユーザー指示**によるツーリングのセッション。**シム本体・T1 実装ともに未変更**（`src/`・`gamedata/js/` 無改変＝
+**golden 3/3 不変**を実行確認: 202,005,923 / 215,161,915 / 299,523,354）。
+
+### ① 何を作ったか（2層構成）
+
+| 層 | 置き場所 | 責務 |
+|---|---|---|
+| スキル定義 | `.claude/skills/<name>/`（4本） | いつ使うか・**何を判断するか**・規約のどの節に照らすか |
+| 実体 | `tools/skills/*.mjs`（4本＋`lib/skill_util.mjs`） | 検出・実行・突合・転記・整形。**判断はしない** |
+
+- `check-engine-invariants` … 静的検査8種（TDZ／キャラ名リテラル／`_refineRoute` 結線／app.js export 漏れ／
+  ESM Worker／ホットパス走査順／golden 期待値の台帳同期／`ENGINE_VERSION`）＋ `test:t1` ＋ `test:golden`（`--full` で `exp_ls_incremental_verify`）
+- `run-sim-experiment` … `exp_*.mjs` を **1条件=1プロセス**（E8）で実行し、生ログ・provenance（HEAD／`ENGINE_VERSION`／
+  **config バナー**／E2 bit 一致）・数値行を `simulation/simNN/` の TEMPLATE 様式へ転記。**章番号をずらさない**ためマーカー付きブロックで追記
+- `sync-workspace-handoff` … git 差分を**層別**に集計し、TODO のチェックボックス／点検カウンタを転記、HANDOFF ドラフト（3項目）を生成・検査つきで反映
+- `verify-transcribe-pipeline` … `tools/fixtures/` の実走データで glyph（1回抜き）・hp_bar（塗り率）・ROI 9枠を測り、
+  `tools/skills/baselines/t1_baseline.json` と突合。**退行がある状態ではベースラインを更新しない**（安全弁）
+
+### ② 設計判断
+
+- **実体を `tools/` に置いた**理由: ①npm から直接叩ける ②`.claude/` を使わない経路でも同じ検査が回る
+  ③スキル本文を短く保てる。`.gitignore` は `.claude/*` ＋ `!.claude/skills/` に変え、**定義だけ共有対象**にした。
+- **依存は Node 標準のみ**（E7＝外部コマンドの存在を前提にしない）。使うのは `node` と `git` だけ。
+- **既定は無改変**＝書き込みは明示フラグ（`--check-todo` / `--bump-counter` / `--apply-handoff` / `--new-sim`）を付けたときだけ。
+- `tools/doc_refs.mjs` は `.claude/` と `tools/skills/.reports/` を**検査対象外**へ（スキル本文に被参照ブロックを
+  注入しない・一時出力で被参照ランキングを汚さない）。
+
+### ③ ★実装中に踏んだ罠（同型を繰り返さないため）
+
+**文字列リテラルを見る検査で `stripJs`（文字列も潰す）を使うと、検査が黙って空振りする。**
+`from './app.js'` のパス文字列まで空白化されるため、`app.js` の **export 漏れ検査**と **ESM Worker 検査**が
+「常に ✅」を返していた。**負のテスト**（わざと壊して発火を見る）を書いていなければ、
+「検査があるのに素通りする」状態でコミットしていた。
+∴ `lib/skill_util.mjs` は `stripJs`（識別子だけ見る）と `stripComments`（文字列を見る）を分けて持つ。
+同じ理屈で、TDZ 検査は**簡潔アロー body**（`(sim) => sim.x * DMG.y`）を関数と数えないと実装済みコードを誤検出した
+（`functionMask` で波括弧 body と簡潔 body の両方をマスクする）。
+
+**負のテストで発火を確認した5種**: TDZ ／ キャラ名リテラル ／ `_refineRoute` 結線 ／ app.js export 漏れ ／ golden 期待値の台帳同期。
+クリーンな状態では違反0（＝誤検出のある検査を残さない。`doc_refs.mjs` 初版が実数の約10倍を報告して信用を落とした教訓）。
+
+### ④ ★副産物 ── 被参照ブロック4本の陳腐化を検出・解消
+
+`node tools/doc_refs.mjs --write` が、`workspace/HANDOFF.md` と `workspace/TODO.md` が**もう参照していない**先
+（`gamedata/md/敵/cath_palug.md`・`gamedata/md/幻獣/catastrophia_light.md`・`simulation/README.md`・
+`simulation/sim05/analysis/integrated_analysis.md`）の被参照リストにそれらが残っていたのを検出し、まとめて直した。
+**被参照ブロックを手で書かない**という決定（REPO_STANDARDS §4.1）が実際に効いた事例。
+
+### ⑤ 検証
+
+`test:golden` **3/3**（背景実行）／ `test:t1` **337件**／ `doc:check` **現役層グリーン**（md 新設＝即実行トリガ該当で
+カウンタを **0 へリセット**）。
+
 ## 2026-08-19〜22（★★Phase 9: P3-1 ── 数字を読むための「教える」方式が立ち、アトラスが揃うまで）
 
 **セッションの結び**。P3（OCR＋検算）に着手し、**アトラス取得（P3-1）を完了**した。

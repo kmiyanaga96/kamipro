@@ -1,6 +1,11 @@
 node_modules/
 dist/
-.claude/
+# .claude/ はハーネス設定＝原則コミットしない。**ただし skills/ だけは共有する**
+#   （スキル定義はリポジトリの規約と1対1なので、各セッションで再発明させない）。
+.claude/*
+!.claude/skills/
+# スキルの実行レポート（毎回増える一時出力）
+tools/skills/.reports/
 # scratch / 一時検証スクリプト（リポジトリには含めない）
 _exp_*.js
 scratchpad_*.log
