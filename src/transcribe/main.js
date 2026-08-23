@@ -55,6 +55,7 @@ let lastTeachFingerprint = null;
 let lastTeachCrop = null;
 // ★ラベル（`CRITICAL!` / `STING!` / `TOTAL`）＝**語まるごと1枚**のテンプレート（数字のように割らない）
 let taughtLabels = [];
+let lastDmgScene = null;   // ★`dmg` 枠まるごと（ラベルと数値の位置関係を保つ唯一の単位）
 let lastLabelCrop = null;
 
 /** 教えたものからアトラスを組む（保存前の検査にも使う）。 */
@@ -472,6 +473,10 @@ $('checkDmg').onclick = () => {
   cv.width = rect.w; cv.height = rect.h;
   const cx = cv.getContext('2d');
   cx.putImageData(img, 0, 0);
+  // ★★検算の実測用＝**枠まるごと**を保持しておく（`saveDmgJson` が使う）。
+  //   ⚠ 部分の切り抜きでは「ラベルと数値の位置関係」が失われ、P3-1b の残り
+  //     （マスクの有無で誤読が減るか）が**原理的に測れない**。
+  lastDmgScene = { img, rect, at: video.currentTime };
 
   const edge = edgeField(luminanceField(img, { x: 0, y: 0, w: rect.w, h: rect.h }));
   const found = segmentRows(edge);
@@ -513,6 +518,47 @@ $('saveDmgView').onclick = () => {
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }, 'image/png');
+};
+
+// ── ★★P3-1b: ダメージ枠を「まるごと1枚」で保存（検算の実測用）────
+//   ★なぜ枠まるごとか＝**ラベルは数値の真上に出る**（P1 発見①）ので、
+//     「ラベル検出 → マスク → 読み取り」を通すには**位置関係が要る**。
+//     数値だけ／ラベルだけの切り抜きでは、この工程を1行も検証できない。
+//   ★真値（見えている数値）は**人にしか言えない観測**＝憲法どおりユーザーに訊く。
+$('saveDmgJson').onclick = () => {
+  if (!lastDmgScene) {
+    $('dmgNote').innerHTML = '<span class="bad">先に「★ダメージ枠を確認」を押してください</span>';
+    return;
+  }
+  const raw = ($('sceneTruth').value ?? '').trim();
+  const truth = raw.split(/\s+/).filter((t) => t.length);
+  // ⚠ 打ち間違いは**ここで弾く**（数字の教示と同じ理由＝後から直せない）
+  const bad = truth.filter((t) => !checkCommaGrammar(t).ok);
+  if (bad.length) {
+    $('dmgNote').innerHTML = `<span class="bad">桁区切りとして読めない入力: ${bad.join(' / ')}</span>`
+      + '（見えているとおりに・空白区切りで。例 <code>5,553,703 605,183</code>）';
+    return;
+  }
+  const c = document.createElement('canvas');
+  c.width = lastDmgScene.img.width; c.height = lastDmgScene.img.height;
+  c.getContext('2d').putImageData(lastDmgScene.img, 0, 0);
+  const payload = {
+    tool: 'T1', toolVersion: VERSION, kind: 'scene-frame', roi: 'dmg',
+    file: $('file').files?.[0]?.name ?? '(none)',
+    at: lastDmgScene.at, rect: lastDmgScene.rect,
+    truth,                                    // ★見えている数値（人の観測・空でも可）
+    width: c.width, height: c.height,
+    png: c.toDataURL('image/png'),
+  };
+  const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `scene_dmg_${Math.round(lastDmgScene.at * 1000)}ms.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  $('dmgNote').innerHTML = `<span class="ok">ダメージ枠を JSON で保存しました</span>`
+    + `（${c.width}×${c.height}px・見えている数値 ${truth.length} 件）— そのままチャットに貼ってください`
+    + (truth.length ? '' : '<br>⚠ 数値を入れずに保存しました＝**誤読が減ったかの測定には使えません**（検出の確認までは可）');
 };
 
 // ── ★★★P3-1 主経路: 「この数字を教える」────────────────────

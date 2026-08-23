@@ -179,6 +179,18 @@ th{background:#f0f2f5;}
     <button class="btn sec" id="saveDmgView">この確認画像をPNGで保存</button>
     <span class="note" id="dmgNote">数字が大きく出ている時刻にしてから押してください</span>
   </div>
+  <p class="note" style="margin:6px 0">
+    <b>★★検算の実測用＝ダメージ枠を「まるごと1枚」で保存</b>（P3-1b の残り）──
+    ラベルと数値が<b>実際の位置関係のまま</b>入った1枚が要ります
+    （別々に切り抜くと位置関係が失われ、<b>ラベルをマスクすると誤読が減るか</b>を測れません）。<br>
+    使い方：数字とラベルが<u>両方</u>出ている時刻で「★ダメージ枠を確認」を押す → 下の欄に
+    <b>その枠に見えている数値を空白区切りで</b>入力（例 <code>5,553,703 605,183</code>）→ 保存。<br>
+    ⚠ 見えている数値だけでかまいません（読めないものは飛ばして可）。<b>これは人にしか言えない観測</b>です。
+  </p>
+  <div class="row" style="margin-bottom:8px">
+    <input id="sceneTruth" style="flex:1;min-width:280px" placeholder="この枠に見えている数値（空白区切り・例 5,553,703 605,183）">
+    <button class="btn" id="saveDmgJson">★ダメージ枠をJSONで保存（チャットに貼れる形）</button>
+  </div>
   <div style="overflow:auto;max-height:420px;border:1px solid #333;background:#111;margin-bottom:10px">
     <canvas id="dmgView" width="10" height="10"></canvas>
   </div>

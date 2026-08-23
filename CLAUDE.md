@@ -73,7 +73,7 @@
 | **`src/sim.js`** | コアエンジン。`class Sim`（`tick`/`burst`/`use`・減衰）＋探索（`cmpVec`, `_candidates`, `_stepStatic`, `_runRootPlan`, `_selectRootPrefixes`） |
 | `src/worker.js` | 背景並列計算の Worker エントリ（コアを import して並行実行） |
 | `src/app.js` | UI バインディング・Worker プール・リプレイモード・INIT |
-| **`transcribe/index.html`**<br>**`src/transcribe/`** | **Phase 9 T1＝録画転記ページ**（`canvas_detect.js` 正規化＋`glyph.js` 文字照合＋**`verify.js` 検算**＋`diag.js` §10.5 診断＋`main.js` 配線）。⚠ **シム本体と非結線**＝golden に非干渉。回帰は `npm run test:t1`。<br>★**`verify.js`＝照合器の外に置いた安全網**（値域・`TOTAL` 突合）＝**マージンは安全網にならない**（実測）ので、誤読はここで止める |
+| **`transcribe/index.html`**<br>**`src/transcribe/`** | **Phase 9 T1＝録画転記ページ**（`canvas_detect.js` 正規化＋`glyph.js` 文字照合・**ラベル検出＋`readScene`**＋**`verify.js` 検算**＋`diag.js` §10.5 診断＋`main.js` 配線）。⚠ **シム本体と非結線**＝golden に非干渉。回帰は `npm run test:t1`。<br>★**`verify.js`＝照合器の外に置いた安全網**（値域・`TOTAL` 突合）＝**マージンは安全網にならない**（実測）ので、誤読はここで止める |
 | **`tools/skills/`** | **スキルの実体**（Node 標準のみ・`tools/skills/lib/skill_util.mjs` が共通処理）。`npm run skill:invariants` / `skill:experiment` / `skill:handoff` / `skill:transcribe` |
 | **`gamedata/js/`** | **シムが読む現在値**（ESM）: `weapons.js`(`WEAPON_MASTER`) / `summons.js`(`SUMMON_REGISTRY`) / `enemies.js`(`ENEMY_REGISTRY`) / `characters.js`(`CHAR_REGISTRY`・`DEBUFF_KEYS`/`buffCount`) |
 | **`gamedata/md/`** | **一次情報**（`神姫/` `英霊/` `幻獣/` `敵/` `その他/`・各 README に用途）。**md=根拠 / js=現在値** |
@@ -168,7 +168,7 @@
 ```bash
 npm run test:golden      # 3 fixture を並列実行（--serial で逐次 / --fixture <name> で単体）
 npm run doc:check        # md 相互参照の検査（現役層の壊れた参照があれば exit 1）
-npm run test:t1          # Phase 9 T1 のセルフテスト（373件・約15秒＝2026-08-23 実測）
+npm run test:t1          # Phase 9 T1 のセルフテスト（377件・約15秒＝2026-08-23 実測）
 
 # ── スキル経由（検査＋実行＋差分報告をまとめて回す・実体は tools/skills/）──
 npm run skill:invariants -- --skip-golden   # 不変条件の静的検査8種 + test:t1（数秒）
@@ -201,7 +201,7 @@ npm run skill:negtest                       # 検査器の発火確認 13ケー�
 
 | 対象 | 実測 |
 |---|---|
-| `npm run test:t1` 全体 | **約15秒**（373件・2026-08-23 実測）。⚠ **「1秒未満」は誤記だった**＝[17] を足す前の時点で既に **13.1秒**（律速＝`charge_dots`/`dedup` の合成走と実データ回帰） |
+| `npm run test:t1` 全体 | **約15秒**（377件・2026-08-23 実測）。⚠ **「1秒未満」は誤記だった**＝[17] を足す前の時点で既に **13.1秒**（律速＝`charge_dots`/`dedup` の合成走と実データ回帰） |
 | `npm run test:golden` 全体 | **2分07秒**（並列・律速は edison/raw）／`--serial` で **4分07秒**。内訳＝edison ビーム ~43s×2 ＋ LS 計 ~161s、napoleon は瞬時 |
 | edison ビーム 1ルート | **43秒** |
 | napoleon configC（両面宿儺）ビーム 1ルート | **130〜138秒** |
@@ -269,6 +269,7 @@ npm run skill:negtest                       # 検査器の発火確認 13ケー�
 
 | 日付 | 変更点 | 波及確認 |
 |---|---|---|
+| 2026-08-23 | **P3-1b の production 経路 `readScene` を実装**（ラベル検出 → マスク → 読み取りを1本に）＋ **`dmg` 枠まるごとの保存経路**（`kind:'scene-frame'`）と **`tools/t1_scene_probe.mjs`**。`test:t1` 373→**377件** | ⏳ **残り1つ＝「マスクすると誤読が減るか」の実測**＝👤 `dmg` 枠まるごと（数字とラベルが両方写った1枚＋見えている数値）待ち。⚠ **合成では良くなるが実機では未測定**＝本 Phase で合成が実機を裏切った型が3つあるので**測るまで「効く」と言わない**（∴ `readScene` は**マスク有無の両方**を返す）。★副産物＝合成済みオプションを `detectLabels` に渡すと**数字の cell 16×26 がラベルの 48×16 を上書き**する不具合を、例外（署名の格子が違う）が捕まえた |
 | 2026-08-23 | **★「囲みが緩い個体」説を棄却＋👤ラベル3語を受領して実データ回帰へ**（[PHASE9_PLAN.md](./PHASE9_PLAN.md) §4.3.0j/k）。ラベル教示経路（`LABEL_KEYS` プルダウン／`kind:'teach-label'`／`--merge`）と、教示入口の**カンマ文法検査**を実装。`test:t1` 362→**373件** | ★**囲み直しても同じ誤読を再現**＝「囲みが緩い」説は棄却。⚠⚠ **その後いったん「字を切っている」と結論して検査まで作ったが、同日に撤回した**＝`glyphMask` が**画像全体の 42〜73% をインクと判定**しており（演出が金色）、縁の 71〜85% は**ベースラインと同じ**＝何も分けていなかった（受領7枚すべてで警告）。★誤った説明のために作った検査がその説明を裏書きする循環に入りかけた。⏳ **残る誤読6件の原因は未解明**（次に疑うのは特徴量）。★実際に効いたのは**打ち間違いの検査**（実使用で `5,,553,703` が届いた）。ラベルは実画素で**自己0.999 / 他者0.25〜0.37**と明確に分離。`src/`（シム本体）未変更＝**golden 3/3 実行確認で不変** |
 | 2026-08-23 | **Phase 9 P3-1b 実装＝読み取り＋検算**（[PHASE9_PLAN.md](./PHASE9_PLAN.md) §4 P3-1b）。`src/transcribe/verify.js` を新設（検算③値域・⑦`TOTAL` 突合）＋ `glyph.js` にラベル層（`teachLabel`/`labelBandAbove`/`detectLabels`）。実データ計測＝`tools/t1_verify_probe.mjs`（`measure()` を [17-9] と共用）。`test:t1` 337→**362件** | **`src/`（シム本体）・`gamedata/js/` 未変更＝golden 3/3 実行確認で不変**。T1 精度も不変（正80/誤6/曖昧15）。★★**実データで「偽の訂正」を発見**＝`+700` と `−700` が打ち消し合うと**合計は合うのに中身は誤ったまま一意に通る**。効いた唯一の手が**採用する深さより深く探す**（`searchSwaps > acceptSwaps`）で 偽の訂正 k=2/3/4 とも **0** へ。∴ **⑦ は合計の整合を証明するが1文字ずつは証明しない**。★副産物＝`fieldScale` が**小数の帯で NaN を返す**潜在バグと、`test:t1` の「1秒未満」が**実測 13.1秒**だった陳腐化を訂正 |
 | 2026-08-22 | **`skills-doctor` を追加しスキル運用を規律化**（[tools/skills/README.md](./tools/skills/README.md) §4 の **S1〜S10**）。①検査の根拠が規定に実在するか（＝規定先行の機械化）②**関門の緩み検出**（golden 期待値・`test:t1` [16-15]・T1 ベースライン／台帳 `guardrails.json`・変更は `--reason` 必須）③登録の5点整合 ④description 予算 ⑤未使用検出 ⑥`negative_tests.mjs` による**発火確認 13ケース** ⑦スモーク | ★**「文書だけでは止められない」ことの実証**＝初版は `stripJs` 取り違えで **export 漏れ検査と Worker 検査が常に ✅** を返していた（負のテストで発覚）。`src/`・`gamedata/js/` 未変更＝**golden 3/3 不変**。負のテスト 13/13・`doc:check` 現役層グリーン |

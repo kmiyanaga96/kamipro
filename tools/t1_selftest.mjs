@@ -2379,6 +2379,39 @@ console.log('\n[16] グリフ照合（P3-1）＝縁取りで読む・遮蔽に�
     check('要約は空入力でも落ちない', !!G.labelTeachSummary(null).line);
   }
 
+  // ── [17-13] ★★production 経路＝ラベル検出 → マスク → 読み取り（機構）──
+  //   ⚠ **これは機構の検査**＝「マスクすると誤読が減る」は**実機では未測定**（`t1_scene_probe.mjs` が測る）。
+  //     ここで見るのは「順序どおりに繋がっていて、マスク有無の**両方**を返すか」だけ。
+  {
+    const img = makeImage(460, 160, DARK);
+    drawText(img, 20, 100, '6,012,442');                  // 数値行
+    drawText(img, 60, 60, '707', { s: 2 });               // ★ラベルの代役（数値の真上）
+    const edge = fieldOf(img);
+    const lbox = { x: 58, y: 58, w: 2 * 8 * 2 + 5 * 2 + 4, h: 7 * 2 + 4 };
+    const taught = G.teachLabel(edge, lbox, 'STING!');
+    const atlasS = { ...atlas1, labels: { 'STING!': { aspect: taught.aspect, variants: [taught.sig] } } };
+
+    const sc = G.readScene(edge, atlasS);
+    check('★行の候補とラベルの両方が返る（順序＝ラベル検出 → マスク → 読み取り）',
+      sc.rows.length >= 1 && sc.labels.length === 1 && sc.occluders.length === 1,
+      JSON.stringify({ rows: sc.rows.length, labels: sc.labels.length, occ: sc.occluders.length }));
+    check('★★マスク有無の**両方**を返す（片方だけだと「効いたか」を比べられない）',
+      sc.readings.length >= 1 && sc.readings.every((r) => r.bare && r.masked),
+      JSON.stringify(sc.readings.map((r) => ({ bare: !!r.bare, masked: !!r.masked }))));
+    const numRow = sc.readings.find((r) => r.bare.number.ok || r.bare.tokens.length >= 9);
+    check('数値行が読み取り対象として拾われている', !!numRow,
+      JSON.stringify(sc.readings.map((r) => r.bare.tokens.map((t) => t.key).join(''))));
+  }
+  {
+    // ★ラベルが未登録なら**マスク側は null**（＝「マスクした」と嘘をつかない）
+    const img = makeImage(460, 160, DARK);
+    drawText(img, 20, 100, '6,012,442');
+    const sc = G.readScene(fieldOf(img), atlas1);
+    check('★ラベル未登録のときはマスク側を返さない（比較対象が無いことを黙らせない）',
+      sc.occluders.length === 0 && sc.readings.every((r) => r.masked === null) && /未登録/.test(sc.reason ?? ''),
+      sc.reason);
+  }
+
   // ── [17-12] ★★★実データ回帰＝ラベル3語（👤 2026-08-23 受領）──────
   //   ⚠⚠ **合成では「見分けられる」と言えない**（本 Phase で合成が実機を裏切った型が3つ）＝
   //     ここが**ラベルについて唯一の実機データの検査**。

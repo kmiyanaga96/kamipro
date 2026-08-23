@@ -1436,6 +1436,43 @@ export function detectLabels(edge, rows, atlas, opts = {}) {
   return { labels, occluders, reason: null };
 }
 
+/**
+ * ★★**1フレームの ROI を読む**（P3-1b の production 経路）＝
+ *   **ラベル検出 → マスク → 行ごとの読み取り**を1本にしたもの。
+ *
+ * ★順序が本体（本モジュール冒頭の制約①）＝ラベルは**1つ上のヒットの数値にも重なる**ので、
+ *   先に数字を読むと**汚染された画素で照合する**。
+ *
+ * ⚠ **マスクの有無を両方返す**のが要点。「マスクすると良くなる」は**仮説であって実測ではない**
+ *   （合成では良くなることを [16-4] で確かめてあるが、実機では未測定）。
+ *   ∴ 呼ぶ側が**同じフレームで比較できる**形で返し、`tools/t1_scene_probe.mjs` がそれを測る。
+ *
+ * @param {*} edge  ROI 全体の場（`glyphMask` 推奨＝アトラスと同じ特徴量で作ること）
+ * @param {object} atlas
+ * @param {object} [opts] 数字側の上書き。**ラベル側の上書きは `opts.label` に分ける**
+ *   （数字とラベルは `cell` が違うので、1つのオブジェクトで混ぜると静かに壊れる）
+ * @returns {{rows:Array, labels:Array, occluders:Array, reason:string|null,
+ *            readings:Array<{row, masked:object, bare:object}>}}
+ */
+export function readScene(edge, atlas, opts = {}) {
+  const o = { ...GLYPH_DEFAULTS, ...opts };
+  const seg = segmentRows(edge, o);
+  // ⚠ **背景の縞も行として出る**（P3-1 実測＝床グリッドが行4本）＝高さで足切りする。
+  //   ここで「数字である」とは決めない（形の照合が決める＝本モジュールの規律）。
+  const rows = seg.rows.filter((r) => (r.to - r.from) >= (o.minNumberRowHeight ?? o.minRowHeight));
+  // ⚠⚠ **合成済みの `o` を渡してはいけない**（テストが例外で捕まえた＝「署名の格子が違う: 416 vs 768」）。
+  //   `o` は `GLYPH_DEFAULTS` 込みなので **`cell` が数字の 16×26** になっており、
+  //   `labelOpts` の `{...GLYPH_DEFAULTS, ...LABEL_DEFAULTS, ...opts}` で**最後に上書き**して
+  //   ラベルの 48×16 を潰す。∴ ラベル向けの上書きは **`opts.label` に分けて**渡す。
+  const det = detectLabels(edge, rows, atlas, opts.label ?? {});
+  const readings = rows.map((row) => ({
+    row,
+    bare: readRow(edge, row, atlas, o),
+    masked: det.occluders.length ? readRow(edge, row, atlas, { ...o, occluders: det.occluders }) : null,
+  }));
+  return { rows, labels: det.labels, occluders: det.occluders, reason: det.reason, readings };
+}
+
 // ─────────────────────────────────────────────────────────────
 // 7. 診断
 // ─────────────────────────────────────────────────────────────
