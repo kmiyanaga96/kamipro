@@ -156,6 +156,18 @@ th{background:#f0f2f5;}
     <button class="btn sec" id="saveTeachCrop">この切り抜きをJSONで保存（チャットに貼れる形）</button>
     <button class="btn sec" id="teachReset">教えたものを消す</button>
   </div>
+  <p class="note" style="margin:0 0 6px">
+    <b>★ラベル（<code>CRITICAL!</code> / <code>STING!</code> / <code>TOTAL</code>）はこちら</b> ──
+    数字とは<b>教え方が違います</b>：ラベルは<b>1文字ずつに割らず、語まるごと1枚のテンプレート</b>として覚えます
+    （だから上の欄には入れないでください）。<br>
+    使い方は数字と同じで、<b>その語だけ</b>をドラッグで囲んで下のボタンを押します。
+    <b>1語につき1回</b>で足ります（条件が大きく違う場面があれば数回）。
+  </p>
+  <div class="row" style="margin-bottom:8px">
+    <select id="labelKey" style="min-width:160px"></select>
+    <button class="btn" id="labelAdd">このラベルを教える</button>
+    <button class="btn sec" id="saveLabelCrop">この切り抜きをJSONで保存（チャットに貼れる形）</button>
+  </div>
   <div style="overflow:auto;max-height:260px;border:1px solid #333;background:#111;margin-bottom:6px">
     <canvas id="teachView" width="10" height="10"></canvas>
   </div>

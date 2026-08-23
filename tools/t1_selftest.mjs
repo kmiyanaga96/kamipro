@@ -2350,6 +2350,61 @@ console.log('\n[16] グリフ照合（P3-1）＝縁取りで読む・遮蔽に�
       JSON.stringify(d.occluders[0]));
   }
 
+  // ── [17-10] ★★囲みが字を切っていないか（教える前の関門）──────────
+  //   ⚠⚠ **「囲みが緩い個体」という見立ては誤りだった**（2026-08-23・実画素で判明）＝
+  //     誤読が集中する2枚をユーザーが囲み直しても **まったく同じ誤読を再現した**。
+  //     実画素では **上端で既にインクが最大**＝**字の上が枠の外**（右端も 85%）＝**切れている**。
+  //   ★依頼文の「左端・右端・上端・下端をぴったり」を字義どおり守ると字を切る＝
+  //     **文章で直さず機械で捕まえる**。
+  {
+    const img = makeImage(300, 60, DARK);
+    drawText(img, 20, 18, '123');                       // ★余白のある囲み
+    const okr = G.checkCropFraming(G.glyphMask(img));
+    check('★余白のある囲みは通す（正常な教え方を止めない）', okr.ok,
+      JSON.stringify(okr.edges));
+
+    // ★字を切った囲み＝**同じ絵を、字の内側から切り出す**（実機で起きた形そのもの＝
+    //   ユーザーの囲みが字に食い込んでいる）。`glyphMask(img, rect)` が囲みを受ける。
+    const wide = makeImage(400, 120, DARK);
+    const tr = drawText(wide, 30, 30, '888', { s: 8 });   // 太い字（横棒が幅いっぱい）
+    const gy = tr[0].y, gh = 7 * 8, gx = tr[0].x, gw = 2 * 8 * 8 + 5 * 8;
+    const inside = { x: gx + 6, y: gy + 6, w: gw - 12, h: gh - 12 };   // ★四辺とも字に食い込む
+    const clipped = G.checkCropFraming(G.glyphMask(wide, inside));
+    check('★★字が枠の縁に載っていたら止める（切れた字をアトラスに焼き付けない）',
+      !clipped.ok && /縁に字が載っている/.test(clipped.reason ?? ''),
+      JSON.stringify(clipped.edges));
+  }
+  {
+    // ⚠ **二値の場でも動くこと**＝`glyphMask` は 0/1 を返す。分位点でしきると p80=1 になり
+    //   「縁のインク 0%」と**黙って空振り**する（実際に踏んだ）。
+    const bin = { w: 20, h: 20, mag: new Float32Array(400) };
+    for (let y = 0; y < 20; y++) bin.mag[y * 20 + 19] = 1;      // **最外周**の右端だけインク
+    const r = G.checkCropFraming(bin);
+    check('★二値の場（glyphMask）でも縁のインクを検出する（分位点で空振りしない）',
+      !r.ok && r.worst === 'right' && r.edges.right > 0.9, JSON.stringify(r.edges));
+    const empty = G.checkCropFraming({ w: 20, h: 20, mag: new Float32Array(400) });
+    check('インクが1画素も無い囲みは「字を含んでいない」と言う', !empty.ok && /インクが/.test(empty.reason ?? ''));
+  }
+
+  // ── [17-11] ★ラベルは語まるごと1枚＝正準キーで持つ ────────────
+  {
+    check('ラベルの正準キーが3語（自由入力にしない＝綴り違いでアトラスが分裂しない）',
+      G.LABEL_KEYS.length === 3 && G.LABEL_KEYS.includes('STING!') && G.LABEL_KEYS.includes('TOTAL'),
+      G.LABEL_KEYS.join(' / '));
+    const img = makeImage(200, 60, DARK);
+    drawText(img, 20, 24, '707', { s: 2 });
+    const edge = fieldOf(img);
+    const e = G.teachLabel(edge, { x: 18, y: 22, w: 44, h: 18 }, 'STING!');
+    check('教えたラベルは縦横比と囲み寸法を持つ（検出時の箱の形に使う）',
+      e.key === 'STING!' && e.box.w === 44 && e.box.h === 18 && Math.abs(e.aspect - 44 / 18) < 1e-6,
+      JSON.stringify({ aspect: e.aspect, box: e.box }));
+    // ★書式は純関数側（`main.js` は import できず検査できない＝teachSummary で事故った型）
+    const sum = G.labelTeachSummary(e, { ok: false, reason: '上の縁に字が載っている' });
+    check('★要約は純関数で作る（画面に直書きしない）＝落ちずに警告も載る',
+      /STING!/.test(sum.line) && sum.ok === false && /縁に字/.test(sum.warn ?? ''), JSON.stringify(sum));
+    check('要約は空入力でも落ちない', !!G.labelTeachSummary(null).line);
+  }
+
   // ── [17-9] ★★★実データ回帰＝検算⑦が実際の誤読に効くか ────────
   //   ⚠ 実データ＝グリフの署名と誤読の起き方（101点・14回）。**束ね方と TOTAL はこちらで組み立てる**
   //     （k 枚を1押下と見なし TOTAL＝真値の和）＝答えるのは「同じ誤読に TOTAL を与えたら直るか」。

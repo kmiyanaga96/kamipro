@@ -168,7 +168,7 @@
 ```bash
 npm run test:golden      # 3 fixture を並列実行（--serial で逐次 / --fixture <name> で単体）
 npm run doc:check        # md 相互参照の検査（現役層の壊れた参照があれば exit 1）
-npm run test:t1          # Phase 9 T1 のセルフテスト（362件・約15秒＝2026-08-23 実測）
+npm run test:t1          # Phase 9 T1 のセルフテスト（370件・約15秒＝2026-08-23 実測）
 
 # ── スキル経由（検査＋実行＋差分報告をまとめて回す・実体は tools/skills/）──
 npm run skill:invariants -- --skip-golden   # 不変条件の静的検査8種 + test:t1（数秒）
@@ -201,7 +201,7 @@ npm run skill:negtest                       # 検査器の発火確認 13ケー�
 
 | 対象 | 実測 |
 |---|---|
-| `npm run test:t1` 全体 | **約15秒**（362件・2026-08-23 実測）。⚠ **「1秒未満」は誤記だった**＝[17] を足す前の時点で既に **13.1秒**（律速＝`charge_dots`/`dedup` の合成走と実データ回帰） |
+| `npm run test:t1` 全体 | **約15秒**（370件・2026-08-23 実測）。⚠ **「1秒未満」は誤記だった**＝[17] を足す前の時点で既に **13.1秒**（律速＝`charge_dots`/`dedup` の合成走と実データ回帰） |
 | `npm run test:golden` 全体 | **2分07秒**（並列・律速は edison/raw）／`--serial` で **4分07秒**。内訳＝edison ビーム ~43s×2 ＋ LS 計 ~161s、napoleon は瞬時 |
 | edison ビーム 1ルート | **43秒** |
 | napoleon configC（両面宿儺）ビーム 1ルート | **130〜138秒** |
@@ -269,6 +269,7 @@ npm run skill:negtest                       # 検査器の発火確認 13ケー�
 
 | 日付 | 変更点 | 波及確認 |
 |---|---|---|
+| 2026-08-23 | **★「囲みが緩い個体」説を実データで棄却＝実は字を切っていた**（[PHASE9_PLAN.md](./PHASE9_PLAN.md) §4.3.0j）。囲み検査 `checkCropFraming` を新設し、ページは警告・`t1_teach_probe.mjs` は**アトラスに入れない**（`--allow-clipped` で明示許可）。併せて**ラベル教示経路**を実装（§4.3.0k＝`LABEL_KEYS` プルダウン／`kind:'teach-label'`／`--merge`）。`test:t1` 362→**370件** | ★**囲み直しを受領して測ったら、まったく同じ誤読を再現**（`5123003`/`5·530·5`）＝枠の緩さではない。実画素で**上端の 71% がインク**＝字の上が枠の外・右端 85%＝最後の字が切れている。原因は依頼文の「**ぴったり**」＝**余白ゼロと読むと字を切る**。★掃引で `shift.x`/`shift.y`/`lambda` とも**誤6が床**と確認＝パラメータでは解けない（x=5 が良く見えたのは**コーパス依存の見せかけ**＝旧アトラスでは誤7）。⚠**フィクスチャは差し替えていない**（受領分も切れているため）。★副産物＝セルフテストが `new Option()`（ブラウザ専用グローバル）で **main.js が初期化ごと落ちる**のを検出。`src/`（シム本体）未変更＝**golden 3/3 実行確認で不変** |
 | 2026-08-23 | **Phase 9 P3-1b 実装＝読み取り＋検算**（[PHASE9_PLAN.md](./PHASE9_PLAN.md) §4 P3-1b）。`src/transcribe/verify.js` を新設（検算③値域・⑦`TOTAL` 突合）＋ `glyph.js` にラベル層（`teachLabel`/`labelBandAbove`/`detectLabels`）。実データ計測＝`tools/t1_verify_probe.mjs`（`measure()` を [17-9] と共用）。`test:t1` 337→**362件** | **`src/`（シム本体）・`gamedata/js/` 未変更＝golden 3/3 実行確認で不変**。T1 精度も不変（正80/誤6/曖昧15）。★★**実データで「偽の訂正」を発見**＝`+700` と `−700` が打ち消し合うと**合計は合うのに中身は誤ったまま一意に通る**。効いた唯一の手が**採用する深さより深く探す**（`searchSwaps > acceptSwaps`）で 偽の訂正 k=2/3/4 とも **0** へ。∴ **⑦ は合計の整合を証明するが1文字ずつは証明しない**。★副産物＝`fieldScale` が**小数の帯で NaN を返す**潜在バグと、`test:t1` の「1秒未満」が**実測 13.1秒**だった陳腐化を訂正 |
 | 2026-08-22 | **`skills-doctor` を追加しスキル運用を規律化**（[tools/skills/README.md](./tools/skills/README.md) §4 の **S1〜S10**）。①検査の根拠が規定に実在するか（＝規定先行の機械化）②**関門の緩み検出**（golden 期待値・`test:t1` [16-15]・T1 ベースライン／台帳 `guardrails.json`・変更は `--reason` 必須）③登録の5点整合 ④description 予算 ⑤未使用検出 ⑥`negative_tests.mjs` による**発火確認 13ケース** ⑦スモーク | ★**「文書だけでは止められない」ことの実証**＝初版は `stripJs` 取り違えで **export 漏れ検査と Worker 検査が常に ✅** を返していた（負のテストで発覚）。`src/`・`gamedata/js/` 未変更＝**golden 3/3 不変**。負のテスト 13/13・`doc:check` 現役層グリーン |
 | 2026-08-22 | **カスタムスキル4本を新設**（[tools/skills/README.md](./tools/skills/README.md)・定義は `.claude/skills/`）。①`check-engine-invariants`＝不変条件の静的検査8種＋golden＋test:t1 ②`run-sim-experiment`＝`exp_*.mjs` の実行と simNN 様式への転記 ③`sync-workspace-handoff`＝セッション末の差分収集と HANDOFF/TODO 同期 ④`verify-transcribe-pipeline`＝T1 精度のベースライン比較。`.gitignore` を `.claude/*` ＋ `!.claude/skills/` へ | **`src/`・`gamedata/js/` 未変更＝golden 3/3 不変**（202,005,923 / 215,161,915 / 299,523,354 を実行確認）。静的検査は**負のテストで5種の発火を確認**。`test:t1` 337件・`doc:check` 現役層グリーン。★副産物＝`doc_refs.mjs --write` で**既存の被参照ブロック4本の陳腐化**（`workspace/HANDOFF.md`・`workspace/TODO.md` が既に参照していない先が残存）を解消 |

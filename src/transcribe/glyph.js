@@ -1173,6 +1173,62 @@ export function readNumber(tokens, range = { minDigits: 1, maxDigits: 9 }) {
            minScore: tokens.reduce((m, t) => Math.min(m, t.score ?? 1), 1) };
 }
 
+/**
+ * ★★**囲みが字を切っていないか**（教える前の関門・2026-08-23 新設）。
+ *
+ * ⚠⚠ **「囲みが緩い個体」という見立ては誤りだった**（実画素で判明）:
+ *   誤読が集中していた2枚（`5,125,605` / `5,553,703`）をユーザーが囲み直しても、
+ *   **まったく同じ誤読を再現した**（`5123003` / `5·530·5`）。∴ 枠の緩さではない。
+ *   実画素を見ると **上端で既にインクが最大値**＝**字の上が枠の外に出ている**（右端も切れている）。
+ *   ★原因は依頼文の「**左端・右端・上端・下端をぴったり**」を字義どおり守った結果＝
+ *     **「ぴったり」を余白ゼロと読むと字を切る**。正しくは「**字を切らない最小の枠**」。
+ * ★∴ 文章で直さず**機械で捕まえる**（本 Phase で繰り返し効いた規律）。
+ *
+ * 見るもの＝**枠の縁にインクが載っているか**。載っていれば、その字はもう欠けている。
+ *
+ * @param {*} edge `glyphMask` などの場（`{w,h,mag}`）
+ * @returns {{ok:boolean, edges:object, worst:string|null, reason:string|null}}
+ */
+export function checkCropFraming(edge, opts = {}) {
+  const o = { edgeInkFraction: 0.35, ...opts };
+  const { w, h, mag } = edge;
+  if (w < 3 || h < 3) return { ok: false, edges: {}, worst: null, reason: '囲みが小さすぎる' };
+  // ★しきいは**その切り抜きの中**で決める（明るさの絶対値は演出で動く＝本モジュール冒頭④⑥）。
+  // ⚠ **分位点で採ろうとして空振りした**（2026-08-23）＝`glyphMask` は **0/1 の二値**なので
+  //   p80 が 1 になり、`v > thr` がどこでも false ＝**縁のインク率が全部 0%** と出た。
+  //   ★∴ 最大値の半分でしきる（二値でも連続場でも同じ意味になる）。二値化された場を疑わない。
+  let mx = 0;
+  for (let i = 0; i < mag.length; i++) if (mag[i] > mx) mx = mag[i];
+  if (mx <= 0) return { ok: false, edges: {}, worst: null, reason: 'インクが1画素も無い（囲みが字を含んでいない）' };
+  const thr = mx * 0.5;
+  // ⚠ 縁の読み方は**最外周と1画素内側の大きい方**を採る:
+  //   - 勾配で作った場（`edgeField`）は最外周が 0 に落ちるので**内側**が要る。
+  //   - 二値の場（`glyphMask`）は最外周にそのままインクが載るので**最外周**が要る。
+  //   ★片方だけ見て取りこぼした（テストが捕まえた）＝**場の種類を仮定しない**。
+  const line = (get, n) => { let c = 0; for (let i = 0; i < n; i++) if (get(i) > thr) c++; return c / n; };
+  const both = (a, b) => Math.max(line(a, a.n), line(b, b.n));
+  const row = (y) => Object.assign((x) => mag[y * w + x], { n: w });
+  const col = (x) => Object.assign((y) => mag[y * w + x], { n: h });
+  const edges = {
+    top: both(row(0), row(1)),
+    bottom: both(row(h - 1), row(h - 2)),
+    left: both(col(0), col(1)),
+    right: both(col(w - 1), col(w - 2)),
+  };
+  let worst = null;
+  for (const [k, v] of Object.entries(edges)) if (!worst || v > edges[worst]) worst = k;
+  const bad = Object.entries(edges).filter(([, v]) => v >= o.edgeInkFraction).map(([k]) => k);
+  const jp = { top: '上', bottom: '下', left: '左', right: '右' };
+  return {
+    ok: !bad.length, edges, worst,
+    reason: bad.length
+      ? `${bad.map((k) => jp[k]).join('・')}の縁に字が載っている＝**その字は欠けている**`
+        + `（${bad.map((k) => `${jp[k]} ${Math.round(100 * edges[k])}%`).join(' / ')}）`
+        + '。★囲みは「余白ゼロ」ではなく「**字を切らない最小の枠**」＝上下左右に数px の余白を残す'
+      : null,
+  };
+}
+
 // ─────────────────────────────────────────────────────────────
 // 6. ラベル（`CRITICAL!` / `STING!` / `TOTAL`）＝検出 → マスク（Phase 9 P3-1b）
 // ─────────────────────────────────────────────────────────────
@@ -1189,6 +1245,14 @@ export function readNumber(tokens, range = { minDigits: 1, maxDigits: 9 }) {
 //
 // ★探す場所は**当てずっぽうにしない**: 「ラベルは数値の**真上**（固定オフセット）」がユーザー確定情報
 //   （PHASE9_PLAN §6）＝**検出済みの数値行の上の帯だけ**を見る。全面を滑らせる必要はない。
+
+/**
+ * ★**ラベルの正準キー**（自由入力にしない）。
+ * ⚠ 自由入力にすると `STING!` / `STING` / `sting!` が別キーになり、**アトラスが静かに分裂**する。
+ *   ユーザーには選ばせる（`main.js` のプルダウン）＝**綴りは機械が持つ**。
+ * ⚠ 新しいラベルを見つけたら**ここに足す**（PHASE9_PLAN §5-4 の表と対で更新する）。
+ */
+export const LABEL_KEYS = ['CRITICAL!', 'STING!', 'TOTAL'];
 
 export const LABEL_DEFAULTS = {
   /**
@@ -1245,6 +1309,19 @@ function labelOpts(opts = {}) {
   return { ...GLYPH_DEFAULTS, ...LABEL_DEFAULTS, ...opts };
 }
 
+/**
+ * ★**ラベルを1回教えたときの要約**（純関数＝画面に書式を直書きしない）。
+ * ⚠ `teachSummary` の注記と同じ理由＝`main.js` は import できず検査できないので、書式はここに置く。
+ */
+export function labelTeachSummary(entry, framing = null) {
+  const f = (v, d = 2) => (typeof v === 'number' && isFinite(v) ? v.toFixed(d) : '—');
+  return {
+    line: `${entry?.key ?? '—'}: 縦横比 ${f(entry?.aspect)}（囲み ${entry?.box?.w ?? '—'}×${entry?.box?.h ?? '—'}px）`,
+    ok: !!entry && (framing ? framing.ok : true),
+    warn: framing && !framing.ok ? framing.reason : null,
+  };
+}
+
 /** パターン探索の初期歩幅＝粗い段の刻みと同じにする（内部）。 */
 function r0Step(rect, o) { return Math.max(o.refinePx, rect.w * o.strideRatio); }
 
@@ -1271,7 +1348,8 @@ export function labelBandAbove(row, bounds, opts = {}) {
 export function teachLabel(edge, box, key, opts = {}) {
   const o = labelOpts(opts);
   const sig = signature(edge, box, { cell: o.cell, scale: fieldScale(edge, { from: box.y, to: box.y + box.h }) });
-  return { key, aspect: box.w / Math.max(1e-6, box.h), sig: packSignature(sig), at: opts.at ?? null };
+  return { key, aspect: box.w / Math.max(1e-6, box.h), sig: packSignature(sig),
+           box: { w: Math.round(box.w), h: Math.round(box.h) }, at: opts.at ?? null };
 }
 
 /**
@@ -1287,6 +1365,13 @@ export function teachLabel(edge, box, key, opts = {}) {
  */
 export function detectLabels(edge, rows, atlas, opts = {}) {
   const o = labelOpts(opts);
+  // ⚠ **旧形式の検出**＝`labels` に「数字キーの配列」が入っている世代のアトラス（〜2026-08-22）。
+  //   黙って「未登録」と同じ扱いにすると、**なぜ検出しないのか分からない**ので理由を分ける。
+  if (Array.isArray(atlas?.labels)) {
+    return { labels: [], occluders: [],
+             reason: '旧形式のアトラス（`labels` が数字キーの配列）＝ラベルのテンプレを持っていない。'
+               + '`tools/t1_teach_probe.mjs --merge` で作り直す' };
+  }
   const entries = Object.entries(atlas?.labels ?? {}).filter(([, v]) => templatesOf(v, o.cell).length);
   if (!entries.length) {
     return { labels: [], occluders: [],

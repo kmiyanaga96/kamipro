@@ -15,7 +15,8 @@ import { ChargeDotTracker, ChargeSeries, reportChargeDots, CT_DEFAULTS } from '.
 import { ROIS } from './rois.js';
 import { luminanceField, edgeField, brightField, glyphMask, teachSummary, segmentRows, segmentGlyphs, signature, fieldScale,
          GlyphHarvest, reportHarvest, validateAtlas, selfCheckAtlas, leaveOneTeachingOut,
-         packSignature, cropPatch, fitTaughtGrid, GLYPH_DEFAULTS } from './glyph.js';
+         packSignature, cropPatch, fitTaughtGrid, GLYPH_DEFAULTS,
+         LABEL_KEYS, teachLabel, labelTeachSummary, checkCropFraming } from './glyph.js';
 import { Diag } from './diag.js';
 import { digest } from './digest.js';
 
@@ -52,6 +53,9 @@ let teachings = [];
 let lastTeachFingerprint = null;
 /** ★直前に教えた**生の切り抜き**（Claude へ実画素を送るため＝画面を見られないので唯一の経路）。 */
 let lastTeachCrop = null;
+// ★ラベル（`CRITICAL!` / `STING!` / `TOTAL`）＝**語まるごと1枚**のテンプレート（数字のように割らない）
+let taughtLabels = [];
+let lastLabelCrop = null;
 
 /** 教えたものからアトラスを組む（保存前の検査にも使う）。 */
 function buildAtlas() {
@@ -75,7 +79,13 @@ function buildAtlas() {
       taught: taught.length, teachings,
     },
     metrics: ratios.length ? { commaRatio: +ratios[Math.floor(ratios.length / 2)].toFixed(2) } : null,
-    glyphs, labels: {},
+    glyphs,
+    // ★ラベルは**語まるごと**（`variants` は条件違いを足すためのもの＝数字の `variants` と同じ考え）
+    labels: Object.fromEntries(
+      LABEL_KEYS.filter((k) => taughtLabels.some((t) => t.key === k)).map((k) => {
+        const list = taughtLabels.filter((t) => t.key === k);
+        return [k, { aspect: list[0].aspect, variants: list.map((t) => t.sig) }];
+      })),
   };
 }
 
@@ -634,8 +644,93 @@ $('saveTeachCrop').onclick = () => {
     + `（${c.width}×${c.height}px・「${lastTeachCrop.text}」）— そのままチャットに貼ってください`;
 };
 
+// ── ★★P3-1b: 「このラベルを教える」（`CRITICAL!` / `STING!` / `TOTAL`）────
+//   ★数字と**教え方が違う**＝**1文字ずつに割らない**。ラベルは固定の語なので、
+//     語まるごと1枚のテンプレートとして覚え、照合も語まるごとで行う（`glyph.js` §6）。
+//   ⚠ 綴りは**選ばせる**（自由入力だと `STING!`/`STING`/`sting!` でアトラスが静かに分裂する）。
+{
+  // ⚠ `new Option()` は**ブラウザ専用のグローバル**＝セルフテストの DOM shim には無く、
+  //   **main.js の初期化ごと落ちる**（[14] が捕まえた）。`createElement` なら両方で動く。
+  const sel = $('labelKey');
+  if (sel) for (const k of LABEL_KEYS) {
+    const o = document.createElement('option');
+    o.value = k; o.textContent = k;
+    sel.appendChild(o);
+  }
+}
+$('labelAdd').onclick = () => {
+  const key = $('labelKey').value;
+  if (!lastRect) {
+    $('teachNote').innerHTML = '<span class="bad">先に「このフレームを解析」→ ラベルの語だけをドラッグで囲んでください</span>';
+    return;
+  }
+  const view = $('view');
+  let img;
+  try {
+    img = view.getContext('2d', { willReadFrequently: true })
+      .getImageData(lastRect.x, lastRect.y, lastRect.w, lastRect.h);
+  } catch (e) { $('teachNote').innerHTML = `<span class="bad">切り出せません: ${e}</span>`; return; }
+
+  const edge = glyphMask(img);
+  const framing = checkCropFraming(edge);
+  const entry = teachLabel(edge, { x: 0, y: 0, w: lastRect.w, h: lastRect.h }, key, { at: video.currentTime });
+  taughtLabels = taughtLabels.filter((t) => !(t.key === key && t.box.w === entry.box.w && t.box.h === entry.box.h));
+  taughtLabels.push(entry);
+  lastLabelCrop = { img, key, at: video.currentTime, rect: { ...lastRect } };
+
+  // ★採ったものを見せる（数字と同じ＝人が納得してから採る）
+  const Z = Math.max(1, Math.min(3, Math.round(420 / Math.max(1, lastRect.w))));
+  const cv = $('teachView');
+  cv.width = lastRect.w * Z; cv.height = lastRect.h * Z + 18;
+  const cx = cv.getContext('2d');
+  cx.fillStyle = '#181818'; cx.fillRect(0, 0, cv.width, cv.height);
+  const tmp = document.createElement('canvas');
+  tmp.width = lastRect.w; tmp.height = lastRect.h;
+  tmp.getContext('2d').putImageData(img, 0, 0);
+  cx.imageSmoothingEnabled = false;
+  cx.drawImage(tmp, 0, 0, cv.width, lastRect.h * Z);
+  cx.strokeStyle = '#5cf'; cx.lineWidth = 2;
+  cx.strokeRect(1, 1, cv.width - 2, lastRect.h * Z - 2);
+  cx.fillStyle = '#5cf'; cx.font = '12px monospace';
+  cx.fillText(key, 4, lastRect.h * Z + 13);
+
+  const sum = labelTeachSummary(entry, framing);
+  const have = LABEL_KEYS.filter((k) => taughtLabels.some((t) => t.key === k));
+  $('teachNote').innerHTML = `<span class="ok">ラベルを教えました</span> ${sum.line}`
+    + `<br>登録済み: ${have.join(' / ') || '（なし）'} ／ 未登録: ${LABEL_KEYS.filter((k) => !have.includes(k)).join(' / ') || '（なし）'}`
+    + (sum.warn ? `<br><span class="bad">⚠ ${sum.warn}</span>` : '')
+    + '<br>★「この切り抜きをJSONで保存」（右のボタン）も押して、両方チャットに貼ってください';
+};
+
+// ★ラベルの切り抜きを JSON で保存（数字と同じ理由＝Claude が**実画素**をオフラインで回せるように）
+//   ⚠ `kind` を `teach-label` にして数字と区別する＝受け取り側（`tools/t1_teach_probe.mjs`）が
+//     **1文字ずつ割ろうとしない**ようにするための唯一の目印。
+$('saveLabelCrop').onclick = () => {
+  if (!lastLabelCrop) { $('teachNote').innerHTML = '<span class="bad">先にラベルを1つ教えてください</span>'; return; }
+  const c = document.createElement('canvas');
+  c.width = lastLabelCrop.img.width; c.height = lastLabelCrop.img.height;
+  c.getContext('2d').putImageData(lastLabelCrop.img, 0, 0);
+  const payload = {
+    tool: 'T1', toolVersion: VERSION, kind: 'teach-label',
+    file: $('file').files?.[0]?.name ?? '(none)',
+    at: lastLabelCrop.at, label: lastLabelCrop.key, text: lastLabelCrop.key,
+    rect: lastLabelCrop.rect ?? null,
+    width: c.width, height: c.height,
+    png: c.toDataURL('image/png'),
+  };
+  const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `label_${lastLabelCrop.key.replace(/[^A-Za-z]/g, '')}_${Math.round(lastLabelCrop.at * 1000)}ms.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  $('teachNote').innerHTML = `<span class="ok">ラベルの切り抜きを JSON で保存しました</span>`
+    + `（${c.width}×${c.height}px・「${lastLabelCrop.key}」）— そのままチャットに貼ってください`;
+};
+
 $('teachReset').onclick = () => {
   taught = []; teachings = []; lastTeachFingerprint = null; lastTeachCrop = null;
+  taughtLabels = []; lastLabelCrop = null;
   $('teachNote').textContent = '教えたものを消しました';
   const cv = $('teachView');
   cv.getContext('2d').clearRect(0, 0, cv.width, cv.height);
