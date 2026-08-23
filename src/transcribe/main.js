@@ -16,7 +16,7 @@ import { ROIS } from './rois.js';
 import { luminanceField, edgeField, brightField, glyphMask, teachSummary, segmentRows, segmentGlyphs, signature, fieldScale,
          GlyphHarvest, reportHarvest, validateAtlas, selfCheckAtlas, leaveOneTeachingOut,
          packSignature, cropPatch, fitTaughtGrid, GLYPH_DEFAULTS,
-         LABEL_KEYS, teachLabel, labelTeachSummary, checkCropFraming } from './glyph.js';
+         LABEL_KEYS, teachLabel, labelTeachSummary, checkCommaGrammar } from './glyph.js';
 import { Diag } from './diag.js';
 import { digest } from './digest.js';
 
@@ -530,6 +530,15 @@ $('teachAdd').onclick = () => {
     $('teachNote').innerHTML = '<span class="bad">数字とカンマだけで入力してください（例 5,044,282）</span>';
     return;
   }
+  // ★★**桁区切りとして成立しない入力を弾く**（2026-08-23・実使用で `5,,553,703` の打ち間違いが届いた）。
+  //   ⚠ 弾かないと**囲みが誤った文字数で割られ**、ずれたテンプレートに正しいラベルが付く＝
+  //     アトラスが静かに壊れる（`validateAtlas` は綴りの誤りまでは見ない）。
+  const gram = checkCommaGrammar(text);
+  if (!gram.ok) {
+    $('teachNote').innerHTML = `<span class="bad">桁区切りとして読めません: ${gram.reason}</span>`
+      + '（見えているとおりに入力してください・例 <code>5,553,703</code>）';
+    return;
+  }
   const view = $('view');
   let img;
   try {
@@ -672,7 +681,6 @@ $('labelAdd').onclick = () => {
   } catch (e) { $('teachNote').innerHTML = `<span class="bad">切り出せません: ${e}</span>`; return; }
 
   const edge = glyphMask(img);
-  const framing = checkCropFraming(edge);
   const entry = teachLabel(edge, { x: 0, y: 0, w: lastRect.w, h: lastRect.h }, key, { at: video.currentTime });
   taughtLabels = taughtLabels.filter((t) => !(t.key === key && t.box.w === entry.box.w && t.box.h === entry.box.h));
   taughtLabels.push(entry);
@@ -694,7 +702,7 @@ $('labelAdd').onclick = () => {
   cx.fillStyle = '#5cf'; cx.font = '12px monospace';
   cx.fillText(key, 4, lastRect.h * Z + 13);
 
-  const sum = labelTeachSummary(entry, framing);
+  const sum = labelTeachSummary(entry);
   const have = LABEL_KEYS.filter((k) => taughtLabels.some((t) => t.key === k));
   $('teachNote').innerHTML = `<span class="ok">ラベルを教えました</span> ${sum.line}`
     + `<br>登録済み: ${have.join(' / ') || '（なし）'} ／ 未登録: ${LABEL_KEYS.filter((k) => !have.includes(k)).join(' / ') || '（なし）'}`

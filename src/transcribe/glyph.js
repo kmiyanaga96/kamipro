@@ -1173,61 +1173,18 @@ export function readNumber(tokens, range = { minDigits: 1, maxDigits: 9 }) {
            minScore: tokens.reduce((m, t) => Math.min(m, t.score ?? 1), 1) };
 }
 
-/**
- * ★★**囲みが字を切っていないか**（教える前の関門・2026-08-23 新設）。
- *
- * ⚠⚠ **「囲みが緩い個体」という見立ては誤りだった**（実画素で判明）:
- *   誤読が集中していた2枚（`5,125,605` / `5,553,703`）をユーザーが囲み直しても、
- *   **まったく同じ誤読を再現した**（`5123003` / `5·530·5`）。∴ 枠の緩さではない。
- *   実画素を見ると **上端で既にインクが最大値**＝**字の上が枠の外に出ている**（右端も切れている）。
- *   ★原因は依頼文の「**左端・右端・上端・下端をぴったり**」を字義どおり守った結果＝
- *     **「ぴったり」を余白ゼロと読むと字を切る**。正しくは「**字を切らない最小の枠**」。
- * ★∴ 文章で直さず**機械で捕まえる**（本 Phase で繰り返し効いた規律）。
- *
- * 見るもの＝**枠の縁にインクが載っているか**。載っていれば、その字はもう欠けている。
- *
- * @param {*} edge `glyphMask` などの場（`{w,h,mag}`）
- * @returns {{ok:boolean, edges:object, worst:string|null, reason:string|null}}
- */
-export function checkCropFraming(edge, opts = {}) {
-  const o = { edgeInkFraction: 0.35, ...opts };
-  const { w, h, mag } = edge;
-  if (w < 3 || h < 3) return { ok: false, edges: {}, worst: null, reason: '囲みが小さすぎる' };
-  // ★しきいは**その切り抜きの中**で決める（明るさの絶対値は演出で動く＝本モジュール冒頭④⑥）。
-  // ⚠ **分位点で採ろうとして空振りした**（2026-08-23）＝`glyphMask` は **0/1 の二値**なので
-  //   p80 が 1 になり、`v > thr` がどこでも false ＝**縁のインク率が全部 0%** と出た。
-  //   ★∴ 最大値の半分でしきる（二値でも連続場でも同じ意味になる）。二値化された場を疑わない。
-  let mx = 0;
-  for (let i = 0; i < mag.length; i++) if (mag[i] > mx) mx = mag[i];
-  if (mx <= 0) return { ok: false, edges: {}, worst: null, reason: 'インクが1画素も無い（囲みが字を含んでいない）' };
-  const thr = mx * 0.5;
-  // ⚠ 縁の読み方は**最外周と1画素内側の大きい方**を採る:
-  //   - 勾配で作った場（`edgeField`）は最外周が 0 に落ちるので**内側**が要る。
-  //   - 二値の場（`glyphMask`）は最外周にそのままインクが載るので**最外周**が要る。
-  //   ★片方だけ見て取りこぼした（テストが捕まえた）＝**場の種類を仮定しない**。
-  const line = (get, n) => { let c = 0; for (let i = 0; i < n; i++) if (get(i) > thr) c++; return c / n; };
-  const both = (a, b) => Math.max(line(a, a.n), line(b, b.n));
-  const row = (y) => Object.assign((x) => mag[y * w + x], { n: w });
-  const col = (x) => Object.assign((y) => mag[y * w + x], { n: h });
-  const edges = {
-    top: both(row(0), row(1)),
-    bottom: both(row(h - 1), row(h - 2)),
-    left: both(col(0), col(1)),
-    right: both(col(w - 1), col(w - 2)),
-  };
-  let worst = null;
-  for (const [k, v] of Object.entries(edges)) if (!worst || v > edges[worst]) worst = k;
-  const bad = Object.entries(edges).filter(([, v]) => v >= o.edgeInkFraction).map(([k]) => k);
-  const jp = { top: '上', bottom: '下', left: '左', right: '右' };
-  return {
-    ok: !bad.length, edges, worst,
-    reason: bad.length
-      ? `${bad.map((k) => jp[k]).join('・')}の縁に字が載っている＝**その字は欠けている**`
-        + `（${bad.map((k) => `${jp[k]} ${Math.round(100 * edges[k])}%`).join(' / ')}）`
-        + '。★囲みは「余白ゼロ」ではなく「**字を切らない最小の枠**」＝上下左右に数px の余白を残す'
-      : null,
-  };
-}
+// ─────────────────────────────────────────────────────────────
+// ⚠⚠ 撤去した検査: `checkCropFraming`（2026-08-23 に入れて同日撤去）
+// ─────────────────────────────────────────────────────────────
+//   「囲みが字を切っていないか」を**枠の縁のインク率**で見ようとしたが、**測れていなかった**。
+//   ★実測（ユーザー提供の実切り抜き7枚）＝`glyphMask` が **画像全体の 42〜73% をインクと判定**する。
+//     バースト演出そのものが金色だから（本モジュール冒頭の制約⑥と同じ理由）＝
+//     縁の 71〜85% は**全体のベースラインとほぼ同じ**で、切れている証拠にならない。
+//     実際、7枚すべてで警告が出た（＝何も分けていない）。
+//   ★∴ **自分の検査を疑うほうが先**だった。誤った説明（「字を切っている」）を、
+//     その説明のために作った検査が裏書きする——という循環に入りかけた。
+//   ⏳ 本当に要るのは**グリフに選択的な特徴量**（`glyphMask` の注記＝「特徴量の選択は暫定」）。
+//     それが出来るまで、囲みの良し悪しは**読めたかどうか**でしか測らない。
 
 // ─────────────────────────────────────────────────────────────
 // 6. ラベル（`CRITICAL!` / `STING!` / `TOTAL`）＝検出 → マスク（Phase 9 P3-1b）

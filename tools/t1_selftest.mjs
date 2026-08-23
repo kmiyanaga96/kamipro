@@ -2350,40 +2350,14 @@ console.log('\n[16] グリフ照合（P3-1）＝縁取りで読む・遮蔽に�
       JSON.stringify(d.occluders[0]));
   }
 
-  // ── [17-10] ★★囲みが字を切っていないか（教える前の関門）──────────
-  //   ⚠⚠ **「囲みが緩い個体」という見立ては誤りだった**（2026-08-23・実画素で判明）＝
-  //     誤読が集中する2枚をユーザーが囲み直しても **まったく同じ誤読を再現した**。
-  //     実画素では **上端で既にインクが最大**＝**字の上が枠の外**（右端も 85%）＝**切れている**。
-  //   ★依頼文の「左端・右端・上端・下端をぴったり」を字義どおり守ると字を切る＝
-  //     **文章で直さず機械で捕まえる**。
+  // ── [17-10] ★実使用で届いた打ち間違いを弾く（`5,,553,703`）──────
+  //   ⚠ **実際に届いた**（2026-08-23）。`/^[0-9,]+$/` は通ってしまうので文法検査が要る。
+  //     弾かないと**囲みが誤った文字数で割られ**、ずれたテンプレートに正しいラベルが付く＝
+  //     アトラスが静かに壊れる（`validateAtlas` は綴りの誤りまでは見ない）。
   {
-    const img = makeImage(300, 60, DARK);
-    drawText(img, 20, 18, '123');                       // ★余白のある囲み
-    const okr = G.checkCropFraming(G.glyphMask(img));
-    check('★余白のある囲みは通す（正常な教え方を止めない）', okr.ok,
-      JSON.stringify(okr.edges));
-
-    // ★字を切った囲み＝**同じ絵を、字の内側から切り出す**（実機で起きた形そのもの＝
-    //   ユーザーの囲みが字に食い込んでいる）。`glyphMask(img, rect)` が囲みを受ける。
-    const wide = makeImage(400, 120, DARK);
-    const tr = drawText(wide, 30, 30, '888', { s: 8 });   // 太い字（横棒が幅いっぱい）
-    const gy = tr[0].y, gh = 7 * 8, gx = tr[0].x, gw = 2 * 8 * 8 + 5 * 8;
-    const inside = { x: gx + 6, y: gy + 6, w: gw - 12, h: gh - 12 };   // ★四辺とも字に食い込む
-    const clipped = G.checkCropFraming(G.glyphMask(wide, inside));
-    check('★★字が枠の縁に載っていたら止める（切れた字をアトラスに焼き付けない）',
-      !clipped.ok && /縁に字が載っている/.test(clipped.reason ?? ''),
-      JSON.stringify(clipped.edges));
-  }
-  {
-    // ⚠ **二値の場でも動くこと**＝`glyphMask` は 0/1 を返す。分位点でしきると p80=1 になり
-    //   「縁のインク 0%」と**黙って空振り**する（実際に踏んだ）。
-    const bin = { w: 20, h: 20, mag: new Float32Array(400) };
-    for (let y = 0; y < 20; y++) bin.mag[y * 20 + 19] = 1;      // **最外周**の右端だけインク
-    const r = G.checkCropFraming(bin);
-    check('★二値の場（glyphMask）でも縁のインクを検出する（分位点で空振りしない）',
-      !r.ok && r.worst === 'right' && r.edges.right > 0.9, JSON.stringify(r.edges));
-    const empty = G.checkCropFraming({ w: 20, h: 20, mag: new Float32Array(400) });
-    check('インクが1画素も無い囲みは「字を含んでいない」と言う', !empty.ok && /インクが/.test(empty.reason ?? ''));
+    check('★カンマが連続した打ち間違いを弾く（実使用で届いた `5,,553,703`）',
+      !G.checkCommaGrammar('5,,553,703').ok, JSON.stringify(G.checkCommaGrammar('5,,553,703')));
+    check('正しい桁区切りは通す', G.checkCommaGrammar('5,553,703').ok);
   }
 
   // ── [17-11] ★ラベルは語まるごと1枚＝正準キーで持つ ────────────
@@ -2403,6 +2377,42 @@ console.log('\n[16] グリフ照合（P3-1）＝縁取りで読む・遮蔽に�
     check('★要約は純関数で作る（画面に直書きしない）＝落ちずに警告も載る',
       /STING!/.test(sum.line) && sum.ok === false && /縁に字/.test(sum.warn ?? ''), JSON.stringify(sum));
     check('要約は空入力でも落ちない', !!G.labelTeachSummary(null).line);
+  }
+
+  // ── [17-12] ★★★実データ回帰＝ラベル3語（👤 2026-08-23 受領）──────
+  //   ⚠⚠ **合成では「見分けられる」と言えない**（本 Phase で合成が実機を裏切った型が3つ）＝
+  //     ここが**ラベルについて唯一の実機データの検査**。
+  //   測定条件: `CRITICAL!` 303×99 ／ `TOTAL` 172×77 ／ `STING!` 175×69（M3-1.mp4・実切り抜き各1枚）。
+  {
+    const fx = JSON.parse(readFileSync(join(HERE, 'fixtures/t1_glyph_atlas_M3-1.json'), 'utf8'));
+    const keys = Object.keys(fx.labels ?? {});
+    check('★実データのラベルが3語とも入っている（CRITICAL! / STING! / TOTAL）',
+      G.LABEL_KEYS.every((k) => keys.includes(k)), keys.join(' / '));
+    check('`labels` は**語のテンプレ表**（旧形式＝数字キーの配列 ではない）',
+      !Array.isArray(fx.labels) && typeof fx.labels === 'object');
+    check('ラベルの格子が実装の既定と同じ（48×16）＝フィクスチャと実装がずれたら気づく',
+      fx.provenance?.labelCell?.w === G.LABEL_DEFAULTS.cell.w
+        && fx.provenance?.labelCell?.h === G.LABEL_DEFAULTS.cell.h,
+      JSON.stringify(fx.provenance?.labelCell));
+
+    // ★★互いに見分けられるか（実画素・**他者との差**が本体＝自己一致は同じ画素なので自明）
+    const cell = G.LABEL_DEFAULTS.cell;
+    const opts = { ...G.GLYPH_DEFAULTS, ...G.LABEL_DEFAULTS };
+    let worstSelf = 1, bestCross = 0;
+    for (const a of G.LABEL_KEYS) {
+      const sample = G.templatesOf(fx.labels[a], cell)[0];
+      for (const b of G.LABEL_KEYS) {
+        const t = G.templatesOf(fx.labels[b], cell)[0];
+        const sc = G.matchSignature(sample, t, opts).score;
+        if (a === b) worstSelf = Math.min(worstSelf, sc); else bestCross = Math.max(bestCross, sc);
+      }
+    }
+    check('★★★ラベルは実画素で明確に分かれる（自己 ≧0.9 / 他者 ≦0.5・2026-08-23 実測 0.999 vs 0.37）',
+      worstSelf >= 0.9 && bestCross <= 0.5,
+      `自己 min ${worstSelf.toFixed(3)} / 他者 max ${bestCross.toFixed(3)}`);
+    check('★判定のしきい（LABEL_DEFAULTS.minScore）が自己と他者の**あいだ**にある',
+      G.LABEL_DEFAULTS.minScore > bestCross && G.LABEL_DEFAULTS.minScore < worstSelf,
+      `${bestCross.toFixed(3)} < ${G.LABEL_DEFAULTS.minScore} < ${worstSelf.toFixed(3)}`);
   }
 
   // ── [17-9] ★★★実データ回帰＝検算⑦が実際の誤読に効くか ────────

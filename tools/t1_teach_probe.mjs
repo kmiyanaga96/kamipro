@@ -32,7 +32,7 @@ import { decodePng, encodePng } from './lib/png.mjs';
 import { luminanceField, edgeField, brightField, glyphMask, fitTaughtGrid, fieldScale, signature,
          packSignature, unpackSignature, classify, similarity,
          validateAtlas, leaveOneTeachingOut,
-         teachLabel, checkCropFraming, LABEL_KEYS, LABEL_DEFAULTS,
+         teachLabel, checkCommaGrammar, LABEL_KEYS, LABEL_DEFAULTS,
          GLYPH_DEFAULTS } from '../src/transcribe/glyph.js';
 
 const args = process.argv.slice(2);
@@ -46,6 +46,8 @@ for (let i = 0; i < args.length; i++) {
   if (args[i] === '--dump') { dump = args[++i]; continue; }
   if (args[i] === '--atlas') { atlasOut = args[++i]; continue; }
   if (args[i] === '--merge') { mergeIn = args[++i]; continue; }
+  // ⚠ 値を取らないフラグも**明示的に読み飛ばす**（さもないと切り抜きファイル名として扱われる）
+  if (args[i] === '--allow-clipped') continue;   // ⚠ 旧フラグ（checkCropFraming 撤去後は無効）＝黙って受ける
   if (args[i] === '--source') { ATLAS_SOURCE = args[++i]; continue; }
   // ★`.json`（ページの「この切り抜きをJSONで保存」）は**文字列を中に持っている**ので `=数字` は不要。
   const at = args[i].lastIndexOf('=');
@@ -93,14 +95,19 @@ for (const it of items) {
     }
     const entry = teachLabel(edge, { x: 0, y: 0, w: img.width, h: img.height }, key,
       { at: loaded.meta?.at ?? null, cell: LABEL_DEFAULTS.cell });
-    const fr = checkCropFraming(edge);
-    labelShots.push({ file: it.file, key, entry, framing: fr, img, meta: loaded.meta });
+    labelShots.push({ file: it.file, key, entry, img, meta: loaded.meta });
     console.log(basename(it.file).padEnd(28), `[ラベル] ${key}`.padEnd(12),
-      `${img.width}×${img.height}`.padEnd(11), `縦横比 ${entry.aspect.toFixed(2)}`.padStart(14),
-      fr.ok ? '  囲み OK' : `  ⚠ ${fr.reason}`);
+      `${img.width}×${img.height}`.padEnd(11), `縦横比 ${entry.aspect.toFixed(2)}`.padStart(14));
     continue;
   }
 
+  // ★★桁区切りとして成立しない教示は**受け取らない**（実使用で `5,,553,703` が届いた）
+  const gram = checkCommaGrammar(it.text ?? '');
+  if (!gram.ok) {
+    console.log(basename(it.file).padEnd(28), `⚠ 教えた文字列「${it.text}」が桁区切りとして読めない: ${gram.reason}`
+      + ' ＝この切り抜きは使わない（打ち間違い）');
+    continue;
+  }
   const fit = fitTaughtGrid(edge, { x: 0, y: 0, w: img.width, h: img.height }, it.text);
   if (!fit.ok) { console.log(basename(it.file).padEnd(28), '格子を当てられない:', fit.reason); continue; }
   const bandH = fit.band.to - fit.band.from;
@@ -108,8 +115,7 @@ for (const it of items) {
   // ⚠ **カンマはテンプレートにしない**（production と同じ＝セルの8割が背景・桁区切りは文法で決まる）
   const sigs = fit.boxes.filter((b) => b.ch !== ',')
     .map((b) => ({ ch: b.ch, sig: packSignature(signature(edge, b, { scale })), box: b }));
-  const framing = checkCropFraming(edge);
-  shots.push({ ...it, img, edge, fit, sigs, bandH, meta: loaded.meta, framing });
+  shots.push({ ...it, img, edge, fit, sigs, bandH, meta: loaded.meta });
   console.log(basename(it.file).padEnd(28), it.text.padEnd(12),
     `${img.width}×${img.height}`.padEnd(11),
     fit.pitch.toFixed(1).padStart(7),
@@ -117,8 +123,6 @@ for (const it of items) {
     (bandH / fit.pitch).toFixed(3).padStart(6),
     fit.commaRatio.toFixed(2).padStart(8),
     (fit.contrast == null ? '—' : fit.contrast.toFixed(3)).padStart(7));
-  // ★★**囲みが字を切っていないか**（2026-08-23 新設・§checkCropFraming の注記）
-  if (!framing.ok) console.log(' '.repeat(28), `⚠ ${framing.reason}`);
 
   if (dump) {
     // ★切り出し位置を描いた PNG（帯＝緑・数字＝水色・カンマ＝橙）
@@ -189,21 +193,8 @@ if (shots.length >= 2) {
 //   作っており、**次のセッションでは再現できない**状態だった＝本 Phase の教訓
 //   「**検査できない場所にだけ事故が起きる**」そのもの。∴ 生成経路をツールへ入れる。
 //   ★出すのは**署名の数値だけ**（画像は入らない＝PHASE9_PLAN §10.3 の例外）。
-// ★★囲みが字を切っている切り抜きは**アトラスに入れない**（`--allow-clipped` で明示的に許可）。
-//   ⚠ ここを素通りさせると「囲みが原因の誤読」が**アトラスに焼き付いて**、以後ずっと効く。
-//   ⚠ ユーザーのページ側は**警告に留める**（教える手を止めない）＝止めるのは台帳へ入る手前のここ。
-if (atlasOut) {
-  const clipped = [...shots, ...labelShots].filter((x) => x.framing && !x.framing.ok);
-  if (clipped.length && !args.includes('--allow-clipped')) {
-    console.error(`\n❌ 囲みが字を切っている切り抜きが ${clipped.length} 件＝アトラスに入れない:`);
-    for (const c of clipped) console.error(`   - ${basename(c.file)}: ${c.framing.reason}`);
-    console.error('   → 囲み直してもらう（「余白ゼロ」ではなく「字を切らない最小の枠」）。'
-      + '意図して入れるなら --allow-clipped。');
-    process.exit(3);
-  }
-}
-
-if (atlasOut && shots.length) {
+// ⚠ **ラベルだけを足す**場合もある（`--merge` で数字は既存を引き継ぐ）＝`shots` が空でも書き出す
+if (atlasOut && (shots.length || (mergeIn && labelShots.length))) {
   // ── 教示回の並びを作る（`--merge` なら既存を土台に、同じ表示だけ差し替える）──
   const fresh = shots.map((s) => ({
     kind: 'new', text: s.text, at: s.meta?.at ?? null, crop: basename(s.file),
