@@ -805,7 +805,11 @@ export function classify(sample, atlas, opts = {}) {
  */
 export function fieldScale(edge, row, p = 0.95) {
   const { w, h, mag } = edge;
-  const y0 = Math.max(0, row?.from ?? 0), y1 = Math.min(h, row?.to ?? h);
+  // ⚠ **整数へ丸めるのを忘れて NaN を作った**（2026-08-23・`detectLabels` が小数の帯を渡して発覚）＝
+  //   `mag[小数 * w + x]` は **undefined** で、`quantile` が NaN を返し、
+  //   以降 score が NaN になって**どんな比較も false**＝「1件も採れない」として静かに出る。
+  //   ★行の切り出し（`segmentRows`）は整数を返すので気づけなかった＝**呼ぶ側を信用しない**。
+  const y0 = Math.max(0, Math.floor(row?.from ?? 0)), y1 = Math.min(h, Math.ceil(row?.to ?? h));
   const vals = [];
   for (let y = y0; y < y1; y++) for (let x = 0; x < w; x++) vals.push(mag[y * w + x]);
   return Math.max(1e-6, quantile(vals, p));
@@ -1167,6 +1171,227 @@ export function readNumber(tokens, range = { minDigits: 1, maxDigits: 9 }) {
   }
   return { ok: true, text, value: Number(digits), reason: null, unknown, ambiguous,
            minScore: tokens.reduce((m, t) => Math.min(m, t.score ?? 1), 1) };
+}
+
+// ─────────────────────────────────────────────────────────────
+// 6. ラベル（`CRITICAL!` / `STING!` / `TOTAL`）＝検出 → マスク（Phase 9 P3-1b）
+// ─────────────────────────────────────────────────────────────
+//
+// ★なぜラベルを**先に**検出するのか（本モジュール冒頭の制約①）:
+//   ラベルは**1つ上のヒットの数値にも重なる**（P1 発見①）＝先に数字を読むと**汚染された画素で照合する**。
+//   ∴ 順序は **ラベル検出 → マスク → 数字の照合**。マスクした画素は「白でも黒でもなく**分からない**」
+//   として扱う（`matchSignature` の `mask`＝票を持たせない）。
+//
+// ★★テンプレートの出どころは数字とまったく同じ規律にする（推測しない）:
+//   `CRITICAL!` の字形を Claude が推測して書けば、**合成テストだけ通って実機で静かに外す**
+//   （本 Phase で3回踏んだ型）。∴ **ラベルもユーザーが1回教える**＝`teachLabel`。
+//   ⚠ **未登録のうちは検出しない**（`detectLabels` が理由つきで空を返す）＝数字の `T1-MATCH-006` と同じ関門。
+//
+// ★探す場所は**当てずっぽうにしない**: 「ラベルは数値の**真上**（固定オフセット）」がユーザー確定情報
+//   （PHASE9_PLAN §6）＝**検出済みの数値行の上の帯だけ**を見る。全面を滑らせる必要はない。
+
+export const LABEL_DEFAULTS = {
+  /**
+   * ラベルを探す帯＝数値行の上端から**上へ**、行高に対する比で `[min, max]`。
+   * ⚠⚠ **未較正**＝「ラベルは数値の真上・固定オフセット」はユーザー確定情報だが、**値は未測定**。
+   * ★∴ **狭く当てにいかず、広く探す**（測っていないものを狭く決め打つのが本 Phase の失敗の型）。
+   *   実機のラベルを1枚教えてもらった時点で、当たった位置から締める（E1＝締めたら測定条件を書く）。
+   */
+  offsetRatio: { min: 0.0, max: 2.6 },
+  /**
+   * ラベルの高さの探索範囲＝**数値行の高さに対する比**。
+   * ★固定ビットマップフォントなので、ラベルの字高は数値の字高と同じオーダーに収まる。
+   * ⚠ 未較正（上と同じ理由）。
+   */
+  heightRatio: { min: 0.4, max: 1.7 },
+  /** 高さの刻み数（粗い段） */
+  scaleSteps: 6,
+  /** x / y の走査刻み（候補の幅・高さに対する比・粗い段） */
+  strideRatio: 0.25,
+  yStrideRatio: 0.25,
+  /** ★細かい段: パターン探索がここまで歩幅を詰める（画素） */
+  refinePx: 1,
+  /**
+   * ★★**語テンプレートにも「ずらして最良を採る」を入れる**（数字と同じ手）。
+   * ⚠⚠ 入れずに書いて詰まった（2026-08-23・合成で実測）＝**照合のピークが鋭すぎる**:
+   *   教えた箱そのものなら score **1.000** なのに **1px ずれて 0.78・2px で 0.43・4px で 0.23**。
+   *   ★鋭いピークは**粗い刻みでは踏めない**（山登りも別の峰に落ちる）＝探索を細かくしても解けない。
+   * ∴ 数字（`GLYPH_DEFAULTS.shift`＝実画素で効くと確かめた手）と同じく、
+   *   **照合側で格子いくつぶんかのずれを吸収してピークを鈍らせる**。探索はそのあと詰める。
+   */
+  shift: { x: 2, y: 1 },
+  /** 一致と認める score の下限。⚠ **未較正**（数字の `minScore` とは母集団が違う＝別に持つ） */
+  minScore: 0.45,
+  /**
+   * ★マスクに使うとき外接矩形を**少し広げる**比（ラベル高に対する）。
+   * ⚠ 重なりは**半透明合成**（制約③）＝縁が数字側に薄く残るので、ぴったりだと縁を数字として読む。
+   */
+  dilateRatio: 0.08,
+  /** ラベル署名の格子。★数字（16×26）より**横長**＝語は横に長いので同じ格子だと潰れる。 */
+  cell: { w: 48, h: 16 },
+};
+
+/**
+ * ラベル系の既定値を合成する。
+ *
+ * ⚠⚠ **`GLYPH_DEFAULTS` を土台に敷くのを忘れて空振りした**（2026-08-23・セルフテストが捕まえた）＝
+ *   `LABEL_DEFAULTS` だけを渡すと `matchSignature` の **λ が undefined** になり、
+ *   `score = cover − undefined·alien` ＝ **NaN**。NaN はどんな比較も false なので
+ *   **`minScore` をどれだけ下げても1件も採れない**＝「検出できない」ではなく**黙って空振り**する。
+ *   ★本 Phase で繰り返し出る型（`stripJs` 取り違えと同じ＝検査が静かに何もしない）。
+ * ∴ **土台＝GLYPH_DEFAULTS ／ 上書き＝LABEL_DEFAULTS（cell・minScore）** の順で必ず合成する。
+ */
+function labelOpts(opts = {}) {
+  return { ...GLYPH_DEFAULTS, ...LABEL_DEFAULTS, ...opts };
+}
+
+/** パターン探索の初期歩幅＝粗い段の刻みと同じにする（内部）。 */
+function r0Step(rect, o) { return Math.max(o.refinePx, rect.w * o.strideRatio); }
+
+/**
+ * ★**ラベルを探す帯**（数値行の真上）。純関数＝幾何だけ。
+ * @param {{from:number,to:number}} row 数値行
+ * @param {{w:number,h:number}} bounds ROI の寸法（帯を外へはみ出させない）
+ * @returns {{from:number,to:number,height:number}}
+ */
+export function labelBandAbove(row, bounds, opts = {}) {
+  const o = labelOpts(opts);
+  const h = Math.max(1, row.to - row.from);
+  const to = Math.max(0, Math.min(bounds?.h ?? Infinity, row.from - o.offsetRatio.min * h));
+  const from = Math.max(0, to - (o.offsetRatio.max - o.offsetRatio.min) * h);
+  return { from, to, height: Math.max(0, to - from) };
+}
+
+/**
+ * ★**ラベルを1回教える**（👤 ユーザーが囲んで名前を言う＝数字と同じ段取り）。
+ * ⚠ 囲みがそのまま測定（4.3.0e の規律）＝縦横比も一緒に記録し、検出時の箱の形に使う。
+ *
+ * @returns {{key:string, aspect:number, sig:Array<number>, at:number|null}}
+ */
+export function teachLabel(edge, box, key, opts = {}) {
+  const o = labelOpts(opts);
+  const sig = signature(edge, box, { cell: o.cell, scale: fieldScale(edge, { from: box.y, to: box.y + box.h }) });
+  return { key, aspect: box.w / Math.max(1e-6, box.h), sig: packSignature(sig), at: opts.at ?? null };
+}
+
+/**
+ * ★★**ラベルを検出して、マスクに使う矩形を返す**（検算④の実体）。
+ *
+ * ⚠ **未登録なら何もしない**＝空 ＋ 理由。推測テンプレでは動かさない（本モジュール冒頭の規律）。
+ * ⚠ **1行につき最良の1件だけ**採る（同じ数値の上に2つのラベルは出ない）。
+ *
+ * @param {*} edge   エッジ場
+ * @param {Array<{from:number,to:number}>} rows  検出済みの数値行
+ * @param {object} atlas  `atlas.labels = { 'STING!': {aspect, variants:[packed…]}, … }`
+ * @returns {{labels:Array<{key,rect,score,anchor}>, occluders:Array, reason:string|null}}
+ */
+export function detectLabels(edge, rows, atlas, opts = {}) {
+  const o = labelOpts(opts);
+  const entries = Object.entries(atlas?.labels ?? {}).filter(([, v]) => templatesOf(v, o.cell).length);
+  if (!entries.length) {
+    return { labels: [], occluders: [],
+             reason: 'ラベルのテンプレートが未登録＝検出しない（👤 `CRITICAL!` / `STING!` / `TOTAL` を1回ずつ教える）' };
+  }
+  const bounds = { w: edge.w, h: edge.h };
+  const labels = [];
+
+  // 1つの箱を全テンプレートに当てて最良を返す（内部・粗い段と細かい段で共用）
+  const scoreAt = (box, ri) => {
+    if (box.x < 0 || box.y < 0 || box.x + box.w > bounds.w || box.y + box.h > bounds.h) return null;
+    const scale = fieldScale(edge, { from: box.y, to: box.y + box.h });
+    const sig = signature(edge, box, { cell: o.cell, scale });
+    let best = null;
+    for (const [key, entry] of entries) {
+      for (const t of templatesOf(entry, o.cell)) {
+        for (let dy = -(o.shift?.y ?? 0); dy <= (o.shift?.y ?? 0); dy++) {
+          for (let dx = -(o.shift?.x ?? 0); dx <= (o.shift?.x ?? 0); dx++) {
+            const moved = (dx || dy)
+              ? { cell: o.cell, data: shiftSignature(sig.data, dx, dy, o.cell) } : sig;
+            const m = matchSignature(moved, t, o);
+            // ⚠ NaN を「最良」にしない（`labelOpts` の注記の事故を二度と静かに通さない）
+            if (!Number.isFinite(m.score)) continue;
+            if (!best || m.score > best.score) best = { key, score: m.score, rect: box, anchor: ri };
+          }
+        }
+      }
+    }
+    return best;
+  };
+
+  (rows ?? []).forEach((row, ri) => {
+    const rh = Math.max(1, row.to - row.from);
+    const band = labelBandAbove(row, bounds, o);
+    if (band.height < 2) return;
+
+    // ── 粗い段: ★**インクのある所だけ**を候補にする（全面は舐めない）──
+    //   ⚠ 初版は「高さ×y×x を刻んで全面走査」で書き、**セルフテストが 1秒未満 → 16秒**になった。
+    //   ★ラベルは**文字**なので、行と列の射影に必ず山が立つ＝
+    //     数字の切り出し（`segmentRows`／`segmentGlyphs`）と**同じ機構で候補を絞れる**。
+    //     高さは「帯の中のインク行」がそのまま与え、x は「その行のインク列」が与える＝
+    //     **刻み幅という当てずっぽうのパラメータが消える**（速いだけでなく、決め打ちが減る）。
+    let best = null;
+    const bandProf = rowProfile(edge, { from: Math.floor(band.from), to: Math.ceil(band.to) });
+    const inkRows = runsAbove(bandProf, o.rowThresholdFraction, o.minRowHeight, o.rowGapClose, o.basePercentile).runs;
+    for (const ir of inkRows) {
+      const y = Math.floor(band.from) + ir.from, bh = ir.to - ir.from;
+      if (bh < 3 || bh > o.heightRatio.max * rh || bh < o.heightRatio.min * rh) continue;
+      const cols = runsAbove(colProfile(edge, { from: y, to: y + bh }),
+        o.colThresholdFraction, o.minGlyphWidth, Math.max(o.colGapClose, bh), o.basePercentile).runs;
+      for (const [, entry] of entries) {
+        const bw = bh * (entry?.aspect ?? o.cell.w / o.cell.h);
+        if (bw < 3 || bw > bounds.w) continue;
+        // ★x の候補＝インク塊の左端（と、塊が語より広いときは右詰めも）
+        const xs = new Set();
+        for (const c of cols) { xs.add(c.from); xs.add(Math.max(0, c.to - bw)); }
+        for (const x of xs) {
+          const cand = scoreAt({ x, y, w: bw, h: bh }, ri);
+          if (cand && (!best || cand.score > best.score)) best = cand;
+        }
+      }
+    }
+    if (!best) return;
+
+    // ── 細かい段: **パターン探索**で位置と大きさを詰める ──────────
+    //   ⚠⚠ **ラベルの照合はサブピクセルのずれに極端に弱い**（2026-08-23・合成で実測）＝
+    //     教えた箱そのものなら score **1.000** なのに、**1px ずれると 0.78・2px で 0.43・4px で 0.23**。
+    //   ★数字（`classify`）は `shift` で**格子いくつぶん**のずれを吸収しているが、
+    //     ラベルは1枚の語テンプレートなので同じ逃げが効かない＝**幾何を詰めるしかない**。
+    //   ∴ 粗い刻みで見つけたら、**歩幅を半分にしながら8近傍＋拡大縮小**を試して 1px まで詰める
+    //     （全面を細かく舐めるより桁違いに安い＝約 9×5 回）。
+    let step = Math.max(1, Math.round(r0Step(best.rect, o)));
+    let sStep = 0.08;
+    while (step >= 1) {
+      let moved = true;
+      while (moved) {
+        moved = false;
+        const b = best.rect;
+        const probes = [
+          { x: b.x - step, y: b.y }, { x: b.x + step, y: b.y },
+          { x: b.x, y: b.y - step }, { x: b.x, y: b.y + step },
+          { x: b.x - step, y: b.y - step }, { x: b.x + step, y: b.y - step },
+          { x: b.x - step, y: b.y + step }, { x: b.x + step, y: b.y + step },
+        ].map((q) => ({ ...q, w: b.w, h: b.h }));
+        // ★大きさも一緒に詰める（位置だけ合わせても縮尺が違えば score は戻らない）
+        for (const f of [1 - sStep, 1 + sStep]) {
+          probes.push({ x: b.x + (b.w * (1 - f)) / 2, y: b.y + (b.h * (1 - f)) / 2, w: b.w * f, h: b.h * f });
+        }
+        for (const q of probes) {
+          const c = scoreAt(q, ri);
+          if (c && c.score > best.score) { best = c; moved = true; }
+        }
+      }
+      step = Math.floor(step / 2);
+      sStep /= 2;
+    }
+    if (best.score >= o.minScore) labels.push(best);
+  });
+
+  // ★半透明の縁が残るので少し広げてからマスクへ渡す（制約③）
+  const occluders = labels.map((L) => {
+    const d = L.rect.h * o.dilateRatio;
+    return { x: L.rect.x - d, y: L.rect.y - d, w: L.rect.w + 2 * d, h: L.rect.h + 2 * d };
+  });
+  return { labels, occluders, reason: null };
 }
 
 // ─────────────────────────────────────────────────────────────

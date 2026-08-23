@@ -73,7 +73,7 @@
 | **`src/sim.js`** | コアエンジン。`class Sim`（`tick`/`burst`/`use`・減衰）＋探索（`cmpVec`, `_candidates`, `_stepStatic`, `_runRootPlan`, `_selectRootPrefixes`） |
 | `src/worker.js` | 背景並列計算の Worker エントリ（コアを import して並行実行） |
 | `src/app.js` | UI バインディング・Worker プール・リプレイモード・INIT |
-| **`transcribe/index.html`**<br>**`src/transcribe/`** | **Phase 9 T1＝録画転記ページ**（`canvas_detect.js` 正規化＋`diag.js` §10.5 診断＋`main.js` 配線）。⚠ **シム本体と非結線**＝golden に非干渉。回帰は `npm run test:t1` |
+| **`transcribe/index.html`**<br>**`src/transcribe/`** | **Phase 9 T1＝録画転記ページ**（`canvas_detect.js` 正規化＋`glyph.js` 文字照合＋**`verify.js` 検算**＋`diag.js` §10.5 診断＋`main.js` 配線）。⚠ **シム本体と非結線**＝golden に非干渉。回帰は `npm run test:t1`。<br>★**`verify.js`＝照合器の外に置いた安全網**（値域・`TOTAL` 突合）＝**マージンは安全網にならない**（実測）ので、誤読はここで止める |
 | **`tools/skills/`** | **スキルの実体**（Node 標準のみ・`tools/skills/lib/skill_util.mjs` が共通処理）。`npm run skill:invariants` / `skill:experiment` / `skill:handoff` / `skill:transcribe` |
 | **`gamedata/js/`** | **シムが読む現在値**（ESM）: `weapons.js`(`WEAPON_MASTER`) / `summons.js`(`SUMMON_REGISTRY`) / `enemies.js`(`ENEMY_REGISTRY`) / `characters.js`(`CHAR_REGISTRY`・`DEBUFF_KEYS`/`buffCount`) |
 | **`gamedata/md/`** | **一次情報**（`神姫/` `英霊/` `幻獣/` `敵/` `その他/`・各 README に用途）。**md=根拠 / js=現在値** |
@@ -168,7 +168,7 @@
 ```bash
 npm run test:golden      # 3 fixture を並列実行（--serial で逐次 / --fixture <name> で単体）
 npm run doc:check        # md 相互参照の検査（現役層の壊れた参照があれば exit 1）
-npm run test:t1          # Phase 9 T1 canvas 正規化のセルフテスト（合成フィクスチャ・1秒未満）
+npm run test:t1          # Phase 9 T1 のセルフテスト（362件・約15秒＝2026-08-23 実測）
 
 # ── スキル経由（検査＋実行＋差分報告をまとめて回す・実体は tools/skills/）──
 npm run skill:invariants -- --skip-golden   # 不変条件の静的検査8種 + test:t1（数秒）
@@ -201,6 +201,7 @@ npm run skill:negtest                       # 検査器の発火確認 13ケー�
 
 | 対象 | 実測 |
 |---|---|
+| `npm run test:t1` 全体 | **約15秒**（362件・2026-08-23 実測）。⚠ **「1秒未満」は誤記だった**＝[17] を足す前の時点で既に **13.1秒**（律速＝`charge_dots`/`dedup` の合成走と実データ回帰） |
 | `npm run test:golden` 全体 | **2分07秒**（並列・律速は edison/raw）／`--serial` で **4分07秒**。内訳＝edison ビーム ~43s×2 ＋ LS 計 ~161s、napoleon は瞬時 |
 | edison ビーム 1ルート | **43秒** |
 | napoleon configC（両面宿儺）ビーム 1ルート | **130〜138秒** |
@@ -268,6 +269,7 @@ npm run skill:negtest                       # 検査器の発火確認 13ケー�
 
 | 日付 | 変更点 | 波及確認 |
 |---|---|---|
+| 2026-08-23 | **Phase 9 P3-1b 実装＝読み取り＋検算**（[PHASE9_PLAN.md](./PHASE9_PLAN.md) §4 P3-1b）。`src/transcribe/verify.js` を新設（検算③値域・⑦`TOTAL` 突合）＋ `glyph.js` にラベル層（`teachLabel`/`labelBandAbove`/`detectLabels`）。実データ計測＝`tools/t1_verify_probe.mjs`（`measure()` を [17-9] と共用）。`test:t1` 337→**362件** | **`src/`（シム本体）・`gamedata/js/` 未変更＝golden 3/3 実行確認で不変**。T1 精度も不変（正80/誤6/曖昧15）。★★**実データで「偽の訂正」を発見**＝`+700` と `−700` が打ち消し合うと**合計は合うのに中身は誤ったまま一意に通る**。効いた唯一の手が**採用する深さより深く探す**（`searchSwaps > acceptSwaps`）で 偽の訂正 k=2/3/4 とも **0** へ。∴ **⑦ は合計の整合を証明するが1文字ずつは証明しない**。★副産物＝`fieldScale` が**小数の帯で NaN を返す**潜在バグと、`test:t1` の「1秒未満」が**実測 13.1秒**だった陳腐化を訂正 |
 | 2026-08-22 | **`skills-doctor` を追加しスキル運用を規律化**（[tools/skills/README.md](./tools/skills/README.md) §4 の **S1〜S10**）。①検査の根拠が規定に実在するか（＝規定先行の機械化）②**関門の緩み検出**（golden 期待値・`test:t1` [16-15]・T1 ベースライン／台帳 `guardrails.json`・変更は `--reason` 必須）③登録の5点整合 ④description 予算 ⑤未使用検出 ⑥`negative_tests.mjs` による**発火確認 13ケース** ⑦スモーク | ★**「文書だけでは止められない」ことの実証**＝初版は `stripJs` 取り違えで **export 漏れ検査と Worker 検査が常に ✅** を返していた（負のテストで発覚）。`src/`・`gamedata/js/` 未変更＝**golden 3/3 不変**。負のテスト 13/13・`doc:check` 現役層グリーン |
 | 2026-08-22 | **カスタムスキル4本を新設**（[tools/skills/README.md](./tools/skills/README.md)・定義は `.claude/skills/`）。①`check-engine-invariants`＝不変条件の静的検査8種＋golden＋test:t1 ②`run-sim-experiment`＝`exp_*.mjs` の実行と simNN 様式への転記 ③`sync-workspace-handoff`＝セッション末の差分収集と HANDOFF/TODO 同期 ④`verify-transcribe-pipeline`＝T1 精度のベースライン比較。`.gitignore` を `.claude/*` ＋ `!.claude/skills/` へ | **`src/`・`gamedata/js/` 未変更＝golden 3/3 不変**（202,005,923 / 215,161,915 / 299,523,354 を実行確認）。静的検査は**負のテストで5種の発火を確認**。`test:t1` 337件・`doc:check` 現役層グリーン。★副産物＝`doc_refs.mjs --write` で**既存の被参照ブロック4本の陳腐化**（`workspace/HANDOFF.md`・`workspace/TODO.md` が既に参照していない先が残存）を解消 |
 | 2026-08-14 | **本書の可読性リファクタ**（ユーザー指示）。②コード地図を表へ／③開発ルールの詳細（確定仕様17項目・転移可能性）を **[ENGINE_INVARIANTS.md](./ENGINE_INVARIANTS.md) へ分冊**し本書は**索引表＝触る前のチェックリスト**に／④検証方法の実測コスト表を圧縮／⑤較正ステータスの索引を整理（★＝本丸・情報ゼロ行を統合）。**22,450→16,535字**（起動時に必ず読む量が −26%） | **削除した情報は無い**（③は移設・②④⑤は重複と歴史記述の圧縮）。★**2世代前のゴールデン値（197,775,394 / 211,462,826）が3か所に残っていた**のを検出＝開発ルール §2・§4 と **PHASE8_PLAN.md 3か所**。すべて「検証方法」節への参照へ一本化（同じ値を2箇所に書かない）。REPO_STANDARDS E9 の参照先も更新。**`src/`・`gamedata/js/` 未変更＝golden 3/3 不変**・doc:check 現役層グリーン |

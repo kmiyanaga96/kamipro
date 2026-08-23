@@ -2223,6 +2223,152 @@ console.log('\n[16] グリフ照合（P3-1）＝縁取りで読む・遮蔽に�
     check('曖昧が 20件以下（「全部曖昧」にすれば誤読ゼロになってしまうのを防ぐ）',
       loto.ambiguous <= 20, JSON.stringify(loto));
   }
+
+// ═══════════════════════════════════════════════════════════════
+// [17] ★★★読み取り＋検算（Phase 9 P3-1b）
+// ═══════════════════════════════════════════════════════════════
+//   ★本節が守るもの＝**照合器の外に置いた安全網**。
+//   ⚠⚠ 設計前提（P3-1 実測）＝**マージンは安全網にならない**（margin 0.04→誤8 / 0.12→誤8）。
+//     ∴ 誤読を止めるのは `ambiguityMargin` ではなく**検算**＝ここが落ちたら止める側が無い。
+{
+  console.log('\n── [17] 読み取り＋検算（P3-1b）──');
+  const V = await import('../src/transcribe/verify.js');
+
+  // ── [17-1] 先頭ゼロは在りえない ────────────────────────────
+  check('先頭が 0 の多桁は棄却する（`0,044,101` は表示として在りえない）',
+    !V.checkNoLeadingZero('0,044,101').ok && !V.checkNoLeadingZero('05').ok);
+  check('単独の `0` は棄却しない（在りうる形まで潰さない）', V.checkNoLeadingZero('0').ok);
+
+  // ── [17-2] ★★値域は「シムの cap」ではなく構造から採る（C41 の再発防止）──
+  //   ⚠⚠ `DMG.betaia_cap = 800,000` は**較正対象そのもの**で、実機1ヒットは 206〜247万。
+  //     シムの cap を値域に使えば**正しい読みを片端から棄却する**（しかも「検算が通らない」顔で）。
+  check('★★実機で観測された 2,470,000（シムの betaia_cap 80万を超える）を棄却しない＝C41 の再発防止',
+    V.checkValueRange(2_470_000).ok, JSON.stringify(V.checkValueRange(2_470_000)));
+  check('敵の全 HP 相当（9.8億）を超える値は棄却する＝桁を1つ多く読んだ疑い',
+    !V.checkValueRange(1_200_000_000).ok);
+  check('参考帯の外は**知らせるだけで棄却しない**（corpus は「在りうる値」を定義しない）',
+    V.checkValueRange(120_000).ok && V.checkValueRange(120_000).unusual);
+
+  // ── [17-3] 検算⑦の判定（合計が合うか・不足は取りこぼしか）────
+  check('合計が一致すれば通る', V.checkTotal([600_000, 601_000], 1_201_000).ok);
+  {
+    const t = V.checkTotal([600_000, 601_000], 1_801_000);
+    check('★不足が「1ヒットとして在りうる大きさ」なら取りこぼしを疑う',
+      !t.ok && t.missingHitLikely && t.residual === 600_000, JSON.stringify(t));
+    const u = V.checkTotal([600_000, 601_000], 1_201_002);
+    check('★食い違いが小さすぎる（1ヒットに満たない）なら誤読を疑う',
+      !u.ok && !u.missingHitLikely && u.residual === 2, JSON.stringify(u));
+  }
+
+  // ── [17-4] ★★検算⑦の本体＝残差から誤読を逆算して直す ────────
+  //   ⚠ 全列挙（3^21）は成立しないので、**残差に一致する差し替えだけを直接引き当てる**。
+  const tok = (key, alt) => ({ key, score: 0.6, accepted: true, ambiguous: false,
+    candidates: [{ key, score: 0.6 }, ...(alt ? [{ key: alt, score: 0.55 }] : [])] });
+  const rowOf = (read, alts = {}) => ({ tokens: [...read].map((c, i) => tok(c, alts[i])) });
+  {
+    // 真 5,044,101 ＋ 4,968,966 を、1文字目のあとの `0` を `8` と読み違えた状態から直す
+    const rows = [rowOf('5844101', { 1: '0' }), rowOf('4968966')];
+    const total = 5_044_101 + 4_968_966;
+    const rec = V.reconcileWithTotal(rows, total);
+    check('★★残差から誤読を1文字特定して直せる（候補の中に真値がある場合）',
+      rec.ok && rec.solutions[0].rows[0].text === '5044101',
+      JSON.stringify({ ok: rec.ok, got: rec.solutions[0]?.rows.map((r) => r.text) }));
+  }
+  {
+    const rows = [rowOf('5044101'), rowOf('4968966')];
+    const rec = V.reconcileWithTotal(rows, 5_044_101 + 4_968_966);
+    check('合っている読みには手を触れない（残差 0 なら差し替え無しで通す）',
+      rec.ok && rec.solutions[0].swaps.length === 0 && rec.baseline.residual === 0);
+  }
+  {
+    // ★取りこぼし（ヒットが1つ足りない）は「直せない」と言う＝でっちあげない
+    const rows = [rowOf('5044101')];
+    const rec = V.reconcileWithTotal(rows, 5_044_101 + 4_968_966);
+    check('★ヒットの取りこぼしは差し替えでは説明できない＝「直せない」と言う',
+      !rec.ok && /説明できない|取りこぼし/.test(rec.reason), rec.reason);
+  }
+
+  // ── [17-5] ★★★打ち消し合いを「一意に直せた」と言わない（実データで見つけた事故）──
+  //   実データの機構（`tools/t1_verify_probe.mjs` が観測）:
+  //     真 4957011 + 5553703 ／ 読 4957711 + 5553005
+  //     ＝ **+700 と −700 が打ち消し合い**、残差には残りの誤り（+2）しか出ない。
+  //   ∴ 「残差 −2 を1文字で説明する」直し方が**一意に**見つかり、**合計は合うのに中身は誤ったまま**通る。
+  //   ★★これを止めるのが「**採用より深く探す**」（`searchSwaps > acceptSwaps`）。
+  {
+    const rows = [rowOf('4957711', { 4: '0' }), rowOf('5553005', { 4: '7', 6: '3' })];
+    const total = 4_957_011 + 5_553_703;
+    const rec = V.reconcileWithTotal(rows, total);
+    check('★★★打ち消し合った誤読を「一意に直せた」と言わない（合計だけ合う偽の訂正を出さない）',
+      !rec.ok, JSON.stringify({ ok: rec.ok, reason: rec.reason,
+        got: rec.solutions.map((s) => s.rows.map((r) => r.text).join('+')) }));
+    const shallow = V.reconcileWithTotal(rows, total, { acceptSwaps: 1, searchSwaps: 1 });
+    check('★★深く探さなければ、まさにその偽の訂正が通ってしまう（＝この関門が効いている証拠）',
+      shallow.ok && shallow.solutions[0].rows.map((r) => r.text).join('+') !== '4957011+5553703',
+      JSON.stringify({ ok: shallow.ok, got: shallow.solutions[0]?.rows.map((r) => r.text) }));
+  }
+
+  // ── [17-6] ラベルは**未登録なら検出しない**（数字と同じ関門）─────
+  {
+    const img = makeImage(200, 60, DARK);
+    const edge = fieldOf(img);
+    const d = G.detectLabels(edge, [{ from: 30, to: 50 }], { labels: {} });
+    check('★ラベルのテンプレが無いうちは検出しない（推測テンプレで動かさない）',
+      d.labels.length === 0 && /未登録/.test(d.reason ?? ''), d.reason);
+  }
+
+  // ── [17-7] ラベルを探す帯は「数値行の真上」（幾何・ユーザー確定情報）──
+  {
+    const b = G.labelBandAbove({ from: 100, to: 140 }, { w: 400, h: 300 });
+    check('帯は数値行の**上**にあり、行に食い込まない', b.to <= 100 && b.from < b.to, JSON.stringify(b));
+    const top = G.labelBandAbove({ from: 5, to: 45 }, { w: 400, h: 300 });
+    check('ROI の上端でも負の座標を作らない', top.from >= 0 && top.to >= 0, JSON.stringify(top));
+  }
+
+  // ── [17-8] ★教えたラベルを、上の帯から見つけてマスク矩形にする（機構）──
+  //   ⚠ **これは機構の検査であって「実機のラベルを読めるか」ではない**
+  //     （本 Phase で合成が実機を裏切った型が3つ＝[16-15] の注記）。実データ確認は👤教示待ち。
+  //   ⚠ ラベルの代役は**小さく描いた文字列**にする＝一様な塗り矩形は**内側にエッジが立たない**ので
+  //     行の射影に山が出ず、候補にすら上がらない（実際に一度そう書いて落ちた）。実機のラベルは文字。
+  {
+    const img = makeImage(420, 120, DARK);
+    drawText(img, 10, 70, '6,012,442');                    // 数値行
+    drawText(img, 40, 30, '707', { s: 2 });                // ★ラベルの代役（小さい文字列）
+    const edge = fieldOf(img);
+    const lbox = { x: 40 - 2, y: 30 - 2, w: 2 * 8 * 2 + 5 * 2 + 4, h: 7 * 2 + 4 };
+    const taught = G.teachLabel(edge, lbox, 'STING!');
+    const atlasL = { labels: { 'STING!': { aspect: taught.aspect, variants: [taught.sig] } } };
+    const rows = G.segmentRows(edge).rows.filter((r) => r.from > 60);
+    const d = G.detectLabels(edge, rows, atlasL);
+    check('★教えたラベルを、数値行の上の帯から見つける', d.labels.length === 1 && d.labels[0].key === 'STING!',
+      JSON.stringify({ n: d.labels.length, best: d.labels[0]?.score?.toFixed(3), rows: rows.length }));
+    check('見つけた位置は教えた位置の近く（当てずっぽうに拾っていない）',
+      d.labels.length === 1 && Math.abs(d.labels[0].rect.x - lbox.x) <= 12
+        && Math.abs(d.labels[0].rect.y - lbox.y) <= 12,
+      JSON.stringify(d.labels[0]?.rect));
+    check('★マスク用の矩形は教えた箱より**広い**（半透明の縁が数字側に残るため＝制約③）',
+      d.occluders.length === 1 && d.occluders[0].w > d.labels[0].rect.w && d.occluders[0].h > d.labels[0].rect.h,
+      JSON.stringify(d.occluders[0]));
+  }
+
+  // ── [17-9] ★★★実データ回帰＝検算⑦が実際の誤読に効くか ────────
+  //   ⚠ 実データ＝グリフの署名と誤読の起き方（101点・14回）。**束ね方と TOTAL はこちらで組み立てる**
+  //     （k 枚を1押下と見なし TOTAL＝真値の和）＝答えるのは「同じ誤読に TOTAL を与えたら直るか」。
+  //   測定条件: `tools/t1_verify_probe.mjs`（採用 ≤2 / 探索 ≤3・k=2,3 の**全束**）・2026-08-23。
+  {
+    const m = await import('./t1_verify_probe.mjs');
+    const r = m.measure({ ks: [2, 3] });
+    const k2 = r.results.find((x) => x.k === 2), k3 = r.results.find((x) => x.k === 3);
+    check('元データが台帳どおり（14枚・101文字・完全に読めた 11枚）',
+      r.base.crops === 14 && r.base.glyphs === 101 && r.base.cropsExact === 11, JSON.stringify(r.base));
+    check('★★★偽の訂正が 0（TOTAL に一意一致したのに真値と違う＝静かに較正を汚す唯一の型）',
+      k2.falseFix === 0 && k3.falseFix === 0, JSON.stringify({ k2: k2.falseFix, k3: k3.falseFix }));
+    check('★★誤読を含む束を 100% 検出する（残差≠0 で人に知らせられる）',
+      k2.detected === k2.dirty && k3.detected === k3.dirty && k2.silent === 0 && k3.silent === 0,
+      JSON.stringify({ k2, k3 }));
+    check('★訂正の歩留まりが落ちていない（k=2 で 6件以上を一意に直す＝2026-08-23 の実測）',
+      k2.fixed >= 6, JSON.stringify({ fixed: k2.fixed, dirty: k2.dirty }));
+  }
+}
 }
 console.log('\n' + '='.repeat(60));
 console.log(`結果: ${pass} passed / ${fail} failed`);
